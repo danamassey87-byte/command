@@ -90,3 +90,16 @@
 .ctx-sidebar__label {
   white-space: nowrap;
 }
+
+.ctx-sidebar__group-label {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding: var(--space-sm) var(--space-md) 4px;
+  margin-top: var(--space-sm);
+  opacity: 0.7;
+}

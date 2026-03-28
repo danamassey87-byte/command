@@ -607,6 +607,12 @@ export default function Dashboard() {
           <StatCard label="YTD Income"        value={fmtDollar(kpis.ytdIncome)}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>}
           />
+          <StatCard label="YTD Expenses"      value={fmtDollar(kpis.ytdExpenses)}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>}
+          />
+          <StatCard label="Net Profit"         value={fmtDollar(kpis.ytdNetProfit)}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>}
+          />
         </>)}
       </div>
 

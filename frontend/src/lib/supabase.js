@@ -36,10 +36,14 @@ export async function ensureProperty({ address, city = null, zip = null, mls_id 
 export const createProperty  = (d)   => query(supabase.from('properties').insert(d).select().single())
 export const updateProperty  = (id, d) => query(supabase.from('properties').update(d).eq('id', id).select().single())
 
+/** Get properties with all detail fields for content/marketing use */
+export const getPropertiesForContent = () =>
+  query(supabase.from('properties').select('*').order('address'))
+
 // ─── Listings ────────────────────────────────────────────────────────────────
 export const getListings = () =>
   query(supabase.from('listings').select(`
-    *, contact:contacts(id,name,email,phone), property:properties(id,address,city,zip,price,mls_id,dom)
+    *, contact:contacts(id,name,email,phone), property:properties(*)
   `).order('created_at', { ascending: false }))
 
 export const createListing  = (d)      => query(supabase.from('listings').insert(d).select().single())
@@ -283,6 +287,68 @@ export const updateClientAvatar = (id, d) =>
 export const deleteClientAvatar = (id) =>
   query(supabase.from('client_avatars').delete().eq('id', id))
 
+// ─── Expense Categories ──────────────────────────────────────────────────────
+export const getExpenseCategories = (type) =>
+  query(supabase.from('expense_categories').select('*')
+    .eq('type', type).eq('is_active', true).order('sort_order'))
+
+// ─── Expenses ────────────────────────────────────────────────────────────────
+export const getExpenses = (from, to) =>
+  query(supabase.from('expenses').select(`
+    *, category:expense_categories(id,name,tax_line)
+  `).gte('date', from).lte('date', to).order('date', { ascending: false }))
+
+export const getAllExpenses = () =>
+  query(supabase.from('expenses').select(`
+    *, category:expense_categories(id,name,tax_line)
+  `).order('date', { ascending: false }))
+
+export const createExpense  = (d)      => query(supabase.from('expenses').insert(d).select().single())
+export const updateExpense  = (id, d)  => query(supabase.from('expenses').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+export const deleteExpense  = (id)     => query(supabase.from('expenses').delete().eq('id', id))
+
+export const createExpenseBatch = (rows) => query(supabase.from('expenses').insert(rows).select())
+
+// ─── Income Entries ──────────────────────────────────────────────────────────
+export const getIncomeEntries = (from, to) =>
+  query(supabase.from('income_entries').select(`
+    *, category:expense_categories(id,name)
+  `).gte('date', from).lte('date', to).order('date', { ascending: false }))
+
+export const getAllIncomeEntries = () =>
+  query(supabase.from('income_entries').select(`
+    *, category:expense_categories(id,name)
+  `).order('date', { ascending: false }))
+
+export const createIncomeEntry  = (d)      => query(supabase.from('income_entries').insert(d).select().single())
+export const updateIncomeEntry  = (id, d)  => query(supabase.from('income_entries').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+export const deleteIncomeEntry  = (id)     => query(supabase.from('income_entries').delete().eq('id', id))
+
+// ─── Mileage Log ─────────────────────────────────────────────────────────────
+export const getMileageLog = (from, to) =>
+  query(supabase.from('mileage_log').select(`
+    *, property:properties(id,address,city)
+  `).gte('date', from).lte('date', to).order('date', { ascending: false }))
+
+export const createMileageEntry  = (d)      => query(supabase.from('mileage_log').insert(d).select().single())
+export const updateMileageEntry  = (id, d)  => query(supabase.from('mileage_log').update(d).eq('id', id).select().single())
+export const deleteMileageEntry  = (id)     => query(supabase.from('mileage_log').delete().eq('id', id))
+export const createMileageBatch  = (rows)   => query(supabase.from('mileage_log').insert(rows).select())
+
+/** Get showing sessions that don't already have mileage logged */
+export async function getUnloggedShowings(from, to) {
+  const { data: logged } = await supabase.from('mileage_log')
+    .select('source_id').eq('source', 'showing').not('source_id', 'is', null)
+  const loggedIds = new Set((logged ?? []).map(r => r.source_id))
+
+  const sessions = await getShowingSessions()
+  return (sessions ?? []).filter(s => {
+    if (!s.date || s.date < from || s.date > to) return false
+    if (loggedIds.has(s.id)) return false
+    return (s.showings ?? []).some(sh => sh.property?.address)
+  })
+}
+
 // ─── User / Content Settings ──────────────────────────────────────────────────
 export const getContentSettings = () =>
   query(supabase.from('user_settings').select('*').eq('key', 'content_settings').single())
@@ -290,3 +356,30 @@ export const updateContentSettings = (value) =>
   query(supabase.from('user_settings')
     .upsert({ key: 'content_settings', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
     .select().single())
+
+// ─── Brand Profile ───────────────────────────────────────────────────────────
+export const getBrandProfile = () =>
+  query(supabase.from('user_settings').select('*').eq('key', 'brand_profile').single())
+
+export const updateBrandProfile = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'brand_profile', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())
+
+// ─── Brand Asset Upload (Supabase Storage) ───────────────────────────────────
+export async function uploadBrandAsset(file, folder = 'general') {
+  const ext = file.name.split('.').pop()
+  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const { error } = await supabase.storage.from('brand-assets').upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+  })
+  if (error) throw new Error(error.message)
+  const { data: { publicUrl } } = supabase.storage.from('brand-assets').getPublicUrl(path)
+  return { path, publicUrl }
+}
+
+export async function deleteBrandAsset(path) {
+  const { error } = await supabase.storage.from('brand-assets').remove([path])
+  if (error) throw new Error(error.message)
+}

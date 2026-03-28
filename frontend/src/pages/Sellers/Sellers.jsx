@@ -46,7 +46,7 @@ const phaseLabels = {
   relaunch: { label: 'Relaunch',    color: '#6a9e72' },
 }
 
-const STATUS_OPTIONS = ['active', 'pending', 'closed', 'expired', 'relaunching']
+const STATUS_OPTIONS = ['lead', 'active', 'pending', 'closed', 'expired', 'relaunching']
 const TYPE_OPTIONS   = ['new', 'expired']
 
 const CASH_OFFER_STATUSES = [
@@ -96,7 +96,22 @@ const CONDITION_OPTIONS = [
 ]
 
 const statusVariant = {
-  active: 'success', relaunching: 'warning', expired: 'danger', pending: 'info', closed: 'default',
+  lead: 'default', active: 'success', relaunching: 'warning', expired: 'danger', pending: 'info', closed: 'default',
+}
+
+// ─── Agreement expiration helpers ─────────────────────────────────────────────
+function getAgreementStatus(expiresDate) {
+  if (!expiresDate) return null
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  const exp = new Date(expiresDate)
+  exp.setHours(0, 0, 0, 0)
+  const daysLeft = Math.ceil((exp - now) / (1000 * 60 * 60 * 24))
+  if (daysLeft < 0)  return { label: 'Expired', variant: 'danger', days: daysLeft }
+  if (daysLeft === 0) return { label: 'Expires today', variant: 'danger', days: 0 }
+  if (daysLeft <= 14) return { label: `${daysLeft}d left`, variant: 'warning', days: daysLeft }
+  if (daysLeft <= 30) return { label: `${daysLeft}d left`, variant: 'info', days: daysLeft }
+  return { label: `${daysLeft}d`, variant: 'default', days: daysLeft }
 }
 
 const cashOfferVariant = {
@@ -105,11 +120,12 @@ const cashOfferVariant = {
 
 // ─── Map Supabase listing row → local shape ───────────────────────────────────
 function mapListing(row) {
+  const p = row.property ?? {}
   return {
     id:           row.id,
-    address:      row.property?.address ?? '',
-    city:         row.property?.city    ?? '',
-    zip:          row.property?.zip     ?? '',
+    address:      p.address ?? '',
+    city:         p.city    ?? '',
+    zip:          p.zip     ?? '',
     listPrice:    row.list_price ? `$${Number(row.list_price).toLocaleString()}` : '—',
     listPriceRaw: row.list_price ?? '',
     listDate:     row.list_date  ?? '',
@@ -135,11 +151,67 @@ function mapListing(row) {
     property_condition:       row.property_condition ?? 'move_in_ready',
     commission_rate:          row.commission_rate ?? '',
     listing_agreement_signed: row.listing_agreement_signed ?? false,
+    agreement_signed_date:    row.agreement_signed_date ?? '',
+    agreement_expires_date:   row.agreement_expires_date ?? '',
     pre_inspection_done:      row.pre_inspection_done ?? false,
     home_warranty_offered:    row.home_warranty_offered ?? false,
+    // Property details (from properties table)
+    bedrooms:         p.bedrooms ?? '',
+    bathrooms:        p.bathrooms ?? '',
+    sqft:             p.sqft ?? '',
+    property_type:    p.property_type ?? '',
+    year_built:       p.year_built ?? '',
+    lot_sqft:         p.lot_sqft ?? '',
+    lot_acres:        p.lot_acres ?? '',
+    garage_spaces:    p.garage_spaces ?? '',
+    stories:          p.stories ?? '1',
+    pool:             p.pool ?? false,
+    spa:              p.spa ?? false,
+    hoa_monthly:      p.hoa_monthly ?? '',
+    mls_id:           p.mls_id ?? '',
+    subdivision:      p.subdivision ?? '',
+    school_district:  p.school_district ?? '',
+    elementary_school: p.elementary_school ?? '',
+    middle_school:    p.middle_school ?? '',
+    high_school:      p.high_school ?? '',
+    construction:     p.construction ?? '',
+    roof_type:        p.roof_type ?? '',
+    cooling:          p.cooling ?? '',
+    heating:          p.heating ?? '',
+    flooring:         p.flooring ?? '',
+    parking:          p.parking ?? '',
+    landscaping:      p.landscaping ?? '',
+    features:         p.features ?? [],
+    tax_amount:       p.tax_amount ?? '',
+    tax_year:         p.tax_year ?? '',
+    apn:              p.apn ?? '',
+    description:      p.description ?? '',
+    marketing_remarks: p.marketing_remarks ?? '',
+    agent_notes:      p.agent_notes ?? '',
+    virtual_tour_url: p.virtual_tour_url ?? '',
+    image_url:        p.image_url ?? '',
   }
 }
 
+
+// ─── Property Detail Options ───
+const PROPERTY_TYPES = ['Single Family', 'Townhouse', 'Condo', 'Multi-Family', 'Mobile Home', 'Land', 'Commercial']
+const CONSTRUCTION_TYPES = ['Stucco', 'Block', 'Frame', 'Brick', 'Adobe', 'Stone', 'Other']
+const ROOF_TYPES = ['Tile', 'Shingle', 'Flat/Built-Up', 'Metal', 'Foam', 'Other']
+const COOLING_TYPES = ['Central A/C', 'Evaporative', 'Mini Split', 'None']
+const HEATING_TYPES = ['Forced Air', 'Heat Pump', 'Electric', 'None']
+const COMMON_FEATURES = [
+  'Granite Counters', 'Quartz Counters', 'Stainless Appliances', 'Kitchen Island',
+  'Open Floor Plan', 'Vaulted Ceilings', 'Fireplace', 'Primary Suite',
+  'Walk-In Closet', 'Dual Sinks', 'Separate Tub/Shower', 'Ceiling Fans',
+  'Covered Patio', 'Extended Patio', 'Built-In BBQ', 'Outdoor Kitchen',
+  'RV Gate', 'Solar Panels', 'Solar Owned', 'Solar Leased',
+  'Smart Home', 'Security System', 'Water Softener', 'Reverse Osmosis',
+  'Epoxy Garage', 'Workshop', 'Guest House / Casita', 'Separate Guest Quarters',
+  'Sparkling Pool', 'Heated Pool', 'Spa', 'Putting Green',
+  'Community Pool', 'HOA Amenities', 'Tennis Courts', 'Playground',
+  'Mountain Views', 'Golf Course Views', 'City/Light Views', 'No HOA',
+]
 
 // ─── Seller / Listing Form ────────────────────────────────────────────────────
 function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
@@ -151,7 +223,7 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
     listPrice:    listing?.listPriceRaw  ?? '',
     listDate:     listing?.listDate      ?? '',
     type:         listing?.type          ?? 'new',
-    status:       listing?.status        ?? 'active',
+    status:       listing?.status        ?? 'lead',
     dom:          listing?.dom           ?? '',
     offers:       listing?.offers        ?? '',
     seller_name:  listing?.contact_name  ?? '',
@@ -169,10 +241,48 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
     property_condition:       listing?.property_condition ?? 'move_in_ready',
     commission_rate:          listing?.commission_rate ?? '',
     listing_agreement_signed: listing?.listing_agreement_signed ?? false,
+    agreement_signed_date:    listing?.agreement_signed_date ?? '',
+    agreement_expires_date:   listing?.agreement_expires_date ?? '',
     pre_inspection_done:      listing?.pre_inspection_done ?? false,
     home_warranty_offered:    listing?.home_warranty_offered ?? false,
+    // Property details
+    bedrooms:        listing?.bedrooms         ?? '',
+    bathrooms:       listing?.bathrooms        ?? '',
+    sqft:            listing?.sqft             ?? '',
+    property_type:   listing?.property_type    ?? '',
+    year_built:      listing?.year_built       ?? '',
+    lot_sqft:        listing?.lot_sqft         ?? '',
+    lot_acres:       listing?.lot_acres        ?? '',
+    garage_spaces:   listing?.garage_spaces    ?? '',
+    stories:         listing?.stories          ?? '1',
+    pool:            listing?.pool             ?? false,
+    spa:             listing?.spa              ?? false,
+    hoa_monthly:     listing?.hoa_monthly      ?? '',
+    mls_id:          listing?.mls_id           ?? '',
+    subdivision:     listing?.subdivision      ?? '',
+    school_district: listing?.school_district  ?? '',
+    elementary_school: listing?.elementary_school ?? '',
+    middle_school:   listing?.middle_school    ?? '',
+    high_school:     listing?.high_school      ?? '',
+    construction:    listing?.construction     ?? '',
+    roof_type:       listing?.roof_type        ?? '',
+    cooling:         listing?.cooling          ?? '',
+    heating:         listing?.heating          ?? '',
+    flooring:        listing?.flooring         ?? '',
+    parking:         listing?.parking          ?? '',
+    landscaping:     listing?.landscaping      ?? '',
+    features:        listing?.features         ?? [],
+    tax_amount:      listing?.tax_amount       ?? '',
+    tax_year:        listing?.tax_year         ?? '',
+    apn:             listing?.apn              ?? '',
+    description:     listing?.description      ?? '',
+    marketing_remarks: listing?.marketing_remarks ?? '',
+    agent_notes:     listing?.agent_notes      ?? '',
+    virtual_tour_url: listing?.virtual_tour_url ?? '',
+    image_url:       listing?.image_url        ?? '',
   })
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
+  const [showDetails, setShowDetails] = useState(false)
 
   const handleSave = () => onSave(draft)
 
@@ -194,13 +304,133 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
             {TYPE_OPTIONS.map(t => <option key={t} value={t}>{t === 'new' ? 'New Listing' : 'Expired'}</option>)}
           </Select>
           <Select label="Status" value={draft.status} onChange={e => set('status', e.target.value)}>
-            {STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
+            {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s === 'lead' ? 'Lead (Not Signed)' : s}</option>)}
           </Select>
         </div>
         <div className="panel-row">
           <Input label="DOM" type="number" min="0" value={draft.dom} onChange={e => set('dom', e.target.value)} placeholder="0" />
           <Input label="Offers Received" type="number" min="0" value={draft.offers} onChange={e => set('offers', e.target.value)} placeholder="0" />
         </div>
+      </div>
+
+      <hr className="panel-divider" />
+      <div className="panel-section">
+        <button
+          type="button"
+          className="panel-section-toggle"
+          onClick={() => setShowDetails(!showDetails)}
+        >
+          <p className="panel-section-label" style={{ margin: 0 }}>Property Details</p>
+          <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{showDetails ? '▾ Collapse' : '▸ Expand'}</span>
+        </button>
+
+        {showDetails && (
+          <>
+            <div className="panel-row">
+              <Input label="Beds" type="number" min="0" value={draft.bedrooms} onChange={e => set('bedrooms', e.target.value)} placeholder="4" />
+              <Input label="Baths" type="number" min="0" step="0.5" value={draft.bathrooms} onChange={e => set('bathrooms', e.target.value)} placeholder="2.5" />
+              <Input label="Sqft" type="number" min="0" value={draft.sqft} onChange={e => set('sqft', e.target.value)} placeholder="2,100" />
+            </div>
+            <div className="panel-row">
+              <Select label="Property Type" value={draft.property_type} onChange={e => set('property_type', e.target.value)}>
+                <option value="">—</option>
+                {PROPERTY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
+              <Input label="Year Built" type="number" value={draft.year_built} onChange={e => set('year_built', e.target.value)} placeholder="2005" />
+            </div>
+            <div className="panel-row">
+              <Input label="Lot (sqft)" type="number" value={draft.lot_sqft} onChange={e => set('lot_sqft', e.target.value)} placeholder="7,200" />
+              <Input label="Lot (acres)" type="number" step="0.01" value={draft.lot_acres} onChange={e => set('lot_acres', e.target.value)} placeholder="0.17" />
+            </div>
+            <div className="panel-row">
+              <Input label="Garage Spaces" type="number" min="0" value={draft.garage_spaces} onChange={e => set('garage_spaces', e.target.value)} placeholder="2" />
+              <Input label="Stories" type="number" min="1" value={draft.stories} onChange={e => set('stories', e.target.value)} placeholder="1" />
+            </div>
+            <div className="panel-row">
+              <Input label="MLS #" value={draft.mls_id} onChange={e => set('mls_id', e.target.value)} placeholder="6789012" />
+              <Input label="HOA ($/mo)" type="number" min="0" value={draft.hoa_monthly} onChange={e => set('hoa_monthly', e.target.value)} placeholder="0" />
+            </div>
+            <div className="seller-checkboxes">
+              <label className="buyer-checkbox-label">
+                <input type="checkbox" checked={draft.pool} onChange={e => set('pool', e.target.checked)} />
+                Pool
+              </label>
+              <label className="buyer-checkbox-label">
+                <input type="checkbox" checked={draft.spa} onChange={e => set('spa', e.target.checked)} />
+                Spa
+              </label>
+            </div>
+
+            <hr className="panel-divider" />
+            <p className="panel-section-label">Construction & Systems</p>
+            <div className="panel-row">
+              <Select label="Construction" value={draft.construction} onChange={e => set('construction', e.target.value)}>
+                <option value="">—</option>
+                {CONSTRUCTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
+              <Select label="Roof" value={draft.roof_type} onChange={e => set('roof_type', e.target.value)}>
+                <option value="">—</option>
+                {ROOF_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
+            </div>
+            <div className="panel-row">
+              <Select label="Cooling" value={draft.cooling} onChange={e => set('cooling', e.target.value)}>
+                <option value="">—</option>
+                {COOLING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
+              <Select label="Heating" value={draft.heating} onChange={e => set('heating', e.target.value)}>
+                <option value="">—</option>
+                {HEATING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
+            </div>
+            <Input label="Flooring" value={draft.flooring} onChange={e => set('flooring', e.target.value)} placeholder="Tile, Wood, Carpet" />
+            <Input label="Parking" value={draft.parking} onChange={e => set('parking', e.target.value)} placeholder="2 Car Garage + RV Gate" />
+            <Input label="Landscaping" value={draft.landscaping} onChange={e => set('landscaping', e.target.value)} placeholder="Desert Front, Grass Back" />
+
+            <hr className="panel-divider" />
+            <p className="panel-section-label">Location</p>
+            <Input label="Subdivision" value={draft.subdivision} onChange={e => set('subdivision', e.target.value)} placeholder="Power Ranch" />
+            <Input label="School District" value={draft.school_district} onChange={e => set('school_district', e.target.value)} placeholder="Gilbert Unified" />
+            <div className="panel-row">
+              <Input label="Elementary" value={draft.elementary_school} onChange={e => set('elementary_school', e.target.value)} />
+              <Input label="Middle" value={draft.middle_school} onChange={e => set('middle_school', e.target.value)} />
+            </div>
+            <Input label="High School" value={draft.high_school} onChange={e => set('high_school', e.target.value)} />
+
+            <hr className="panel-divider" />
+            <p className="panel-section-label">Tax & ID</p>
+            <div className="panel-row">
+              <Input label="Tax Amount (annual)" type="number" value={draft.tax_amount} onChange={e => set('tax_amount', e.target.value)} placeholder="2,400" />
+              <Input label="Tax Year" type="number" value={draft.tax_year} onChange={e => set('tax_year', e.target.value)} placeholder="2025" />
+            </div>
+            <Input label="APN (Parcel #)" value={draft.apn} onChange={e => set('apn', e.target.value)} placeholder="304-12-345" />
+
+            <hr className="panel-divider" />
+            <p className="panel-section-label">Features</p>
+            <div className="seller-features-grid">
+              {COMMON_FEATURES.map(feat => (
+                <label key={feat} className="buyer-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={(draft.features || []).includes(feat)}
+                    onChange={e => {
+                      const current = draft.features || []
+                      set('features', e.target.checked ? [...current, feat] : current.filter(f => f !== feat))
+                    }}
+                  />
+                  {feat}
+                </label>
+              ))}
+            </div>
+
+            <hr className="panel-divider" />
+            <p className="panel-section-label">Descriptions</p>
+            <Textarea label="MLS Description" rows={3} value={draft.description} onChange={e => set('description', e.target.value)} placeholder="Property description for MLS..." />
+            <Textarea label="Marketing Remarks" rows={3} value={draft.marketing_remarks} onChange={e => set('marketing_remarks', e.target.value)} placeholder="Public-facing marketing copy..." />
+            <Input label="Virtual Tour URL" value={draft.virtual_tour_url} onChange={e => set('virtual_tour_url', e.target.value)} placeholder="https://..." />
+            <Textarea label="Agent Notes (internal)" rows={2} value={draft.agent_notes} onChange={e => set('agent_notes', e.target.value)} placeholder="Notes not shown to clients..." />
+          </>
+        )}
       </div>
 
       <hr className="panel-divider" />
@@ -246,11 +476,21 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
           </Select>
           <Input label="Commission (%)" type="number" step="0.1" min="0" max="10" value={draft.commission_rate} onChange={e => set('commission_rate', e.target.value)} placeholder="3.0" />
         </div>
-        <div className="seller-checkboxes">
-          <label className="buyer-checkbox-label">
-            <input type="checkbox" checked={draft.listing_agreement_signed} onChange={e => set('listing_agreement_signed', e.target.checked)} />
-            Listing Agreement Signed
-          </label>
+        <hr className="panel-divider" />
+        <p className="panel-section-label">Listing Agreement</p>
+        <div className="panel-row">
+          <Input label="Agreement Signed" type="date" value={draft.agreement_signed_date} onChange={e => { set('agreement_signed_date', e.target.value); if (e.target.value) set('listing_agreement_signed', true); else set('listing_agreement_signed', false) }} />
+          <Input label="Agreement Expires" type="date" value={draft.agreement_expires_date} onChange={e => set('agreement_expires_date', e.target.value)} />
+        </div>
+        {draft.agreement_expires_date && (() => {
+          const agr = getAgreementStatus(draft.agreement_expires_date)
+          return agr ? (
+            <div style={{ marginTop: 4 }}>
+              <Badge variant={agr.variant} size="sm">{agr.label}</Badge>
+            </div>
+          ) : null
+        })()}
+        <div className="seller-checkboxes" style={{ marginTop: 'var(--space-sm)' }}>
           <label className="buyer-checkbox-label">
             <input type="checkbox" checked={draft.pre_inspection_done} onChange={e => set('pre_inspection_done', e.target.checked)} />
             Pre-Listing Inspection Done
@@ -432,7 +672,50 @@ export default function Sellers() {
     setSaving(true)
     setError(null)
     try {
-      const property_id = await DB.ensureProperty({ address: draft.address, city: draft.city, zip: draft.zip })
+      const property_id = await DB.ensureProperty({ address: draft.address, city: draft.city, zip: draft.zip, mls_id: draft.mls_id || null, price: draft.listPrice || null })
+
+      // Update property with full details
+      const propertyDetails = {}
+      if (draft.bedrooms)       propertyDetails.bedrooms = Number(draft.bedrooms)
+      if (draft.bathrooms)      propertyDetails.bathrooms = Number(draft.bathrooms)
+      if (draft.sqft)           propertyDetails.sqft = Number(draft.sqft)
+      if (draft.property_type)  propertyDetails.property_type = draft.property_type
+      if (draft.year_built)     propertyDetails.year_built = Number(draft.year_built)
+      if (draft.lot_sqft)       propertyDetails.lot_sqft = Number(draft.lot_sqft)
+      if (draft.lot_acres)      propertyDetails.lot_acres = Number(draft.lot_acres)
+      if (draft.garage_spaces !== '') propertyDetails.garage_spaces = Number(draft.garage_spaces)
+      if (draft.stories)        propertyDetails.stories = Number(draft.stories)
+      propertyDetails.pool = draft.pool
+      propertyDetails.spa = draft.spa
+      if (draft.hoa_monthly)    propertyDetails.hoa_monthly = Number(draft.hoa_monthly)
+      if (draft.mls_id)         propertyDetails.mls_id = draft.mls_id
+      if (draft.subdivision)    propertyDetails.subdivision = draft.subdivision
+      if (draft.school_district) propertyDetails.school_district = draft.school_district
+      if (draft.elementary_school) propertyDetails.elementary_school = draft.elementary_school
+      if (draft.middle_school)  propertyDetails.middle_school = draft.middle_school
+      if (draft.high_school)    propertyDetails.high_school = draft.high_school
+      if (draft.construction)   propertyDetails.construction = draft.construction
+      if (draft.roof_type)      propertyDetails.roof_type = draft.roof_type
+      if (draft.cooling)        propertyDetails.cooling = draft.cooling
+      if (draft.heating)        propertyDetails.heating = draft.heating
+      if (draft.flooring)       propertyDetails.flooring = draft.flooring
+      if (draft.parking)        propertyDetails.parking = draft.parking
+      if (draft.landscaping)    propertyDetails.landscaping = draft.landscaping
+      if (draft.features?.length) propertyDetails.features = draft.features
+      if (draft.tax_amount)     propertyDetails.tax_amount = Number(draft.tax_amount)
+      if (draft.tax_year)       propertyDetails.tax_year = Number(draft.tax_year)
+      if (draft.apn)            propertyDetails.apn = draft.apn
+      if (draft.description)    propertyDetails.description = draft.description
+      if (draft.marketing_remarks) propertyDetails.marketing_remarks = draft.marketing_remarks
+      if (draft.agent_notes)    propertyDetails.agent_notes = draft.agent_notes
+      if (draft.virtual_tour_url) propertyDetails.virtual_tour_url = draft.virtual_tour_url
+      if (draft.listPrice)      propertyDetails.price = Number(draft.listPrice)
+      if (draft.city)           propertyDetails.city = draft.city
+      if (draft.zip)            propertyDetails.zip = draft.zip
+
+      if (Object.keys(propertyDetails).length > 0) {
+        await DB.updateProperty(property_id, propertyDetails)
+      }
 
       // Find or create seller contact
       let contact_id = editingListing?.contact_id ?? null
@@ -467,6 +750,8 @@ export default function Sellers() {
         property_condition:       draft.property_condition,
         commission_rate:          draft.commission_rate ? Number(draft.commission_rate) : null,
         listing_agreement_signed: draft.listing_agreement_signed,
+        agreement_signed_date:    draft.agreement_signed_date || null,
+        agreement_expires_date:   draft.agreement_expires_date || null,
         pre_inspection_done:      draft.pre_inspection_done,
         home_warranty_offered:    draft.home_warranty_offered,
       }
@@ -533,9 +818,22 @@ export default function Sellers() {
     )
   }
 
-  const filtered = listings.filter(l => filter === 'all' || l.type === filter || l.status === filter)
+  // Expiring-soon alerts (within 14 days or already expired)
+  const expiringListings = listings.filter(l => {
+    if (!l.agreement_expires_date) return false
+    const agr = getAgreementStatus(l.agreement_expires_date)
+    return agr && agr.days <= 14
+  })
+
+  const filtered = listings.filter(l => {
+    if (filter === 'all') return true
+    if (filter === 'lead') return l.status === 'lead'
+    if (filter === 'new' || filter === 'expired') return l.type === filter
+    return l.status === filter
+  })
   const counts = {
     all:     listings.length,
+    lead:    listings.filter(l => l.status === 'lead').length,
     new:     listings.filter(l => l.type === 'new').length,
     expired: listings.filter(l => l.type === 'expired').length,
   }
@@ -554,7 +852,30 @@ export default function Sellers() {
     { key: 'type', label: 'Type', render: v => <Badge variant={v === 'new' ? 'success' : 'warning'} size="sm">{v === 'new' ? 'New' : 'Expired'}</Badge> },
     { key: 'dom', label: 'DOM', render: v => `${v}d` },
     { key: 'offers', label: 'Offers', render: v => v > 0 ? <Badge variant="success" size="sm">{v}</Badge> : '—' },
-    { key: 'status', label: 'Status', render: v => <Badge variant={statusVariant[v]}>{v}</Badge> },
+    { key: 'status', label: 'Status', render: v => <Badge variant={statusVariant[v]}>{v === 'lead' ? 'Lead' : v}</Badge> },
+    {
+      key: 'agreement_expires_date', label: 'Agreement',
+      render: (v, row) => {
+        if (!row.listing_agreement_signed && !row.agreement_signed_date) {
+          return <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>Not signed</span>
+        }
+        const agr = v ? getAgreementStatus(v) : null
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {row.agreement_signed_date && (
+              <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+                Signed {new Date(row.agreement_signed_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            )}
+            {agr ? (
+              <Badge variant={agr.variant} size="sm">{agr.label}</Badge>
+            ) : row.listing_agreement_signed ? (
+              <Badge variant="success" size="sm">Signed</Badge>
+            ) : null}
+          </div>
+        )
+      },
+    },
     {
       key: 'cash_offer_status', label: 'Cash Offer',
       render: v => v && v !== 'none'
@@ -597,7 +918,7 @@ export default function Sellers() {
     <div className="sellers">
       <SectionHeader
         title="Sellers"
-        subtitle="New listings and expired property workflow tracking"
+        subtitle="Seller leads, listings, and expired property workflow tracking"
         actions={
           <Button variant="primary" size="md" onClick={openCreate}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>}
@@ -607,13 +928,36 @@ export default function Sellers() {
 
       <TabBar
         tabs={[
-          { label: 'All Listings', value: 'all', count: counts.all },
+          { label: 'All', value: 'all', count: counts.all },
+          { label: 'Leads', value: 'lead', count: counts.lead },
           { label: 'New', value: 'new', count: counts.new },
           { label: 'Expired', value: 'expired', count: counts.expired },
         ]}
         active={filter}
         onChange={setFilter}
       />
+
+      {expiringListings.length > 0 && (
+        <div className="sellers-expiry-alerts">
+          <div className="sellers-expiry-alerts__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </div>
+          <div>
+            <strong>Agreement Alerts</strong>
+            {expiringListings.map(l => {
+              const agr = getAgreementStatus(l.agreement_expires_date)
+              return (
+                <div key={l.id} className="sellers-expiry-alerts__item">
+                  <span>{l.address}</span>
+                  <Badge variant={agr.variant} size="sm">{agr.days < 0 ? 'Agreement expired' : agr.label}</Badge>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <DataTable columns={columns} rows={filtered} onRowClick={setSelectedListing} />
 

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Button } from '../../components/ui/index.jsx'
+import { generateContent } from '../../lib/supabase'
 import './ContentPlanner.css'
 
 // ─── Storage ───
@@ -81,6 +82,12 @@ export default function ContentPlanner() {
   const [selectedDate, setSelectedDate] = useState(null)
   const [editingFormat, setEditingFormat] = useState(false)
 
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiHooksLoading, setAiHooksLoading] = useState(false)
+  const [aiHooks, setAiHooks] = useState([])
+  const [aiTopicsLoading, setAiTopicsLoading] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState('')
+
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset])
   const today = fmtDate(new Date())
 
@@ -136,6 +143,79 @@ export default function ContentPlanner() {
     saveInspo(updated)
   }
 
+  // ─── AI: Generate caption from hook + topic context ───
+  const handleGenerateCaption = async () => {
+    if (!selectedDate) return
+    const entry = getDayEntry(selectedDate)
+    const dayOfWeek = new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })
+    const fmt = format.find(f => f.day === dayOfWeek)
+    const prompt = aiPrompt.trim() || entry.hook || entry.topic || fmt?.topic || 'Real estate content'
+    setAiLoading(true)
+    try {
+      const { text } = await generateContent({
+        type: 'write',
+        pillar: entry.niche || fmt?.niche || 'Real Estate',
+        prompt: `${prompt}\n\nFormat: ${entry.format || fmt?.format || 'social media post'}${entry.hook ? `\nHook to use: "${entry.hook}"` : ''}`,
+      })
+      updateDay(selectedDate, { caption: text })
+      setAiPrompt('')
+    } catch (e) {
+      alert('Claude error: ' + e.message)
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  // ─── AI: Suggest hooks for the selected day's niche ───
+  const handleSuggestHooks = async () => {
+    if (!selectedDate) return
+    const entry = getDayEntry(selectedDate)
+    const dayOfWeek = new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })
+    const fmt = format.find(f => f.day === dayOfWeek)
+    setAiHooksLoading(true)
+    try {
+      const { hooks } = await generateContent({
+        type: 'suggest_hooks',
+        pillar: entry.niche || fmt?.niche || 'Real Estate',
+        prompt: entry.topic || fmt?.topic || 'real estate',
+        body_text: entry.format || fmt?.format || 'Instagram post',
+      })
+      setAiHooks(hooks || [])
+    } catch (e) {
+      alert('Claude error: ' + e.message)
+    } finally {
+      setAiHooksLoading(false)
+    }
+  }
+
+  // ─── AI: Suggest topic ideas for the whole week ───
+  const handleSuggestTopics = async () => {
+    const weekSummary = format.map(f => `${f.day}: ${f.format} — ${f.topic} (${f.niche})`).join('\n')
+    setAiTopicsLoading(true)
+    try {
+      const { topics } = await generateContent({
+        type: 'suggest_topics',
+        prompt: weekSummary,
+      })
+      if (topics?.length) {
+        const newPlanner = { ...planner }
+        weekDates.forEach((date, i) => {
+          const dateStr = fmtDate(date)
+          const suggestion = topics[i]
+          if (suggestion?.idea) {
+            newPlanner[dateStr] = { ...getDayEntry(dateStr), topic: suggestion.idea }
+          }
+        })
+        setPlanner(newPlanner)
+        savePlanner(newPlanner)
+      }
+    } catch (e) {
+      alert('Claude error: ' + e.message)
+    } finally {
+      setAiTopicsLoading(false)
+    }
+  }
+
   const sel = selectedDate ? getDayEntry(selectedDate) : null
   const selDayName = selectedDate ? dayName(new Date(selectedDate + 'T12:00:00')) : ''
   const selDayNum = selectedDate ? new Date(selectedDate + 'T12:00:00').getDate() : ''
@@ -153,6 +233,13 @@ export default function ContentPlanner() {
           <span className="cp__week-label">{weekLabel}</span>
           <button className="cp__nav-btn" onClick={() => setWeekOffset(w => w + 1)}>›</button>
           {weekOffset !== 0 && <button className="cp__today-btn" onClick={() => setWeekOffset(0)}>Today</button>}
+          <button
+            className="cp__ai-topics-btn"
+            onClick={handleSuggestTopics}
+            disabled={aiTopicsLoading}
+          >
+            {aiTopicsLoading ? '✦ Thinking…' : '✦ AI: Fill Week Ideas'}
+          </button>
         </div>
       </div>
 
@@ -212,11 +299,21 @@ export default function ContentPlanner() {
               </div>
 
               <div className="cp__hook-ideas">
-                <p className="cp__field-label">HOOK IDEAS — CLICK TO USE</p>
+                <div className="cp__hook-ideas-header">
+                  <p className="cp__field-label">HOOK IDEAS — CLICK TO USE</p>
+                  <button
+                    className="cp__ai-suggest-btn"
+                    onClick={handleSuggestHooks}
+                    disabled={aiHooksLoading}
+                  >
+                    {aiHooksLoading ? '✦ Thinking…' : '✦ AI Hooks'}
+                  </button>
+                </div>
                 <div className="cp__hooks-list">
-                  {HOOK_IDEAS.filter(h => !sel.niche || h.niche === sel.niche || h.niche === 'COMMUNITY').slice(0, 5).map((h, i) => (
-                    <button key={i} className="cp__hook-pill" onClick={() => updateDay(selectedDate, { hook: h.text })}>
-                      {h.text}
+                  {/* Show AI-generated hooks if available, otherwise show static ones */}
+                  {(aiHooks.length > 0 ? aiHooks : HOOK_IDEAS.filter(h => !sel.niche || h.niche === sel.niche || h.niche === 'COMMUNITY').slice(0, 5).map(h => h.text)).map((hookText, i) => (
+                    <button key={i} className={`cp__hook-pill ${aiHooks.length > 0 ? 'cp__hook-pill--ai' : ''}`} onClick={() => updateDay(selectedDate, { hook: hookText })}>
+                      {hookText}
                     </button>
                   ))}
                 </div>
@@ -224,14 +321,32 @@ export default function ContentPlanner() {
 
               <div className="cp__field-group">
                 <label className="cp__field-label">CAPTION DRAFT</label>
+                <div className="cp__ai-write-box">
+                  <div className="cp__ai-write-label">✦ Write with Claude</div>
+                  <div className="cp__ai-write-row">
+                    <input
+                      className="cp__ai-write-input"
+                      value={aiPrompt}
+                      onChange={e => setAiPrompt(e.target.value)}
+                      placeholder="Describe what you want (or leave blank to use hook + topic)…"
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleGenerateCaption())}
+                    />
+                    <button
+                      className="cp__ai-write-btn"
+                      onClick={handleGenerateCaption}
+                      disabled={aiLoading}
+                    >
+                      {aiLoading ? '✦ Writing…' : '✦ Generate'}
+                    </button>
+                  </div>
+                </div>
                 <textarea
                   className="cp__textarea cp__textarea--lg"
                   value={sel.caption}
                   onChange={e => updateDay(selectedDate, { caption: e.target.value })}
-                  placeholder="Write your caption here... or click Generate below"
+                  placeholder="Your caption will appear here — write it yourself or let Claude draft it for you"
                   rows={5}
                 />
-                <Button size="sm" variant="primary" onClick={() => { /* TODO: Claude AI generate */ }}>✨ Generate Caption</Button>
               </div>
 
               <div className="cp__field-group">

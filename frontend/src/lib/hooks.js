@@ -64,6 +64,17 @@ export const useContentPillars  = ()             => useQuery(DB.getContentPillar
 export const useContentPieces   = (from, to)     => useQuery(() => DB.getContentPieces(from, to), [from, to])
 export const useContentSettings = ()             => useQuery(DB.getContentSettings)
 
+// ─── Brand Profile hook ───────────────────────────────────────────────────────
+export const useBrandProfile    = ()             => useQuery(DB.getBrandProfile)
+
+// ─── P&L hooks ──────────────────────────────────────────────────────────────
+export const useExpenseCategories = (type = 'expense') => useQuery(() => DB.getExpenseCategories(type), [type])
+export const useExpenses         = (from, to) => useQuery(() => DB.getExpenses(from, to), [from, to])
+export const useAllExpenses      = ()          => useQuery(DB.getAllExpenses)
+export const useIncomeEntries    = (from, to) => useQuery(() => DB.getIncomeEntries(from, to), [from, to])
+export const useAllIncomeEntries = ()          => useQuery(DB.getAllIncomeEntries)
+export const useMileageLog       = (from, to) => useQuery(() => DB.getMileageLog(from, to), [from, to])
+
 // ─── Dashboard aggregate hook ─────────────────────────────────────────────────
 export function useDashboardData() {
   const contacts        = useContacts()
@@ -75,6 +86,8 @@ export function useDashboardData() {
   const investors       = useInvestors()
   const weeklyStats     = useWeeklyStats()
   const activity        = useActivityLog()
+  const pnlExpenses     = useAllExpenses()
+  const pnlIncome       = useAllIncomeEntries()
 
   const loading = contacts.loading || transactions.loading || listings.loading
   const error   = contacts.error   || transactions.error   || listings.error
@@ -91,6 +104,13 @@ export function useDashboardData() {
 
   const now = new Date()
 
+  // ── P&L data ──
+  const pe = (pnlExpenses.data ?? []).filter(e => e.date?.startsWith(String(now.getFullYear())))
+  const pi = (pnlIncome.data ?? []).filter(i => i.date?.startsWith(String(now.getFullYear())))
+  const pnlTotalIncome  = pi.reduce((s, i) => s + (Number(i.amount) || 0), 0)
+  const pnlTotalExpense = pe.reduce((s, e) => s + (Number(e.amount) || 0), 0)
+  const pnlNetProfit    = pnlTotalIncome - pnlTotalExpense
+
   // ── KPIs ──
   const kpis = {
     activeClients:       c.length,
@@ -101,7 +121,9 @@ export function useDashboardData() {
     totalInvestors:      iv.length,
     totalLeads:          ld.length,
     pipelineValue:       t.reduce((s, x) => s + (Number(x.property?.price) || 0), 0),
-    ytdIncome:           ws.reduce((s, x) => s + (Number(x.earned_income) || 0), 0),
+    ytdIncome:           pnlTotalIncome > 0 ? pnlTotalIncome : ws.reduce((s, x) => s + (Number(x.earned_income) || 0), 0),
+    ytdExpenses:         pnlTotalExpense,
+    ytdNetProfit:        pnlNetProfit,
     openHousesThisMonth: oh.filter(x => {
       if (!x.date) return false
       const d = new Date(x.date)
@@ -185,6 +207,7 @@ export function useDashboardData() {
       contacts.refetch(); transactions.refetch(); listings.refetch()
       showingSessions.refetch(); openHouses.refetch(); leads.refetch()
       investors.refetch(); weeklyStats.refetch(); activity.refetch()
+      pnlExpenses.refetch(); pnlIncome.refetch()
     },
   }
 }

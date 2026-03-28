@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrandProvider } from './lib/BrandContext'
 import Layout from './components/layout/Layout'
 
 // ─── Existing pages ──────────────────────────────────────────────────────────
@@ -18,8 +19,30 @@ import Stats from './pages/Stats/Stats'
 import Goals from './pages/Goals/Goals'
 import ContentPlanner from './pages/ContentPlanner/ContentPlanner'
 import Settings from './pages/Settings/Settings'
+import ListingPlan from './pages/ListingPlan/ListingPlan'
 import BioLinkBuilder from './pages/BioLink/BioLinkBuilder'
 import EmailBuilder from './pages/EmailBuilder/EmailBuilder'
+import IntakeForms from './pages/IntakeForms/IntakeForms'
+import CalendarSchedule from './pages/Calendar/CalendarSchedule'
+import TodayShowings from './pages/Calendar/TodayShowings'
+import CalendarTasks from './pages/Calendar/Tasks'
+
+// ─── Pipeline Pages ─────────────────────────────────────────────────────────
+import PipelineBoard from './pages/Pipeline/Pipeline'
+import EscrowTracker from './pages/Pipeline/EscrowTracker'
+import ClosedDeals from './pages/Pipeline/ClosedDeals'
+
+// ─── Net Sheet ──────────────────────────────────────────────────────────────
+import NetSheet from './pages/NetSheet/NetSheet'
+
+// ─── P&L Pages ──────────────────────────────────────────────────────────────
+import PnLOverview from './pages/PnL/PnLOverview'
+import PnLExpenses from './pages/PnL/Expenses'
+import PnLIncome   from './pages/PnL/Income'
+import MileageLog  from './pages/PnL/MileageLog'
+import TaxSummary  from './pages/PnL/TaxSummary'
+import RecurringExpenses from './pages/PnL/RecurringExpenses'
+import BudgetVsActual from './pages/PnL/BudgetVsActual'
 
 // ─── Placeholder for new pages (renders a "Coming Soon" card) ────────────────
 function ComingSoon({ title }) {
@@ -33,6 +56,7 @@ function ComingSoon({ title }) {
 
 export default function App() {
   return (
+    <BrandProvider>
     <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
@@ -56,19 +80,21 @@ export default function App() {
           <Route path="/crm/sellers"      element={<Sellers />} />
           <Route path="/crm/showings"         element={<BuyerShowings />} />
           <Route path="/crm/seller-showings"  element={<SellerShowings />} />
+          <Route path="/crm/listing-plan"    element={<ListingPlan />} />
           <Route path="/crm/investors"        element={<Investors />} />
           <Route path="/crm/properties"       element={<Properties />} />
+          <Route path="/crm/intake-forms"    element={<IntakeForms />} />
           {/* leads moved to /prospecting */}
 
           {/* ─── Pipeline ─── */}
-          <Route path="/pipeline"          element={<ComingSoon title="Pipeline" />} />
-          <Route path="/pipeline/escrow"   element={<ComingSoon title="Escrow Tracker" />} />
-          <Route path="/pipeline/closed"   element={<ComingSoon title="Closed Deals" />} />
+          <Route path="/pipeline"          element={<PipelineBoard />} />
+          <Route path="/pipeline/escrow"   element={<EscrowTracker />} />
+          <Route path="/pipeline/closed"   element={<ClosedDeals />} />
 
           {/* ─── Calendar ─── */}
-          <Route path="/calendar"          element={<ComingSoon title="Calendar — Showings + Tasks" />} />
-          <Route path="/calendar/today"    element={<ComingSoon title="Today's Showings" />} />
-          <Route path="/calendar/tasks"    element={<ComingSoon title="Tasks" />} />
+          <Route path="/calendar"          element={<CalendarSchedule />} />
+          <Route path="/calendar/today"    element={<TodayShowings />} />
+          <Route path="/calendar/tasks"    element={<CalendarTasks />} />
 
           {/* ─── Open Houses ─── */}
           <Route path="/open-houses"       element={<OpenHouses />} />
@@ -82,12 +108,16 @@ export default function App() {
           <Route path="/content/stats"     element={<ComingSoon title="Content Stats" />} />
 
           {/* ─── P&L ─── */}
-          <Route path="/pnl"              element={<ComingSoon title="P&L Overview" />} />
-          <Route path="/pnl/expenses"     element={<ComingSoon title="Expenses" />} />
-          <Route path="/pnl/income"       element={<ComingSoon title="Income" />} />
+          <Route path="/pnl"              element={<PnLOverview />} />
+          <Route path="/pnl/expenses"     element={<PnLExpenses />} />
+          <Route path="/pnl/income"       element={<PnLIncome />} />
+          <Route path="/pnl/mileage"      element={<MileageLog />} />
+          <Route path="/pnl/recurring"    element={<RecurringExpenses />} />
+          <Route path="/pnl/budget"       element={<BudgetVsActual />} />
+          <Route path="/pnl/tax"          element={<TaxSummary />} />
 
           {/* ─── Net Sheet ─── */}
-          <Route path="/net-sheet"         element={<ComingSoon title="Net Sheet Calculator" />} />
+          <Route path="/net-sheet"         element={<NetSheet />} />
 
           {/* ─── Market ─── */}
           <Route path="/market"            element={<Stats />} />
@@ -118,5 +148,6 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </BrandProvider>
   )
 }

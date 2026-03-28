@@ -4,6 +4,31 @@
   gap: var(--space-lg);
 }
 
+/* ─── Property Details Toggle ─── */
+.panel-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.panel-section-toggle:hover .panel-section-label {
+  color: var(--brown-mid);
+}
+
+/* ─── Features Grid ─── */
+.seller-features-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+}
+.seller-features-grid .buyer-checkbox-label {
+  font-size: 0.72rem;
+}
+
 /* ─── Plan Nav ─── */
 .sellers-plan__nav {
   display: flex;
@@ -150,6 +175,38 @@
   font-weight: 600;
   color: var(--brown-mid);
   white-space: nowrap;
+}
+
+/* ─── Agreement Expiry Alerts ─── */
+.sellers-expiry-alerts {
+  display: flex;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: rgba(199, 154, 46, 0.08);
+  border: 1px solid rgba(199, 154, 46, 0.25);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  color: var(--brown-dark);
+}
+
+.sellers-expiry-alerts__icon {
+  flex-shrink: 0;
+  color: #c99a2e;
+  margin-top: 2px;
+}
+
+.sellers-expiry-alerts strong {
+  display: block;
+  font-size: 0.82rem;
+  margin-bottom: 6px;
+}
+
+.sellers-expiry-alerts__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 3px 0;
+  font-size: 0.78rem;
 }
 
 /* Seller tracking checkboxes */

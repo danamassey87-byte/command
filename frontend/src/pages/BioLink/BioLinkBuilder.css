@@ -9,7 +9,7 @@
 
 /* ─── Sidebar ─── */
 .bio-builder__sidebar {
-  width: 320px;
+  width: 340px;
   flex-shrink: 0;
   background: var(--white);
   border-right: 1px solid var(--color-border-light);
@@ -58,6 +58,9 @@
 .bio-builder__page-settings {
   padding-top: var(--space-sm);
   border-top: 1px solid var(--color-border-light);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 /* ─── Block Editor Panel ─── */
@@ -94,6 +97,43 @@
 }
 .bio-editor__delete-btn:hover {
   background: rgba(192, 96, 74, 0.12);
+}
+
+/* ─── Style Section (collapsible) ─── */
+.bio-style-section {
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--white);
+}
+
+.bio-style-section__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--brown-dark);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.bio-style-section__toggle:hover {
+  background: rgba(183, 151, 130, 0.06);
+}
+
+.bio-style-section__body {
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--color-border-light);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 /* ─── Form fields ─── */
@@ -141,6 +181,11 @@
   padding: 0;
   border: none;
   box-shadow: none;
+}
+.bio-field input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--brown-mid);
 }
 
 .bio-field-row {
@@ -261,7 +306,6 @@
 
 /* ─── Preview block inner styles ─── */
 .bio-preview-header {
-  border-radius: var(--radius-lg);
   padding: var(--space-xl) var(--space-lg);
   text-align: center;
   display: flex;
@@ -309,7 +353,6 @@
 }
 
 .bio-preview-form {
-  border-radius: var(--radius-lg);
   padding: var(--space-lg);
   display: flex;
   flex-direction: column;
@@ -328,7 +371,6 @@
 }
 .bio-preview-form-btn {
   padding: 12px;
-  border-radius: var(--radius-full);
   border: none;
   font-family: var(--font-body);
   font-size: 0.85rem;

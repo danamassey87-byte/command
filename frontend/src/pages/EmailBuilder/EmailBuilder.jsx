@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '../../components/ui/index.jsx'
+import { useBrand } from '../../lib/BrandContext'
+import { BrandColorPicker, BorderRadiusControl, FontPicker, FontSizeControl, SpacingControl } from '../../components/ui/StyleControls'
+import { PropertyPicker } from '../../components/ui/PropertyPicker'
 import './EmailBuilder.css'
 
 // ─── Storage ───
@@ -23,12 +26,12 @@ const STARTER_TEMPLATES = [
     category: 'NURTURE',
     subject: 'Great chatting with you — next steps!',
     blocks: [
-      { id: '1', type: 'header', logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white },
-      { id: '2', type: 'greeting', text: 'Hi {first_name},' },
-      { id: '3', type: 'text', content: "It was so great connecting with you! I know the home search can feel overwhelming, but I'm here to make it as smooth and exciting as possible.\n\nBased on what you shared, I've already started keeping an eye out for homes that match your wishlist. I'll send over some options soon!" },
-      { id: '4', type: 'cta', label: 'View My Latest Picks', url: '#', bgColor: BRAND.dark, textColor: BRAND.white },
-      { id: '5', type: 'text', content: "In the meantime, don't hesitate to reach out if anything comes to mind — budget questions, neighborhood vibes, timeline, anything at all." },
-      { id: '6', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '' },
+      { id: '1', type: 'header', logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
+      { id: '2', type: 'greeting', text: 'Hi {first_name},', fontSize: 15, fontFamily: '' },
+      { id: '3', type: 'text', content: "It was so great connecting with you! I know the home search can feel overwhelming, but I'm here to make it as smooth and exciting as possible.\n\nBased on what you shared, I've already started keeping an eye out for homes that match your wishlist. I'll send over some options soon!", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
+      { id: '4', type: 'cta', label: 'View My Latest Picks', url: '#', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
+      { id: '5', type: 'text', content: "In the meantime, don't hesitate to reach out if anything comes to mind — budget questions, neighborhood vibes, timeline, anything at all.", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
+      { id: '6', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
   },
   {
@@ -38,14 +41,14 @@ const STARTER_TEMPLATES = [
     category: 'LISTINGS',
     subject: 'Just Listed — {address}',
     blocks: [
-      { id: '1', type: 'header', logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white },
-      { id: '2', type: 'greeting', text: 'Hi {first_name},' },
-      { id: '3', type: 'text', content: "I'm excited to share a brand new listing that just hit the market!" },
-      { id: '4', type: 'image', images: [''], alt: 'Property photo', layout: 'full', shape: 'rounded' },
-      { id: '5', type: 'property-card', address: '123 Main St, Gilbert AZ 85234', price: '$450,000', beds: '4', baths: '2.5', sqft: '2,100', description: 'Gorgeous updated home with a sparkling pool, open floor plan, and modern finishes throughout.' },
-      { id: '6', type: 'cta', label: 'Schedule a Showing', url: '#', bgColor: BRAND.dark, textColor: BRAND.white },
-      { id: '7', type: 'text', content: 'Know someone who might be interested? I appreciate referrals more than you know!' },
-      { id: '8', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '' },
+      { id: '1', type: 'header', logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
+      { id: '2', type: 'greeting', text: 'Hi {first_name},', fontSize: 15, fontFamily: '' },
+      { id: '3', type: 'text', content: "I'm excited to share a brand new listing that just hit the market!", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
+      { id: '4', type: 'image', images: [''], alt: 'Property photo', layout: 'full', shape: 'rounded', borderRadius: 12 },
+      { id: '5', type: 'property-card', address: '123 Main St, Gilbert AZ 85234', price: '$450,000', beds: '4', baths: '2.5', sqft: '2,100', description: 'Gorgeous updated home with a sparkling pool, open floor plan, and modern finishes throughout.', borderRadius: 8, bgColor: '#faf9f7' },
+      { id: '6', type: 'cta', label: 'Schedule a Showing', url: '#', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
+      { id: '7', type: 'text', content: 'Know someone who might be interested? I appreciate referrals more than you know!', fontSize: 14, fontFamily: '', lineHeight: 1.65 },
+      { id: '8', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
   },
   {
@@ -55,14 +58,14 @@ const STARTER_TEMPLATES = [
     category: 'EVENTS',
     subject: "You're Invited — Open House this {day}!",
     blocks: [
-      { id: '1', type: 'header', logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white },
-      { id: '2', type: 'greeting', text: 'Hi {first_name},' },
-      { id: '3', type: 'text', content: "I'd love for you to stop by my upcoming open house! Whether you're actively looking or just curious about the market, it's a great chance to tour a beautiful home and chat." },
-      { id: '4', type: 'event-card', title: 'Open House', date: 'Saturday, April 5', time: '11:00 AM — 2:00 PM', address: '456 Oak Ave, Gilbert AZ 85234' },
-      { id: '5', type: 'image', images: [''], alt: 'Open house property', layout: 'full', shape: 'rounded' },
-      { id: '6', type: 'cta', label: 'RSVP / Get Directions', url: '#', bgColor: BRAND.dark, textColor: BRAND.white },
-      { id: '7', type: 'text', content: 'Feel free to bring friends and family. See you there!' },
-      { id: '8', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '' },
+      { id: '1', type: 'header', logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
+      { id: '2', type: 'greeting', text: 'Hi {first_name},', fontSize: 15, fontFamily: '' },
+      { id: '3', type: 'text', content: "I'd love for you to stop by my upcoming open house! Whether you're actively looking or just curious about the market, it's a great chance to tour a beautiful home and chat.", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
+      { id: '4', type: 'event-card', title: 'Open House', date: 'Saturday, April 5', time: '11:00 AM — 2:00 PM', address: '456 Oak Ave, Gilbert AZ 85234', borderRadius: 8, accentColor: BRAND.dark },
+      { id: '5', type: 'image', images: [''], alt: 'Open house property', layout: 'full', shape: 'rounded', borderRadius: 12 },
+      { id: '6', type: 'cta', label: 'RSVP / Get Directions', url: '#', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
+      { id: '7', type: 'text', content: 'Feel free to bring friends and family. See you there!', fontSize: 14, fontFamily: '', lineHeight: 1.65 },
+      { id: '8', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
   },
   {
@@ -72,18 +75,18 @@ const STARTER_TEMPLATES = [
     category: 'AUTHORITY',
     subject: '{month} Market Update — East Valley',
     blocks: [
-      { id: '1', type: 'header', logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white },
-      { id: '2', type: 'greeting', text: 'Hi {first_name},' },
-      { id: '3', type: 'text', content: "Here's your quick snapshot of what's happening in the East Valley real estate market this month:" },
+      { id: '1', type: 'header', logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
+      { id: '2', type: 'greeting', text: 'Hi {first_name},', fontSize: 15, fontFamily: '' },
+      { id: '3', type: 'text', content: "Here's your quick snapshot of what's happening in the East Valley real estate market this month:", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
       { id: '4', type: 'stats-row', stats: [
         { label: 'Median Price', value: '$485,000', delta: '+3.2%' },
         { label: 'Days on Market', value: '28', delta: '-5 days' },
         { label: 'Active Listings', value: '1,240', delta: '+12%' },
-      ]},
-      { id: '5', type: 'text', content: "What does this mean for you?\n\nIf you're a seller: Homes are still moving, but pricing right from the start is more important than ever.\n\nIf you're a buyer: More inventory means more options and a bit more negotiating power." },
-      { id: '6', type: 'cta', label: 'Get Your Home Value', url: '#', bgColor: BRAND.dark, textColor: BRAND.white },
-      { id: '7', type: 'text', content: "Questions about your specific neighborhood? Just hit reply — I'm always happy to pull the numbers for you." },
-      { id: '8', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '' },
+      ], borderRadius: 8 },
+      { id: '5', type: 'text', content: "What does this mean for you?\n\nIf you're a seller: Homes are still moving, but pricing right from the start is more important than ever.\n\nIf you're a buyer: More inventory means more options and a bit more negotiating power.", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
+      { id: '6', type: 'cta', label: 'Get Your Home Value', url: '#', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
+      { id: '7', type: 'text', content: "Questions about your specific neighborhood? Just hit reply — I'm always happy to pull the numbers for you.", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
+      { id: '8', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
   },
   {
@@ -93,14 +96,14 @@ const STARTER_TEMPLATES = [
     category: 'LISTINGS',
     subject: 'Just Sold — {address}',
     blocks: [
-      { id: '1', type: 'header', logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white },
-      { id: '2', type: 'greeting', text: 'Hi {first_name},' },
-      { id: '3', type: 'text', content: "Another one closed! I'm thrilled to share that this beautiful home has officially SOLD." },
-      { id: '4', type: 'image', images: [''], alt: 'Sold property', layout: 'full', shape: 'rounded' },
-      { id: '5', type: 'property-card', address: '789 Elm Dr, Mesa AZ 85213', price: '$525,000', beds: '4', baths: '3', sqft: '2,400', description: 'Sold in just 6 days with multiple offers!' },
-      { id: '6', type: 'text', content: "Curious what your home could sell for in today's market? I'd love to run the numbers for you — no pressure, just helpful info." },
-      { id: '7', type: 'cta', label: "What's My Home Worth?", url: '#', bgColor: BRAND.dark, textColor: BRAND.white },
-      { id: '8', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '' },
+      { id: '1', type: 'header', logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
+      { id: '2', type: 'greeting', text: 'Hi {first_name},', fontSize: 15, fontFamily: '' },
+      { id: '3', type: 'text', content: "Another one closed! I'm thrilled to share that this beautiful home has officially SOLD.", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
+      { id: '4', type: 'image', images: [''], alt: 'Sold property', layout: 'full', shape: 'rounded', borderRadius: 12 },
+      { id: '5', type: 'property-card', address: '789 Elm Dr, Mesa AZ 85213', price: '$525,000', beds: '4', baths: '3', sqft: '2,400', description: 'Sold in just 6 days with multiple offers!', borderRadius: 8, bgColor: '#faf9f7' },
+      { id: '6', type: 'text', content: "Curious what your home could sell for in today's market? I'd love to run the numbers for you — no pressure, just helpful info.", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
+      { id: '7', type: 'cta', label: "What's My Home Worth?", url: '#', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
+      { id: '8', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
   },
   {
@@ -110,10 +113,10 @@ const STARTER_TEMPLATES = [
     category: 'CUSTOM',
     subject: '',
     blocks: [
-      { id: '1', type: 'header', logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white },
-      { id: '2', type: 'greeting', text: 'Hi {first_name},' },
-      { id: '3', type: 'text', content: '' },
-      { id: '4', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '' },
+      { id: '1', type: 'header', logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
+      { id: '2', type: 'greeting', text: 'Hi {first_name},', fontSize: 15, fontFamily: '' },
+      { id: '3', type: 'text', content: '', fontSize: 14, fontFamily: '', lineHeight: 1.65 },
+      { id: '4', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
   },
 ]
@@ -158,29 +161,29 @@ function newBlock(type) {
   const id = crypto.randomUUID()
   switch (type) {
     case 'header':
-      return { id, type, logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white }
+      return { id, type, logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 }
     case 'greeting':
-      return { id, type, text: 'Hi {first_name},' }
+      return { id, type, text: 'Hi {first_name},', fontSize: 15, fontFamily: '' }
     case 'text':
-      return { id, type, content: '' }
+      return { id, type, content: '', fontSize: 14, fontFamily: '', lineHeight: 1.65, color: '#444' }
     case 'image':
-      return { id, type, images: [''], alt: '', layout: 'full', shape: 'box' }
+      return { id, type, images: [''], alt: '', layout: 'full', shape: 'box', borderRadius: 0 }
     case 'cta':
-      return { id, type, label: 'Learn More', url: '', bgColor: BRAND.dark, textColor: BRAND.white }
+      return { id, type, label: 'Learn More', url: '', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 }
     case 'property-card':
-      return { id, type, address: '', price: '', beds: '', baths: '', sqft: '', description: '' }
+      return { id, type, address: '', price: '', beds: '', baths: '', sqft: '', description: '', borderRadius: 8, bgColor: '#faf9f7' }
     case 'event-card':
-      return { id, type, title: 'Open House', date: '', time: '', address: '' }
+      return { id, type, title: 'Open House', date: '', time: '', address: '', borderRadius: 8, accentColor: BRAND.dark }
     case 'stats-row':
       return { id, type, stats: [
         { label: 'Stat 1', value: '—', delta: '' },
         { label: 'Stat 2', value: '—', delta: '' },
         { label: 'Stat 3', value: '—', delta: '' },
-      ]}
+      ], borderRadius: 8 }
     case 'divider':
-      return { id, type, color: BRAND.mid }
+      return { id, type, color: BRAND.mid, thickness: 1, dividerStyle: 'solid' }
     case 'signature':
-      return { id, type, name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '' }
+      return { id, type, name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '', socials: [] }
     default:
       return { id, type: 'text', content: '' }
   }
@@ -196,8 +199,22 @@ function loadTemplates() {
 }
 function saveTemplates(t) { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(t)) }
 
+// ─── Collapsible style section ───
+function StyleSection({ title, children, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="eb__style-section">
+      <button className="eb__style-section__toggle" onClick={() => setOpen(!open)}>
+        <span>{title}</span>
+        <span>{open ? '▾' : '▸'}</span>
+      </button>
+      {open && <div className="eb__style-section__body">{children}</div>}
+    </div>
+  )
+}
+
 // ─── Block Editor Fields ───
-function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst, isLast }) {
+function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst, isLast, connectedSocials = [], socialChannels = {} }) {
   const set = (key, val) => onChange({ ...block, [key]: val })
 
   const handleImageUpload = (e, key = 'imageUrl') => {
@@ -221,12 +238,18 @@ function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst,
 
       {block.type === 'header' && (
         <div className="eb__block-fields">
-          <div className="eb__field-row">
-            <label className="eb__field-label">BACKGROUND</label>
-            <input type="color" value={block.bgColor} onChange={e => set('bgColor', e.target.value)} className="eb__color-input" />
-          </div>
           <label className="eb__field-label">LOGO IMAGE</label>
           <input type="file" accept="image/*" onChange={e => handleImageUpload(e, 'logoUrl')} className="eb__file-input" />
+
+          <StyleSection title="Colors" defaultOpen>
+            <BrandColorPicker label="Background" value={block.bgColor} onChange={v => set('bgColor', v)} showMixes />
+            <BrandColorPicker label="Text Color" value={block.textColor} onChange={v => set('textColor', v)} />
+          </StyleSection>
+
+          <StyleSection title="Shape & Spacing">
+            <BorderRadiusControl label="Corner Radius" value={block.borderRadius ?? 0} onChange={v => set('borderRadius', v)} showPill={false} />
+            <SpacingControl label="Padding" value={block.padding ?? 28} onChange={v => set('padding', v)} max={60} />
+          </StyleSection>
         </div>
       )}
 
@@ -235,6 +258,11 @@ function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst,
           <label className="eb__field-label">GREETING TEXT</label>
           <input className="eb__input" value={block.text} onChange={e => set('text', e.target.value)} placeholder="Hi {first_name}," />
           <p className="eb__field-hint">Use {'{first_name}'} to personalize</p>
+
+          <StyleSection title="Typography">
+            <FontPicker label="Font" value={block.fontFamily} onChange={v => set('fontFamily', v)} />
+            <FontSizeControl label="Font Size" value={block.fontSize || 15} onChange={v => set('fontSize', v)} min={12} max={24} />
+          </StyleSection>
         </div>
       )}
 
@@ -242,6 +270,18 @@ function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst,
         <div className="eb__block-fields">
           <label className="eb__field-label">CONTENT</label>
           <textarea className="eb__textarea" value={block.content} onChange={e => set('content', e.target.value)} placeholder="Write your email text here..." rows={4} />
+
+          <StyleSection title="Typography">
+            <FontPicker label="Font" value={block.fontFamily} onChange={v => set('fontFamily', v)} />
+            <FontSizeControl label="Font Size" value={block.fontSize || 14} onChange={v => set('fontSize', v)} />
+            <BrandColorPicker label="Text Color" value={block.color || '#444'} onChange={v => set('color', v)} />
+            <div className="eb__field-row">
+              <div>
+                <label className="eb__field-label">LINE HEIGHT</label>
+                <input className="eb__input" type="number" value={block.lineHeight ?? 1.65} onChange={e => set('lineHeight', +e.target.value)} min={1} max={3} step={0.1} style={{ width: 70 }} />
+              </div>
+            </div>
+          </StyleSection>
         </div>
       )}
 
@@ -256,7 +296,7 @@ function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst,
                 onClick={() => {
                   const images = block.images || ['']
                   const padded = Array.from({ length: l.slots }, (_, i) => images[i] || '')
-                  set('images', padded); set('layout', l.value)
+                  onChange({ ...block, images: padded, layout: l.value })
                 }}
               >
                 <span>{l.emoji}</span>
@@ -277,6 +317,11 @@ function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst,
               </button>
             ))}
           </div>
+
+          <StyleSection title="Corner Radius">
+            <BorderRadiusControl value={block.borderRadius ?? 0} onChange={v => set('borderRadius', v)} max={40} showPill={false} />
+          </StyleSection>
+
           <label className="eb__field-label">IMAGES ({(block.images || ['']).length} slot{(block.images || ['']).length > 1 ? 's' : ''})</label>
           {(block.images || ['']).map((img, i) => (
             <div key={i} className="eb__image-slot">
@@ -311,21 +356,41 @@ function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst,
           <input className="eb__input" value={block.label} onChange={e => set('label', e.target.value)} placeholder="Schedule a Showing" />
           <label className="eb__field-label">LINK URL</label>
           <input className="eb__input" value={block.url} onChange={e => set('url', e.target.value)} placeholder="https://..." />
-          <div className="eb__field-row">
-            <div>
-              <label className="eb__field-label">BG COLOR</label>
-              <input type="color" value={block.bgColor} onChange={e => set('bgColor', e.target.value)} className="eb__color-input" />
-            </div>
-            <div>
-              <label className="eb__field-label">TEXT COLOR</label>
-              <input type="color" value={block.textColor} onChange={e => set('textColor', e.target.value)} className="eb__color-input" />
-            </div>
-          </div>
+
+          <StyleSection title="Colors" defaultOpen>
+            <BrandColorPicker label="Button Color" value={block.bgColor} onChange={v => set('bgColor', v)} showMixes />
+            <BrandColorPicker label="Text Color" value={block.textColor} onChange={v => set('textColor', v)} />
+          </StyleSection>
+
+          <StyleSection title="Typography">
+            <FontPicker label="Font" value={block.fontFamily} onChange={v => set('fontFamily', v)} />
+            <FontSizeControl label="Font Size" value={block.fontSize || 14} onChange={v => set('fontSize', v)} min={11} max={22} />
+          </StyleSection>
+
+          <StyleSection title="Shape & Spacing">
+            <BorderRadiusControl label="Corner Radius" value={block.borderRadius ?? 6} onChange={v => set('borderRadius', v)} />
+            <SpacingControl label="Padding" value={block.padding ?? 12} onChange={v => set('padding', v)} max={24} />
+          </StyleSection>
         </div>
       )}
 
       {block.type === 'property-card' && (
         <div className="eb__block-fields">
+          <PropertyPicker
+            label="POPULATE FROM MY PROPERTIES"
+            compact
+            onSelect={(p) => {
+              onChange({
+                ...block,
+                address: [p.address, p.city, 'AZ', p.zip].filter(Boolean).join(', '),
+                price: p.price ? `$${Number(p.price).toLocaleString()}` : block.price,
+                beds: p.bedrooms ? String(p.bedrooms) : block.beds,
+                baths: p.bathrooms ? String(p.bathrooms) : block.baths,
+                sqft: p.sqft ? Number(p.sqft).toLocaleString() : block.sqft,
+                description: p.marketing_remarks || p.description || block.description,
+              })
+            }}
+          />
           <label className="eb__field-label">ADDRESS</label>
           <input className="eb__input" value={block.address} onChange={e => set('address', e.target.value)} placeholder="123 Main St, Gilbert AZ" />
           <label className="eb__field-label">PRICE</label>
@@ -346,11 +411,26 @@ function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst,
           </div>
           <label className="eb__field-label">DESCRIPTION</label>
           <textarea className="eb__textarea" value={block.description} onChange={e => set('description', e.target.value)} placeholder="Property highlights..." rows={2} />
+
+          <StyleSection title="Style">
+            <BrandColorPicker label="Card Background" value={block.bgColor || '#faf9f7'} onChange={v => set('bgColor', v)} />
+            <BorderRadiusControl label="Corner Radius" value={block.borderRadius ?? 8} onChange={v => set('borderRadius', v)} showPill={false} />
+          </StyleSection>
         </div>
       )}
 
       {block.type === 'event-card' && (
         <div className="eb__block-fields">
+          <PropertyPicker
+            label="POPULATE FROM MY PROPERTIES"
+            compact
+            onSelect={(p) => {
+              onChange({
+                ...block,
+                address: [p.address, p.city, 'AZ', p.zip].filter(Boolean).join(', '),
+              })
+            }}
+          />
           <label className="eb__field-label">EVENT TITLE</label>
           <input className="eb__input" value={block.title} onChange={e => set('title', e.target.value)} placeholder="Open House" />
           <label className="eb__field-label">DATE</label>
@@ -359,6 +439,11 @@ function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst,
           <input className="eb__input" value={block.time} onChange={e => set('time', e.target.value)} placeholder="11:00 AM — 2:00 PM" />
           <label className="eb__field-label">ADDRESS</label>
           <input className="eb__input" value={block.address} onChange={e => set('address', e.target.value)} placeholder="456 Oak Ave, Gilbert AZ" />
+
+          <StyleSection title="Style">
+            <BrandColorPicker label="Accent Color" value={block.accentColor || BRAND.dark} onChange={v => set('accentColor', v)} showMixes />
+            <BorderRadiusControl label="Corner Radius" value={block.borderRadius ?? 8} onChange={v => set('borderRadius', v)} showPill={false} />
+          </StyleSection>
         </div>
       )}
 
@@ -380,15 +465,32 @@ function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst,
               </div>
             </div>
           ))}
+
+          <StyleSection title="Style">
+            <BorderRadiusControl label="Corner Radius" value={block.borderRadius ?? 8} onChange={v => set('borderRadius', v)} showPill={false} />
+          </StyleSection>
         </div>
       )}
 
       {block.type === 'divider' && (
         <div className="eb__block-fields">
-          <div className="eb__field-row">
-            <label className="eb__field-label">LINE COLOR</label>
-            <input type="color" value={block.color} onChange={e => set('color', e.target.value)} className="eb__color-input" />
-          </div>
+          <StyleSection title="Style" defaultOpen>
+            <BrandColorPicker label="Line Color" value={block.color} onChange={v => set('color', v)} />
+            <div className="eb__field-row">
+              <div>
+                <label className="eb__field-label">THICKNESS</label>
+                <input className="eb__input" type="number" value={block.thickness ?? 1} onChange={e => set('thickness', +e.target.value)} min={1} max={8} style={{ width: 60 }} />
+              </div>
+              <div>
+                <label className="eb__field-label">STYLE</label>
+                <select className="eb__input" value={block.dividerStyle || 'solid'} onChange={e => set('dividerStyle', e.target.value)} style={{ width: 90 }}>
+                  <option value="solid">Solid</option>
+                  <option value="dashed">Dashed</option>
+                  <option value="dotted">Dotted</option>
+                </select>
+              </div>
+            </div>
+          </StyleSection>
         </div>
       )}
 
@@ -402,6 +504,54 @@ function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst,
           <input className="eb__input" value={block.phone} onChange={e => set('phone', e.target.value)} placeholder="(480) 555-1234" />
           <label className="eb__field-label">EMAIL</label>
           <input className="eb__input" value={block.email} onChange={e => set('email', e.target.value)} placeholder="dana@antigravityre.com" />
+          <label className="eb__field-label">WEBSITE</label>
+          <input className="eb__input" value={block.website || ''} onChange={e => set('website', e.target.value)} placeholder="antigravityre.com" />
+
+          {/* Social links from Settings */}
+          <label className="eb__field-label" style={{ marginTop: 8 }}>SOCIAL LINKS</label>
+          {connectedSocials.length > 0 ? (
+            <div className="eb__social-picks">
+              {connectedSocials.map(ch => {
+                const active = (block.socials || []).includes(ch.key)
+                return (
+                  <label key={ch.key} className={`eb__social-pick${active ? ' eb__social-pick--active' : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => {
+                        const current = block.socials || []
+                        const next = active ? current.filter(k => k !== ch.key) : [...current, ch.key]
+                        set('socials', next)
+                      }}
+                    />
+                    <span>{ch.icon} {ch.label}</span>
+                  </label>
+                )
+              })}
+              <p className="eb__social-hint">Toggle which social links appear in this email signature. Manage links in Settings.</p>
+            </div>
+          ) : (
+            <p className="eb__social-hint">No social channels connected yet. Add them in Settings &rarr; Social Channels.</p>
+          )}
+
+          {/* Legacy manual fields */}
+          <div className="eb__field-row" style={{ marginTop: 4 }}>
+            <div style={{ flex: 1 }}>
+              <label className="eb__field-label">INSTAGRAM (manual)</label>
+              <input className="eb__input" value={block.instagram || ''} onChange={e => set('instagram', e.target.value)} placeholder="@handle" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label className="eb__field-label">FACEBOOK (manual)</label>
+              <input className="eb__input" value={block.facebook || ''} onChange={e => set('facebook', e.target.value)} placeholder="page name" />
+            </div>
+          </div>
+
+          <label className="eb__field-label">YOUR LOGO / HEADSHOT</label>
+          <input type="file" accept="image/*" onChange={e => handleImageUpload(e, 'agentLogoUrl')} className="eb__file-input" />
+          {block.agentLogoUrl && <img src={block.agentLogoUrl} alt="" className="eb__image-thumb" />}
+          <label className="eb__field-label">BROKERAGE LOGO</label>
+          <input type="file" accept="image/*" onChange={e => handleImageUpload(e, 'brokerageLogoUrl')} className="eb__file-input" />
+          {block.brokerageLogoUrl && <img src={block.brokerageLogoUrl} alt="" className="eb__image-thumb" />}
         </div>
       )}
     </div>
@@ -413,7 +563,6 @@ function InlineEdit({ value, onChange, className, style, tag: Tag = 'p', placeho
   const ref = useRef(null)
   const lastValue = useRef(value)
 
-  // Only sync DOM when value changes externally (not from our own edits)
   useEffect(() => {
     if (ref.current && ref.current.innerText !== value && document.activeElement !== ref.current) {
       ref.current.innerText = value || ''
@@ -453,22 +602,19 @@ function InlineEdit({ value, onChange, className, style, tag: Tag = 'p', placeho
 }
 
 // ─── Preview Renderer (inline-editable) ───
-function PreviewBlock({ block, onChange, isSelected, onSelect }) {
+function PreviewBlock({ block, onChange, isSelected, onSelect, socialChannels = {}, emailSettings = {} }) {
   const set = (key, val) => onChange({ ...block, [key]: val })
-
-  const handleImageUpload = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => set('imageUrl', reader.result)
-    reader.readAsDataURL(file)
-  }
 
   const inner = (() => {
     switch (block.type) {
       case 'header':
         return (
-          <div className="ep__header" style={{ background: block.bgColor, color: block.textColor }}>
+          <div className="ep__header" style={{
+            background: block.bgColor,
+            color: block.textColor,
+            borderRadius: block.borderRadius ?? 0,
+            padding: block.padding ?? 28,
+          }}>
             {block.logoUrl ? (
               <img src={block.logoUrl} alt="Logo" className="ep__logo" />
             ) : (
@@ -480,6 +626,10 @@ function PreviewBlock({ block, onChange, isSelected, onSelect }) {
         return (
           <InlineEdit
             className="ep__greeting"
+            style={{
+              fontSize: block.fontSize || 15,
+              fontFamily: block.fontFamily || emailSettings.fontFamily || undefined,
+            }}
             value={block.text}
             onChange={v => set('text', v)}
             placeholder="Hi {first_name},"
@@ -490,6 +640,12 @@ function PreviewBlock({ block, onChange, isSelected, onSelect }) {
           <InlineEdit
             tag="div"
             className="ep__text ep__text--editable"
+            style={{
+              fontSize: block.fontSize || 14,
+              fontFamily: block.fontFamily || emailSettings.fontFamily || undefined,
+              lineHeight: block.lineHeight ?? 1.65,
+              color: block.color || '#444',
+            }}
             value={block.content}
             onChange={v => set('content', v)}
             placeholder="Click to type..."
@@ -500,7 +656,6 @@ function PreviewBlock({ block, onChange, isSelected, onSelect }) {
         const images = block.images || [block.imageUrl || '']
         const layout = block.layout || 'full'
         const shape = block.shape || 'box'
-        const hasAny = images.some(u => u)
 
         const gridClass = `ep__image-grid ep__image-grid--${layout}`
         const shapeClass = `ep__img--${shape}`
@@ -517,12 +672,14 @@ function PreviewBlock({ block, onChange, isSelected, onSelect }) {
           reader.readAsDataURL(file)
         }
 
+        const imgRadius = block.borderRadius ?? (shape === 'rounded' ? 12 : shape === 'circle' ? 9999 : 0)
+
         return (
           <div className={gridClass}>
             {images.map((url, i) => (
               url ? (
-                <div key={i} className={`ep__img-slot ${shapeClass}`}>
-                  <img src={url} alt={block.alt} className="ep__grid-img" />
+                <div key={i} className={`ep__img-slot ${shapeClass}`} style={{ borderRadius: imgRadius }}>
+                  <img src={url} alt={block.alt} className="ep__grid-img" style={{ borderRadius: imgRadius }} />
                   {isSelected && (
                     <label className="ep__image-replace">
                       Replace
@@ -531,7 +688,7 @@ function PreviewBlock({ block, onChange, isSelected, onSelect }) {
                   )}
                 </div>
               ) : (
-                <label key={i} className={`ep__img-slot ep__img-slot--empty ${shapeClass}`}>
+                <label key={i} className={`ep__img-slot ep__img-slot--empty ${shapeClass}`} style={{ borderRadius: imgRadius }}>
                   <span>+</span>
                   <input type="file" accept="image/*" onChange={handleSlotUpload(i)} hidden />
                 </label>
@@ -543,7 +700,14 @@ function PreviewBlock({ block, onChange, isSelected, onSelect }) {
       case 'cta':
         return (
           <div className="ep__cta-wrap">
-            <span className="ep__cta ep__cta--editable" style={{ background: block.bgColor, color: block.textColor }}>
+            <span className="ep__cta ep__cta--editable" style={{
+              background: block.bgColor,
+              color: block.textColor,
+              borderRadius: block.borderRadius ?? 6,
+              fontSize: block.fontSize || 14,
+              fontFamily: block.fontFamily || emailSettings.fontFamily || undefined,
+              padding: `${block.padding ?? 12}px ${(block.padding ?? 12) * 2.5}px`,
+            }}>
               <InlineEdit
                 tag="span"
                 value={block.label}
@@ -555,7 +719,10 @@ function PreviewBlock({ block, onChange, isSelected, onSelect }) {
         )
       case 'property-card':
         return (
-          <div className="ep__property">
+          <div className="ep__property" style={{
+            borderRadius: block.borderRadius ?? 8,
+            background: block.bgColor || '#faf9f7',
+          }}>
             <InlineEdit className="ep__property-price" value={block.price} onChange={v => set('price', v)} placeholder="$000,000" />
             <InlineEdit className="ep__property-address" value={block.address} onChange={v => set('address', v)} placeholder="123 Main St, City AZ" />
             <div className="ep__property-specs">
@@ -571,7 +738,10 @@ function PreviewBlock({ block, onChange, isSelected, onSelect }) {
         )
       case 'event-card':
         return (
-          <div className="ep__event">
+          <div className="ep__event" style={{
+            borderRadius: `0 ${block.borderRadius ?? 8}px ${block.borderRadius ?? 8}px 0`,
+            borderLeftColor: block.accentColor || BRAND.dark,
+          }}>
             <InlineEdit className="ep__event-title" value={block.title} onChange={v => set('title', v)} placeholder="Event Title" />
             <InlineEdit className="ep__event-detail" value={block.date} onChange={v => set('date', v)} placeholder="Date" />
             <InlineEdit className="ep__event-detail" value={block.time} onChange={v => set('time', v)} placeholder="Time" />
@@ -580,7 +750,7 @@ function PreviewBlock({ block, onChange, isSelected, onSelect }) {
         )
       case 'stats-row':
         return (
-          <div className="ep__stats">
+          <div className="ep__stats" style={{ borderRadius: block.borderRadius ?? 8 }}>
             {block.stats.map((s, i) => (
               <div key={i} className="ep__stat">
                 <InlineEdit className="ep__stat-value" value={s.value} onChange={v => {
@@ -597,14 +767,62 @@ function PreviewBlock({ block, onChange, isSelected, onSelect }) {
           </div>
         )
       case 'divider':
-        return <hr className="ep__divider" style={{ borderColor: block.color }} />
+        return <hr className="ep__divider" style={{
+          borderColor: block.color,
+          borderTopWidth: block.thickness ?? 1,
+          borderTopStyle: block.dividerStyle || 'solid',
+        }} />
       case 'signature':
         return (
           <div className="ep__signature">
-            <InlineEdit className="ep__sig-name" value={block.name} onChange={v => set('name', v)} placeholder="Your Name" />
-            <InlineEdit className="ep__sig-title" value={block.title} onChange={v => set('title', v)} placeholder="Title" />
-            <InlineEdit className="ep__sig-contact" value={block.phone} onChange={v => set('phone', v)} placeholder="Phone" />
-            <InlineEdit className="ep__sig-contact" value={block.email} onChange={v => set('email', v)} placeholder="Email" />
+            <div className="ep__sig-top">
+              <div className="ep__sig-logos">
+                {block.agentLogoUrl && <img src={block.agentLogoUrl} alt="Agent logo" className="ep__sig-logo" />}
+                {block.brokerageLogoUrl && <img src={block.brokerageLogoUrl} alt="Brokerage logo" className="ep__sig-brokerage-logo" />}
+                {!block.agentLogoUrl && !block.brokerageLogoUrl && isSelected && (
+                  <span className="ep__sig-logo-hint">Upload logos in the editor panel</span>
+                )}
+              </div>
+              <div className="ep__sig-info">
+                <InlineEdit className="ep__sig-name" value={block.name} onChange={v => set('name', v)} placeholder="Your Name" />
+                <InlineEdit className="ep__sig-title" value={block.title} onChange={v => set('title', v)} placeholder="Title" />
+              </div>
+            </div>
+            <div className="ep__sig-details">
+              {(block.phone || isSelected) && <InlineEdit className="ep__sig-contact" value={block.phone} onChange={v => set('phone', v)} placeholder="Phone" />}
+              {(block.email || isSelected) && <InlineEdit className="ep__sig-contact" value={block.email} onChange={v => set('email', v)} placeholder="Email" />}
+              {(block.website || isSelected) && <InlineEdit className="ep__sig-contact ep__sig-contact--link" value={block.website || ''} onChange={v => set('website', v)} placeholder="Website" />}
+            </div>
+            {(block.socials || []).length > 0 && (
+              <div className="ep__sig-social">
+                {(block.socials || []).map(key => {
+                  const ch = EMAIL_SOCIAL_CHANNELS.find(c => c.key === key)
+                  const url = socialChannels[key]
+                  if (!ch || !url) return null
+                  return (
+                    <a key={key} href={url} target="_blank" rel="noreferrer" className="ep__sig-social-item ep__sig-social-item--link">
+                      <span>{ch.icon}</span> <span>{ch.label}</span>
+                    </a>
+                  )
+                })}
+              </div>
+            )}
+            {(block.instagram || block.facebook || isSelected) && (
+              <div className="ep__sig-social">
+                {(block.instagram || isSelected) && (
+                  <span className="ep__sig-social-item">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" /><circle cx="12" cy="12" r="5" /><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none" /></svg>
+                    <InlineEdit tag="span" value={block.instagram || ''} onChange={v => set('instagram', v)} placeholder="@handle" />
+                  </span>
+                )}
+                {(block.facebook || isSelected) && (
+                  <span className="ep__sig-social-item">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                    <InlineEdit tag="span" value={block.facebook || ''} onChange={v => set('facebook', v)} placeholder="page" />
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         )
       default:
@@ -628,16 +846,57 @@ function PreviewBlock({ block, onChange, isSelected, onSelect }) {
 }
 
 // ─── Main Component ───
+const EMAIL_SOCIAL_CHANNELS = [
+  { key: 'instagram',   label: 'Instagram',       icon: '📷' },
+  { key: 'facebook',    label: 'Facebook',        icon: '👥' },
+  { key: 'tiktok',      label: 'TikTok',          icon: '🎵' },
+  { key: 'youtube',     label: 'YouTube',         icon: '▶️' },
+  { key: 'linkedin',    label: 'LinkedIn',        icon: '💼' },
+  { key: 'twitter',     label: 'Twitter / X',     icon: '🐦' },
+  { key: 'gmb',         label: 'Google Business', icon: '📍' },
+  { key: 'zillow',      label: 'Zillow',          icon: '🏠' },
+  { key: 'realtor_com', label: 'Realtor.com',     icon: '🔑' },
+  { key: 'blog',        label: 'Blog',            icon: '✍️' },
+  { key: 'website',     label: 'Website',         icon: '🌐' },
+  { key: 'linktree',    label: 'Linktree / Bio',  icon: '🔗' },
+]
+
 export default function EmailBuilder() {
-  const [view, setView] = useState('templates') // templates | editor
+  const { brand } = useBrand()
+  const [view, setView] = useState('templates')
   const [drafts, setDrafts] = useState(loadDrafts)
   const [savedTemplates, setSavedTemplates] = useState(loadTemplates)
-  const [activeEmail, setActiveEmail] = useState(null) // { subject, blocks, templateId, draftId }
+  const [activeEmail, setActiveEmail] = useState(null)
   const [selectedBlockIdx, setSelectedBlockIdx] = useState(null)
   const [addingBlock, setAddingBlock] = useState(false)
+  const [warnings, setWarnings] = useState([])
+  const [showWarnings, setShowWarnings] = useState(false)
+  const [emailSettings, setEmailSettings] = useState({ bgColor: '#e8e4de', emailBgColor: '#ffffff', fontFamily: '', borderRadius: 6 })
   const previewRef = useRef(null)
 
-  // ─── Template selection ───
+  const socialChannels = brand?.social_channels ?? {}
+  const connectedSocials = EMAIL_SOCIAL_CHANNELS.filter(c => socialChannels[c.key]?.trim())
+
+  // ─── Validation ───
+  const validateEmail = () => {
+    const issues = []
+    if (!activeEmail.subject?.trim()) issues.push('Subject line is empty')
+    activeEmail.blocks.forEach((b, i) => {
+      if (b.type === 'cta' && (!b.url || b.url === '#' || !b.url.trim())) {
+        issues.push(`Button "${b.label || 'Untitled'}" has no link URL`)
+      }
+      if (b.type === 'image') {
+        const imgs = b.images || []
+        const missing = imgs.filter(u => !u).length
+        if (missing > 0) issues.push(`Image block has ${missing} empty slot${missing > 1 ? 's' : ''}`)
+      }
+      if (b.type === 'signature' && !b.phone && !b.email) {
+        issues.push('Signature has no phone or email')
+      }
+    })
+    return issues
+  }
+
   const handleSelectTemplate = (template) => {
     const email = {
       draftId: crypto.randomUUID(),
@@ -651,7 +910,6 @@ export default function EmailBuilder() {
     setView('editor')
   }
 
-  // ─── Block operations ───
   const updateBlock = (idx, updated) => {
     const blocks = [...activeEmail.blocks]
     blocks[idx] = updated
@@ -681,15 +939,13 @@ export default function EmailBuilder() {
     setAddingBlock(false)
   }
 
-  // ─── Save draft ───
   const saveDraft = () => {
     const existing = drafts.filter(d => d.draftId !== activeEmail.draftId)
-    const updated = [{ ...activeEmail, updatedAt: new Date().toISOString() }, ...existing]
+    const updated = [{ ...activeEmail, emailSettings, updatedAt: new Date().toISOString() }, ...existing]
     setDrafts(updated)
     saveDrafts(updated)
   }
 
-  // ─── Save as template ───
   const saveAsTemplate = () => {
     const tpl = {
       id: crypto.randomUUID(),
@@ -698,6 +954,7 @@ export default function EmailBuilder() {
       category: 'CUSTOM',
       subject: activeEmail.subject,
       blocks: activeEmail.blocks,
+      emailSettings,
       createdAt: new Date().toISOString(),
     }
     const updated = [tpl, ...savedTemplates]
@@ -719,14 +976,30 @@ export default function EmailBuilder() {
 
   const loadDraft = (draft) => {
     setActiveEmail(draft)
+    if (draft.emailSettings) setEmailSettings(draft.emailSettings)
     setSelectedBlockIdx(null)
     setView('editor')
   }
 
-  const copyHtml = () => {
+  const handleExport = (action) => {
+    const issues = validateEmail()
+    if (issues.length > 0) {
+      setWarnings(issues)
+      setShowWarnings(true)
+      return
+    }
+    setShowWarnings(false)
+    setWarnings([])
+    if (action === 'copy') {
+      if (!previewRef.current) return
+      navigator.clipboard.writeText(previewRef.current.innerHTML)
+    }
+  }
+
+  const forceExport = () => {
+    setShowWarnings(false)
     if (!previewRef.current) return
-    const html = previewRef.current.innerHTML
-    navigator.clipboard.writeText(html)
+    navigator.clipboard.writeText(previewRef.current.innerHTML)
   }
 
   // ─── Templates View ───
@@ -740,7 +1013,6 @@ export default function EmailBuilder() {
           </div>
         </div>
 
-        {/* Drafts */}
         {drafts.length > 0 && (
           <div className="eb__section">
             <h3 className="eb__section-title">YOUR DRAFTS</h3>
@@ -756,7 +1028,6 @@ export default function EmailBuilder() {
           </div>
         )}
 
-        {/* Saved Templates */}
         {savedTemplates.length > 0 && (
           <div className="eb__section">
             <h3 className="eb__section-title">SAVED TEMPLATES</h3>
@@ -773,7 +1044,6 @@ export default function EmailBuilder() {
           </div>
         )}
 
-        {/* Starter Templates */}
         <div className="eb__section">
           <h3 className="eb__section-title">START WITH A TEMPLATE</h3>
           <p className="eb__section-sub">Pick a starting point — you can customize everything</p>
@@ -794,7 +1064,6 @@ export default function EmailBuilder() {
   // ─── Editor View ───
   return (
     <div className="eb">
-      {/* Editor Header */}
       <div className="eb__header">
         <div>
           <p className="eb__tag">EMAIL MARKETING</p>
@@ -804,7 +1073,7 @@ export default function EmailBuilder() {
           <Button size="sm" variant="secondary" onClick={() => setView('templates')}>← Templates</Button>
           <Button size="sm" variant="secondary" onClick={saveDraft}>Save Draft</Button>
           <Button size="sm" variant="secondary" onClick={saveAsTemplate}>Save as Template</Button>
-          <Button size="sm" variant="secondary" onClick={copyHtml}>Copy HTML</Button>
+          <Button size="sm" variant="secondary" onClick={() => handleExport('copy')}>Copy HTML</Button>
         </div>
       </div>
 
@@ -819,10 +1088,69 @@ export default function EmailBuilder() {
         />
       </div>
 
+      {/* Validation Warnings */}
+      {showWarnings && warnings.length > 0 && (
+        <div className="eb__warnings">
+          <div className="eb__warnings-header">
+            <span className="eb__warnings-icon">!</span>
+            <strong>Hold on — fix these before exporting:</strong>
+            <button className="eb__warnings-close" onClick={() => setShowWarnings(false)}>×</button>
+          </div>
+          <ul className="eb__warnings-list">
+            {warnings.map((w, i) => <li key={i}>{w}</li>)}
+          </ul>
+          <div className="eb__warnings-actions">
+            <Button size="sm" variant="secondary" onClick={forceExport}>Copy Anyway</Button>
+          </div>
+        </div>
+      )}
+
       {/* Two-column: Editor + Preview */}
       <div className="eb__workspace">
         {/* Block List + Editor */}
         <div className="eb__editor-col">
+          {/* Quick-fill from property */}
+          <div className="eb__email-settings">
+            <PropertyPicker
+              label="QUICK-FILL FROM A PROPERTY"
+              onSelect={(p) => {
+                // Find and populate property-card blocks
+                const blocks = activeEmail.blocks.map(b => {
+                  if (b.type === 'property-card') {
+                    return {
+                      ...b,
+                      address: [p.address, p.city, 'AZ', p.zip].filter(Boolean).join(', '),
+                      price: p.price ? `$${Number(p.price).toLocaleString()}` : b.price,
+                      beds: p.bedrooms ? String(p.bedrooms) : b.beds,
+                      baths: p.bathrooms ? String(p.bathrooms) : b.baths,
+                      sqft: p.sqft ? Number(p.sqft).toLocaleString() : b.sqft,
+                      description: p.marketing_remarks || p.description || b.description,
+                    }
+                  }
+                  if (b.type === 'event-card') {
+                    return { ...b, address: [p.address, p.city, 'AZ', p.zip].filter(Boolean).join(', ') }
+                  }
+                  return b
+                })
+                // Also update subject line if it has {address} placeholder
+                const subject = activeEmail.subject.includes('{address}')
+                  ? activeEmail.subject.replace('{address}', p.address)
+                  : activeEmail.subject
+                setActiveEmail({ ...activeEmail, blocks, subject })
+              }}
+            />
+          </div>
+
+          {/* Email-level settings */}
+          <div className="eb__email-settings">
+            <StyleSection title="Email Settings" defaultOpen>
+              <BrandColorPicker label="Email Background" value={emailSettings.emailBgColor || '#ffffff'} onChange={v => setEmailSettings({ ...emailSettings, emailBgColor: v })} />
+              <BrandColorPicker label="Outer Background" value={emailSettings.bgColor || '#e8e4de'} onChange={v => setEmailSettings({ ...emailSettings, bgColor: v })} showMixes />
+              <FontPicker label="Default Font" value={emailSettings.fontFamily} onChange={v => setEmailSettings({ ...emailSettings, fontFamily: v })} />
+              <BorderRadiusControl label="Email Container Radius" value={emailSettings.borderRadius ?? 6} onChange={v => setEmailSettings({ ...emailSettings, borderRadius: v })} showPill={false} />
+            </StyleSection>
+          </div>
+
           <div className="eb__blocks-list">
             {activeEmail.blocks.map((block, idx) => (
               <div
@@ -847,7 +1175,6 @@ export default function EmailBuilder() {
             ))}
           </div>
 
-          {/* Add Block */}
           {addingBlock ? (
             <div className="eb__add-palette">
               <p className="eb__field-label">ADD A BLOCK</p>
@@ -865,7 +1192,6 @@ export default function EmailBuilder() {
             <button className="eb__add-block-btn" onClick={() => setAddingBlock(true)}>+ Add Block</button>
           )}
 
-          {/* Selected Block Editor */}
           {selectedBlockIdx !== null && activeEmail.blocks[selectedBlockIdx] && (
             <BlockEditor
               block={activeEmail.blocks[selectedBlockIdx]}
@@ -875,6 +1201,8 @@ export default function EmailBuilder() {
               onMoveDown={() => moveBlock(selectedBlockIdx, 1)}
               isFirst={selectedBlockIdx === 0}
               isLast={selectedBlockIdx === activeEmail.blocks.length - 1}
+              connectedSocials={connectedSocials}
+              socialChannels={socialChannels}
             />
           )}
         </div>
@@ -882,8 +1210,12 @@ export default function EmailBuilder() {
         {/* Live Preview */}
         <div className="eb__preview-col">
           <p className="eb__field-label">LIVE PREVIEW — click any text to edit</p>
-          <div className="eb__preview-frame" onClick={() => setSelectedBlockIdx(null)}>
-            <div className="eb__preview-email" ref={previewRef}>
+          <div className="eb__preview-frame" style={{ background: emailSettings.bgColor || '#e8e4de' }} onClick={() => setSelectedBlockIdx(null)}>
+            <div className="eb__preview-email" ref={previewRef} style={{
+              background: emailSettings.emailBgColor || '#ffffff',
+              fontFamily: emailSettings.fontFamily || "'Poppins', Arial, sans-serif",
+              borderRadius: emailSettings.borderRadius ?? 6,
+            }}>
               {activeEmail.blocks.map((block, idx) => (
                 <PreviewBlock
                   key={block.id}
@@ -891,6 +1223,8 @@ export default function EmailBuilder() {
                   onChange={updated => updateBlock(idx, updated)}
                   isSelected={selectedBlockIdx === idx}
                   onSelect={() => setSelectedBlockIdx(idx)}
+                  socialChannels={socialChannels}
+                  emailSettings={emailSettings}
                 />
               ))}
             </div>

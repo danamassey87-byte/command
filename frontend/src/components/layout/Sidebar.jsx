@@ -86,10 +86,18 @@ const navSections = [
         ),
       },
       {
-        label: 'Seller Showings', path: '/seller-showings',
+        label: 'Listing Showings', path: '/seller-showings',
         icon: (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Listing Plan', path: '/listing-plan',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
           </svg>
         ),
       },
@@ -108,7 +116,7 @@ const navSections = [
         ),
       },
       {
-        label: 'Buyer Showings', path: '/buyer-showings',
+        label: 'Showings', path: '/buyer-showings',
         icon: (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />

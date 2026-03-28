@@ -112,8 +112,8 @@ export default function TopNav() {
           <span className="topnav__tagline">Command Center</span>
         </div>
         <div className="topnav__right">
-          <span className="topnav__time">{time}</span>
           <span className="topnav__date">{today}</span>
+          <span className="topnav__time">{time}</span>
           <button
             className={`topnav__edit-btn ${editing ? 'topnav__edit-btn--active' : ''}`}
             onClick={() => setEditing(p => !p)}

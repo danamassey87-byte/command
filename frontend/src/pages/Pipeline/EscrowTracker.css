@@ -1,0 +1,118 @@
+/* ─── Escrow Tracker ─── */
+.escrow { display: flex; flex-direction: column; gap: var(--space-md); }
+.escrow-loading { text-align: center; padding: 80px 32px; color: var(--color-text-muted); }
+
+/* Deal row */
+.escrow__deal {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.escrow__deal-header {
+  display: flex; align-items: center; gap: var(--space-lg);
+  padding: var(--space-lg);
+  width: 100%; text-align: left; background: none; border: none;
+  cursor: pointer; font-family: var(--font-body);
+  transition: background var(--transition-fast);
+}
+.escrow__deal-header:hover { background: rgba(239,237,232,0.3); }
+
+.escrow__deal-info { flex: 1.5; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.escrow__deal-name { font-size: 0.9rem; font-weight: 600; color: var(--brown-dark); }
+.escrow__deal-addr { font-size: 0.78rem; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.escrow__deal-meta { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.escrow__deal-price { font-size: 0.85rem; font-weight: 600; color: var(--brown-dark); }
+.escrow__deal-badges { display: flex; gap: 4px; }
+
+.escrow__deal-closing { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.escrow__deal-date { font-size: 0.8rem; color: var(--brown-dark); }
+.escrow__deal-days { font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted); }
+.escrow__deal-days--soon { color: var(--color-warning); }
+.escrow__deal-days--urgent { color: var(--color-danger); }
+
+.escrow__deal-progress { flex: 1; display: flex; align-items: center; gap: var(--space-sm); }
+.escrow__progress-bar {
+  flex: 1; height: 6px; border-radius: 3px;
+  background: var(--color-border-light); overflow: hidden;
+}
+.escrow__progress-fill {
+  height: 100%; border-radius: 3px;
+  background: var(--color-success);
+  transition: width 0.3s ease;
+}
+.escrow__progress-label { font-size: 0.7rem; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; }
+
+.escrow__chevron {
+  color: var(--color-text-muted); flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.escrow__chevron--open { transform: rotate(180deg); }
+
+/* Checklist container */
+.escrow__checklist {
+  padding: 0 var(--space-lg) var(--space-lg);
+  border-top: 1px solid var(--color-border-light);
+  padding-top: var(--space-md);
+}
+.escrow__checklist-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+.escrow__checklist-side {
+  font-family: var(--font-display);
+  font-size: 0.9rem; font-weight: 600; color: var(--brown-dark);
+}
+.escrow__checklist-pct {
+  font-size: 0.75rem; font-weight: 600; color: var(--color-success);
+}
+
+/* Sections within checklist */
+.escrow__section {
+  margin-bottom: var(--space-md);
+}
+.escrow__section:last-child { margin-bottom: 0; }
+.escrow__section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 0 4px;
+  border-bottom: 1px solid var(--color-border-light);
+  margin-bottom: 4px;
+}
+.escrow__section-title {
+  font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--brown-mid);
+}
+.escrow__section-count {
+  font-size: 0.68rem; font-weight: 600; color: var(--color-text-muted);
+  background: rgba(239,237,232,0.6); padding: 2px 8px; border-radius: var(--radius-full);
+}
+.escrow__section-items {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+}
+
+/* Check items */
+.escrow__check-item {
+  display: flex; align-items: flex-start; gap: var(--space-sm);
+  padding: 5px 8px; border-radius: var(--radius-sm);
+  font-size: 0.8rem; color: var(--brown-dark); cursor: pointer;
+  transition: background var(--transition-fast);
+  line-height: 1.35;
+}
+.escrow__check-item:hover { background: rgba(239,237,232,0.3); }
+.escrow__check-item--done { opacity: 0.45; }
+.escrow__check-item--done span { text-decoration: line-through; }
+.escrow__check-item input {
+  accent-color: var(--color-success);
+  margin-top: 2px; flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .escrow__deal-header { flex-wrap: wrap; gap: var(--space-md); }
+  .escrow__deal-info, .escrow__deal-meta, .escrow__deal-closing, .escrow__deal-progress { flex: none; width: 45%; }
+  .escrow__section-items { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .escrow__deal-info, .escrow__deal-meta, .escrow__deal-closing, .escrow__deal-progress { width: 100%; }
+}

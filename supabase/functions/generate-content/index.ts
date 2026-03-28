@@ -54,6 +54,35 @@ Platform guidance:
 Return ONLY a valid JSON object with platform keys mapping to adapted text. No extra commentary. Example:
 {"instagram": "...", "facebook": "...", "tiktok": "..."}`
 
+    } else if (type === 'suggest_hooks') {
+      // Generate hook ideas for a given niche/topic
+      userMessage = `Generate 5 fresh, scroll-stopping hook ideas for a ${prompt || 'real estate'} social media post.
+
+Niche/theme: ${pillar || 'Real Estate'}
+Content format: ${body_text || 'Instagram post'}
+
+Each hook should be the opening line that makes someone stop scrolling. Mix styles:
+- Question hooks
+- Bold statement hooks
+- "POV:" or "Story time:" hooks
+- Controversial/unexpected takes
+- Relatable/funny hooks
+
+Return ONLY a valid JSON array of 5 strings. No extra commentary. Example:
+["Hook one...", "Hook two...", "Hook three...", "Hook four...", "Hook five..."]`
+
+    } else if (type === 'suggest_topics') {
+      // Generate content topic ideas for the week
+      userMessage = `Generate 7 content topic ideas for a real estate agent's week of social media content.
+
+The weekly format is:
+${prompt}
+
+For each day, suggest a specific, actionable content idea that fits the assigned niche/format. Be creative and timely — think trending topics, seasonal angles, local East Valley/Gilbert AZ events, and evergreen real estate content.
+
+Return ONLY a valid JSON array of 7 objects with "day" and "idea" keys. Example:
+[{"day": "Monday", "idea": "Top 5 brunch spots in Downtown Gilbert with a reel-style walkthrough"}, ...]`
+
     } else if (type === 'adapt') {
       // Adapt main copy for one specific platform
       const hints: Record<string, string> = {
@@ -92,6 +121,36 @@ Output just the adapted copy, nothing else.`
 
     const result = await response.json()
     const text = result.content?.[0]?.text ?? ''
+
+    // For suggest_hooks, parse JSON array
+    if (type === 'suggest_hooks') {
+      try {
+        const jsonMatch = text.match(/\[[\s\S]*\]/)
+        const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : []
+        return new Response(JSON.stringify({ hooks: parsed }), {
+          headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      } catch {
+        return new Response(JSON.stringify({ hooks: [], raw: text }), {
+          headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    // For suggest_topics, parse JSON array
+    if (type === 'suggest_topics') {
+      try {
+        const jsonMatch = text.match(/\[[\s\S]*\]/)
+        const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : []
+        return new Response(JSON.stringify({ topics: parsed }), {
+          headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      } catch {
+        return new Response(JSON.stringify({ topics: [], raw: text }), {
+          headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      }
+    }
 
     // For repurpose, parse JSON from Claude's response
     if (type === 'repurpose') {

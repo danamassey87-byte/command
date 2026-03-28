@@ -54,18 +54,18 @@
   gap: var(--space-lg);
 }
 
-.topnav__time {
+.topnav__date {
   font-family: var(--font-body);
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--brown-dark);
   letter-spacing: 0.2px;
 }
-.topnav__date {
+.topnav__time {
   font-family: var(--font-body);
-  font-size: 0.78rem;
-  font-weight: 400;
-  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--brown-dark);
   letter-spacing: 0.2px;
 }
 

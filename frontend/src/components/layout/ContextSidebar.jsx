@@ -1,3 +1,4 @@
+import React from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import './ContextSidebar.css'
 
@@ -26,13 +27,15 @@ const SECTIONS = {
   crm: {
     title: 'CRM',
     items: [
-      { label: 'All Contacts',    path: '/crm',               icon: 'users' },
-      { label: 'Buyers',          path: '/crm/buyers',        icon: 'user' },
-      { label: 'Buyer Showings',  path: '/crm/showings',      icon: 'eye' },
-      { label: 'Sellers',         path: '/crm/sellers',       icon: 'home' },
-      { label: 'Listing Showings', path: '/crm/seller-showings', icon: 'home' },
-      { label: 'Investors',       path: '/crm/investors',     icon: 'trending-up' },
-      { label: 'Properties',      path: '/crm/properties',    icon: 'map-pin' },
+      { label: 'All Contacts',     path: '/crm',                  icon: 'users' },
+      { label: 'Clients',          path: '/crm/buyers',           icon: 'user',        group: 'Buyers' },
+      { label: 'Showings',         path: '/crm/showings',         icon: 'eye' },
+      { label: 'Properties',       path: '/crm/properties',       icon: 'map-pin' },
+      { label: 'Investors',        path: '/crm/investors',        icon: 'trending-up' },
+      { label: 'Listings',         path: '/crm/sellers',          icon: 'home',        group: 'Sellers' },
+      { label: 'Listing Showings', path: '/crm/seller-showings',  icon: 'eye' },
+      { label: 'Listing Plan',     path: '/crm/listing-plan',     icon: 'zap' },
+      { label: 'Intake Forms',     path: '/crm/intake-forms',     icon: 'clipboard',   group: 'Tools' },
     ],
   },
   pipeline: {
@@ -71,9 +74,13 @@ const SECTIONS = {
   pnl: {
     title: 'P&L',
     items: [
-      { label: 'Overview',   path: '/pnl',            icon: 'dollar-sign' },
-      { label: 'Expenses',   path: '/pnl/expenses',   icon: 'minus-circle' },
-      { label: 'Income',     path: '/pnl/income',     icon: 'plus-circle' },
+      { label: 'Overview',    path: '/pnl',            icon: 'dollar-sign' },
+      { label: 'Expenses',    path: '/pnl/expenses',   icon: 'minus-circle' },
+      { label: 'Income',      path: '/pnl/income',     icon: 'plus-circle' },
+      { label: 'Recurring',   path: '/pnl/recurring',  icon: 'clock' },
+      { label: 'Mileage Log', path: '/pnl/mileage',    icon: 'map-pin' },
+      { label: 'Budget',      path: '/pnl/budget',     icon: 'target' },
+      { label: 'Tax Summary', path: '/pnl/tax',        icon: 'bar-chart' },
     ],
   },
   market: {
@@ -177,19 +184,21 @@ export default function ContextSidebar() {
       <h3 className="ctx-sidebar__title">{section.title}</h3>
       <nav className="ctx-sidebar__nav">
         {section.items.map(item => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === '/' || item.path === '/crm' || item.path === '/pipeline' || item.path === '/showings' || item.path === '/content' || item.path === '/pnl' || item.path === '/resources'}
-            className={({ isActive }) => `ctx-sidebar__link ${isActive ? 'ctx-sidebar__link--active' : ''}`}
-          >
-            <span className="ctx-sidebar__icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                {ICONS[item.icon]}
-              </svg>
-            </span>
-            <span className="ctx-sidebar__label">{item.label}</span>
-          </NavLink>
+          <React.Fragment key={item.path}>
+            {item.group && <span className="ctx-sidebar__group-label">{item.group}</span>}
+            <NavLink
+              to={item.path}
+              end={item.path === '/' || item.path === '/crm' || item.path === '/pipeline' || item.path === '/showings' || item.path === '/content' || item.path === '/pnl' || item.path === '/resources'}
+              className={({ isActive }) => `ctx-sidebar__link ${isActive ? 'ctx-sidebar__link--active' : ''}`}
+            >
+              <span className="ctx-sidebar__icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  {ICONS[item.icon]}
+                </svg>
+              </span>
+              <span className="ctx-sidebar__label">{item.label}</span>
+            </NavLink>
+          </React.Fragment>
         ))}
       </nav>
     </aside>

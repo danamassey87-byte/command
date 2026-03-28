@@ -24,6 +24,7 @@ const pageTitles = {
   '/pipeline/closed':    'Closed Deals',
   '/crm/showings':         'Buyer Showings',
   '/crm/seller-showings':  'Listing Showings',
+  '/crm/listing-plan':     'Listing Plan',
   '/crm/properties':       'Properties',
   '/calendar':             'Calendar',
   '/calendar/today':       'Today\'s Showings',
