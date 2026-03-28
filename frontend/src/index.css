@@ -1,0 +1,167 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&family=Poppins:wght@300;400;500;600;700&display=swap');
+
+/* ─── Design Tokens ─── */
+:root {
+  --brown-dark:   #524136;
+  --brown-mid:    #b79782;
+  --brown-light:  #c8c3b9;
+  --cream:        #efede8;
+  --white:        #ffffff;
+
+  /* Semantic aliases */
+  --color-primary:      var(--brown-dark);
+  --color-accent:       var(--brown-mid);
+  --color-muted:        var(--brown-light);
+  --color-bg:           #f4f2ee;
+  --color-surface:      var(--white);
+  --color-text:         var(--brown-dark);
+  --color-text-muted:   var(--brown-mid);
+  --color-border:       #ddd8d0;
+  --color-border-light: #e8e4de;
+
+  /* Glass / Frost */
+  --glass-bg:           rgba(255, 255, 255, 0.68);
+  --glass-bg-strong:    rgba(255, 255, 255, 0.88);
+  --glass-blur:         16px;
+  --glass-border:       rgba(255, 255, 255, 0.55);
+
+  /* Status colors */
+  --color-success:      #6a9e72;
+  --color-success-bg:   #edf4ee;
+  --color-warning:      #c99a2e;
+  --color-warning-bg:   #fdf6e3;
+  --color-danger:       #c0604a;
+  --color-danger-bg:    #fdf0ed;
+  --color-info:         #5a87b4;
+  --color-info-bg:      #eef4fa;
+
+  /* Typography */
+  --font-display:  'Playfair Display', Georgia, serif;
+  --font-body:     'Poppins', system-ui, sans-serif;
+  --font-script:   'Cormorant Garamond', Georgia, serif;
+  --font-impact:   'Playfair Display', Georgia, serif;
+
+  /* Layout */
+  --topnav-height: 88px;
+  --context-sidebar-width: 220px;
+
+  /* Spacing */
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+  --space-2xl: 48px;
+
+  /* Radii */
+  --radius-sm:   8px;
+  --radius-md:   14px;
+  --radius-lg:   20px;
+  --radius-xl:   28px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-xs:  0 1px 2px rgba(82, 65, 54, 0.04), 0 1px 4px rgba(82, 65, 54, 0.06);
+  --shadow-sm:  0 2px 6px rgba(82, 65, 54, 0.06), 0 4px 12px rgba(82, 65, 54, 0.04);
+  --shadow-md:  0 4px 16px rgba(82, 65, 54, 0.08), 0 8px 32px rgba(82, 65, 54, 0.04);
+  --shadow-lg:  0 8px 32px rgba(82, 65, 54, 0.10), 0 16px 48px rgba(82, 65, 54, 0.06);
+
+  /* Transitions */
+  --transition-fast:   0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-slow:   0.4s ease;
+
+  /* Sidebar (legacy — kept for compat, use topnav/context-sidebar vars) */
+  --sidebar-width: 250px;
+}
+
+/* ─── Reset & Base ─── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+}
+
+/* ─── Typography ─── */
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.2;
+}
+
+h4, h5, h6, label, button, input, select, textarea {
+  font-family: var(--font-body);
+}
+
+h1 { font-size: 2rem; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.15rem; }
+h4 {
+  font-family: var(--font-impact);
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+p { margin: 0; }
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+a:hover { color: var(--color-primary); }
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-muted);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-accent); }
+
+/* ─── Page Loading ─── */
+.page-loading {
+  padding: 48px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* ─── Clickable Address Link ─── */
+.address-link {
+  color: var(--brown-dark);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--brown-mid);
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  cursor: pointer;
+}
+.address-link:hover {
+  color: var(--brown-mid);
+  border-bottom-color: var(--brown-dark);
+  border-bottom-style: solid;
+}

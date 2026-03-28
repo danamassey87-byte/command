@@ -1,0 +1,441 @@
+.daily-tracker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* ── Today Card ── */
+.dt-today-card { display: flex; flex-direction: column; gap: var(--space-md); }
+
+.dt-today-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.dt-today-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+  margin: 0;
+}
+
+.dt-today-date {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+}
+
+.dt-inputs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 700px) {
+  .dt-inputs-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.dt-metric-input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dt-metric-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dt-number-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-family: var(--font-body);
+  color: var(--brown-dark);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  transition: border-color var(--transition-fast);
+  -moz-appearance: textfield;
+}
+
+.dt-number-input::-webkit-outer-spin-button,
+.dt-number-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+.dt-number-input:focus {
+  outline: none;
+  border-color: var(--brown-mid);
+}
+
+/* ── Week Card ── */
+.dt-week-card { display: flex; flex-direction: column; gap: var(--space-md); }
+
+.dt-section-title {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+  margin: 0;
+}
+
+.dt-week-bars { display: flex; flex-direction: column; gap: 12px; }
+
+.dt-bar-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 60px;
+  align-items: center;
+  gap: 12px;
+}
+
+.dt-bar-label {
+  font-size: 0.82rem;
+  color: var(--brown-dark);
+  font-weight: 500;
+}
+
+.dt-bar-track {
+  height: 8px;
+  background: var(--color-border-light);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.dt-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.4s ease;
+}
+
+.dt-bar-stat {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.dt-bar-target {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+/* ── History Card ── */
+.dt-history-card { display: flex; flex-direction: column; gap: var(--space-md); }
+
+.dt-empty {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 24px 0;
+}
+
+.dt-history-table-wrap { overflow-x: auto; }
+
+.dt-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.dt-history-table th {
+  text-align: center;
+  padding: 6px 8px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dt-history-table th:first-child { text-align: left; }
+
+.dt-history-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--color-border-light);
+  vertical-align: middle;
+}
+
+.dt-history-row--today { background: rgba(183,151,130,0.08); }
+
+.dt-history-date {
+  font-size: 0.78rem;
+  color: var(--brown-dark);
+  white-space: nowrap;
+}
+
+.dt-history-num { text-align: center; }
+
+.dt-history-val {
+  font-weight: 600;
+  color: var(--brown-dark);
+}
+
+.dt-history-zero { color: var(--color-text-muted); }
+
+.dt-history-note {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Auto-Tracked Card ── */
+.dt-auto-card { display: flex; flex-direction: column; gap: var(--space-md); }
+
+.dt-auto-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+}
+
+.dt-auto-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.dt-auto-hint {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.dt-auto-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+}
+
+.dt-auto-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-md);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  text-align: center;
+}
+
+.dt-auto-num {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  line-height: 1;
+}
+
+.dt-auto-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.dt-auto-src {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+}
+
+/* ── Daily Tasks Card ── */
+.dt-tasks-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.dt-tasks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dt-tasks-title {
+  color: var(--brown-dark);
+  margin: 0;
+}
+
+.dt-tasks-controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dt-tasks-ctrl-btn {
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.dt-tasks-ctrl-btn:hover { border-color: var(--brown-mid); color: var(--brown-dark); }
+.dt-tasks-ctrl-btn--active { background: rgba(239, 237, 232, 0.4); color: var(--brown-dark); border-color: var(--brown-mid); font-weight: 600; }
+.dt-tasks-ctrl-btn--muted { opacity: 0.6; }
+.dt-tasks-ctrl-btn--danger { color: var(--color-danger); border-color: var(--color-danger); }
+.dt-tasks-ctrl-btn--danger:hover { background: var(--color-danger-bg); }
+
+.dt-tasks-add {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--cream);
+  border-radius: var(--radius-md);
+}
+
+.dt-tasks-priority-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.dt-pri-btn {
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.dt-pri-btn:hover { border-color: var(--brown-mid); }
+.dt-pri-btn--active { background: var(--white); font-weight: 600; }
+
+.dt-tasks-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.dt-task-input {
+  flex: 1;
+  padding: 7px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  color: var(--brown-dark);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+.dt-task-input:focus { border-color: var(--brown-mid); }
+.dt-task-input::placeholder { color: var(--color-text-muted); }
+
+.dt-task-add-btn {
+  padding: 7px 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: var(--brown-dark);
+  color: var(--white);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+.dt-task-add-btn:hover { opacity: 0.85; }
+
+.dt-tasks-empty {
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  padding: var(--space-md) 0;
+}
+
+.dt-tasks-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dt-task-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  transition: opacity var(--transition-fast);
+}
+.dt-task-item--done {
+  opacity: 0.5;
+}
+.dt-task-item--done .dt-task-text {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+.dt-task-check {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--brown-mid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dt-task-check svg { width: 100%; height: 100%; }
+.dt-task-item--done .dt-task-check { color: var(--color-success); }
+
+.dt-task-pri-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dt-task-text {
+  flex: 1;
+  font-size: 0.85rem;
+  color: var(--brown-dark);
+  line-height: 1.3;
+}
+
+.dt-task-del {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.dt-task-item:hover .dt-task-del { opacity: 1; }
+.dt-task-del:hover { color: var(--color-danger); background: var(--color-danger-bg); }

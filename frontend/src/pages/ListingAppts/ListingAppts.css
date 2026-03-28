@@ -1,0 +1,195 @@
+.listing-appts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* ── Stats row ── */
+.la-stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-md);
+}
+
+@media (max-width: 700px) {
+  .la-stats-row { grid-template-columns: repeat(2, 1fr); }
+}
+
+.la-stat-card {
+  text-align: center;
+  padding: var(--space-md) !important;
+}
+
+.la-stat-value {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+  margin: 0;
+}
+
+.la-stat-label {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 4px 0 0;
+}
+
+/* ── Table ── */
+.la-table-wrap { overflow-x: auto; }
+
+.la-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.la-table th {
+  text-align: left;
+  padding: 8px 12px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.la-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border-light);
+  vertical-align: middle;
+}
+
+.la-table-row {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.la-table-row:hover { background: var(--color-surface-hover); }
+
+.la-table-row--won  { background: rgba(74,181,97,0.04); }
+.la-table-row--lost { background: rgba(220,60,60,0.03); }
+
+/* ── Empty state ── */
+.la-empty {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 48px 0;
+}
+
+/* ── Detail ── */
+.la-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.la-detail-name {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+  margin: 0;
+}
+
+.la-detail-address {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+}
+
+.la-checklist-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--brown-mid);
+  margin: var(--space-md) 0 var(--space-sm);
+}
+
+/* ── Checklist ── */
+.la-checklist { display: flex; flex-direction: column; gap: 2px; }
+
+.la-checklist-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0;
+}
+
+.la-checklist-empty p { font-size:0.82rem; color:var(--color-text-muted); margin:0; }
+
+.la-checklist-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.la-checklist-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--color-border-light);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.la-checklist-bar-fill {
+  height: 100%;
+  background: var(--brown-mid);
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.la-checklist-pct {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.la-task-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.la-task-row:last-child { border-bottom: none; }
+
+.la-task-check {
+  flex-shrink: 0;
+  width: 20px; height: 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.la-task-check svg { width: 16px; height: 16px; }
+
+.la-task-name {
+  flex: 1;
+  font-size: 0.82rem;
+  color: var(--brown-dark);
+}
+
+.la-task-name--done {
+  text-decoration: line-through;
+  color: var(--color-text-muted);
+}
+
+.la-task-date {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}

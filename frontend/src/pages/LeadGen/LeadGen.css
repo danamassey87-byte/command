@@ -1,0 +1,182 @@
+.lead-gen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* ─── Pipeline Strip ─── */
+.pipeline-strip {
+  display: flex;
+  gap: var(--space-xs);
+  overflow-x: auto;
+  padding-bottom: var(--space-xs);
+}
+
+.pipeline-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  text-align: center;
+  flex-shrink: 0;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.pipeline-stage--active {
+  border-color: var(--brown-mid);
+  background: rgba(183, 151, 130, 0.08);
+}
+
+.pipeline-stage__count {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+  line-height: 1;
+}
+.pipeline-stage--active .pipeline-stage__count { color: var(--brown-mid); }
+
+.pipeline-stage__label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+/* ─── Filters ─── */
+.lead-gen__filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.lead-gen__search {
+  margin-left: auto;
+  width: 240px;
+  margin-bottom: 0;
+}
+
+/* ─── Table Cells ─── */
+.lead-address {
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--brown-dark);
+}
+.lead-city {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.dom-pill {
+  display: inline-block;
+  background: var(--cream);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--brown-mid);
+}
+
+.stage-select {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--brown-dark);
+  background: var(--cream);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  cursor: pointer;
+  outline: none;
+  max-width: 160px;
+  transition: border-color var(--transition-fast);
+}
+.stage-select:focus { border-color: var(--brown-mid); }
+
+/* ─── Scanning Animation ─── */
+@keyframes dotBlink {
+  0%, 80%, 100% { opacity: 0; }
+  40% { opacity: 1; }
+}
+.scanning-dots span {
+  animation: dotBlink 1.2s infinite;
+}
+.scanning-dots span:nth-child(2) { animation-delay: 0.2s; }
+.scanning-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+/* ─── Scan Overlay ─── */
+.scan-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(82,65,54,0.3);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  animation: fadeIn var(--transition-fast) ease;
+}
+
+.scan-overlay__inner {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl) var(--space-2xl);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.scan-overlay__inner p {
+  font-size: 0.9rem;
+  color: var(--brown-dark);
+  font-weight: 500;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.scan-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--brown-mid);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.letter-btn {
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-family: var(--font-body);
+  background: var(--color-info-bg);
+  border: 1px solid rgba(90,135,180,0.25);
+  border-radius: var(--radius-full);
+  color: var(--color-info);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  white-space: nowrap;
+}
+.letter-btn:hover:not(:disabled) { background: rgba(90,135,180,0.15); }
+.letter-btn:disabled { opacity: 0.5; cursor: default; }

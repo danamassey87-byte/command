@@ -1,0 +1,275 @@
+.investors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* ─── Summary Bar ─── */
+.investors__summary {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.investors__summary-stat {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+  text-align: center;
+  box-shadow: var(--shadow-xs);
+  min-width: 120px;
+}
+
+.investors__summary-value {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+  line-height: 1;
+}
+
+.investors__summary-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-top: 5px;
+}
+
+/* ─── Investor Detail ─── */
+.investor-detail__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.investor-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  animation: fadeInPage var(--transition-normal) ease forwards;
+}
+
+.investor-detail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.investor-detail__badges {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.investor-detail__name {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+}
+
+.investor-detail__contact-info {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.investor-detail__stat {
+  background: var(--cream);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-xl);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.investor-detail__stat-value {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+  line-height: 1;
+}
+
+.investor-detail__stat-label {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-top: 5px;
+}
+
+/* ─── Buy Box ─── */
+.investor-buy-box {
+  padding: var(--space-lg) !important;
+}
+
+.investor-buy-box__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.investor-buy-box__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.investor-buy-box__item-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--brown-mid);
+  margin-bottom: 4px;
+}
+
+.investor-buy-box__item-value {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--brown-dark);
+}
+
+.investor-buy-box__notes {
+  background: var(--cream);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.investor-buy-box__notes-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--brown-mid);
+  margin-bottom: 6px;
+}
+
+.investor-buy-box__notes p:last-child {
+  font-size: 0.85rem;
+  color: var(--brown-dark);
+}
+
+/* ─── Feedback Loop ─── */
+.investor-feedback-section {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-xs);
+}
+
+.investor-feedback-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.investor-feedback-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+  flex: 1;
+}
+
+.investor-feedback-counts {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.investor-feedback-count {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+}
+.investor-feedback-count--yes   { background: var(--color-success-bg); color: var(--color-success); }
+.investor-feedback-count--maybe { background: var(--color-warning-bg); color: var(--color-warning); }
+.investor-feedback-count--no    { background: var(--color-danger-bg);  color: var(--color-danger); }
+
+.investor-feedback-empty {
+  text-align: center;
+  padding: var(--space-2xl);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* ─── Feedback Cards ─── */
+.feedback-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.feedback-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  transition: background var(--transition-fast);
+}
+.feedback-card--yes   { border-left: 3px solid var(--color-success); }
+.feedback-card--no    { border-left: 3px solid var(--color-danger);  }
+.feedback-card--maybe { border-left: 3px solid var(--color-warning); }
+
+.feedback-card__body { flex: 1; }
+
+.feedback-card__address {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--brown-dark);
+}
+
+.feedback-card__price {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.feedback-card__note {
+  font-size: 0.78rem;
+  color: var(--brown-mid);
+  font-style: italic;
+  margin-top: 4px;
+}
+
+.feedback-card__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.feedback-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid var(--color-border);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+}
+.feedback-btn:hover { border-color: var(--brown-mid); color: var(--brown-dark); }
+
+.feedback-btn--yes.feedback-btn--active   { background: var(--color-success); border-color: var(--color-success); color: var(--white); }
+.feedback-btn--no.feedback-btn--active    { background: var(--color-danger);  border-color: var(--color-danger);  color: var(--white); }
+.feedback-btn--maybe.feedback-btn--active { background: var(--color-warning); border-color: var(--color-warning); color: var(--white); }

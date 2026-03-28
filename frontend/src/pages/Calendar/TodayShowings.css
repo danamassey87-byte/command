@@ -1,0 +1,78 @@
+/* ─── Today's Showings ─── */
+.today { display: flex; flex-direction: column; gap: var(--space-xl); }
+.today-loading { text-align: center; padding: 80px 32px; color: var(--color-text-muted); font-size: 0.9rem; }
+
+/* Summary bar */
+.today__summary {
+  display: flex; gap: var(--space-lg); flex-wrap: wrap;
+}
+.today__stat {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: var(--space-md) var(--space-xl);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  min-width: 100px;
+}
+.today__stat-num {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+}
+.today__stat-label { font-size: 0.75rem; color: var(--color-text-muted); font-weight: 500; }
+
+/* Sections */
+.today__section { display: flex; flex-direction: column; gap: var(--space-md); }
+.today__section-title {
+  display: flex; align-items: center; gap: var(--space-sm);
+  font-family: var(--font-display);
+  font-size: 1rem; font-weight: 600; color: var(--brown-dark); margin: 0;
+}
+.today__section-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+/* Cards */
+.today__cards { display: flex; flex-direction: column; gap: var(--space-sm); }
+.today__card-header {
+  display: flex; align-items: center; gap: var(--space-md); flex-wrap: wrap;
+}
+.today__card-time {
+  font-family: var(--font-display);
+  font-size: 0.9rem; font-weight: 700; color: var(--brown-mid);
+  min-width: 80px;
+}
+.today__card-buyer {
+  font-size: 0.9rem; font-weight: 600; color: var(--brown-dark); flex: 1;
+}
+
+/* Properties within a showing card */
+.today__properties {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border-light);
+}
+.today__prop { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+.today__prop-addr { font-size: 0.82rem; font-weight: 500; }
+.today__prop-meta { display: flex; align-items: center; gap: var(--space-sm); }
+.today__prop-price { font-size: 0.78rem; color: var(--color-text-muted); }
+
+/* Contact links */
+.today__contact-links {
+  display: flex; gap: var(--space-md); flex-wrap: wrap;
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border-light);
+}
+.today__contact-link {
+  font-size: 0.8rem; color: var(--brown-mid); text-decoration: none;
+  transition: color var(--transition-fast);
+}
+.today__contact-link:hover { color: var(--brown-dark); text-decoration: underline; }
+
+@media (max-width: 600px) {
+  .today__summary { flex-direction: row; }
+  .today__stat { flex: 1; min-width: 80px; padding: var(--space-sm) var(--space-md); }
+  .today__stat-num { font-size: 1.2rem; }
+}

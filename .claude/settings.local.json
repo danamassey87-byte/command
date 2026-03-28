@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "mcp__claude_ai_Airtable__list_bases",
+      "mcp__claude_ai_Airtable__list_tables_for_base",
+      "mcp__claude_ai_Airtable__list_records_for_table",
+      "Bash(open http://localhost:5174)",
+      "Bash(node -e \":*)",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "mcp__claude_ai_Supabase__list_tables",
+      "Bash(curl -s http://localhost:5173/)",
+      "mcp__claude_ai_Supabase__list_projects",
+      "Bash(gh --version)",
+      "Bash(gh repo:*)"
+    ]
+  }
+}

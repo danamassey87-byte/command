@@ -1,0 +1,505 @@
+.buyers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* ─── Pipeline Strip (shared with LeadGen) ─── */
+.pipeline-strip {
+  display: flex;
+  gap: var(--space-xs);
+  overflow-x: auto;
+  padding-bottom: var(--space-xs);
+}
+
+.pipeline-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  text-align: center;
+  flex-shrink: 0;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.pipeline-stage--active {
+  border-color: var(--brown-mid);
+  background: rgba(183, 151, 130, 0.08);
+}
+
+.pipeline-stage__count {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+  line-height: 1;
+}
+.pipeline-stage--active .pipeline-stage__count { color: var(--brown-mid); }
+
+.pipeline-stage__label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+/* ─── Buyer checkbox label ─── */
+.buyer-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--brown-dark);
+  cursor: pointer;
+}
+.buyer-checkbox-label input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--brown-mid); cursor: pointer; }
+
+/* ─── Buyer Detail Nav ─── */
+.buyer-detail__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ─── Buyer Detail ─── */
+.buyer-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  animation: fadeInPage var(--transition-normal) ease forwards;
+}
+
+.buyer-detail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.buyer-detail__name {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+}
+
+.buyer-detail__contact {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin: 4px 0 10px;
+}
+
+.buyer-detail__tags {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.buyer-detail__quick-stats {
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.buyer-detail__stat {
+  background: var(--cream);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  text-align: center;
+}
+
+.buyer-detail__stat-value {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--brown-dark);
+}
+
+.buyer-detail__stat-label {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-top: 3px;
+}
+
+/* ─── Notes ─── */
+.buyer-detail__notes {
+  padding: var(--space-md) !important;
+  background: var(--cream) !important;
+}
+
+/* ─── Showing Section ─── */
+.buyer-detail__showings-section {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-xs);
+}
+
+.buyer-detail__showings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+
+.buyer-detail__showings-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+}
+
+.buyer-detail__showings-actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.buyer-detail__showings-empty {
+  text-align: center;
+  padding: var(--space-2xl);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+/* ─── Showing Cards ─── */
+.showing-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.showing-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  transition: background var(--transition-fast);
+}
+.showing-card:hover { background: rgba(239, 237, 232, 0.4); }
+.showing-card--offer-accepted {
+  border-color: var(--color-success);
+  background: var(--color-success-bg);
+}
+
+.showing-card__number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--brown-dark);
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.showing-card--offer-accepted .showing-card__number {
+  background: var(--color-success);
+}
+
+.showing-card__body { flex: 1; }
+
+.showing-card__address {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--brown-dark);
+}
+
+.showing-card__city {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.showing-card__feedback {
+  font-size: 0.78rem;
+  color: var(--brown-mid);
+  font-style: italic;
+  margin-top: 4px;
+}
+
+/* ── Showing Edit Form ── */
+.showing-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.72rem;
+  color: var(--brown-mid);
+  padding: 4px 0 0;
+  text-decoration: underline;
+  font-family: var(--font-body);
+}
+
+.showing-edit-btn:hover { color: var(--brown-dark); }
+
+.showing-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.showing-edit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.showing-edit-label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.showing-edit-select {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--brown-dark);
+}
+
+.showing-edit-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--brown-dark);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.showing-edit-textarea:focus { outline: none; border-color: var(--brown-mid); }
+
+.showing-edit-checks {
+  display: flex;
+  gap: 16px;
+}
+
+.showing-edit-check-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--brown-dark);
+  cursor: pointer;
+}
+
+/* ─── Inline Editable Controls ─── */
+.buyer-inline-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 4px 22px 4px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+  outline: none;
+  max-width: 140px;
+}
+.buyer-inline-select:hover,
+.buyer-inline-select:focus {
+  border-color: var(--brown-mid);
+}
+.buyer-inline-select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Stage color variants */
+.buyer-inline-select--stage { background-color: var(--cream); color: var(--brown-dark); }
+.buyer-inline-select--new-lead        { background-color: #f0ede8; color: var(--brown-dark); }
+.buyer-inline-select--pre-approval    { background-color: var(--color-warning-bg); color: var(--color-warning); border-color: var(--color-warning); }
+.buyer-inline-select--active-search   { background-color: var(--color-info-bg); color: var(--color-info); border-color: var(--color-info); }
+.buyer-inline-select--showing         { background-color: var(--color-info-bg); color: var(--color-info); border-color: var(--color-info); }
+.buyer-inline-select--under-contract  { background-color: #f5f0e8; color: var(--brown-mid); border-color: var(--brown-mid); }
+.buyer-inline-select--closed          { background-color: var(--color-success-bg); color: var(--color-success); border-color: var(--color-success); }
+.buyer-inline-select--inactive        { background-color: var(--color-danger-bg); color: var(--color-danger); border-color: var(--color-danger); }
+
+/* Source select — neutral style */
+.buyer-inline-select--source {
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  font-size: 0.72rem;
+}
+
+/* BBA toggle button */
+.buyer-inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+.buyer-inline-toggle:disabled { opacity: 0.5; cursor: default; }
+
+.buyer-inline-toggle--on {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+.buyer-inline-toggle--on:hover:not(:disabled) {
+  background: #d5ecd7;
+}
+
+.buyer-inline-toggle--off {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+.buyer-inline-toggle--off:hover:not(:disabled) {
+  background: #f7e9c0;
+}
+
+/* ─── BBA date line (below the signed badge) ─── */
+.bba-date-line {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  margin-top: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bba-date-line:hover { color: var(--brown-mid); text-decoration: underline; }
+
+/* ─── BBA inline date editor ─── */
+.bba-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 190px;
+}
+
+.bba-inline-dates {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bba-inline-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bba-inline-date {
+  padding: 4px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  color: var(--brown-dark);
+  background: var(--white);
+  outline: none;
+  cursor: pointer;
+}
+.bba-inline-date:focus { border-color: var(--brown-mid); }
+
+.bba-inline-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.bba-inline-save {
+  padding: 4px 12px;
+  background: var(--brown-dark);
+  color: var(--white);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+.bba-inline-save:disabled { opacity: 0.5; cursor: default; }
+.bba-inline-save:not(:disabled):hover { background: var(--brown-mid); }
+
+.bba-inline-cancel {
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+.bba-inline-cancel:hover { color: var(--brown-dark); border-color: var(--brown-mid); }
+
+/* ─── View Toggle (List / Calendar) ─── */
+.buyers__view-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  padding: 3px;
+}
+.buyers__view-btn {
+  width: 34px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+.buyers__view-btn:hover { color: var(--brown-dark); }
+.buyers__view-btn--active {
+  background: var(--white);
+  color: var(--brown-dark);
+  box-shadow: var(--shadow-xs);
+}
