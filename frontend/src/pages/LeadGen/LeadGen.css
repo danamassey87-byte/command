@@ -180,3 +180,9 @@
 }
 .letter-btn:hover:not(:disabled) { background: rgba(90,135,180,0.15); }
 .letter-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .lead-gen__filters { flex-direction: column; align-items: stretch; }
+  .lead-gen__search { margin-left: 0; width: 100%; }
+}

@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useContext, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { MobileMenuContext } from './TopNav'
 import './ContextSidebar.css'
 
 /* ─── Section definitions ─── */
@@ -173,34 +174,46 @@ export function getActiveSection(pathname) {
 
 export default function ContextSidebar() {
   const { pathname } = useLocation()
+  const { mobileSidebarOpen, setMobileSidebarOpen } = useContext(MobileMenuContext)
   const sectionKey = getActiveSection(pathname)
   const section = SECTIONS[sectionKey]
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    setMobileSidebarOpen(false)
+  }, [pathname, setMobileSidebarOpen])
 
   // Single-page sections don't need a sidebar
   if (!section || section.items.length <= 1) return null
 
   return (
-    <aside className="ctx-sidebar">
-      <h3 className="ctx-sidebar__title">{section.title}</h3>
-      <nav className="ctx-sidebar__nav">
-        {section.items.map(item => (
-          <React.Fragment key={item.path}>
-            {item.group && <span className="ctx-sidebar__group-label">{item.group}</span>}
-            <NavLink
-              to={item.path}
-              end={item.path === '/' || item.path === '/crm' || item.path === '/pipeline' || item.path === '/showings' || item.path === '/content' || item.path === '/pnl' || item.path === '/resources'}
-              className={({ isActive }) => `ctx-sidebar__link ${isActive ? 'ctx-sidebar__link--active' : ''}`}
-            >
-              <span className="ctx-sidebar__icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  {ICONS[item.icon]}
-                </svg>
-              </span>
-              <span className="ctx-sidebar__label">{item.label}</span>
-            </NavLink>
-          </React.Fragment>
-        ))}
-      </nav>
-    </aside>
+    <>
+      {/* Desktop sidebar (always visible) + Mobile sidebar (conditionally visible) */}
+      {mobileSidebarOpen && (
+        <div className="ctx-sidebar__overlay" onClick={() => setMobileSidebarOpen(false)} />
+      )}
+      <aside className={`ctx-sidebar ${mobileSidebarOpen ? 'ctx-sidebar--open' : ''}`}>
+        <h3 className="ctx-sidebar__title">{section.title}</h3>
+        <nav className="ctx-sidebar__nav">
+          {section.items.map(item => (
+            <React.Fragment key={item.path}>
+              {item.group && <span className="ctx-sidebar__group-label">{item.group}</span>}
+              <NavLink
+                to={item.path}
+                end={item.path === '/' || item.path === '/crm' || item.path === '/pipeline' || item.path === '/showings' || item.path === '/content' || item.path === '/pnl' || item.path === '/resources'}
+                className={({ isActive }) => `ctx-sidebar__link ${isActive ? 'ctx-sidebar__link--active' : ''}`}
+              >
+                <span className="ctx-sidebar__icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    {ICONS[item.icon]}
+                  </svg>
+                </span>
+                <span className="ctx-sidebar__label">{item.label}</span>
+              </NavLink>
+            </React.Fragment>
+          ))}
+        </nav>
+      </aside>
+    </>
   )
 }

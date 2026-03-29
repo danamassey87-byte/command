@@ -216,3 +216,8 @@
   gap: 10px;
   margin-top: 6px;
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .seller-features-grid { grid-template-columns: 1fr; }
+}

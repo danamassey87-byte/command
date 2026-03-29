@@ -282,4 +282,5 @@
   .pipe__topbar { flex-direction: column; align-items: flex-start; }
   .pipe__list-header, .pipe__list-row { grid-template-columns: 1fr 1fr; }
   .pipe__list-th:nth-child(n+3), .pipe__list-td:nth-child(n+3) { display: none; }
+  .pipe__form-row { grid-template-columns: 1fr; }
 }

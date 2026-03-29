@@ -165,3 +165,44 @@ a:hover { color: var(--color-primary); }
   border-bottom-color: var(--brown-dark);
   border-bottom-style: solid;
 }
+
+/* ─── Mobile Overrides ─── */
+@media (max-width: 768px) {
+  :root {
+    --topnav-height: 52px;
+    --context-sidebar-width: 220px;
+  }
+
+  html { font-size: 15px; }
+
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1.05rem; }
+
+  /* Force tables to scroll horizontally on mobile */
+  table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Touch-friendly minimum tap targets */
+  button, a, select, input[type="checkbox"], input[type="radio"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="date"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px; /* Prevents iOS zoom on focus */
+  }
+}
+
+@media (max-width: 480px) {
+  html { font-size: 14px; }
+}

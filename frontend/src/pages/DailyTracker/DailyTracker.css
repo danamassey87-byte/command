@@ -439,3 +439,10 @@
 }
 .dt-task-item:hover .dt-task-del { opacity: 1; }
 .dt-task-del:hover { color: var(--color-danger); background: var(--color-danger-bg); }
+
+/* ─── Mobile ─── */
+@media (max-width: 600px) {
+  .dt-inputs-grid { grid-template-columns: 1fr; }
+  .dt-auto-grid { grid-template-columns: 1fr; }
+  .dt-bar-row { grid-template-columns: 80px 1fr 50px; gap: 8px; }
+}

@@ -403,3 +403,10 @@
   opacity: 0.5;
   text-align: center;
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .if-builder { flex-direction: column; }
+  .if-builder__editor { width: 100%; border-right: none; border-bottom: 1px solid var(--color-border-light); max-height: 300px; overflow-y: auto; }
+  .if-grid { grid-template-columns: 1fr; }
+}

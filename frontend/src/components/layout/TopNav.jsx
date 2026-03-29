@@ -1,6 +1,14 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import './TopNav.css'
+
+// Shared mobile menu context so Layout can control sidebar too
+export const MobileMenuContext = createContext({
+  mobileMenuOpen: false,
+  setMobileMenuOpen: () => {},
+  mobileSidebarOpen: false,
+  setMobileSidebarOpen: () => {},
+})
 
 const DEFAULT_NAV_ITEMS = [
   { id: 'dashboard',   label: 'Dashboard',   emoji: '📊', path: '/' },
@@ -45,6 +53,12 @@ export default function TopNav() {
   const [dragIdx, setDragIdx] = useState(null)
   const [overIdx, setOverIdx] = useState(null)
   const dragNode = useRef(null)
+  const { mobileMenuOpen, setMobileMenuOpen } = useContext(MobileMenuContext)
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [pathname, setMobileMenuOpen])
 
   const isActive = (item) => {
     if (item.path === '/') return pathname === '/' || pathname.startsWith('/dashboard')
@@ -104,53 +118,92 @@ export default function TopNav() {
   }
 
   return (
-    <header className="topnav">
-      <div className="topnav__header-row">
-        <div className="topnav__brand">
-          <span className="topnav__name">Dana Massey</span>
-          <span className="topnav__separator">—</span>
-          <span className="topnav__tagline">Command Center</span>
+    <>
+      <header className="topnav">
+        <div className="topnav__header-row">
+          <div className="topnav__brand">
+            {/* Mobile hamburger */}
+            <button
+              className="topnav__hamburger"
+              onClick={() => setMobileMenuOpen(prev => !prev)}
+              aria-label="Toggle navigation menu"
+            >
+              <span className={`topnav__hamburger-line ${mobileMenuOpen ? 'topnav__hamburger-line--open' : ''}`} />
+              <span className={`topnav__hamburger-line ${mobileMenuOpen ? 'topnav__hamburger-line--open' : ''}`} />
+              <span className={`topnav__hamburger-line ${mobileMenuOpen ? 'topnav__hamburger-line--open' : ''}`} />
+            </button>
+            <span className="topnav__name">Dana Massey</span>
+            <span className="topnav__separator">—</span>
+            <span className="topnav__tagline">Command Center</span>
+          </div>
+          <div className="topnav__right">
+            <span className="topnav__date">{today}</span>
+            <span className="topnav__time">{time}</span>
+            <button
+              className={`topnav__edit-btn ${editing ? 'topnav__edit-btn--active' : ''}`}
+              onClick={() => setEditing(p => !p)}
+              title={editing ? 'Done editing' : 'Reorder tabs'}
+            >
+              {editing ? '✓ Done' : '✏️ Edit'}
+            </button>
+            <NavLink to="/settings" className="topnav__settings-link">
+              ⚙️
+            </NavLink>
+          </div>
         </div>
-        <div className="topnav__right">
-          <span className="topnav__date">{today}</span>
-          <span className="topnav__time">{time}</span>
-          <button
-            className={`topnav__edit-btn ${editing ? 'topnav__edit-btn--active' : ''}`}
-            onClick={() => setEditing(p => !p)}
-            title={editing ? 'Done editing' : 'Reorder tabs'}
-          >
-            {editing ? '✓ Done' : '✏️ Edit'}
-          </button>
-          <NavLink to="/settings" className="topnav__settings-link">
-            ⚙️
-          </NavLink>
-        </div>
-      </div>
 
-      <nav className={`topnav__tabs-row ${editing ? 'topnav__tabs-row--editing' : ''}`}>
-        {items.map((item, idx) => (
-          <NavLink
-            key={item.id}
-            to={editing ? '#' : item.path}
-            onClick={editing ? (e) => e.preventDefault() : undefined}
-            className={`topnav__tab ${isActive(item) ? 'topnav__tab--active' : ''} ${editing ? 'topnav__tab--editable' : ''} ${overIdx === idx && dragIdx !== idx ? 'topnav__tab--drop-target' : ''}`}
-            draggable={editing}
-            onDragStart={editing ? (e) => handleDragStart(e, idx) : undefined}
-            onDragOver={editing ? (e) => handleDragOver(e, idx) : undefined}
-            onDrop={editing ? (e) => handleDrop(e, idx) : undefined}
-            onDragEnd={editing ? handleDragEnd : undefined}
-          >
-            {editing && <span className="topnav__drag-handle">⠿</span>}
-            <span className="topnav__tab-emoji">{item.emoji}</span>
-            {item.label}
-          </NavLink>
-        ))}
-        {editing && (
-          <button className="topnav__reset-btn" onClick={resetOrder} title="Reset to default order">
-            ↺ Reset
-          </button>
-        )}
-      </nav>
-    </header>
+        <nav className={`topnav__tabs-row ${editing ? 'topnav__tabs-row--editing' : ''}`}>
+          {items.map((item, idx) => (
+            <NavLink
+              key={item.id}
+              to={editing ? '#' : item.path}
+              onClick={editing ? (e) => e.preventDefault() : undefined}
+              className={`topnav__tab ${isActive(item) ? 'topnav__tab--active' : ''} ${editing ? 'topnav__tab--editable' : ''} ${overIdx === idx && dragIdx !== idx ? 'topnav__tab--drop-target' : ''}`}
+              draggable={editing}
+              onDragStart={editing ? (e) => handleDragStart(e, idx) : undefined}
+              onDragOver={editing ? (e) => handleDragOver(e, idx) : undefined}
+              onDrop={editing ? (e) => handleDrop(e, idx) : undefined}
+              onDragEnd={editing ? handleDragEnd : undefined}
+            >
+              {editing && <span className="topnav__drag-handle">⠿</span>}
+              <span className="topnav__tab-emoji">{item.emoji}</span>
+              {item.label}
+            </NavLink>
+          ))}
+          {editing && (
+            <button className="topnav__reset-btn" onClick={resetOrder} title="Reset to default order">
+              ↺ Reset
+            </button>
+          )}
+        </nav>
+      </header>
+
+      {/* Mobile full-screen nav overlay */}
+      {mobileMenuOpen && (
+        <div className="topnav__mobile-overlay" onClick={() => setMobileMenuOpen(false)}>
+          <nav className="topnav__mobile-menu" onClick={e => e.stopPropagation()}>
+            {items.map(item => (
+              <NavLink
+                key={item.id}
+                to={item.path}
+                className={`topnav__mobile-link ${isActive(item) ? 'topnav__mobile-link--active' : ''}`}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <span className="topnav__tab-emoji">{item.emoji}</span>
+                {item.label}
+              </NavLink>
+            ))}
+            <NavLink
+              to="/settings"
+              className="topnav__mobile-link"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <span className="topnav__tab-emoji">⚙️</span>
+              Settings
+            </NavLink>
+          </nav>
+        </div>
+      )}
+    </>
   )
 }

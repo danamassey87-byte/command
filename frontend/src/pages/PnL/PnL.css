@@ -614,3 +614,15 @@
   text-transform: uppercase;
   color: var(--brown-light);
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .pnl-kpis { grid-template-columns: repeat(2, 1fr); }
+  .pnl-form__row { grid-template-columns: 1fr; }
+  .pnl-chart-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .pnl-kpis { grid-template-columns: 1fr; }
+  .pnl-bar { grid-template-columns: 80px 1fr 60px; }
+}

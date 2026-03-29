@@ -1,5 +1,6 @@
+import { useState, useCallback } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
-import TopNav from './TopNav'
+import TopNav, { MobileMenuContext } from './TopNav'
 import ContextSidebar, { getActiveSection } from './ContextSidebar'
 import './Layout.css'
 
@@ -59,6 +60,9 @@ const pageTitles = {
 
 export default function Layout() {
   const { pathname } = useLocation()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+
   const title = pageTitles[pathname] ?? pageTitles['/' + pathname.split('/').slice(1, 2).join('/')] ?? 'COMMAND'
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
@@ -68,23 +72,42 @@ export default function Layout() {
   const sidebarSections = ['dashboard', 'prospecting', 'crm', 'pipeline', 'calendar', 'content', 'pnl', 'bio-link', 'email', 'resources']
   const showSidebar = sidebarSections.includes(section)
 
+  const ctxValue = {
+    mobileMenuOpen,
+    setMobileMenuOpen: useCallback((v) => setMobileMenuOpen(v), []),
+    mobileSidebarOpen,
+    setMobileSidebarOpen: useCallback((v) => setMobileSidebarOpen(v), []),
+  }
+
   return (
-    <div className="layout">
-      <TopNav />
-      <div className={`layout__body ${showSidebar ? 'layout__body--with-sidebar' : ''}`}>
-        {showSidebar && <ContextSidebar />}
-        <div className="layout__main">
-          <header className="layout__header">
-            <div>
-              <h1 className="layout__page-title">{title}</h1>
-              <p className="layout__date">{today}</p>
-            </div>
-          </header>
-          <main className="layout__content">
-            <Outlet />
-          </main>
+    <MobileMenuContext.Provider value={ctxValue}>
+      <div className="layout">
+        <TopNav />
+        <div className={`layout__body ${showSidebar ? 'layout__body--with-sidebar' : ''}`}>
+          {showSidebar && <ContextSidebar />}
+          <div className="layout__main">
+            <header className="layout__header">
+              <div>
+                <h1 className="layout__page-title">{title}</h1>
+                <p className="layout__date">{today}</p>
+              </div>
+              {/* Mobile sidebar toggle — only shows when section has sub-pages */}
+              {showSidebar && (
+                <button
+                  className="layout__sidebar-toggle"
+                  onClick={() => setMobileSidebarOpen(prev => !prev)}
+                  aria-label="Toggle section menu"
+                >
+                  ☰ Menu
+                </button>
+              )}
+            </header>
+            <main className="layout__content">
+              <Outlet />
+            </main>
+          </div>
         </div>
       </div>
-    </div>
+    </MobileMenuContext.Provider>
   )
 }

@@ -912,3 +912,10 @@
 
 .outreach-contact-link--sms   { color: var(--color-success); }
 .outreach-contact-link--email { color: var(--color-info); }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .oh-date-custom { flex-direction: column; gap: var(--space-sm); max-width: 100%; }
+  .oh-detail__checklists { grid-template-columns: 1fr; }
+  .oh-tasks-grid { grid-template-columns: 1fr; }
+}

@@ -262,3 +262,9 @@
   font-size: 0.75rem;
   color: var(--color-text-muted);
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .listing-plan { max-width: 100%; padding: 0; }
+  .listing-plan__row { flex-direction: column; }
+}

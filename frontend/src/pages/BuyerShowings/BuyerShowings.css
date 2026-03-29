@@ -105,3 +105,9 @@
   accent-color: var(--brown-mid);
   cursor: pointer;
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .bs-filters { flex-direction: column; align-items: stretch; }
+  .bs-client-select { min-width: 100%; }
+}

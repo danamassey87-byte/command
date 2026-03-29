@@ -503,3 +503,10 @@
   color: var(--brown-dark);
   box-shadow: var(--shadow-xs);
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .showing-edit-grid { grid-template-columns: 1fr; }
+  .pipeline-strip { gap: 2px; }
+  .pipeline-strip__stage { font-size: 0.6rem; padding: 4px 6px; }
+}

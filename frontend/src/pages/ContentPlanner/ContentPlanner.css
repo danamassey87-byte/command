@@ -554,3 +554,16 @@
 }
 .cp__format-input--sm { width: 40px; text-align: center; }
 .cp__format-input:focus { border-color: var(--brown-mid); }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .cp__strip { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .cp__day { min-height: 120px; padding: 8px 6px; }
+  .cp__bottom { grid-template-columns: 1fr; }
+  .cp__inspo-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 480px) {
+  .cp__strip { grid-template-columns: repeat(2, 1fr); }
+  .cp__inspo-grid { grid-template-columns: 1fr; }
+}

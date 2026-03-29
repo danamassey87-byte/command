@@ -1059,3 +1059,16 @@
   gap: 8px;
   padding-left: 30px;
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .eb__workspace { grid-template-columns: 1fr; }
+  .eb__preview-col { position: static; }
+  .eb__templates-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .eb__drafts-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .eb__palette-grid { grid-template-columns: repeat(2, 1fr); }
+  .eb__field-row-3 { grid-template-columns: 1fr; }
+  .eb__layout-picker { grid-template-columns: repeat(2, 1fr); }
+  .ep__image-grid--3-row { grid-template-columns: 1fr 1fr; }
+  .ep__image-grid--4-row { grid-template-columns: 1fr 1fr; }
+}

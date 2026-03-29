@@ -387,3 +387,10 @@
   color: var(--color-text-muted);
   font-size: 0.85rem;
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .bio-builder { flex-direction: column; }
+  .bio-builder__sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--color-border-light); max-height: 250px; overflow-y: auto; }
+  .bio-builder__preview-wrap { flex: 1; }
+}

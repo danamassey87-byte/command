@@ -518,3 +518,17 @@
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .dashboard { gap: var(--space-md); }
+  .dashboard__kpi-grid { grid-template-columns: repeat(2, 1fr); gap: var(--space-sm); }
+  .cp-stats { grid-template-columns: repeat(2, 1fr); }
+  .oh-stats, .leads-stats, .inv-stats { flex-wrap: wrap; gap: var(--space-md); }
+}
+
+@media (max-width: 480px) {
+  .dashboard__kpi-grid { grid-template-columns: 1fr; }
+  .this-week-grid { grid-template-columns: 1fr; }
+  .cp-stats { grid-template-columns: 1fr; }
+}
