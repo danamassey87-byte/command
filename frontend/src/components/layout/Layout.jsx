@@ -21,6 +21,7 @@ const pageTitles = {
   '/crm/investors':      'Investors',
   '/crm/leads':          'Lead Gen',
   '/pipeline':           'Pipeline',
+  '/pipeline/seller-sop': 'Seller SOP',
   '/pipeline/escrow':    'Escrow Tracker',
   '/pipeline/closed':    'Closed Deals',
   '/crm/showings':         'Buyer Showings',

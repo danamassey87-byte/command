@@ -31,6 +31,7 @@ import CalendarTasks from './pages/Calendar/Tasks'
 import PipelineBoard from './pages/Pipeline/Pipeline'
 import EscrowTracker from './pages/Pipeline/EscrowTracker'
 import ClosedDeals from './pages/Pipeline/ClosedDeals'
+import SellerSOP from './pages/Pipeline/SellerSOP'
 
 // ─── Net Sheet ──────────────────────────────────────────────────────────────
 import NetSheet from './pages/NetSheet/NetSheet'
@@ -88,6 +89,7 @@ export default function App() {
 
           {/* ─── Pipeline ─── */}
           <Route path="/pipeline"          element={<PipelineBoard />} />
+          <Route path="/pipeline/seller-sop" element={<SellerSOP />} />
           <Route path="/pipeline/escrow"   element={<EscrowTracker />} />
           <Route path="/pipeline/closed"   element={<ClosedDeals />} />
 

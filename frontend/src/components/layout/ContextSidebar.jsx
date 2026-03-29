@@ -42,9 +42,10 @@ const SECTIONS = {
   pipeline: {
     title: 'Pipeline',
     items: [
-      { label: 'Active Deals',   path: '/pipeline',           icon: 'layers' },
-      { label: 'Escrow Tracker', path: '/pipeline/escrow',    icon: 'clock' },
-      { label: 'Closed',         path: '/pipeline/closed',    icon: 'check-circle' },
+      { label: 'Active Deals',   path: '/pipeline',             icon: 'layers' },
+      { label: 'Seller SOP',     path: '/pipeline/seller-sop',  icon: 'clipboard' },
+      { label: 'Escrow Tracker', path: '/pipeline/escrow',      icon: 'clock' },
+      { label: 'Closed',         path: '/pipeline/closed',      icon: 'check-circle' },
     ],
   },
   calendar: {
