@@ -43,6 +43,7 @@ const SECTIONS = {
     title: 'Pipeline',
     items: [
       { label: 'Active Deals',   path: '/pipeline',             icon: 'layers' },
+      { label: 'Buyer SOP',      path: '/pipeline/buyer-sop',   icon: 'clipboard' },
       { label: 'Seller SOP',     path: '/pipeline/seller-sop',  icon: 'clipboard' },
       { label: 'Escrow Tracker', path: '/pipeline/escrow',      icon: 'clock' },
       { label: 'Closed',         path: '/pipeline/closed',      icon: 'check-circle' },
