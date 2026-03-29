@@ -397,24 +397,82 @@ export default function Pipeline() {
     return STAGES.filter(s => ds[s.value]?.completed).length
   }, [stageHistory])
 
+  // Drag-and-drop state
+  const [dragDeal, setDragDeal] = useState(null)
+  const [dropStage, setDropStage] = useState(null)
+
   // Filter active deals
-  const activeDeals = useMemo(() =>
+  const allActiveDeals = useMemo(() =>
     (transactions ?? []).filter(t => {
       const s = (t.status ?? '').toLowerCase()
       return !s.includes('closed') && !s.includes('cancelled') && !s.includes('withdrawn') && !s.includes('dead')
     })
   , [transactions])
 
+  // Separate pre-offer leads from board deals
+  const preOfferDeals = useMemo(() =>
+    allActiveDeals.filter(t => stageInfo(t.status).value === 'pre_offer')
+  , [allActiveDeals])
+
+  const activeDeals = useMemo(() =>
+    allActiveDeals.filter(t => stageInfo(t.status).value !== 'pre_offer')
+  , [allActiveDeals])
+
+  const [showPreOffer, setShowPreOffer] = useState(false)
+
+  // Board stages (exclude pre_offer since it has its own section)
+  const BOARD_STAGES = useMemo(() => STAGES.filter(s => s.value !== 'pre_offer'), [])
+
   // Group by stage for board view
   const dealsByStage = useMemo(() => {
     const map = {}
-    STAGES.forEach(s => { map[s.value] = [] })
+    BOARD_STAGES.forEach(s => { map[s.value] = [] })
     activeDeals.forEach(deal => {
       const si = stageInfo(deal.status)
       if (map[si.value]) map[si.value].push(deal)
     })
     return map
-  }, [activeDeals])
+  }, [activeDeals, BOARD_STAGES])
+
+  // Drag-and-drop handlers
+  const handleDragStart = useCallback((e, deal) => {
+    setDragDeal(deal)
+    e.dataTransfer.effectAllowed = 'move'
+    e.target.style.opacity = '0.4'
+  }, [])
+
+  const handleDragEnd = useCallback((e) => {
+    e.target.style.opacity = '1'
+    setDragDeal(null)
+    setDropStage(null)
+  }, [])
+
+  const handleColumnDragOver = useCallback((e, stageValue) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDropStage(stageValue)
+  }, [])
+
+  const handleColumnDragLeave = useCallback(() => {
+    setDropStage(null)
+  }, [])
+
+  const handleColumnDrop = useCallback(async (e, stageValue) => {
+    e.preventDefault()
+    setDropStage(null)
+    if (!dragDeal) return
+    const currentStage = stageInfo(dragDeal.status)
+    if (currentStage.value === stageValue) return
+    const newStage = STAGES.find(s => s.value === stageValue)
+    if (!newStage) return
+    try {
+      await DB.updateTransaction(dragDeal.id, { status: newStage.label })
+      refetch()
+    } catch (err) {
+      alert('Error moving deal: ' + err.message)
+    }
+    setDragDeal(null)
+  }, [dragDeal, refetch])
 
   const pipelineValue = useMemo(() =>
     activeDeals.reduce((sum, d) => sum + (Number(d.property?.price) || Number(d.offer_price) || 0), 0)
@@ -558,7 +616,40 @@ export default function Pipeline() {
         </div>
       </div>
 
-      {activeDeals.length === 0 ? (
+      {/* ─── Pre-Offer Leads (collapsed section) ─── */}
+      {preOfferDeals.length > 0 && (
+        <div className="pipe__pre-offer">
+          <button className="pipe__pre-offer-toggle" onClick={() => setShowPreOffer(p => !p)}>
+            <span className="pipe__pre-offer-title">
+              {showPreOffer ? '▾' : '▸'} Pre-Offer Leads
+            </span>
+            <Badge variant="default" size="sm">{preOfferDeals.length}</Badge>
+          </button>
+          {showPreOffer && (
+            <div className="pipe__pre-offer-list">
+              {preOfferDeals.map(deal => (
+                <button key={deal.id} className="pipe__pre-offer-card" onClick={() => openDetail(deal)}>
+                  <div className="pipe__pre-offer-info">
+                    <span className="pipe__card-name">{deal.contact?.name ?? '—'}</span>
+                    <span className="pipe__card-addr">{deal.property?.address ?? 'No property'}</span>
+                  </div>
+                  <div className="pipe__pre-offer-meta">
+                    <Badge variant={deal.deal_type === 'buyer' ? 'info' : deal.deal_type === 'seller' ? 'accent' : 'dark'} size="sm">{deal.deal_type ?? '—'}</Badge>
+                    <span className="pipe__card-price">{fmtDollar(deal.property?.price || deal.offer_price)}</span>
+                  </div>
+                  <div className="pipe__pre-offer-actions">
+                    <button className="pipe__pre-offer-advance" onClick={(e) => { e.stopPropagation(); advanceStage(deal) }} title="Move to Offer Submitted">
+                      Move to Offer →
+                    </button>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {allActiveDeals.length === 0 ? (
         <EmptyState
           icon="📋"
           title="No active deals"
@@ -566,12 +657,19 @@ export default function Pipeline() {
           action={<Button variant="primary" onClick={openNew}>New Deal</Button>}
         />
       ) : viewMode === 'board' ? (
-        /* ─── Board View ─── */
+        /* ─── Board View (drag & drop) ─── */
         <div className="pipe__board">
-          {STAGES.map(stage => {
+          {BOARD_STAGES.map(stage => {
             const deals = dealsByStage[stage.value] ?? []
+            const isDropTarget = dropStage === stage.value && dragDeal && stageInfo(dragDeal.status).value !== stage.value
             return (
-              <div key={stage.value} className="pipe__col">
+              <div
+                key={stage.value}
+                className={`pipe__col ${isDropTarget ? 'pipe__col--drop-target' : ''}`}
+                onDragOver={(e) => handleColumnDragOver(e, stage.value)}
+                onDragLeave={handleColumnDragLeave}
+                onDrop={(e) => handleColumnDrop(e, stage.value)}
+              >
                 <div className="pipe__col-header">
                   <span className="pipe__col-dot" style={{ background: stage.color }} />
                   <div className="pipe__col-header-text">
@@ -583,12 +681,17 @@ export default function Pipeline() {
                 <div className="pipe__col-body">
                   {deals.map(deal => {
                     const days = daysUntil(deal.closing_date)
-                    const dl = docList(deal)
-                    const dd = getDealDocs(deal.id)
-                    const docsCompleted = dl.filter(d => dd[d.key]).length
                     const sc = stagesCompleted(deal.id)
+                    const fin = FINANCING_TYPES.find(f => f.value === deal.financing_type)?.label
                     return (
-                      <button key={deal.id} className="pipe__card" onClick={() => openDetail(deal)}>
+                      <div
+                        key={deal.id}
+                        className="pipe__card"
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, deal)}
+                        onDragEnd={handleDragEnd}
+                        onClick={() => openDetail(deal)}
+                      >
                         <div className="pipe__card-top">
                           <span className="pipe__card-name">{deal.contact?.name ?? '—'}</span>
                           <Badge variant={deal.deal_type === 'buyer' ? 'info' : deal.deal_type === 'seller' ? 'accent' : 'dark'} size="sm">
@@ -596,29 +699,42 @@ export default function Pipeline() {
                           </Badge>
                         </div>
                         <span className="pipe__card-addr">{deal.property?.address ?? 'No property'}</span>
-                        <div className="pipe__card-bottom">
+                        <div className="pipe__card-price-row">
                           <span className="pipe__card-price">{fmtDollar(deal.property?.price || deal.offer_price)}</span>
-                          {days !== null && (
-                            <span className={`pipe__card-days ${days <= 7 ? 'pipe__card-days--urgent' : days <= 14 ? 'pipe__card-days--soon' : ''}`}>
-                              {days <= 0 ? 'Today!' : `${days}d`}
+                          {fin && <span className="pipe__card-fin">{fin}</span>}
+                        </div>
+                        {/* Key info row */}
+                        <div className="pipe__card-details">
+                          {deal.closing_date && (
+                            <span className={`pipe__card-close ${days !== null && days <= 7 ? 'pipe__card-close--urgent' : days !== null && days <= 14 ? 'pipe__card-close--soon' : ''}`}>
+                              COE: {fmtDate(deal.closing_date)} {days !== null && <strong>({days <= 0 ? 'TODAY' : `${days}d`})</strong>}
                             </span>
                           )}
+                          {deal.lender && <span className="pipe__card-lender">Lender: {deal.lender}</span>}
+                          {deal.title_company && <span className="pipe__card-lender">Title: {deal.title_company}</span>}
                         </div>
+                        {/* Contact quick-access */}
+                        {(deal.contact?.phone || deal.contact?.email) && (
+                          <div className="pipe__card-contact">
+                            {deal.contact?.phone && (
+                              <a href={`tel:${deal.contact.phone}`} className="pipe__card-contact-link" onClick={e => e.stopPropagation()} title="Call">
+                                📞 {deal.contact.phone}
+                              </a>
+                            )}
+                            {deal.contact?.email && (
+                              <a href={`mailto:${deal.contact.email}`} className="pipe__card-contact-link" onClick={e => e.stopPropagation()} title="Email">
+                                ✉️
+                              </a>
+                            )}
+                          </div>
+                        )}
                         <div className="pipe__card-progress">
                           <div className="pipe__card-docs-bar">
                             <div className="pipe__card-docs-fill" style={{ width: `${STAGES.length > 0 ? (sc / STAGES.length) * 100 : 0}%` }} />
                           </div>
                           <span className="pipe__card-stage-count">{sc}/{STAGES.length}</span>
                         </div>
-                        <button
-                          className="pipe__card-advance"
-                          onClick={(e) => { e.stopPropagation(); advanceStage(deal) }}
-                          title="Advance to next stage"
-                          aria-label="Advance stage"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><polyline points="9 6 15 12 9 18" /></svg>
-                        </button>
-                      </button>
+                      </div>
                     )
                   })}
                 </div>
