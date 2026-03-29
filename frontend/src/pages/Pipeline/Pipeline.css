@@ -423,6 +423,56 @@
 }
 .pipe__sop-link a:hover { text-decoration: underline; }
 
+/* ─── Transaction Docs Link ─── */
+.pipe__txn-link-section {
+  background: rgba(239,237,232,0.3); border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+.pipe__txn-link-label {
+  display: block; font-size: 0.72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.4px;
+  color: var(--color-text-muted); margin-bottom: 6px;
+}
+.pipe__txn-link-row { display: flex; gap: var(--space-sm); align-items: center; }
+.pipe__txn-link-input {
+  flex: 1; font-family: var(--font-body); font-size: 0.82rem;
+  padding: 7px 10px; border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm); background: var(--white);
+  color: var(--brown-dark); outline: none;
+  transition: border-color var(--transition-fast);
+}
+.pipe__txn-link-input:focus { border-color: var(--brown-mid); }
+.pipe__txn-link-btn {
+  display: inline-flex; align-items: center;
+  font-family: var(--font-body); font-size: 0.75rem; font-weight: 600;
+  color: var(--white); background: var(--brown-dark);
+  padding: 7px 14px; border-radius: var(--radius-sm);
+  text-decoration: none; white-space: nowrap;
+  transition: background var(--transition-fast);
+}
+.pipe__txn-link-btn:hover { background: #3e3129; color: var(--white); }
+
+/* ─── Collapsible SOP Sections ─── */
+.pipe__sop-section-toggle {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; padding: 6px 4px; background: none; border: none;
+  cursor: pointer; font-family: var(--font-body); text-align: left;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+.pipe__sop-section-toggle:hover { background: rgba(239,237,232,0.4); }
+.pipe__sop-section-arrow {
+  font-size: 0.7rem; color: var(--color-text-muted);
+  width: 12px; flex-shrink: 0;
+}
+.pipe__sop-section-toggle .pipe__detail-section-title { flex: 1; margin: 0; }
+.pipe__sop-section--done .pipe__sop-section-toggle .pipe__detail-section-title {
+  color: var(--color-success);
+}
+.pipe__detail-doc-count--done {
+  color: var(--color-success); background: var(--color-success-bg);
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 900px) {
   .pipe__list-header, .pipe__list-row { grid-template-columns: 1fr 1fr 1fr 0.5fr; }

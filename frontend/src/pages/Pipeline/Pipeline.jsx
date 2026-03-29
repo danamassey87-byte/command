@@ -96,6 +96,11 @@ const DEAL_CONTACTS_KEY = 'pipeline_deal_contacts'
 function loadDealContacts() { try { return JSON.parse(localStorage.getItem(DEAL_CONTACTS_KEY) || '{}') } catch { return {} } }
 function saveDealContacts(d) { localStorage.setItem(DEAL_CONTACTS_KEY, JSON.stringify(d)) }
 
+// ─── Transaction Links (localStorage) ────────────────────────────────────────
+const DEAL_LINKS_KEY = 'pipeline_deal_links'
+function loadDealLinks() { try { return JSON.parse(localStorage.getItem(DEAL_LINKS_KEY) || '{}') } catch { return {} } }
+function saveDealLinks(d) { localStorage.setItem(DEAL_LINKS_KEY, JSON.stringify(d)) }
+
 const CONTACT_ROLES = [
   { key: 'spouse',         label: 'Spouse / Partner' },
   { key: 'other_agent',    label: "Other Agent (Their Realtor)" },
@@ -309,10 +314,25 @@ export default function Pipeline() {
   const [saving, setSaving] = useState(false)
   const [emailStage, setEmailStage] = useState(null)
   const [detailTab, setDetailTab] = useState('overview') // 'overview' | 'sop' | 'docs'
+  const [collapsedSections, setCollapsedSections] = useState({}) // { 'stageName': true }
+
+  // Transaction links (dotloop, SkySlope, etc.)
+  const [dealLinks, setDealLinksRaw] = useState(() => loadDealLinks())
+  const updateDealLink = useCallback((dealId, url) => {
+    setDealLinksRaw(prev => {
+      const next = { ...prev, [dealId]: url }
+      saveDealLinks(next)
+      return next
+    })
+  }, [])
 
   // SOP progress (syncs with standalone SOP pages)
   const [buyerSOPProgress, setBuyerSOPRaw] = useState(() => loadSOPProgress(BUYER_SOP_KEY))
   const [sellerSOPProgress, setSellerSOPRaw] = useState(() => loadSOPProgress(SELLER_SOP_KEY))
+
+  const toggleSectionCollapse = useCallback((sectionName) => {
+    setCollapsedSections(prev => ({ ...prev, [sectionName]: !prev[sectionName] }))
+  }, [])
 
   const toggleSOPTask = useCallback((dealId, taskId, isBuyer) => {
     const key = isBuyer ? BUYER_SOP_KEY : SELLER_SOP_KEY
@@ -1005,6 +1025,25 @@ export default function Pipeline() {
                     </Button>
                   </div>
 
+                  {/* Transaction Docs Link */}
+                  <div className="pipe__txn-link-section">
+                    <label className="pipe__txn-link-label">Transaction Docs (dotloop, SkySlope, etc.)</label>
+                    <div className="pipe__txn-link-row">
+                      <input
+                        type="url"
+                        className="pipe__txn-link-input"
+                        placeholder="Paste your transaction link here..."
+                        value={dealLinks[deal.id] || ''}
+                        onChange={e => updateDealLink(deal.id, e.target.value)}
+                      />
+                      {dealLinks[deal.id] && (
+                        <a href={dealLinks[deal.id]} target="_blank" rel="noopener noreferrer" className="pipe__txn-link-btn">
+                          Open Docs →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
                   {/* AZ Key Deadlines */}
                   {deadlines.length > 0 && (
                     <div className="pipe__detail-section">
@@ -1090,24 +1129,29 @@ export default function Pipeline() {
 
                   {sopTasks.map(section => {
                     const sectionDone = section.tasks.filter(t => !!sopProgress[t.id]).length
+                    const isCollapsed = !!collapsedSections[section.stage]
+                    const isComplete = sectionDone === section.tasks.length
                     return (
-                      <div key={section.stage} className="pipe__sop-section">
-                        <div className="pipe__sop-section-header">
+                      <div key={section.stage} className={`pipe__sop-section ${isComplete ? 'pipe__sop-section--done' : ''}`}>
+                        <button className="pipe__sop-section-toggle" onClick={() => toggleSectionCollapse(section.stage)}>
+                          <span className="pipe__sop-section-arrow">{isCollapsed ? '▸' : '▾'}</span>
                           <h4 className="pipe__detail-section-title">{section.stage}</h4>
-                          <span className="pipe__detail-doc-count">{sectionDone}/{section.tasks.length}</span>
-                        </div>
-                        <div className="pipe__sop-tasks">
-                          {section.tasks.map(task => {
-                            const checked = !!sopProgress[task.id]
-                            return (
-                              <label key={task.id} className={`pipe__sop-task ${checked ? 'pipe__sop-task--done' : ''} ${task.az ? 'pipe__sop-task--az' : ''}`}>
-                                <input type="checkbox" checked={checked} onChange={() => toggleSOPTask(deal.id, task.id, isBuyer)} />
-                                <span>{task.text}</span>
-                                {task.az && <span className="pipe__sop-az-badge">AZ</span>}
-                              </label>
-                            )
-                          })}
-                        </div>
+                          <span className={`pipe__detail-doc-count ${isComplete ? 'pipe__detail-doc-count--done' : ''}`}>{sectionDone}/{section.tasks.length}</span>
+                        </button>
+                        {!isCollapsed && (
+                          <div className="pipe__sop-tasks">
+                            {section.tasks.map(task => {
+                              const checked = !!sopProgress[task.id]
+                              return (
+                                <label key={task.id} className={`pipe__sop-task ${checked ? 'pipe__sop-task--done' : ''} ${task.az ? 'pipe__sop-task--az' : ''}`}>
+                                  <input type="checkbox" checked={checked} onChange={() => toggleSOPTask(deal.id, task.id, isBuyer)} />
+                                  <span>{task.text}</span>
+                                  {task.az && <span className="pipe__sop-az-badge">AZ</span>}
+                                </label>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
