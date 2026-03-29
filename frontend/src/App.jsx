@@ -26,6 +26,7 @@ import IntakeForms from './pages/IntakeForms/IntakeForms'
 import CalendarSchedule from './pages/Calendar/CalendarSchedule'
 import TodayShowings from './pages/Calendar/TodayShowings'
 import CalendarTasks from './pages/Calendar/Tasks'
+import SocialDashboard from './pages/Content/SocialDashboard'
 
 // ─── Pipeline Pages ─────────────────────────────────────────────────────────
 import PipelineBoard from './pages/Pipeline/Pipeline'
@@ -107,6 +108,7 @@ export default function App() {
           <Route path="/content/planning"  element={<ContentPlanner />} />
           <Route path="/content/templates" element={<ComingSoon title="Content Templates" />} />
           <Route path="/content/ai-studio" element={<ComingSoon title="AI Studio" />} />
+          <Route path="/content/social"    element={<SocialDashboard />} />
           <Route path="/content/stats"     element={<ComingSoon title="Content Stats" />} />
 
           {/* ─── P&L ─── */}

@@ -69,6 +69,7 @@ const SECTIONS = {
       { label: 'Calendar',     path: '/content/calendar',   icon: 'calendar' },
       { label: 'Planning',     path: '/content/planning',   icon: 'clipboard' },
       { label: 'Templates',    path: '/content/templates',  icon: 'file-text' },
+      { label: 'Social Media',  path: '/content/social',     icon: 'trending-up' },
       { label: 'AI Studio',    path: '/content/ai-studio',  icon: 'zap' },
       { label: 'Stats',        path: '/content/stats',      icon: 'bar-chart' },
     ],
