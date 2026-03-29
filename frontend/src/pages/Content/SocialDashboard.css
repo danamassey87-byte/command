@@ -416,6 +416,187 @@
   white-space: nowrap;
 }
 
+/* ─── Week Label ──────────────────────────────────────────────────────────── */
+.sd-week-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  text-align: right;
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border-light);
+}
+
+.sd-source-tag {
+  background: var(--cream);
+  border-radius: var(--radius-full);
+  padding: 1px 6px;
+  font-size: 0.6rem;
+  margin-left: 4px;
+}
+
+/* ─── Empty States ────────────────────────────────────────────────────────── */
+.sd-empty-metrics {
+  text-align: center;
+  padding: var(--space-lg) var(--space-md);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.sd-empty-metrics__hint {
+  font-size: 0.75rem;
+  margin-top: 4px;
+}
+
+.sd-empty-tab {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  padding: var(--space-xl) !important;
+}
+
+/* ─── Setup Card ──────────────────────────────────────────────────────────── */
+.sd-setup-card {
+  margin-top: var(--space-lg);
+}
+
+.sd-setup {
+  text-align: center;
+  padding: var(--space-2xl) var(--space-lg);
+}
+
+.sd-setup h3 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  color: var(--brown-dark);
+  margin: 0 0 var(--space-sm);
+}
+
+.sd-setup p {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-lg);
+  max-width: 420px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ─── Channel Manager Panel ───────────────────────────────────────────────── */
+.sd-manager {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.sd-manager__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.sd-manager__group-title {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--brown-dark);
+  margin: 0;
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.sd-manager__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.sd-manager__row--on {
+  background: var(--color-success-bg);
+}
+
+.sd-manager__icon {
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.sd-manager__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sd-manager__label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--brown-dark);
+}
+
+.sd-manager__handle-input {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-family: var(--font-body);
+  color: var(--color-text);
+  background: var(--color-surface);
+  width: 100%;
+  max-width: 220px;
+}
+
+.sd-manager__handle-input:focus {
+  outline: none;
+  border-color: var(--brown-mid);
+}
+
+/* Toggle switch */
+.sd-manager__toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sd-manager__toggle-track {
+  display: block;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--color-border);
+  position: relative;
+  transition: background var(--transition-fast);
+}
+
+.sd-manager__toggle--on .sd-manager__toggle-track {
+  background: var(--color-success);
+}
+
+.sd-manager__toggle-thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform var(--transition-fast);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.sd-manager__toggle--on .sd-manager__toggle-thumb {
+  transform: translateX(16px);
+}
+
+.sd-manager__actions {
+  display: flex;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border-light);
+}
+
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .sd-hero-stats {

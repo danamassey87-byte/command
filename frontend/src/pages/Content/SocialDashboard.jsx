@@ -1,177 +1,51 @@
-import { useState, useMemo } from 'react'
-import { SectionHeader, Card, TabBar } from '../../components/ui/index.jsx'
-import { useSocialChannels } from '../../lib/BrandContext'
+import { useState, useEffect, useCallback } from 'react'
+import { SectionHeader, Card, TabBar, Button, SlidePanel } from '../../components/ui/index.jsx'
+import { useBrand } from '../../lib/BrandContext'
+import * as DB from '../../lib/supabase'
 import './SocialDashboard.css'
 
-// ─── Platform Configs ────────────────────────────────────────────────────────
-const PLATFORMS = {
-  instagram:   { label: 'Instagram',       icon: '📷', color: '#E1306C', handle: '@wright_mode' },
-  facebook:    { label: 'Facebook',        icon: '👥', color: '#1877F2', handle: 'Wright Mode RE' },
-  tiktok:      { label: 'TikTok',         icon: '🎵', color: '#010101', handle: '@wright_mode' },
-  youtube:     { label: 'YouTube',         icon: '▶️',  color: '#FF0000', handle: '@wright_mode' },
-  linkedin:    { label: 'LinkedIn',        icon: '💼', color: '#0A66C2', handle: 'Dana Massey' },
-  twitter:     { label: 'Twitter / X',     icon: '🐦', color: '#1DA1F2', handle: '@wright_mode' },
-  gmb:         { label: 'Google Business', icon: '📍', color: '#4285F4', handle: 'Antigravity RE' },
-  zillow:      { label: 'Zillow',          icon: '🏠', color: '#006AFF', handle: 'Dana Massey' },
-  realtor_com: { label: 'Realtor.com',     icon: '🔑', color: '#D92228', handle: 'Dana Massey' },
-  blog:        { label: 'Blog',            icon: '✍️',  color: '#524136', handle: 'antigravityre.com/blog' },
-  website:     { label: 'Website',         icon: '🌐', color: '#524136', handle: 'antigravityre.com' },
-  linktree:    { label: 'Linktree / Bio',  icon: '🔗', color: '#43E660', handle: 'linktr.ee/wright_mode' },
-}
+// ─── Platform Registry ───────────────────────────────────────────────────────
+const ALL_PLATFORMS = [
+  { key: 'instagram',    label: 'Instagram',       icon: '📷', color: '#E1306C', group: 'social', defaultHandle: '@yourhandle' },
+  { key: 'facebook',     label: 'Facebook',        icon: '👥', color: '#1877F2', group: 'social', defaultHandle: 'Your Page' },
+  { key: 'tiktok',       label: 'TikTok',         icon: '🎵', color: '#010101', group: 'social', defaultHandle: '@yourhandle' },
+  { key: 'youtube',      label: 'YouTube',         icon: '▶️',  color: '#FF0000', group: 'social', defaultHandle: '@yourchannel' },
+  { key: 'linkedin',     label: 'LinkedIn',        icon: '💼', color: '#0A66C2', group: 'social', defaultHandle: 'Your Name' },
+  { key: 'twitter',      label: 'Twitter / X',     icon: '🐦', color: '#1DA1F2', group: 'social', defaultHandle: '@yourhandle' },
+  { key: 'gmb',          label: 'Google Business', icon: '📍', color: '#4285F4', group: 'reviews', defaultHandle: 'Your Business' },
+  { key: 'zillow',       label: 'Zillow',          icon: '🏠', color: '#006AFF', group: 'reviews', defaultHandle: 'Your Profile' },
+  { key: 'realtor_com',  label: 'Realtor.com',     icon: '🔑', color: '#D92228', group: 'reviews', defaultHandle: 'Your Profile' },
+  { key: 'blog',         label: 'Blog',            icon: '✍️',  color: '#524136', group: 'web', defaultHandle: 'yourblog.com' },
+  { key: 'website',      label: 'Website',         icon: '🌐', color: '#524136', group: 'web', defaultHandle: 'yoursite.com' },
+  { key: 'linktree',     label: 'Linktree / Bio',  icon: '🔗', color: '#43E660', group: 'web', defaultHandle: 'linktr.ee/you' },
+]
 
-// ─── Demo Metrics (replace with real API data) ───────────────────────────────
-const DEMO_METRICS = {
-  instagram: {
-    followers: 2847, followersChange: 124, followingCount: 891,
-    postsThisWeek: 5, reachThisWeek: 8420, impressions: 12650,
-    engagementRate: 4.2, engagementChange: 0.8,
-    likesThisWeek: 342, commentsThisWeek: 48, sharesThisWeek: 67, savesThisWeek: 89,
-    storiesViews: 1240, reelsPlays: 4580,
-    topPosts: [
-      { type: 'Reel', caption: 'Gilbert market update — median prices...', likes: 128, comments: 18, shares: 24, saves: 31 },
-      { type: 'Carousel', caption: 'First-time buyer tips: 5 things your...', likes: 95, comments: 12, shares: 19, saves: 28 },
-      { type: 'Reel', caption: 'Day in the life — showing 6 homes in...', likes: 87, comments: 14, shares: 11, saves: 15 },
-    ],
-    bestPostingTime: 'Tue & Thu, 6–8 PM',
-    audienceGrowth: [2203, 2290, 2380, 2456, 2530, 2610, 2680, 2723, 2847],
-  },
-  facebook: {
-    followers: 1650, followersChange: 42,
-    postsThisWeek: 4, reachThisWeek: 3200, impressions: 5100,
-    engagementRate: 2.8, engagementChange: 0.3,
-    likesThisWeek: 156, commentsThisWeek: 28, sharesThisWeek: 34, savesThisWeek: 0,
-    topPosts: [
-      { type: 'Photo', caption: 'Just closed! Congrats to the Johnsons...', likes: 72, comments: 15, shares: 18, saves: 0 },
-      { type: 'Link', caption: 'New blog: Why East Valley is still the...', likes: 45, comments: 8, shares: 12, saves: 0 },
-    ],
-    bestPostingTime: 'Wed & Sat, 10 AM–12 PM',
-    audienceGrowth: [1420, 1450, 1490, 1520, 1558, 1580, 1610, 1630, 1650],
-  },
-  tiktok: {
-    followers: 4120, followersChange: 380,
-    postsThisWeek: 3, reachThisWeek: 18400, impressions: 28900,
-    engagementRate: 6.1, engagementChange: 1.2,
-    likesThisWeek: 890, commentsThisWeek: 124, sharesThisWeek: 210, savesThisWeek: 156,
-    topPosts: [
-      { type: 'Video', caption: 'POV: you find your dream home but...', likes: 420, comments: 56, shares: 98, saves: 72 },
-      { type: 'Video', caption: 'Things your agent won\'t tell you...', likes: 310, comments: 42, shares: 67, saves: 48 },
-    ],
-    bestPostingTime: 'Mon & Fri, 7–9 PM',
-    audienceGrowth: [2800, 3000, 3180, 3380, 3520, 3700, 3840, 3980, 4120],
-  },
-  youtube: {
-    followers: 812, followersChange: 58,
-    postsThisWeek: 1, reachThisWeek: 2400, impressions: 3800,
-    engagementRate: 3.5, engagementChange: 0.5,
-    likesThisWeek: 64, commentsThisWeek: 12, sharesThisWeek: 8, savesThisWeek: 0,
-    topPosts: [
-      { type: 'Video', caption: 'Full Gilbert neighborhood tour — which...', likes: 64, comments: 12, shares: 8, saves: 0 },
-    ],
-    bestPostingTime: 'Sunday, 2 PM',
-    audienceGrowth: [580, 610, 640, 670, 700, 720, 750, 785, 812],
-  },
-  linkedin: {
-    followers: 1230, followersChange: 35,
-    postsThisWeek: 2, reachThisWeek: 1800, impressions: 2400,
-    engagementRate: 3.1, engagementChange: 0.2,
-    likesThisWeek: 42, commentsThisWeek: 8, sharesThisWeek: 5, savesThisWeek: 0,
-    topPosts: [
-      { type: 'Article', caption: 'The investor mindset shift happening in...', likes: 28, comments: 6, shares: 4, saves: 0 },
-    ],
-    bestPostingTime: 'Tue & Thu, 8–10 AM',
-    audienceGrowth: [1050, 1070, 1090, 1120, 1140, 1165, 1185, 1210, 1230],
-  },
-  twitter: {
-    followers: 540, followersChange: 18,
-    postsThisWeek: 6, reachThisWeek: 1200, impressions: 2100,
-    engagementRate: 1.9, engagementChange: -0.1,
-    likesThisWeek: 38, commentsThisWeek: 6, sharesThisWeek: 12, savesThisWeek: 0,
-    topPosts: [
-      { type: 'Tweet', caption: 'Hot take: the best time to buy in AZ is...', likes: 22, comments: 4, shares: 8, saves: 0 },
-    ],
-    bestPostingTime: 'Weekdays, 12–1 PM',
-    audienceGrowth: [440, 450, 462, 478, 490, 505, 515, 528, 540],
-  },
-  gmb: {
-    followers: 0, followersChange: 0,
-    reviews: 47, avgRating: 4.9, reviewsThisMonth: 3,
-    searchAppearances: 1240, directSearches: 680, discoverySearches: 560,
-    websiteClicks: 89, phoneCallClicks: 34, directionRequests: 22,
-    topPosts: [],
-    bestPostingTime: 'N/A',
-    audienceGrowth: [],
-  },
-  zillow: {
-    followers: 0, followersChange: 0,
-    reviews: 28, avgRating: 5.0, profileViews: 340,
-    listingsViewed: 12, contactRequests: 4,
-    topPosts: [],
-    bestPostingTime: 'N/A',
-    audienceGrowth: [],
-  },
-  realtor_com: {
-    followers: 0, followersChange: 0,
-    reviews: 15, avgRating: 4.8, profileViews: 180,
-    listingsViewed: 8, contactRequests: 2,
-    topPosts: [],
-    bestPostingTime: 'N/A',
-    audienceGrowth: [],
-  },
-  blog: {
-    followers: 0, followersChange: 0,
-    postsThisWeek: 1, pageViews: 620, uniqueVisitors: 410,
-    avgTimeOnPage: '2:45', bounceRate: 42,
-    topPosts: [
-      { type: 'Article', caption: 'Gilbert vs Mesa: Which East Valley city...', likes: 0, comments: 3, shares: 12, saves: 0 },
-    ],
-    bestPostingTime: 'Tuesday mornings',
-    audienceGrowth: [],
-  },
-  website: {
-    followers: 0, followersChange: 0,
-    monthlyVisitors: 1850, uniqueVisitors: 1240,
-    avgSessionDuration: '1:52', bounceRate: 55, pagesPerSession: 2.8,
-    topPages: ['Home', 'Listings', 'About', 'Blog', 'Contact'],
-    topPosts: [],
-    bestPostingTime: 'N/A',
-    audienceGrowth: [],
-  },
-  linktree: {
-    followers: 0, followersChange: 0,
-    totalClicks: 890, uniqueVisitors: 620,
-    topLinks: [
-      { label: 'Schedule a Call', clicks: 180 },
-      { label: 'Featured Listings', clicks: 156 },
-      { label: 'Buyer Guide PDF', clicks: 134 },
-      { label: 'Instagram', clicks: 120 },
-    ],
-    topPosts: [],
-    bestPostingTime: 'N/A',
-    audienceGrowth: [],
-  },
-}
+const PLATFORM_MAP = Object.fromEntries(ALL_PLATFORMS.map(p => [p.key, p]))
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function fmtNum(n) {
-  if (!n) return '0'
+  if (n == null) return '—'
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
   return n.toLocaleString()
 }
 
+function fmtDate(d) {
+  if (!d) return ''
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 function MiniSparkline({ data, color }) {
-  if (!data?.length) return null
+  if (!data?.length || data.length < 2) return null
   const max = Math.max(...data)
   const min = Math.min(...data)
   const range = max - min || 1
-  const w = 120
-  const h = 32
+  const w = 120, h = 32
   const points = data.map((v, i) =>
     `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * (h - 4) - 2}`
   ).join(' ')
-
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="sd-sparkline" style={{ '--spark-color': color }}>
+    <svg viewBox={`0 0 ${w} ${h}`} className="sd-sparkline">
       <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
@@ -187,7 +61,7 @@ function MetricPill({ label, value, icon }) {
   )
 }
 
-// ─── Channel Tabs ────────────────────────────────────────────────────────────
+// ─── Tabs ────────────────────────────────────────────────────────────────────
 const TAB_GROUPS = [
   { value: 'overview', label: 'Overview' },
   { value: 'social',   label: 'Social Media' },
@@ -195,41 +69,335 @@ const TAB_GROUPS = [
   { value: 'web',      label: 'Web & Links' },
 ]
 
-const SOCIAL_KEYS = ['instagram', 'facebook', 'tiktok', 'youtube', 'linkedin', 'twitter']
-const REVIEW_KEYS = ['gmb', 'zillow', 'realtor_com']
-const WEB_KEYS    = ['blog', 'website', 'linktree']
+// ─── Channel Manager Panel ───────────────────────────────────────────────────
+function ChannelManager({ open, onClose, config, onSave }) {
+  const [draft, setDraft] = useState({ platforms: {} })
+  const [saving, setSaving] = useState(false)
 
-// ─── Components ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!open) return
+    // Initialize draft from config
+    const platforms = {}
+    for (const p of ALL_PLATFORMS) {
+      const existing = config?.platform_config?.[p.key]
+      platforms[p.key] = {
+        enabled: existing?.enabled ?? false,
+        handle: existing?.handle ?? '',
+      }
+    }
+    setDraft({ platforms })
+  }, [open, config])
 
-function OverviewSummary() {
-  const totalFollowers = SOCIAL_KEYS.reduce((s, k) => s + (DEMO_METRICS[k]?.followers || 0), 0)
-  const totalGrowth = SOCIAL_KEYS.reduce((s, k) => s + (DEMO_METRICS[k]?.followersChange || 0), 0)
-  const totalReach = SOCIAL_KEYS.reduce((s, k) => s + (DEMO_METRICS[k]?.reachThisWeek || 0), 0)
-  const totalEngagement = SOCIAL_KEYS.reduce((s, k) => s + (DEMO_METRICS[k]?.likesThisWeek || 0) + (DEMO_METRICS[k]?.commentsThisWeek || 0) + (DEMO_METRICS[k]?.sharesThisWeek || 0), 0)
-  const avgEngRate = (SOCIAL_KEYS.reduce((s, k) => s + (DEMO_METRICS[k]?.engagementRate || 0), 0) / SOCIAL_KEYS.length).toFixed(1)
-  const totalReviews = REVIEW_KEYS.reduce((s, k) => s + (DEMO_METRICS[k]?.reviews || 0), 0)
-  const avgRating = (REVIEW_KEYS.reduce((s, k) => s + (DEMO_METRICS[k]?.avgRating || 0), 0) / REVIEW_KEYS.length).toFixed(1)
+  function togglePlatform(key) {
+    setDraft(prev => ({
+      ...prev,
+      platforms: {
+        ...prev.platforms,
+        [key]: { ...prev.platforms[key], enabled: !prev.platforms[key].enabled },
+      },
+    }))
+  }
 
-  // Find best performing platform
-  const bestPlatform = SOCIAL_KEYS.reduce((best, k) => {
-    const m = DEMO_METRICS[k]
-    return m.engagementRate > (DEMO_METRICS[best]?.engagementRate || 0) ? k : best
-  }, SOCIAL_KEYS[0])
+  function setHandle(key, handle) {
+    setDraft(prev => ({
+      ...prev,
+      platforms: {
+        ...prev.platforms,
+        [key]: { ...prev.platforms[key], handle },
+      },
+    }))
+  }
 
-  // Find fastest growing
-  const fastestGrowing = SOCIAL_KEYS.reduce((best, k) => {
-    const m = DEMO_METRICS[k]
-    return m.followersChange > (DEMO_METRICS[best]?.followersChange || 0) ? k : best
-  }, SOCIAL_KEYS[0])
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const platform_config = {}
+      const enabled_platforms = []
+      for (const [key, val] of Object.entries(draft.platforms)) {
+        platform_config[key] = val
+        if (val.enabled) enabled_platforms.push(key)
+      }
+      await onSave({ enabled_platforms, platform_config })
+      onClose()
+    } catch (err) {
+      alert(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const groups = [
+    { label: 'Social Media', keys: ALL_PLATFORMS.filter(p => p.group === 'social') },
+    { label: 'Reviews & SEO', keys: ALL_PLATFORMS.filter(p => p.group === 'reviews') },
+    { label: 'Web & Links', keys: ALL_PLATFORMS.filter(p => p.group === 'web') },
+  ]
+
+  return (
+    <SlidePanel open={open} onClose={onClose} title="Manage Channels" subtitle="Choose which platforms to track and set your handles" width={480}>
+      <div className="sd-manager">
+        {groups.map(group => (
+          <div key={group.label} className="sd-manager__group">
+            <h4 className="sd-manager__group-title">{group.label}</h4>
+            {group.keys.map(p => {
+              const state = draft.platforms[p.key] ?? { enabled: false, handle: '' }
+              return (
+                <div key={p.key} className={`sd-manager__row ${state.enabled ? 'sd-manager__row--on' : ''}`}>
+                  <button
+                    type="button"
+                    className={`sd-manager__toggle ${state.enabled ? 'sd-manager__toggle--on' : ''}`}
+                    onClick={() => togglePlatform(p.key)}
+                    aria-label={`Toggle ${p.label}`}
+                  >
+                    <span className="sd-manager__toggle-track">
+                      <span className="sd-manager__toggle-thumb" />
+                    </span>
+                  </button>
+                  <span className="sd-manager__icon">{p.icon}</span>
+                  <div className="sd-manager__info">
+                    <span className="sd-manager__label">{p.label}</span>
+                    {state.enabled && (
+                      <input
+                        className="sd-manager__handle-input"
+                        value={state.handle}
+                        onChange={e => setHandle(p.key, e.target.value)}
+                        placeholder={p.defaultHandle}
+                      />
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ))}
+        <div className="sd-manager__actions">
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : 'Save Channels'}
+          </Button>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        </div>
+      </div>
+    </SlidePanel>
+  )
+}
+
+// ─── Channel Detail Card ─────────────────────────────────────────────────────
+function ChannelCard({ platformKey, metrics, config }) {
+  const platform = PLATFORM_MAP[platformKey]
+  if (!platform) return null
+
+  const handle = config?.platform_config?.[platformKey]?.handle || platform.defaultHandle
+  const m = metrics ?? {}
+  const extra = m.extra ?? {}
+  const topPosts = m.top_posts ?? []
+  const hasMetrics = m.week_of != null
+
+  return (
+    <div className="sd-channel-detail" style={{ '--platform-color': platform.color }}>
+      <div className="sd-channel-detail__header">
+        <span className="sd-channel-detail__icon">{platform.icon}</span>
+        <div>
+          <h3 className="sd-channel-detail__name">{platform.label}</h3>
+          <span className="sd-channel-detail__handle">{handle}</span>
+        </div>
+        {m.engagement_rate > 0 && (
+          <div className="sd-channel-detail__badge">
+            <span className="sd-channel-detail__eng">{m.engagement_rate}%</span>
+            <span className="sd-channel-detail__eng-label">engagement</span>
+          </div>
+        )}
+      </div>
+
+      {!hasMetrics ? (
+        <div className="sd-empty-metrics">
+          <p>No metrics recorded yet.</p>
+          <p className="sd-empty-metrics__hint">Metrics will appear here once data is synced (Apify, API, or manual entry).</p>
+        </div>
+      ) : (
+        <>
+          {/* Core metrics */}
+          <div className="sd-metrics-row">
+            {m.followers > 0 && (
+              <div className="sd-metric-card">
+                <span className="sd-metric-card__value">{fmtNum(m.followers)}</span>
+                <span className="sd-metric-card__label">Followers</span>
+                {m.followers_change > 0 && (
+                  <span className="sd-metric-card__delta sd-metric-card__delta--up">+{m.followers_change}</span>
+                )}
+                {m.followers_change < 0 && (
+                  <span className="sd-metric-card__delta sd-metric-card__delta--down">{m.followers_change}</span>
+                )}
+              </div>
+            )}
+            {m.reach > 0 && (
+              <div className="sd-metric-card">
+                <span className="sd-metric-card__value">{fmtNum(m.reach)}</span>
+                <span className="sd-metric-card__label">Reach</span>
+              </div>
+            )}
+            {m.impressions > 0 && (
+              <div className="sd-metric-card">
+                <span className="sd-metric-card__value">{fmtNum(m.impressions)}</span>
+                <span className="sd-metric-card__label">Impressions</span>
+              </div>
+            )}
+            {m.posts_count > 0 && (
+              <div className="sd-metric-card">
+                <span className="sd-metric-card__value">{m.posts_count}</span>
+                <span className="sd-metric-card__label">Posts This Week</span>
+              </div>
+            )}
+            {/* Review platforms */}
+            {extra.reviews != null && (
+              <div className="sd-metric-card">
+                <span className="sd-metric-card__value">{extra.reviews}</span>
+                <span className="sd-metric-card__label">Total Reviews</span>
+              </div>
+            )}
+            {extra.avg_rating != null && (
+              <div className="sd-metric-card">
+                <span className="sd-metric-card__value">{extra.avg_rating}</span>
+                <span className="sd-metric-card__label">Avg Rating</span>
+              </div>
+            )}
+            {/* Web platforms */}
+            {extra.page_views != null && (
+              <div className="sd-metric-card">
+                <span className="sd-metric-card__value">{fmtNum(extra.page_views)}</span>
+                <span className="sd-metric-card__label">Page Views</span>
+              </div>
+            )}
+            {extra.unique_visitors != null && (
+              <div className="sd-metric-card">
+                <span className="sd-metric-card__value">{fmtNum(extra.unique_visitors)}</span>
+                <span className="sd-metric-card__label">Unique Visitors</span>
+              </div>
+            )}
+            {extra.total_clicks != null && (
+              <div className="sd-metric-card">
+                <span className="sd-metric-card__value">{fmtNum(extra.total_clicks)}</span>
+                <span className="sd-metric-card__label">Total Clicks</span>
+              </div>
+            )}
+          </div>
+
+          {/* Engagement breakdown */}
+          {(m.likes > 0 || m.comments > 0 || m.shares > 0) && (
+            <div className="sd-engagement-row">
+              {m.likes > 0 && <div className="sd-eng-stat"><span className="sd-eng-stat__icon">❤️</span> <strong>{m.likes}</strong> likes</div>}
+              {m.comments > 0 && <div className="sd-eng-stat"><span className="sd-eng-stat__icon">💬</span> <strong>{m.comments}</strong> comments</div>}
+              {m.shares > 0 && <div className="sd-eng-stat"><span className="sd-eng-stat__icon">🔄</span> <strong>{m.shares}</strong> shares</div>}
+              {m.saves > 0 && <div className="sd-eng-stat"><span className="sd-eng-stat__icon">🔖</span> <strong>{m.saves}</strong> saves</div>}
+            </div>
+          )}
+
+          {/* Platform-specific extras */}
+          {(extra.stories_views || extra.reels_plays) && (
+            <div className="sd-extras-row">
+              {extra.stories_views && <MetricPill label="stories views" value={fmtNum(extra.stories_views)} icon="📱" />}
+              {extra.reels_plays && <MetricPill label="reels plays" value={fmtNum(extra.reels_plays)} icon="🎬" />}
+            </div>
+          )}
+
+          {(extra.search_appearances || extra.website_clicks || extra.phone_calls) && (
+            <div className="sd-extras-row">
+              {extra.search_appearances && <MetricPill label="search appearances" value={fmtNum(extra.search_appearances)} icon="🔍" />}
+              {extra.website_clicks && <MetricPill label="website clicks" value={extra.website_clicks} icon="🖱️" />}
+              {extra.phone_calls && <MetricPill label="calls" value={extra.phone_calls} icon="📞" />}
+              {extra.direction_requests && <MetricPill label="directions" value={extra.direction_requests} icon="📍" />}
+            </div>
+          )}
+
+          {/* Linktree top links */}
+          {extra.top_links?.length > 0 && (
+            <div className="sd-top-posts">
+              <h4 className="sd-top-posts__title">Top Links</h4>
+              {extra.top_links.map((link, i) => (
+                <div key={i} className="sd-post-row">
+                  <span className="sd-post-row__rank">#{i + 1}</span>
+                  <span className="sd-post-row__caption">{link.label}</span>
+                  <div className="sd-post-row__stats"><span>{link.clicks} clicks</span></div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Best posting time */}
+          {m.best_time && (
+            <div className="sd-best-time">
+              <span className="sd-best-time__icon">🕐</span>
+              <span>Best posting time: <strong>{m.best_time}</strong></span>
+            </div>
+          )}
+
+          {/* Top Posts */}
+          {topPosts.length > 0 && (
+            <div className="sd-top-posts">
+              <h4 className="sd-top-posts__title">Top Performing Posts</h4>
+              {topPosts.map((post, i) => (
+                <div key={i} className="sd-post-row">
+                  <span className="sd-post-row__rank">#{i + 1}</span>
+                  {post.type && <span className="sd-post-row__type">{post.type}</span>}
+                  <span className="sd-post-row__caption">{post.caption}</span>
+                  <div className="sd-post-row__stats">
+                    {post.likes > 0 && <span>❤️ {post.likes}</span>}
+                    {post.comments > 0 && <span>💬 {post.comments}</span>}
+                    {post.shares > 0 && <span>🔄 {post.shares}</span>}
+                    {post.saves > 0 && <span>🔖 {post.saves}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="sd-week-label">Week of {fmtDate(m.week_of)} {m.source && <span className="sd-source-tag">via {m.source}</span>}</div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Overview Summary ────────────────────────────────────────────────────────
+function OverviewSummary({ enabledPlatforms, metricsMap, config, historyMap }) {
+  const socialKeys = enabledPlatforms.filter(k => PLATFORM_MAP[k]?.group === 'social')
+  const reviewKeys = enabledPlatforms.filter(k => PLATFORM_MAP[k]?.group === 'reviews')
+
+  const totalFollowers = socialKeys.reduce((s, k) => s + (metricsMap[k]?.followers || 0), 0)
+  const totalGrowth = socialKeys.reduce((s, k) => s + (metricsMap[k]?.followers_change || 0), 0)
+  const totalReach = socialKeys.reduce((s, k) => s + (metricsMap[k]?.reach || 0), 0)
+  const totalEngagement = socialKeys.reduce((s, k) => {
+    const m = metricsMap[k]
+    return s + (m?.likes || 0) + (m?.comments || 0) + (m?.shares || 0)
+  }, 0)
+
+  const engRates = socialKeys.map(k => metricsMap[k]?.engagement_rate || 0).filter(r => r > 0)
+  const avgEngRate = engRates.length > 0 ? (engRates.reduce((s, r) => s + r, 0) / engRates.length).toFixed(1) : '—'
+
+  const totalReviews = reviewKeys.reduce((s, k) => s + (metricsMap[k]?.extra?.reviews || 0), 0)
+  const ratings = reviewKeys.map(k => metricsMap[k]?.extra?.avg_rating).filter(Boolean)
+  const avgRating = ratings.length > 0 ? (ratings.reduce((s, r) => s + r, 0) / ratings.length).toFixed(1) : '—'
+
+  // Best performing platform
+  const bestPlatform = socialKeys.reduce((best, k) => {
+    const rate = metricsMap[k]?.engagement_rate || 0
+    return rate > (metricsMap[best]?.engagement_rate || 0) ? k : best
+  }, socialKeys[0])
+
+  // Fastest growing
+  const fastestGrowing = socialKeys.reduce((best, k) => {
+    const change = metricsMap[k]?.followers_change || 0
+    return change > (metricsMap[best]?.followers_change || 0) ? k : best
+  }, socialKeys[0])
+
+  const hasAnyData = enabledPlatforms.some(k => metricsMap[k]?.week_of)
 
   return (
     <div className="sd-overview">
-      {/* Hero Stats Row */}
+      {/* Hero Stats */}
       <div className="sd-hero-stats">
         <div className="sd-hero-stat">
           <span className="sd-hero-stat__value">{fmtNum(totalFollowers)}</span>
           <span className="sd-hero-stat__label">Total Followers</span>
-          <span className="sd-hero-stat__delta sd-hero-stat__delta--up">+{fmtNum(totalGrowth)} this week</span>
+          {totalGrowth > 0 && <span className="sd-hero-stat__delta sd-hero-stat__delta--up">+{fmtNum(totalGrowth)} this week</span>}
         </div>
         <div className="sd-hero-stat">
           <span className="sd-hero-stat__value">{fmtNum(totalReach)}</span>
@@ -240,55 +408,61 @@ function OverviewSummary() {
           <span className="sd-hero-stat__label">Total Engagements</span>
         </div>
         <div className="sd-hero-stat">
-          <span className="sd-hero-stat__value">{avgEngRate}%</span>
+          <span className="sd-hero-stat__value">{avgEngRate}{avgEngRate !== '—' ? '%' : ''}</span>
           <span className="sd-hero-stat__label">Avg Engagement Rate</span>
         </div>
-        <div className="sd-hero-stat">
-          <span className="sd-hero-stat__value">{totalReviews}</span>
-          <span className="sd-hero-stat__label">Total Reviews</span>
-          <span className="sd-hero-stat__delta sd-hero-stat__delta--up">{avgRating} avg rating</span>
-        </div>
+        {reviewKeys.length > 0 && (
+          <div className="sd-hero-stat">
+            <span className="sd-hero-stat__value">{totalReviews || '—'}</span>
+            <span className="sd-hero-stat__label">Total Reviews</span>
+            {avgRating !== '—' && <span className="sd-hero-stat__delta sd-hero-stat__delta--up">{avgRating} avg rating</span>}
+          </div>
+        )}
       </div>
 
-      {/* Strategy Insights */}
-      <Card className="sd-insights-card">
-        <h3 className="sd-insights-card__title">Weekly Content Strategy Insights</h3>
-        <div className="sd-insights-grid">
-          <div className="sd-insight">
-            <span className="sd-insight__icon">🏆</span>
-            <div>
-              <strong>Best Performing:</strong> {PLATFORMS[bestPlatform]?.label} at {DEMO_METRICS[bestPlatform]?.engagementRate}% engagement
-            </div>
+      {/* Strategy Insights — only if we have data */}
+      {hasAnyData && bestPlatform && (
+        <Card className="sd-insights-card">
+          <h3 className="sd-insights-card__title">Weekly Content Strategy Insights</h3>
+          <div className="sd-insights-grid">
+            {bestPlatform && metricsMap[bestPlatform]?.engagement_rate > 0 && (
+              <div className="sd-insight">
+                <span className="sd-insight__icon">🏆</span>
+                <div><strong>Best Performing:</strong> {PLATFORM_MAP[bestPlatform]?.label} at {metricsMap[bestPlatform]?.engagement_rate}% engagement</div>
+              </div>
+            )}
+            {fastestGrowing && metricsMap[fastestGrowing]?.followers_change > 0 && (
+              <div className="sd-insight">
+                <span className="sd-insight__icon">🚀</span>
+                <div><strong>Fastest Growing:</strong> {PLATFORM_MAP[fastestGrowing]?.label} (+{metricsMap[fastestGrowing]?.followers_change} this week)</div>
+              </div>
+            )}
           </div>
-          <div className="sd-insight">
-            <span className="sd-insight__icon">🚀</span>
-            <div>
-              <strong>Fastest Growing:</strong> {PLATFORMS[fastestGrowing]?.label} (+{DEMO_METRICS[fastestGrowing]?.followersChange} this week)
-            </div>
-          </div>
-          <div className="sd-insight">
-            <span className="sd-insight__icon">📊</span>
-            <div>
-              <strong>Top Content Type:</strong> Short-form video (Reels + TikTok) driving 3x more shares than static posts
-            </div>
-          </div>
-          <div className="sd-insight">
-            <span className="sd-insight__icon">💡</span>
-            <div>
-              <strong>Recommendation:</strong> Market update posts + day-in-the-life Reels are your top performers. Double down on behind-the-scenes content this week.
-            </div>
-          </div>
-        </div>
-      </Card>
+        </Card>
+      )}
 
-      {/* Platform Summary Cards */}
-      <h3 className="sd-section-title">All Channels at a Glance</h3>
+      {!hasAnyData && (
+        <Card className="sd-insights-card">
+          <h3 className="sd-insights-card__title">Getting Started</h3>
+          <div className="sd-insights-grid">
+            <div className="sd-insight">
+              <span className="sd-insight__icon">📊</span>
+              <div>Your channels are connected! Metrics will populate automatically each week via your Apify scheduled task, or you can add data manually.</div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Platform Grid */}
+      <h3 className="sd-section-title">All Connected Channels</h3>
       <div className="sd-platform-grid">
-        {Object.entries(PLATFORMS).map(([key, platform]) => {
-          const m = DEMO_METRICS[key]
-          if (!m) return null
-          const isSocial = SOCIAL_KEYS.includes(key)
-          const isReview = REVIEW_KEYS.includes(key)
+        {enabledPlatforms.map(key => {
+          const platform = PLATFORM_MAP[key]
+          if (!platform) return null
+          const m = metricsMap[key] ?? {}
+          const extra = m.extra ?? {}
+          const handle = config?.platform_config?.[key]?.handle || platform.defaultHandle
+          const history = historyMap[key] ?? []
 
           return (
             <div key={key} className="sd-platform-mini" style={{ '--platform-color': platform.color }}>
@@ -296,44 +470,34 @@ function OverviewSummary() {
                 <span className="sd-platform-mini__icon">{platform.icon}</span>
                 <div>
                   <span className="sd-platform-mini__name">{platform.label}</span>
-                  <span className="sd-platform-mini__handle">{platform.handle}</span>
+                  <span className="sd-platform-mini__handle">{handle}</span>
                 </div>
               </div>
               <div className="sd-platform-mini__stats">
-                {isSocial && (
+                {platform.group === 'social' && (
                   <>
                     <MetricPill label="followers" value={fmtNum(m.followers)} />
-                    <MetricPill label="eng. rate" value={`${m.engagementRate}%`} />
-                    <MetricPill label="reach" value={fmtNum(m.reachThisWeek)} />
+                    {m.engagement_rate > 0 && <MetricPill label="eng. rate" value={`${m.engagement_rate}%`} />}
+                    {m.reach > 0 && <MetricPill label="reach" value={fmtNum(m.reach)} />}
                   </>
                 )}
-                {isReview && (
+                {platform.group === 'reviews' && (
                   <>
-                    <MetricPill label="reviews" value={m.reviews} />
-                    <MetricPill label="rating" value={`${m.avgRating}`} icon="⭐" />
+                    {extra.reviews != null && <MetricPill label="reviews" value={extra.reviews} />}
+                    {extra.avg_rating != null && <MetricPill label="rating" value={extra.avg_rating} icon="⭐" />}
                   </>
                 )}
-                {key === 'blog' && (
+                {platform.group === 'web' && (
                   <>
-                    <MetricPill label="page views" value={fmtNum(m.pageViews)} />
-                    <MetricPill label="avg time" value={m.avgTimeOnPage} />
+                    {extra.page_views != null && <MetricPill label="views" value={fmtNum(extra.page_views)} />}
+                    {extra.total_clicks != null && <MetricPill label="clicks" value={fmtNum(extra.total_clicks)} />}
+                    {extra.unique_visitors != null && <MetricPill label="visitors" value={fmtNum(extra.unique_visitors)} />}
                   </>
                 )}
-                {key === 'website' && (
-                  <>
-                    <MetricPill label="monthly visitors" value={fmtNum(m.monthlyVisitors)} />
-                    <MetricPill label="pages/session" value={m.pagesPerSession} />
-                  </>
-                )}
-                {key === 'linktree' && (
-                  <>
-                    <MetricPill label="total clicks" value={fmtNum(m.totalClicks)} />
-                    <MetricPill label="visitors" value={fmtNum(m.uniqueVisitors)} />
-                  </>
-                )}
+                {!m.week_of && <MetricPill label="" value="awaiting data" />}
               </div>
-              {m.audienceGrowth?.length > 0 && (
-                <MiniSparkline data={m.audienceGrowth} color={platform.color} />
+              {history.length > 1 && (
+                <MiniSparkline data={history.map(h => h.followers)} color={platform.color} />
               )}
             </div>
           )
@@ -343,348 +507,211 @@ function OverviewSummary() {
   )
 }
 
-function SocialChannelDetail({ platformKey }) {
-  const platform = PLATFORMS[platformKey]
-  const m = DEMO_METRICS[platformKey]
-  if (!platform || !m) return null
-
-  return (
-    <div className="sd-channel-detail" style={{ '--platform-color': platform.color }}>
-      <div className="sd-channel-detail__header">
-        <span className="sd-channel-detail__icon">{platform.icon}</span>
-        <div>
-          <h3 className="sd-channel-detail__name">{platform.label}</h3>
-          <span className="sd-channel-detail__handle">{platform.handle}</span>
-        </div>
-        <div className="sd-channel-detail__badge">
-          <span className="sd-channel-detail__eng">{m.engagementRate}%</span>
-          <span className="sd-channel-detail__eng-label">engagement</span>
-        </div>
-      </div>
-
-      {/* Metrics Grid */}
-      <div className="sd-metrics-row">
-        <div className="sd-metric-card">
-          <span className="sd-metric-card__value">{fmtNum(m.followers)}</span>
-          <span className="sd-metric-card__label">Followers</span>
-          {m.followersChange > 0 && (
-            <span className="sd-metric-card__delta sd-metric-card__delta--up">+{m.followersChange}</span>
-          )}
-        </div>
-        <div className="sd-metric-card">
-          <span className="sd-metric-card__value">{fmtNum(m.reachThisWeek)}</span>
-          <span className="sd-metric-card__label">Reach</span>
-        </div>
-        <div className="sd-metric-card">
-          <span className="sd-metric-card__value">{fmtNum(m.impressions)}</span>
-          <span className="sd-metric-card__label">Impressions</span>
-        </div>
-        <div className="sd-metric-card">
-          <span className="sd-metric-card__value">{m.postsThisWeek}</span>
-          <span className="sd-metric-card__label">Posts This Week</span>
-        </div>
-      </div>
-
-      {/* Engagement Breakdown */}
-      <div className="sd-engagement-row">
-        <div className="sd-eng-stat"><span className="sd-eng-stat__icon">❤️</span> <strong>{m.likesThisWeek}</strong> likes</div>
-        <div className="sd-eng-stat"><span className="sd-eng-stat__icon">💬</span> <strong>{m.commentsThisWeek}</strong> comments</div>
-        <div className="sd-eng-stat"><span className="sd-eng-stat__icon">🔄</span> <strong>{m.sharesThisWeek}</strong> shares</div>
-        {m.savesThisWeek > 0 && (
-          <div className="sd-eng-stat"><span className="sd-eng-stat__icon">🔖</span> <strong>{m.savesThisWeek}</strong> saves</div>
-        )}
-      </div>
-
-      {/* Platform-specific extras */}
-      {platformKey === 'instagram' && (
-        <div className="sd-extras-row">
-          <MetricPill label="stories views" value={fmtNum(m.storiesViews)} icon="📱" />
-          <MetricPill label="reels plays" value={fmtNum(m.reelsPlays)} icon="🎬" />
-        </div>
-      )}
-
-      {/* Audience Growth Sparkline */}
-      {m.audienceGrowth?.length > 0 && (
-        <div className="sd-growth-section">
-          <span className="sd-growth-section__label">Audience Growth (9 weeks)</span>
-          <MiniSparkline data={m.audienceGrowth} color={platform.color} />
-        </div>
-      )}
-
-      {/* Best Posting Time */}
-      {m.bestPostingTime && m.bestPostingTime !== 'N/A' && (
-        <div className="sd-best-time">
-          <span className="sd-best-time__icon">🕐</span>
-          <span>Best posting time: <strong>{m.bestPostingTime}</strong></span>
-        </div>
-      )}
-
-      {/* Top Posts */}
-      {m.topPosts?.length > 0 && (
-        <div className="sd-top-posts">
-          <h4 className="sd-top-posts__title">Top Performing Posts</h4>
-          {m.topPosts.map((post, i) => (
-            <div key={i} className="sd-post-row">
-              <span className="sd-post-row__rank">#{i + 1}</span>
-              <span className="sd-post-row__type">{post.type}</span>
-              <span className="sd-post-row__caption">{post.caption}</span>
-              <div className="sd-post-row__stats">
-                <span>❤️ {post.likes}</span>
-                <span>💬 {post.comments}</span>
-                <span>🔄 {post.shares}</span>
-                {post.saves > 0 && <span>🔖 {post.saves}</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ReviewsDetail({ platformKey }) {
-  const platform = PLATFORMS[platformKey]
-  const m = DEMO_METRICS[platformKey]
-  if (!platform || !m) return null
-
-  return (
-    <div className="sd-channel-detail" style={{ '--platform-color': platform.color }}>
-      <div className="sd-channel-detail__header">
-        <span className="sd-channel-detail__icon">{platform.icon}</span>
-        <div>
-          <h3 className="sd-channel-detail__name">{platform.label}</h3>
-          <span className="sd-channel-detail__handle">{platform.handle}</span>
-        </div>
-        {m.avgRating && (
-          <div className="sd-channel-detail__badge">
-            <span className="sd-channel-detail__eng">{m.avgRating}</span>
-            <span className="sd-channel-detail__eng-label">avg rating</span>
-          </div>
-        )}
-      </div>
-      <div className="sd-metrics-row">
-        <div className="sd-metric-card">
-          <span className="sd-metric-card__value">{m.reviews}</span>
-          <span className="sd-metric-card__label">Total Reviews</span>
-        </div>
-        {m.reviewsThisMonth !== undefined && (
-          <div className="sd-metric-card">
-            <span className="sd-metric-card__value">{m.reviewsThisMonth}</span>
-            <span className="sd-metric-card__label">This Month</span>
-          </div>
-        )}
-        {m.searchAppearances && (
-          <div className="sd-metric-card">
-            <span className="sd-metric-card__value">{fmtNum(m.searchAppearances)}</span>
-            <span className="sd-metric-card__label">Search Appearances</span>
-          </div>
-        )}
-        {m.profileViews && (
-          <div className="sd-metric-card">
-            <span className="sd-metric-card__value">{m.profileViews}</span>
-            <span className="sd-metric-card__label">Profile Views</span>
-          </div>
-        )}
-        {m.websiteClicks && (
-          <div className="sd-metric-card">
-            <span className="sd-metric-card__value">{m.websiteClicks}</span>
-            <span className="sd-metric-card__label">Website Clicks</span>
-          </div>
-        )}
-        {m.phoneCallClicks && (
-          <div className="sd-metric-card">
-            <span className="sd-metric-card__value">{m.phoneCallClicks}</span>
-            <span className="sd-metric-card__label">Phone Calls</span>
-          </div>
-        )}
-        {m.contactRequests && (
-          <div className="sd-metric-card">
-            <span className="sd-metric-card__value">{m.contactRequests}</span>
-            <span className="sd-metric-card__label">Contact Requests</span>
-          </div>
-        )}
-      </div>
-      {platformKey === 'gmb' && (
-        <div className="sd-extras-row">
-          <MetricPill label="direct searches" value={fmtNum(m.directSearches)} icon="🔍" />
-          <MetricPill label="discovery" value={fmtNum(m.discoverySearches)} icon="🗺️" />
-          <MetricPill label="directions" value={m.directionRequests} icon="📍" />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function WebDetail({ platformKey }) {
-  const platform = PLATFORMS[platformKey]
-  const m = DEMO_METRICS[platformKey]
-  if (!platform || !m) return null
-
-  return (
-    <div className="sd-channel-detail" style={{ '--platform-color': platform.color }}>
-      <div className="sd-channel-detail__header">
-        <span className="sd-channel-detail__icon">{platform.icon}</span>
-        <div>
-          <h3 className="sd-channel-detail__name">{platform.label}</h3>
-          <span className="sd-channel-detail__handle">{platform.handle}</span>
-        </div>
-      </div>
-      <div className="sd-metrics-row">
-        {platformKey === 'blog' && (
-          <>
-            <div className="sd-metric-card">
-              <span className="sd-metric-card__value">{m.postsThisWeek}</span>
-              <span className="sd-metric-card__label">Posts This Week</span>
-            </div>
-            <div className="sd-metric-card">
-              <span className="sd-metric-card__value">{fmtNum(m.pageViews)}</span>
-              <span className="sd-metric-card__label">Page Views</span>
-            </div>
-            <div className="sd-metric-card">
-              <span className="sd-metric-card__value">{fmtNum(m.uniqueVisitors)}</span>
-              <span className="sd-metric-card__label">Unique Visitors</span>
-            </div>
-            <div className="sd-metric-card">
-              <span className="sd-metric-card__value">{m.avgTimeOnPage}</span>
-              <span className="sd-metric-card__label">Avg Time on Page</span>
-            </div>
-            <div className="sd-metric-card">
-              <span className="sd-metric-card__value">{m.bounceRate}%</span>
-              <span className="sd-metric-card__label">Bounce Rate</span>
-            </div>
-          </>
-        )}
-        {platformKey === 'website' && (
-          <>
-            <div className="sd-metric-card">
-              <span className="sd-metric-card__value">{fmtNum(m.monthlyVisitors)}</span>
-              <span className="sd-metric-card__label">Monthly Visitors</span>
-            </div>
-            <div className="sd-metric-card">
-              <span className="sd-metric-card__value">{fmtNum(m.uniqueVisitors)}</span>
-              <span className="sd-metric-card__label">Unique Visitors</span>
-            </div>
-            <div className="sd-metric-card">
-              <span className="sd-metric-card__value">{m.avgSessionDuration}</span>
-              <span className="sd-metric-card__label">Avg Session</span>
-            </div>
-            <div className="sd-metric-card">
-              <span className="sd-metric-card__value">{m.pagesPerSession}</span>
-              <span className="sd-metric-card__label">Pages / Session</span>
-            </div>
-            <div className="sd-metric-card">
-              <span className="sd-metric-card__value">{m.bounceRate}%</span>
-              <span className="sd-metric-card__label">Bounce Rate</span>
-            </div>
-          </>
-        )}
-        {platformKey === 'linktree' && (
-          <>
-            <div className="sd-metric-card">
-              <span className="sd-metric-card__value">{fmtNum(m.totalClicks)}</span>
-              <span className="sd-metric-card__label">Total Clicks</span>
-            </div>
-            <div className="sd-metric-card">
-              <span className="sd-metric-card__value">{fmtNum(m.uniqueVisitors)}</span>
-              <span className="sd-metric-card__label">Unique Visitors</span>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Linktree top links */}
-      {platformKey === 'linktree' && m.topLinks?.length > 0 && (
-        <div className="sd-top-posts">
-          <h4 className="sd-top-posts__title">Top Links</h4>
-          {m.topLinks.map((link, i) => (
-            <div key={i} className="sd-post-row">
-              <span className="sd-post-row__rank">#{i + 1}</span>
-              <span className="sd-post-row__caption">{link.label}</span>
-              <div className="sd-post-row__stats">
-                <span>{link.clicks} clicks</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Website top pages */}
-      {platformKey === 'website' && m.topPages?.length > 0 && (
-        <div className="sd-top-posts">
-          <h4 className="sd-top-posts__title">Top Pages</h4>
-          {m.topPages.map((page, i) => (
-            <div key={i} className="sd-post-row">
-              <span className="sd-post-row__rank">#{i + 1}</span>
-              <span className="sd-post-row__caption">{page}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Blog top posts */}
-      {platformKey === 'blog' && m.topPosts?.length > 0 && (
-        <div className="sd-top-posts">
-          <h4 className="sd-top-posts__title">Top Posts</h4>
-          {m.topPosts.map((post, i) => (
-            <div key={i} className="sd-post-row">
-              <span className="sd-post-row__rank">#{i + 1}</span>
-              <span className="sd-post-row__type">{post.type}</span>
-              <span className="sd-post-row__caption">{post.caption}</span>
-              <div className="sd-post-row__stats">
-                <span>💬 {post.comments}</span>
-                <span>🔄 {post.shares}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── Main Dashboard ──────────────────────────────────────────────────────────
 export default function SocialDashboard() {
+  const { brand } = useBrand()
   const [tab, setTab] = useState('overview')
-  const channels = useSocialChannels()
+  const [managerOpen, setManagerOpen] = useState(false)
+  const [config, setConfig] = useState(null)
+  const [metrics, setMetrics] = useState([])
+  const [historyMap, setHistoryMap] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [configLoading, setConfigLoading] = useState(true)
+
+  // Load dashboard config
+  const loadConfig = useCallback(async () => {
+    try {
+      const result = await DB.getSocialDashboardConfig()
+      setConfig(result?.value ?? null)
+    } catch {
+      // First time — no config yet, that's fine
+      setConfig(null)
+    } finally {
+      setConfigLoading(false)
+    }
+  }, [])
+
+  // Load metrics
+  const loadMetrics = useCallback(async () => {
+    try {
+      const data = await DB.getLatestSocialMetrics()
+      setMetrics(data)
+    } catch {
+      setMetrics([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadConfig() }, [loadConfig])
+  useEffect(() => { loadMetrics() }, [loadMetrics])
+
+  // Load history for sparklines when config changes
+  useEffect(() => {
+    if (!config?.enabled_platforms?.length) return
+    async function loadHistory() {
+      const map = {}
+      await Promise.all(
+        config.enabled_platforms.map(async (platform) => {
+          try {
+            const data = await DB.getSocialMetricsHistory(platform, 12)
+            map[platform] = data
+          } catch { map[platform] = [] }
+        })
+      )
+      setHistoryMap(map)
+    }
+    loadHistory()
+  }, [config?.enabled_platforms])
+
+  // Build metrics lookup
+  const metricsMap = {}
+  for (const m of metrics) {
+    metricsMap[m.platform] = m
+  }
+
+  // Enabled platforms
+  const enabledPlatforms = config?.enabled_platforms ?? []
+  const hasConfig = enabledPlatforms.length > 0
+
+  // Auto-initialize from brand social channels if no config exists
+  useEffect(() => {
+    if (configLoading || config != null) return
+    const channels = brand?.social_channels ?? {}
+    const autoEnabled = []
+    const platformConfig = {}
+    for (const p of ALL_PLATFORMS) {
+      const url = channels[p.key]?.trim()
+      if (url) {
+        autoEnabled.push(p.key)
+        // Extract handle from URL
+        let handle = ''
+        try {
+          const u = new URL(url)
+          const path = u.pathname.replace(/\/$/, '')
+          handle = path.split('/').pop() || ''
+          if (handle && !handle.startsWith('@') && ['instagram', 'tiktok', 'twitter'].includes(p.key)) {
+            handle = '@' + handle
+          }
+        } catch { handle = '' }
+        platformConfig[p.key] = { enabled: true, handle }
+      }
+    }
+    if (autoEnabled.length > 0) {
+      const newConfig = { enabled_platforms: autoEnabled, platform_config: platformConfig }
+      setConfig(newConfig)
+      // Save it silently
+      DB.updateSocialDashboardConfig(newConfig).catch(() => {})
+    }
+  }, [configLoading, config, brand?.social_channels])
+
+  async function handleSaveConfig(newConfig) {
+    await DB.updateSocialDashboardConfig(newConfig)
+    setConfig(newConfig)
+  }
+
+  // Filter platforms by tab group
+  const socialPlatforms = enabledPlatforms.filter(k => PLATFORM_MAP[k]?.group === 'social')
+  const reviewPlatforms = enabledPlatforms.filter(k => PLATFORM_MAP[k]?.group === 'reviews')
+  const webPlatforms = enabledPlatforms.filter(k => PLATFORM_MAP[k]?.group === 'web')
+
+  // Find latest week date for "last updated" display
+  const latestWeek = metrics.reduce((latest, m) => {
+    if (!latest || m.week_of > latest) return m.week_of
+    return latest
+  }, null)
+
+  if (configLoading) {
+    return (
+      <div className="social-dashboard">
+        <SectionHeader title="Social Media Dashboard" subtitle="Loading..." />
+      </div>
+    )
+  }
 
   return (
     <div className="social-dashboard">
       <SectionHeader
         title="Social Media Dashboard"
-        subtitle="Performance metrics across all your channels — updated weekly"
+        subtitle="Performance metrics across all your connected channels"
+        actions={
+          <Button variant="secondary" onClick={() => setManagerOpen(true)}>
+            Manage Channels
+          </Button>
+        }
       />
 
-      <div className="sd-last-updated">
-        Last updated: Mar 22, 2026 at 9:06 PM (auto-updates every Sunday)
-      </div>
-
-      <TabBar tabs={TAB_GROUPS} active={tab} onChange={setTab} />
-
-      {tab === 'overview' && <OverviewSummary />}
-
-      {tab === 'social' && (
-        <div className="sd-channels-list">
-          {SOCIAL_KEYS.map(key => (
-            <SocialChannelDetail key={key} platformKey={key} />
-          ))}
+      {latestWeek && (
+        <div className="sd-last-updated">
+          Last data: week of {fmtDate(latestWeek)} — updates every Sunday via your scheduled task
         </div>
       )}
 
-      {tab === 'reviews' && (
-        <div className="sd-channels-list">
-          {REVIEW_KEYS.map(key => (
-            <ReviewsDetail key={key} platformKey={key} />
-          ))}
-        </div>
+      {!hasConfig ? (
+        <Card className="sd-setup-card">
+          <div className="sd-setup">
+            <h3>Connect Your Channels</h3>
+            <p>Choose which social platforms, review sites, and web properties you want to track on your dashboard.</p>
+            <Button onClick={() => setManagerOpen(true)}>Set Up Channels</Button>
+          </div>
+        </Card>
+      ) : (
+        <>
+          <TabBar tabs={TAB_GROUPS} active={tab} onChange={setTab} />
+
+          {tab === 'overview' && (
+            <OverviewSummary
+              enabledPlatforms={enabledPlatforms}
+              metricsMap={metricsMap}
+              config={config}
+              historyMap={historyMap}
+            />
+          )}
+
+          {tab === 'social' && (
+            <div className="sd-channels-list">
+              {socialPlatforms.length === 0 ? (
+                <Card className="sd-empty-tab">No social media channels connected. Click "Manage Channels" to add some.</Card>
+              ) : (
+                socialPlatforms.map(key => (
+                  <ChannelCard key={key} platformKey={key} metrics={metricsMap[key]} config={config} />
+                ))
+              )}
+            </div>
+          )}
+
+          {tab === 'reviews' && (
+            <div className="sd-channels-list">
+              {reviewPlatforms.length === 0 ? (
+                <Card className="sd-empty-tab">No review platforms connected. Click "Manage Channels" to add some.</Card>
+              ) : (
+                reviewPlatforms.map(key => (
+                  <ChannelCard key={key} platformKey={key} metrics={metricsMap[key]} config={config} />
+                ))
+              )}
+            </div>
+          )}
+
+          {tab === 'web' && (
+            <div className="sd-channels-list">
+              {webPlatforms.length === 0 ? (
+                <Card className="sd-empty-tab">No web channels connected. Click "Manage Channels" to add some.</Card>
+              ) : (
+                webPlatforms.map(key => (
+                  <ChannelCard key={key} platformKey={key} metrics={metricsMap[key]} config={config} />
+                ))
+              )}
+            </div>
+          )}
+        </>
       )}
 
-      {tab === 'web' && (
-        <div className="sd-channels-list">
-          {WEB_KEYS.map(key => (
-            <WebDetail key={key} platformKey={key} />
-          ))}
-        </div>
-      )}
+      <ChannelManager
+        open={managerOpen}
+        onClose={() => setManagerOpen(false)}
+        config={config}
+        onSave={handleSaveConfig}
+      />
     </div>
   )
 }

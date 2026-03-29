@@ -366,6 +366,51 @@ export const updateBrandProfile = (value) =>
     .upsert({ key: 'brand_profile', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
     .select().single())
 
+// ─── Social Dashboard Config ─────────────────────────────────────────────────
+export const getSocialDashboardConfig = () =>
+  query(supabase.from('user_settings').select('*').eq('key', 'social_dashboard').single())
+
+export const updateSocialDashboardConfig = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'social_dashboard', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())
+
+// ─── Social Metrics ──────────────────────────────────────────────────────────
+export const getSocialMetrics = (platform, limit = 12) =>
+  query(supabase.from('social_metrics').select('*')
+    .eq('platform', platform).order('week_of', { ascending: false }).limit(limit))
+
+export const getAllLatestMetrics = () =>
+  query(supabase.rpc('get_latest_social_metrics').catch(() =>
+    // Fallback: get the most recent week's data for each platform
+    supabase.from('social_metrics').select('*').order('week_of', { ascending: false }).limit(50)
+  ).then(r => r.data ?? []))
+
+export const getLatestSocialMetrics = async () => {
+  // Get the most recent entry per platform
+  const { data, error } = await supabase
+    .from('social_metrics')
+    .select('*')
+    .order('week_of', { ascending: false })
+    .limit(50)
+  if (error) throw new Error(error.message)
+  // Dedupe to latest per platform
+  const seen = new Set()
+  return (data ?? []).filter(r => {
+    if (seen.has(r.platform)) return false
+    seen.add(r.platform)
+    return true
+  })
+}
+
+export const upsertSocialMetric = (d) =>
+  query(supabase.from('social_metrics')
+    .upsert(d, { onConflict: 'platform,week_of' }).select().single())
+
+export const getSocialMetricsHistory = (platform, weeks = 12) =>
+  query(supabase.from('social_metrics').select('week_of,followers,reach,engagement_rate')
+    .eq('platform', platform).order('week_of', { ascending: true }).limit(weeks))
+
 // ─── Brand Asset Upload (Supabase Storage) ───────────────────────────────────
 export async function uploadBrandAsset(file, folder = 'general') {
   const ext = file.name.split('.').pop()
