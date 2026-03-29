@@ -721,11 +721,29 @@ export default function Pipeline() {
                                 📞 {deal.contact.phone}
                               </a>
                             )}
-                            {deal.contact?.email && (
-                              <a href={`mailto:${deal.contact.email}`} className="pipe__card-contact-link" onClick={e => e.stopPropagation()} title="Email">
-                                ✉️
-                              </a>
-                            )}
+                            {deal.contact?.email && (() => {
+                              const currentStage = stageInfo(deal.status)
+                              const tmpl = STAGE_EMAILS[currentStage.value]
+                              if (tmpl) {
+                                const subject = encodeURIComponent(fillTemplate(tmpl.subject, deal))
+                                const body = encodeURIComponent(fillTemplate(tmpl.body, deal))
+                                return (
+                                  <a
+                                    href={`mailto:${deal.contact.email}?subject=${subject}&body=${body}`}
+                                    className="pipe__card-contact-link pipe__card-email-btn"
+                                    onClick={e => e.stopPropagation()}
+                                    title={`Send: ${tmpl.label}`}
+                                  >
+                                    ✉️ {tmpl.label}
+                                  </a>
+                                )
+                              }
+                              return (
+                                <a href={`mailto:${deal.contact.email}`} className="pipe__card-contact-link" onClick={e => e.stopPropagation()} title="Email">
+                                  ✉️ Email
+                                </a>
+                              )
+                            })()}
                           </div>
                         )}
                         <div className="pipe__card-progress">
