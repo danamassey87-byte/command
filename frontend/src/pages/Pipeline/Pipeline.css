@@ -337,6 +337,92 @@
   border-top: 1px solid var(--color-border-light);
 }
 
+/* ─── Detail Panel Tabs ─── */
+.pipe__detail-tabs {
+  display: flex; gap: 0;
+  border-bottom: 2px solid var(--color-border-light);
+  margin: -4px 0 var(--space-md);
+}
+.pipe__detail-tab {
+  font-family: var(--font-body); font-size: 0.78rem; font-weight: 500;
+  color: var(--color-text-muted); background: none; border: none;
+  padding: 8px 16px; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  transition: all var(--transition-fast);
+  display: flex; align-items: center; gap: 6px;
+}
+.pipe__detail-tab:hover { color: var(--brown-dark); }
+.pipe__detail-tab--active {
+  color: var(--brown-dark); font-weight: 600;
+  border-bottom-color: var(--brown-dark);
+}
+.pipe__detail-tab-count {
+  font-size: 0.65rem; font-weight: 600;
+  background: var(--cream); padding: 1px 6px;
+  border-radius: var(--radius-full); color: var(--color-text-muted);
+}
+
+/* ─── SOP in panel ─── */
+.pipe__sop-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+.pipe__sop-type {
+  font-family: var(--font-display); font-size: 0.9rem;
+  font-weight: 600; color: var(--brown-dark);
+}
+.pipe__sop-progress-wrap {
+  display: flex; align-items: center; gap: 8px;
+}
+.pipe__sop-progress-bar {
+  width: 80px; height: 5px; background: var(--color-border-light);
+  border-radius: var(--radius-full); overflow: hidden;
+}
+.pipe__sop-progress-fill {
+  height: 100%; background: var(--color-success);
+  border-radius: var(--radius-full); transition: width 0.3s ease;
+}
+.pipe__sop-progress-text {
+  font-size: 0.72rem; font-weight: 600; color: var(--color-text-muted);
+}
+
+.pipe__sop-section { margin-bottom: var(--space-md); }
+.pipe__sop-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.pipe__sop-tasks { display: flex; flex-direction: column; gap: 1px; }
+
+.pipe__sop-task {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: var(--radius-sm);
+  font-size: 0.8rem; color: var(--brown-dark); cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.pipe__sop-task:hover { background: rgba(239,237,232,0.3); }
+.pipe__sop-task--done { opacity: 0.5; }
+.pipe__sop-task--done span { text-decoration: line-through; }
+.pipe__sop-task--az { border-left: 3px solid var(--color-info); padding-left: 5px; }
+.pipe__sop-task input { accent-color: var(--color-success); flex-shrink: 0; }
+
+.pipe__sop-az-badge {
+  font-size: 0.55rem; font-weight: 700;
+  color: var(--color-info); background: var(--color-info-bg);
+  padding: 1px 5px; border-radius: var(--radius-full);
+  margin-left: auto; flex-shrink: 0;
+}
+
+.pipe__sop-link {
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border-light);
+}
+.pipe__sop-link a {
+  font-size: 0.78rem; font-weight: 500;
+  color: var(--color-info); text-decoration: none;
+}
+.pipe__sop-link a:hover { text-decoration: underline; }
+
 /* ─── Responsive ─── */
 @media (max-width: 900px) {
   .pipe__list-header, .pipe__list-row { grid-template-columns: 1fr 1fr 1fr 0.5fr; }

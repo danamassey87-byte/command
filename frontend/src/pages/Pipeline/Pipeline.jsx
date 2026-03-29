@@ -107,6 +107,70 @@ const CONTACT_ROLES = [
 const EMPTY_ROLE_CONTACT = { name: '', email: '', phone: '' }
 const EMPTY_FAMILY = { name: '', email: '', phone: '', relationship: '' }
 
+// ─── Embedded SOP Tasks (syncs with standalone SOP pages via localStorage) ──
+const BUYER_SOP_KEY = 'buyer_sop_progress'
+const SELLER_SOP_KEY = 'seller_sop_progress'
+function loadSOPProgress(key) { try { return JSON.parse(localStorage.getItem(key) || '{}') } catch { return {} } }
+function saveSOPProgress(key, d) { localStorage.setItem(key, JSON.stringify(d)) }
+
+const BUYER_SOP_TASKS = [
+  { stage: 'Initial Lead', tasks: [
+    { id: 'lead_in', text: 'New lead comes in' }, { id: 'lead_workflow', text: 'Send New Buyer Lead email' },
+    { id: 'phone_appt', text: '15-min phone call' }, { id: 'pre_qual_check', text: 'Verify pre-qualification' },
+    { id: 'send_questionnaire', text: 'Send buyer questionnaire' },
+  ]},
+  { stage: 'Pre-Showing Docs', tasks: [
+    { id: 'buyer_advisory', text: 'Buyer Advisory (AAR) signed', az: true }, { id: 'buyer_broker', text: 'Buyer Broker Agreement signed', az: true },
+    { id: 'agency_disclosure', text: 'Agency Disclosure (ARS 32-2153)', az: true }, { id: 'wire_fraud_advisory', text: 'Wire Fraud Advisory signed', az: true },
+    { id: 'pre_approval_letter', text: 'Pre-approval letter on file' }, { id: 'send_offer', text: 'Offer sent to listing agent' },
+  ]},
+  { stage: 'Under Contract', tasks: [
+    { id: 'update_terms', text: 'Update database with contract terms' }, { id: 'open_escrow', text: 'Open escrow' },
+    { id: 'send_lender', text: 'Send contract to lender' }, { id: 'congrats_email', text: 'Send congratulations email' },
+    { id: 'earnest_money', text: 'Earnest money (3 biz days)', az: true }, { id: 'title_commitment', text: 'Title commitment received' },
+    { id: 'spds_received', text: 'SPDS received from seller', az: true }, { id: 'schedule_inspections', text: 'Inspections scheduled (10-day)', az: true },
+    { id: 'home_inspection', text: 'Home inspection completed' }, { id: 'binsr_sent', text: 'BINSR sent to listing agent' },
+    { id: 'binsr_response', text: 'Seller BINSR response received' }, { id: 'lsu_10day', text: 'Loan Status Update (10 days)' },
+    { id: 'az_appraisal', text: 'Appraisal ordered (25-day)', az: true }, { id: 'az_loan_approval', text: 'Final loan approval (30-day)', az: true },
+    { id: 'az_closing_disc', text: 'Closing Disclosure (3-day review)', az: true }, { id: 'insurance_bound', text: 'Insurance bound' },
+    { id: 'utility_transfer', text: 'Utilities transferred' }, { id: 'final_walkthrough', text: 'Final walkthrough' },
+    { id: 'closing_day', text: 'Closing day!' },
+  ]},
+  { stage: 'Post-Close', tasks: [
+    { id: 'upload_docs', text: 'All docs uploaded' }, { id: 'thank_everyone', text: 'Thank all parties + review request' },
+    { id: 'update_close', text: 'Update database — move to closed' }, { id: 'update_pnl', text: 'Update P&L with commission' },
+  ]},
+]
+
+const SELLER_SOP_TASKS = [
+  { stage: 'Initial Lead', tasks: [
+    { id: 'lead_in', text: 'New lead comes in' }, { id: 'lead_workflow', text: 'Send New Lead email' },
+    { id: 'phone_appt', text: '15-min phone call' }, { id: 'in_person_appt', text: 'Set listing appointment' },
+  ]},
+  { stage: 'Pre-Listing', tasks: [
+    { id: 'comps_ready', text: 'Comps / CMA ready' }, { id: 'hoa_verify', text: 'HOA verified' },
+    { id: 'listing_docs', text: 'Listing docs sent' }, { id: 'spds_claims', text: 'SPDS & Claims History sent' },
+    { id: 'az_lead_paint', text: 'Lead-Based Paint (pre-1978)', az: true }, { id: 'az_wire_fraud', text: 'Wire Fraud Advisory signed', az: true },
+    { id: 'start_mls', text: 'MLS listing started' }, { id: 'schedule_media', text: 'Photos/video scheduled' },
+    { id: 'listing_package', text: 'Marketing package prepared' }, { id: 'print_materials', text: 'Flyers & postcards printed' },
+    { id: 'were_live', text: '"We\'re Live" email sent' },
+  ]},
+  { stage: 'Under Contract', tasks: [
+    { id: 'update_terms', text: 'Update database with contract terms' }, { id: 'congrats_email', text: 'Send Offer Accepted email' },
+    { id: 'open_escrow', text: 'Open escrow' }, { id: 'submit_disclosures', text: 'Submit disclosures to buyer' },
+    { id: 'inspections', text: 'Buyer inspections (10-day)', az: true }, { id: 'earnest_money', text: 'Earnest money received' },
+    { id: 'binsr_received', text: 'BINSR received — review' }, { id: 'seller_binsr_resp', text: 'Seller BINSR response due', az: true },
+    { id: 'appraisal', text: 'Appraisal — grant access' }, { id: 'final_loan', text: 'Buyer loan approval confirmed' },
+    { id: 'schedule_signing', text: 'Signing scheduled' }, { id: 'final_walkthrough', text: 'Buyer final walkthrough' },
+    { id: 'az_closing_disc', text: 'Closing Disclosure reviewed', az: true }, { id: 'closing_day', text: 'Closing day!' },
+  ]},
+  { stage: 'Post-Close', tasks: [
+    { id: 'remove_lockbox', text: 'Lockbox removed' }, { id: 'mls_sold', text: 'MLS status → Sold' },
+    { id: 'sign_removal', text: 'Sign removed' }, { id: 'check_review', text: 'Review requested' },
+    { id: 'update_pnl', text: 'P&L updated with commission' },
+  ]},
+]
+
 // ─── Stage Email Templates ───────────────────────────────────────────────────
 const STAGE_EMAILS = {
   pre_offer: {
@@ -243,7 +307,24 @@ export default function Pipeline() {
   const [detailDeal, setDetailDeal] = useState(null)
   const [editDeal, setEditDeal] = useState(null)
   const [saving, setSaving] = useState(false)
-  const [emailStage, setEmailStage] = useState(null) // which stage email to compose
+  const [emailStage, setEmailStage] = useState(null)
+  const [detailTab, setDetailTab] = useState('overview') // 'overview' | 'sop' | 'docs'
+
+  // SOP progress (syncs with standalone SOP pages)
+  const [buyerSOPProgress, setBuyerSOPRaw] = useState(() => loadSOPProgress(BUYER_SOP_KEY))
+  const [sellerSOPProgress, setSellerSOPRaw] = useState(() => loadSOPProgress(SELLER_SOP_KEY))
+
+  const toggleSOPTask = useCallback((dealId, taskId, isBuyer) => {
+    const key = isBuyer ? BUYER_SOP_KEY : SELLER_SOP_KEY
+    const setter = isBuyer ? setBuyerSOPRaw : setSellerSOPRaw
+    setter(prev => {
+      const dealProgress = { ...(prev[dealId] ?? {}) }
+      dealProgress[taskId] = dealProgress[taskId] ? false : new Date().toISOString()
+      const next = { ...prev, [dealId]: dealProgress }
+      saveSOPProgress(key, next)
+      return next
+    })
+  }, [])
 
   // Form state
   const [contactId, setContactId] = useState('')
@@ -800,13 +881,13 @@ export default function Pipeline() {
         </div>
       )}
 
-      {/* ─── Deal Detail Panel (docs + deadlines) ─── */}
+      {/* ─── Deal Detail Panel (tabbed: Overview / SOP / Docs) ─── */}
       <SlidePanel
         open={panelOpen && !!detailDeal}
-        onClose={() => { setPanelOpen(false); setDetailDeal(null) }}
+        onClose={() => { setPanelOpen(false); setDetailDeal(null); setDetailTab('overview') }}
         title={detailDeal?.contact?.name ?? 'Deal Details'}
         subtitle={detailDeal?.property?.address ?? ''}
-        width={520}
+        width={540}
       >
         {detailDeal && (() => {
           const deal = detailDeal
@@ -831,242 +912,298 @@ export default function Pipeline() {
               }))
             : []
 
+          // SOP data for this deal
+          const isBuyer = deal.deal_type === 'buyer' || deal.deal_type === 'both'
+          const sopTasks = isBuyer ? BUYER_SOP_TASKS : SELLER_SOP_TASKS
+          const sopProgress = isBuyer ? (buyerSOPProgress[deal.id] ?? {}) : (sellerSOPProgress[deal.id] ?? {})
+          const sopDone = sopTasks.reduce((sum, s) => sum + s.tasks.filter(t => !!sopProgress[t.id]).length, 0)
+          const sopTotal = sopTasks.reduce((sum, s) => sum + s.tasks.length, 0)
+
           return (
             <div className="pipe__detail">
-              {/* Deal summary */}
-              <div className="pipe__detail-summary">
-                <div className="pipe__detail-row">
-                  <span className="pipe__detail-label">Stage</span>
-                  <Badge variant={si.value === 'closing' ? 'success' : si.value.includes('binsr') ? 'danger' : 'default'}>{si.label}</Badge>
-                </div>
-                <div className="pipe__detail-row">
-                  <span className="pipe__detail-label">Type</span>
-                  <span>{deal.deal_type === 'buyer' ? 'Buyer Side' : deal.deal_type === 'seller' ? 'Seller Side' : 'Both Sides'}</span>
-                </div>
-                <div className="pipe__detail-row">
-                  <span className="pipe__detail-label">Price</span>
-                  <span>{fmtDollar(deal.property?.price || deal.offer_price)}</span>
-                </div>
-                {deal.financing_type && (
-                  <div className="pipe__detail-row">
-                    <span className="pipe__detail-label">Financing</span>
-                    <span>{FINANCING_TYPES.find(f => f.value === deal.financing_type)?.label ?? deal.financing_type}</span>
-                  </div>
-                )}
-                {deal.lender && (
-                  <div className="pipe__detail-row">
-                    <span className="pipe__detail-label">Lender</span>
-                    <span>{deal.lender}</span>
-                  </div>
-                )}
-                {deal.title_company && (
-                  <div className="pipe__detail-row">
-                    <span className="pipe__detail-label">Title Co</span>
-                    <span>{deal.title_company}</span>
-                  </div>
-                )}
-                <div className="pipe__detail-row">
-                  <span className="pipe__detail-label">Closing</span>
-                  <span>{fmtDate(deal.closing_date)} {days !== null && <span className={days <= 7 ? 'pipe__detail-urgent' : ''}> ({days}d)</span>}</span>
-                </div>
-                {deal.lead_source && (
-                  <div className="pipe__detail-row">
-                    <span className="pipe__detail-label">Lead Source</span>
-                    <span>{deal.lead_source}{deal.lead_source_fee ? ` (${fmtDollar(deal.lead_source_fee)} fee)` : ' (no fee)'}</span>
-                  </div>
-                )}
-                {deal.expected_commission && (
-                  <div className="pipe__detail-row">
-                    <span className="pipe__detail-label">Commission</span>
-                    <span>{fmtDollar(deal.expected_commission)}</span>
-                  </div>
-                )}
-                {deal.contact?.phone && (
-                  <div className="pipe__detail-row">
-                    <span className="pipe__detail-label">Phone</span>
-                    <a href={`tel:${deal.contact.phone}`}>{deal.contact.phone}</a>
-                  </div>
-                )}
-                {deal.contact?.email && (
-                  <div className="pipe__detail-row">
-                    <span className="pipe__detail-label">Email</span>
-                    <a href={`mailto:${deal.contact.email}`}>{deal.contact.email}</a>
-                  </div>
-                )}
+              {/* ─── Tab Bar ─── */}
+              <div className="pipe__detail-tabs">
+                <button className={`pipe__detail-tab ${detailTab === 'overview' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('overview')}>Overview</button>
+                <button className={`pipe__detail-tab ${detailTab === 'sop' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('sop')}>
+                  SOP {sopTotal > 0 && <span className="pipe__detail-tab-count">{sopDone}/{sopTotal}</span>}
+                </button>
+                <button className={`pipe__detail-tab ${detailTab === 'docs' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('docs')}>
+                  Docs {dl.length > 0 && <span className="pipe__detail-tab-count">{completed}/{dl.length}</span>}
+                </button>
               </div>
 
-              {/* Action buttons */}
-              <div className="pipe__detail-actions">
-                <Button variant="ghost" size="sm" onClick={() => { setDetailDeal(null); openEdit(deal) }}>Edit Deal</Button>
-                <Button variant="primary" size="sm" onClick={() => { advanceStage(deal); setDetailDeal({ ...deal, status: STAGES[STAGES.findIndex(s => s.value === si.value) + 1]?.label ?? deal.status }) }}>
-                  Advance Stage
-                </Button>
-              </div>
+              {/* ═══ OVERVIEW TAB ═══ */}
+              {detailTab === 'overview' && (
+                <>
+                  {/* Deal summary */}
+                  <div className="pipe__detail-summary">
+                    <div className="pipe__detail-row">
+                      <span className="pipe__detail-label">Stage</span>
+                      <Badge variant={si.value === 'closing' ? 'success' : si.value.includes('binsr') ? 'danger' : 'default'}>{si.label}</Badge>
+                    </div>
+                    <div className="pipe__detail-row">
+                      <span className="pipe__detail-label">Type</span>
+                      <span>{deal.deal_type === 'buyer' ? 'Buyer Side' : deal.deal_type === 'seller' ? 'Seller Side' : 'Both Sides'}</span>
+                    </div>
+                    <div className="pipe__detail-row">
+                      <span className="pipe__detail-label">Price</span>
+                      <span>{fmtDollar(deal.property?.price || deal.offer_price)}</span>
+                    </div>
+                    {deal.financing_type && (
+                      <div className="pipe__detail-row">
+                        <span className="pipe__detail-label">Financing</span>
+                        <span>{FINANCING_TYPES.find(f => f.value === deal.financing_type)?.label ?? deal.financing_type}</span>
+                      </div>
+                    )}
+                    {deal.lender && (
+                      <div className="pipe__detail-row">
+                        <span className="pipe__detail-label">Lender</span>
+                        <span>{deal.lender}</span>
+                      </div>
+                    )}
+                    {deal.title_company && (
+                      <div className="pipe__detail-row">
+                        <span className="pipe__detail-label">Title Co</span>
+                        <span>{deal.title_company}</span>
+                      </div>
+                    )}
+                    <div className="pipe__detail-row">
+                      <span className="pipe__detail-label">Closing</span>
+                      <span>{fmtDate(deal.closing_date)} {days !== null && <span className={days <= 7 ? 'pipe__detail-urgent' : ''}> ({days}d)</span>}</span>
+                    </div>
+                    {deal.lead_source && (
+                      <div className="pipe__detail-row">
+                        <span className="pipe__detail-label">Lead Source</span>
+                        <span>{deal.lead_source}{deal.lead_source_fee ? ` (${fmtDollar(deal.lead_source_fee)} fee)` : ' (no fee)'}</span>
+                      </div>
+                    )}
+                    {deal.expected_commission && (
+                      <div className="pipe__detail-row">
+                        <span className="pipe__detail-label">Commission</span>
+                        <span>{fmtDollar(deal.expected_commission)}</span>
+                      </div>
+                    )}
+                    {deal.contact?.phone && (
+                      <div className="pipe__detail-row">
+                        <span className="pipe__detail-label">Phone</span>
+                        <a href={`tel:${deal.contact.phone}`}>{deal.contact.phone}</a>
+                      </div>
+                    )}
+                    {deal.contact?.email && (
+                      <div className="pipe__detail-row">
+                        <span className="pipe__detail-label">Email</span>
+                        <a href={`mailto:${deal.contact.email}`}>{deal.contact.email}</a>
+                      </div>
+                    )}
+                  </div>
 
-              {/* Stage Timeline — check off stages with timestamps */}
-              <div className="pipe__detail-section">
-                <div className="pipe__detail-section-header">
-                  <h4 className="pipe__detail-section-title">Stage Timeline</h4>
-                  <span className="pipe__detail-doc-count">{STAGES.filter(s => getDealStages(deal.id)[s.value]?.completed).length}/{STAGES.length}</span>
-                </div>
-                <div className="pipe__stage-timeline">
-                  {STAGES.map((stage, idx) => {
-                    const ds = getDealStages(deal.id)
-                    const entry = ds[stage.value]
-                    const isCompleted = entry?.completed
-                    const isCurrent = si.value === stage.value
-                    return (
-                      <div key={stage.value} className={`pipe__stage-row ${isCompleted ? 'pipe__stage-row--done' : ''} ${isCurrent ? 'pipe__stage-row--current' : ''}`}>
-                        <div className="pipe__stage-line">
-                          <button
-                            className={`pipe__stage-check ${isCompleted ? 'pipe__stage-check--done' : ''}`}
-                            onClick={() => toggleStageComplete(deal.id, stage.value)}
-                            title={isCompleted ? 'Undo — mark as incomplete' : 'Mark as completed'}
-                            aria-label={isCompleted ? `Undo ${stage.label}` : `Complete ${stage.label}`}
-                          >
-                            {isCompleted ? (
-                              <svg viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                            ) : (
-                              <span className="pipe__stage-circle" style={{ borderColor: stage.color }} />
-                            )}
-                          </button>
-                          {idx < STAGES.length - 1 && <span className={`pipe__stage-connector ${isCompleted ? 'pipe__stage-connector--done' : ''}`} />}
-                        </div>
-                        <div className="pipe__stage-info">
-                          <div className="pipe__stage-label-row">
-                            <span className="pipe__stage-label" style={{ color: isCurrent ? stage.color : undefined }}>{stage.label}</span>
-                            {isCurrent && <Badge variant="warning" size="sm">Current</Badge>}
-                          </div>
-                          {isCompleted && entry?.completedAt && (
-                            <span className="pipe__stage-timestamp">
-                              Completed {fmtTimestamp(entry.completedAt)}
-                              {entry.editedAt && <span className="pipe__stage-edited"> (edited)</span>}
-                            </span>
-                          )}
-                          {isCompleted && (
-                            <div className="pipe__stage-date-edit">
-                              <input
-                                type="date"
-                                className="pipe__stage-date-input"
-                                value={entry?.date ?? ''}
-                                onChange={(e) => editStageDate(deal.id, stage.value, e.target.value)}
-                                title="Edit completion date"
-                              />
+                  {/* Action buttons */}
+                  <div className="pipe__detail-actions">
+                    <Button variant="ghost" size="sm" onClick={() => { setDetailDeal(null); openEdit(deal) }}>Edit Deal</Button>
+                    <Button variant="primary" size="sm" onClick={() => { advanceStage(deal); setDetailDeal({ ...deal, status: STAGES[STAGES.findIndex(s => s.value === si.value) + 1]?.label ?? deal.status }) }}>
+                      Advance Stage
+                    </Button>
+                  </div>
+
+                  {/* AZ Key Deadlines */}
+                  {deadlines.length > 0 && (
+                    <div className="pipe__detail-section">
+                      <h4 className="pipe__detail-section-title">AZ Contract Deadlines</h4>
+                      <div className="pipe__deadline-list">
+                        {deadlines.map(dl => {
+                          const d = daysUntil(dl.date)
+                          return (
+                            <div key={dl.key} className={`pipe__deadline ${d !== null && d <= 3 ? 'pipe__deadline--urgent' : d !== null && d <= 7 ? 'pipe__deadline--soon' : d !== null && d < 0 ? 'pipe__deadline--past' : ''}`}>
+                              <span className="pipe__deadline-label">{dl.label}</span>
+                              <span className="pipe__deadline-date">
+                                {fmtDate(dl.date)}
+                                {d !== null && <span className="pipe__deadline-days"> ({d <= 0 ? 'PAST' : `${d}d`})</span>}
+                              </span>
                             </div>
-                          )}
-                          {!isCompleted && entry?.uncompletedAt && (
-                            <span className="pipe__stage-timestamp pipe__stage-timestamp--undo">
-                              Undone {fmtTimestamp(entry.uncompletedAt)}
-                            </span>
-                          )}
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fee Breakdown */}
+                  {deal.expected_commission && (
+                    <div className="pipe__detail-section">
+                      <h4 className="pipe__detail-section-title">Fee Breakdown & Net Commission</h4>
+                      <div className="pipe__fees">
+                        <div className="pipe__fee-row">
+                          <span className="pipe__fee-label">Gross Commission</span>
+                          <span className="pipe__fee-value">{fmtDollar(deal.expected_commission)}</span>
+                        </div>
+                        {deal.broker_fee > 0 && (
+                          <div className="pipe__fee-row">
+                            <span className="pipe__fee-label">Broker Split / Fee</span>
+                            <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.broker_fee)})</span>
+                          </div>
+                        )}
+                        {deal.referral_fee > 0 && (
+                          <div className="pipe__fee-row">
+                            <span className="pipe__fee-label">Referral Fee{deal.referral_to ? ` → ${deal.referral_to}` : ''}</span>
+                            <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.referral_fee)})</span>
+                          </div>
+                        )}
+                        {deal.tc_fee > 0 && (
+                          <div className="pipe__fee-row">
+                            <span className="pipe__fee-label">Transaction Coordinator</span>
+                            <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.tc_fee)})</span>
+                          </div>
+                        )}
+                        {deal.lead_source_fee > 0 && (
+                          <div className="pipe__fee-row">
+                            <span className="pipe__fee-label">Lead Source Fee ({deal.lead_source ?? 'Unknown'})</span>
+                            <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.lead_source_fee)})</span>
+                          </div>
+                        )}
+                        <div className="pipe__fee-row pipe__fee-total">
+                          <span className="pipe__fee-label">Net to You</span>
+                          <span className="pipe__fee-value">{fmtDollar(
+                            Number(deal.expected_commission || 0)
+                            - Number(deal.broker_fee || 0)
+                            - Number(deal.referral_fee || 0)
+                            - Number(deal.tc_fee || 0)
+                            - Number(deal.lead_source_fee || 0)
+                          )}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ═══ SOP TAB ═══ */}
+              {detailTab === 'sop' && (
+                <>
+                  <div className="pipe__sop-header">
+                    <span className="pipe__sop-type">{isBuyer ? 'Buyer' : 'Seller'} SOP</span>
+                    <div className="pipe__sop-progress-wrap">
+                      <div className="pipe__sop-progress-bar">
+                        <div className="pipe__sop-progress-fill" style={{ width: `${sopTotal ? (sopDone / sopTotal) * 100 : 0}%` }} />
+                      </div>
+                      <span className="pipe__sop-progress-text">{sopDone}/{sopTotal}</span>
+                    </div>
+                  </div>
+
+                  {sopTasks.map(section => {
+                    const sectionDone = section.tasks.filter(t => !!sopProgress[t.id]).length
+                    return (
+                      <div key={section.stage} className="pipe__sop-section">
+                        <div className="pipe__sop-section-header">
+                          <h4 className="pipe__detail-section-title">{section.stage}</h4>
+                          <span className="pipe__detail-doc-count">{sectionDone}/{section.tasks.length}</span>
+                        </div>
+                        <div className="pipe__sop-tasks">
+                          {section.tasks.map(task => {
+                            const checked = !!sopProgress[task.id]
+                            return (
+                              <label key={task.id} className={`pipe__sop-task ${checked ? 'pipe__sop-task--done' : ''} ${task.az ? 'pipe__sop-task--az' : ''}`}>
+                                <input type="checkbox" checked={checked} onChange={() => toggleSOPTask(deal.id, task.id, isBuyer)} />
+                                <span>{task.text}</span>
+                                {task.az && <span className="pipe__sop-az-badge">AZ</span>}
+                              </label>
+                            )
+                          })}
                         </div>
                       </div>
                     )
                   })}
-                </div>
-              </div>
 
-              {/* Fee Breakdown */}
-              {deal.expected_commission && (
-                <div className="pipe__detail-section">
-                  <h4 className="pipe__detail-section-title">Fee Breakdown & Net Commission</h4>
-                  <div className="pipe__fees">
-                    <div className="pipe__fee-row">
-                      <span className="pipe__fee-label">Gross Commission</span>
-                      <span className="pipe__fee-value">{fmtDollar(deal.expected_commission)}</span>
-                    </div>
-                    {deal.broker_fee > 0 && (
-                      <div className="pipe__fee-row">
-                        <span className="pipe__fee-label">Broker Split / Fee</span>
-                        <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.broker_fee)})</span>
-                      </div>
-                    )}
-                    {deal.referral_fee > 0 && (
-                      <div className="pipe__fee-row">
-                        <span className="pipe__fee-label">Referral Fee{deal.referral_to ? ` → ${deal.referral_to}` : ''}</span>
-                        <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.referral_fee)})</span>
-                      </div>
-                    )}
-                    {deal.tc_fee > 0 && (
-                      <div className="pipe__fee-row">
-                        <span className="pipe__fee-label">Transaction Coordinator</span>
-                        <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.tc_fee)})</span>
-                      </div>
-                    )}
-                    {deal.lead_source_fee > 0 && (
-                      <div className="pipe__fee-row">
-                        <span className="pipe__fee-label">Lead Source Fee ({deal.lead_source ?? 'Unknown'})</span>
-                        <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.lead_source_fee)})</span>
-                      </div>
-                    )}
-                    <div className="pipe__fee-row pipe__fee-total">
-                      <span className="pipe__fee-label">Net to You</span>
-                      <span className="pipe__fee-value">{fmtDollar(
-                        Number(deal.expected_commission || 0)
-                        - Number(deal.broker_fee || 0)
-                        - Number(deal.referral_fee || 0)
-                        - Number(deal.tc_fee || 0)
-                        - Number(deal.lead_source_fee || 0)
-                      )}</span>
-                    </div>
+                  <div className="pipe__sop-link">
+                    <a href={isBuyer ? '/pipeline/buyer-sop' : '/pipeline/seller-sop'}>
+                      Open full {isBuyer ? 'Buyer' : 'Seller'} SOP with email templates →
+                    </a>
                   </div>
-                </div>
+                </>
               )}
 
-              {/* AZ Key Deadlines */}
-              {deadlines.length > 0 && (
-                <div className="pipe__detail-section">
-                  <h4 className="pipe__detail-section-title">AZ Contract Deadlines</h4>
-                  <div className="pipe__deadline-list">
-                    {deadlines.map(dl => {
-                      const d = daysUntil(dl.date)
+              {/* ═══ DOCS & DEADLINES TAB ═══ */}
+              {detailTab === 'docs' && (
+                <>
+                  {/* Stage Timeline */}
+                  <div className="pipe__detail-section">
+                    <div className="pipe__detail-section-header">
+                      <h4 className="pipe__detail-section-title">Stage Timeline</h4>
+                      <span className="pipe__detail-doc-count">{STAGES.filter(s => getDealStages(deal.id)[s.value]?.completed).length}/{STAGES.length}</span>
+                    </div>
+                    <div className="pipe__stage-timeline">
+                      {STAGES.map((stage, idx) => {
+                        const ds = getDealStages(deal.id)
+                        const entry = ds[stage.value]
+                        const isCompleted = entry?.completed
+                        const isCurrent = si.value === stage.value
+                        return (
+                          <div key={stage.value} className={`pipe__stage-row ${isCompleted ? 'pipe__stage-row--done' : ''} ${isCurrent ? 'pipe__stage-row--current' : ''}`}>
+                            <div className="pipe__stage-line">
+                              <button
+                                className={`pipe__stage-check ${isCompleted ? 'pipe__stage-check--done' : ''}`}
+                                onClick={() => toggleStageComplete(deal.id, stage.value)}
+                                title={isCompleted ? 'Undo' : 'Complete'}
+                              >
+                                {isCompleted ? (
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><polyline points="20 6 9 17 4 12" /></svg>
+                                ) : (
+                                  <span className="pipe__stage-circle" style={{ borderColor: stage.color }} />
+                                )}
+                              </button>
+                              {idx < STAGES.length - 1 && <span className={`pipe__stage-connector ${isCompleted ? 'pipe__stage-connector--done' : ''}`} />}
+                            </div>
+                            <div className="pipe__stage-info">
+                              <div className="pipe__stage-label-row">
+                                <span className="pipe__stage-label" style={{ color: isCurrent ? stage.color : undefined }}>{stage.label}</span>
+                                {isCurrent && <Badge variant="warning" size="sm">Current</Badge>}
+                              </div>
+                              {isCompleted && entry?.completedAt && (
+                                <span className="pipe__stage-timestamp">Completed {fmtTimestamp(entry.completedAt)}{entry.editedAt && <span className="pipe__stage-edited"> (edited)</span>}</span>
+                              )}
+                              {isCompleted && (
+                                <div className="pipe__stage-date-edit">
+                                  <input type="date" className="pipe__stage-date-input" value={entry?.date ?? ''} onChange={(e) => editStageDate(deal.id, stage.value, e.target.value)} />
+                                </div>
+                              )}
+                              {!isCompleted && entry?.uncompletedAt && (
+                                <span className="pipe__stage-timestamp pipe__stage-timestamp--undo">Undone {fmtTimestamp(entry.uncompletedAt)}</span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Document Tracker */}
+                  <div className="pipe__detail-section">
+                    <div className="pipe__detail-section-header">
+                      <h4 className="pipe__detail-section-title">Document Tracker — {deal.deal_type === 'seller' ? 'Seller' : 'Buyer'} Side</h4>
+                      <span className="pipe__detail-doc-count">{completed}/{dl.length}</span>
+                    </div>
+                    <div className="pipe__detail-doc-bar">
+                      <div className="pipe__detail-doc-fill" style={{ width: `${dl.length > 0 ? (completed / dl.length) * 100 : 0}%` }} />
+                    </div>
+                    {STAGES.map(stage => {
+                      const stageDocs = docsByStage[stage.value]
+                      if (!stageDocs) return null
                       return (
-                        <div key={dl.key} className={`pipe__deadline ${d !== null && d <= 3 ? 'pipe__deadline--urgent' : d !== null && d <= 7 ? 'pipe__deadline--soon' : d !== null && d < 0 ? 'pipe__deadline--past' : ''}`}>
-                          <span className="pipe__deadline-label">{dl.label}</span>
-                          <span className="pipe__deadline-date">
-                            {fmtDate(dl.date)}
-                            {d !== null && <span className="pipe__deadline-days"> ({d <= 0 ? 'PAST' : `${d}d`})</span>}
+                        <div key={stage.value} className="pipe__doc-group">
+                          <span className="pipe__doc-group-title">
+                            <span className="pipe__doc-group-dot" style={{ background: stage.color }} />
+                            {stage.label}
                           </span>
+                          {stageDocs.map(doc => (
+                            <label key={doc.key} className={`pipe__doc-item ${dd[doc.key] ? 'pipe__doc-item--done' : ''}`}>
+                              <input type="checkbox" checked={!!dd[doc.key]} onChange={() => setDocs(deal.id, doc.key, !dd[doc.key])} />
+                              <span>{doc.label}</span>
+                            </label>
+                          ))}
                         </div>
                       )
                     })}
                   </div>
-                </div>
+                </>
               )}
-
-              {/* Document Tracker */}
-              <div className="pipe__detail-section">
-                <div className="pipe__detail-section-header">
-                  <h4 className="pipe__detail-section-title">
-                    Document Tracker — {deal.deal_type === 'seller' ? 'Seller' : 'Buyer'} Side
-                  </h4>
-                  <span className="pipe__detail-doc-count">{completed}/{dl.length}</span>
-                </div>
-                <div className="pipe__detail-doc-bar">
-                  <div className="pipe__detail-doc-fill" style={{ width: `${dl.length > 0 ? (completed / dl.length) * 100 : 0}%` }} />
-                </div>
-
-                {STAGES.map(stage => {
-                  const stageDocs = docsByStage[stage.value]
-                  if (!stageDocs) return null
-                  return (
-                    <div key={stage.value} className="pipe__doc-group">
-                      <span className="pipe__doc-group-title">
-                        <span className="pipe__doc-group-dot" style={{ background: stage.color }} />
-                        {stage.label}
-                      </span>
-                      {stageDocs.map(doc => (
-                        <label key={doc.key} className={`pipe__doc-item ${dd[doc.key] ? 'pipe__doc-item--done' : ''}`}>
-                          <input type="checkbox" checked={!!dd[doc.key]} onChange={() => setDocs(deal.id, doc.key, !dd[doc.key])} />
-                          <span>{doc.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )
-                })}
-              </div>
             </div>
           )
         })()}
