@@ -31,7 +31,7 @@ const STARTER_TEMPLATES = [
       { id: '3', type: 'text', content: "It was so great connecting with you! I know the home search can feel overwhelming, but I'm here to make it as smooth and exciting as possible.\n\nBased on what you shared, I've already started keeping an eye out for homes that match your wishlist. I'll send over some options soon!", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
       { id: '4', type: 'cta', label: 'View My Latest Picks', url: '#', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
       { id: '5', type: 'text', content: "In the meantime, don't hesitate to reach out if anything comes to mind — budget questions, neighborhood vibes, timeline, anything at all.", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
-      { id: '6', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
+      { id: '6', type: 'signature', name: '', title: '', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
   },
   {
@@ -48,7 +48,7 @@ const STARTER_TEMPLATES = [
       { id: '5', type: 'property-card', address: '123 Main St, Gilbert AZ 85234', price: '$450,000', beds: '4', baths: '2.5', sqft: '2,100', description: 'Gorgeous updated home with a sparkling pool, open floor plan, and modern finishes throughout.', borderRadius: 8, bgColor: '#faf9f7' },
       { id: '6', type: 'cta', label: 'Schedule a Showing', url: '#', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
       { id: '7', type: 'text', content: 'Know someone who might be interested? I appreciate referrals more than you know!', fontSize: 14, fontFamily: '', lineHeight: 1.65 },
-      { id: '8', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
+      { id: '8', type: 'signature', name: '', title: '', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
   },
   {
@@ -65,7 +65,7 @@ const STARTER_TEMPLATES = [
       { id: '5', type: 'image', images: [''], alt: 'Open house property', layout: 'full', shape: 'rounded', borderRadius: 12 },
       { id: '6', type: 'cta', label: 'RSVP / Get Directions', url: '#', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
       { id: '7', type: 'text', content: 'Feel free to bring friends and family. See you there!', fontSize: 14, fontFamily: '', lineHeight: 1.65 },
-      { id: '8', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
+      { id: '8', type: 'signature', name: '', title: '', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
   },
   {
@@ -86,7 +86,7 @@ const STARTER_TEMPLATES = [
       { id: '5', type: 'text', content: "What does this mean for you?\n\nIf you're a seller: Homes are still moving, but pricing right from the start is more important than ever.\n\nIf you're a buyer: More inventory means more options and a bit more negotiating power.", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
       { id: '6', type: 'cta', label: 'Get Your Home Value', url: '#', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
       { id: '7', type: 'text', content: "Questions about your specific neighborhood? Just hit reply — I'm always happy to pull the numbers for you.", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
-      { id: '8', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
+      { id: '8', type: 'signature', name: '', title: '', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
   },
   {
@@ -103,7 +103,7 @@ const STARTER_TEMPLATES = [
       { id: '5', type: 'property-card', address: '789 Elm Dr, Mesa AZ 85213', price: '$525,000', beds: '4', baths: '3', sqft: '2,400', description: 'Sold in just 6 days with multiple offers!', borderRadius: 8, bgColor: '#faf9f7' },
       { id: '6', type: 'text', content: "Curious what your home could sell for in today's market? I'd love to run the numbers for you — no pressure, just helpful info.", fontSize: 14, fontFamily: '', lineHeight: 1.65 },
       { id: '7', type: 'cta', label: "What's My Home Worth?", url: '#', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
-      { id: '8', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
+      { id: '8', type: 'signature', name: '', title: '', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
   },
   {
@@ -116,7 +116,7 @@ const STARTER_TEMPLATES = [
       { id: '1', type: 'header', logoUrl: '', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
       { id: '2', type: 'greeting', text: 'Hi {first_name},', fontSize: 15, fontFamily: '' },
       { id: '3', type: 'text', content: '', fontSize: 14, fontFamily: '', lineHeight: 1.65 },
-      { id: '4', type: 'signature', name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
+      { id: '4', type: 'signature', name: '', title: '', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
   },
 ]
@@ -183,7 +183,7 @@ function newBlock(type) {
     case 'divider':
       return { id, type, color: BRAND.mid, thickness: 1, dividerStyle: 'solid' }
     case 'signature':
-      return { id, type, name: 'Dana Massey', title: 'REALTOR® | Antigravity Real Estate', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '', socials: [] }
+      return { id, type, name: '', title: '', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '', socials: [] }
     default:
       return { id, type: 'text', content: '' }
   }
@@ -897,12 +897,25 @@ export default function EmailBuilder() {
     return issues
   }
 
+  const sig = brand?.signature ?? {}
+
+  const fillSigBlock = (b) => {
+    if (b.type !== 'signature') return b
+    return {
+      ...b,
+      name: b.name || sig.full_name || '',
+      title: b.title || (sig.title ? `${sig.title} | ${sig.brokerage || ''}` : sig.brokerage || ''),
+      phone: b.phone || sig.phone || '',
+      email: b.email || sig.email || '',
+    }
+  }
+
   const handleSelectTemplate = (template) => {
     const email = {
       draftId: crypto.randomUUID(),
       templateId: template.id,
       subject: template.subject,
-      blocks: template.blocks.map(b => ({ ...b, id: crypto.randomUUID() })),
+      blocks: template.blocks.map(b => fillSigBlock({ ...b, id: crypto.randomUUID() })),
       createdAt: new Date().toISOString(),
     }
     setActiveEmail(email)
@@ -932,7 +945,7 @@ export default function EmailBuilder() {
   }
 
   const addBlock = (type) => {
-    const block = newBlock(type)
+    const block = fillSigBlock(newBlock(type))
     const blocks = [...activeEmail.blocks, block]
     setActiveEmail({ ...activeEmail, blocks })
     setSelectedBlockIdx(blocks.length - 1)

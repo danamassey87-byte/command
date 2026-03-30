@@ -1,6 +1,7 @@
 import React, { useState, useMemo, Component } from 'react'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, SlidePanel, Input, Select, Textarea, InfoTip, AddressLink } from '../../components/ui/index.jsx'
 import { useOpenHouses, useOHOutreach, useOHTasksForOH, useHostReports, useProperties, useListings } from '../../lib/hooks.js'
+import { useBrandSignature } from '../../lib/BrandContext'
 import * as DB from '../../lib/supabase.js'
 import './OpenHouses.css'
 
@@ -923,8 +924,9 @@ function OutreachTab({ records, loading, refetch }) {
               <tr><td colSpan={8} className="outreach-empty">No outreach records</td></tr>
             )}
             {filtered.map(r => {
-              const smsBody = encodeURIComponent(`Hi ${r.agent_name ?? 'there'}! This is Dana with Antigravity Real Estate. I'd love to host an open house at your listing at ${r.address}. Would you be open to it?`)
-              const emailBody = encodeURIComponent(`Hi ${r.agent_name ?? 'there'},\n\nThis is Dana Massey with Antigravity Real Estate. I wanted to reach out about your listing at ${r.address}.\n\nI'd love to host an open house for you. Would you be open to discussing?\n\nBest,\nDana Massey\nAntigravity Real Estate`)
+              const agentFirst = (sig.full_name || '').split(' ')[0] || ''
+              const smsBody = encodeURIComponent(`Hi ${r.agent_name ?? 'there'}! This is ${agentFirst} with ${sig.brokerage || ''}. I'd love to host an open house at your listing at ${r.address}. Would you be open to it?`)
+              const emailBody = encodeURIComponent(`Hi ${r.agent_name ?? 'there'},\n\nThis is ${sig.full_name || ''} with ${sig.brokerage || ''}. I wanted to reach out about your listing at ${r.address}.\n\nI'd love to host an open house for you. Would you be open to discussing?\n\nBest,\n${sig.full_name || ''}\n${sig.brokerage || ''}`)
               return (
               <tr key={r.id}>
                 <td className="outreach-td--date">{fmtDate(r.outreach_date)}</td>
@@ -1380,6 +1382,7 @@ export default function OpenHousesPage() {
 
 function OpenHouses() {
   const [mainTab, setMainTab] = useState('scheduled')
+  const sig = useBrandSignature()
 
   const { data: ohData,       loading: ohLoading,       refetch: refetchOH       } = useOpenHouses()
   const { data: outreachData, loading: outreachLoading, refetch: refetchOutreach } = useOHOutreach()

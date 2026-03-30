@@ -473,7 +473,7 @@ export default function DailyTasks() {
       if (!roleGroups[r]) roleGroups[r] = []
       roleGroups[r].push(v)
     })
-    win.document.write(`<html><head><title>Preferred Vendors — Antigravity Real Estate</title>
+    win.document.write(`<html><head><title>Preferred Vendors</title>
       <style>
         body { font-family: -apple-system, sans-serif; padding: 32px; color: #2c1810; }
         h1 { font-size: 1.4rem; border-bottom: 2px solid #2c1810; padding-bottom: 8px; }
@@ -487,7 +487,7 @@ export default function DailyTasks() {
         @media print { body { padding: 16px; } }
       </style>
     </head><body>
-      <h1>Preferred Vendors — Antigravity Real Estate</h1>
+      <h1>Preferred Vendors</h1>
       <p style="color:#888;font-size:0.8rem;">Generated ${new Date().toLocaleDateString()}</p>
       ${Object.entries(roleGroups).map(([role, vendors]) => `
         <h2>${role}</h2>

@@ -4,6 +4,7 @@ import { TagPicker } from '../../components/ui/TagPicker.jsx'
 import { useTransactions, useContacts, useProperties, useContactTags, useNotesForContact } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
+import { useBrandSignature } from '../../lib/BrandContext'
 import * as DB from '../../lib/supabase.js'
 import './Pipeline.css'
 
@@ -180,65 +181,66 @@ const SELLER_SOP_TASKS = [
 ]
 
 // ─── Stage Email Templates ───────────────────────────────────────────────────
-const STAGE_EMAILS = {
+export const STAGE_EMAILS = {
   pre_offer: {
     label: 'Pre-Offer Introduction',
     subject: 'Getting Started — {contact} Home Search',
-    body: `Hi everyone,\n\nI'm reaching out to introduce myself and connect all parties as we begin the home search process for {contact}.\n\nHere's a quick overview:\n• Buyer: {contact}\n• Property Interest: {property}\n• Financing: {financing}\n• Lender: {lender}\n\nI'll keep everyone in the loop as we move through the process. Please don't hesitate to reach out with any questions.\n\nBest regards,\nDana Massey\nAntigravity Real Estate`,
+    body: `Hi everyone,\n\nI'm reaching out to introduce myself and connect all parties as we begin the home search process for {contact}.\n\nHere's a quick overview:\n• Buyer: {contact}\n• Property Interest: {property}\n• Financing: {financing}\n• Lender: {lender}\n\nI'll keep everyone in the loop as we move through the process. Please don't hesitate to reach out with any questions.\n\nBest regards,\n{agent_name}\n{brokerage}`,
   },
   offer: {
     label: 'Offer Submitted Notification',
     subject: 'Offer Submitted — {property}',
-    body: `Hi everyone,\n\nI wanted to let you know that we have submitted an offer on behalf of {contact} for the following property:\n\n• Property: {property}\n• Offer Price: {price}\n• Financing: {financing}\n• Target Close: {closing}\n\nWe'll update everyone as soon as we hear back from the listing agent. Fingers crossed!\n\nBest regards,\nDana Massey\nAntigravity Real Estate`,
+    body: `Hi everyone,\n\nI wanted to let you know that we have submitted an offer on behalf of {contact} for the following property:\n\n• Property: {property}\n• Offer Price: {price}\n• Financing: {financing}\n• Target Close: {closing}\n\nWe'll update everyone as soon as we hear back from the listing agent. Fingers crossed!\n\nBest regards,\n{agent_name}\n{brokerage}`,
   },
   counter: {
     label: 'Counter Offer Update',
     subject: 'Counter Offer Update — {property}',
-    body: `Hi everyone,\n\nWe've received a counter offer on {property}. I'm reviewing the terms with {contact} and will keep everyone updated on next steps.\n\nPlease standby for updates — we're working to get this deal to a place everyone feels good about.\n\nBest regards,\nDana Massey\nAntigravity Real Estate`,
+    body: `Hi everyone,\n\nWe've received a counter offer on {property}. I'm reviewing the terms with {contact} and will keep everyone updated on next steps.\n\nPlease standby for updates — we're working to get this deal to a place everyone feels good about.\n\nBest regards,\n{agent_name}\n{brokerage}`,
   },
   under_contract: {
     label: 'Under Contract — Congrats!',
     subject: 'We\'re Under Contract! — {property}',
-    body: `Great news everyone!\n\n{contact} is officially under contract on {property}!\n\nHere are the key details:\n• Contract Price: {price}\n• Contract Date: {contract_date}\n• Closing Date (COE): {closing}\n• Title/Escrow: {title}\n• Lender: {lender}\n\nNext steps:\n1. Earnest money deposit (due within 3 business days)\n2. Inspection period begins\n3. Title work and loan processing\n\nI'll be sending deadline reminders along the way. Let's get this to the finish line!\n\nBest regards,\nDana Massey\nAntigravity Real Estate`,
+    body: `Great news everyone!\n\n{contact} is officially under contract on {property}!\n\nHere are the key details:\n• Contract Price: {price}\n• Contract Date: {contract_date}\n• Closing Date (COE): {closing}\n• Title/Escrow: {title}\n• Lender: {lender}\n\nNext steps:\n1. Earnest money deposit (due within 3 business days)\n2. Inspection period begins\n3. Title work and loan processing\n\nI'll be sending deadline reminders along the way. Let's get this to the finish line!\n\nBest regards,\n{agent_name}\n{brokerage}`,
   },
   earnest_money: {
     label: 'Earnest Money Reminder',
     subject: 'ACTION NEEDED: Earnest Money Due — {property}',
-    body: `Hi {contact},\n\nFriendly reminder that your earnest money deposit is due within 3 business days of contract execution.\n\n• Property: {property}\n• Please wire funds to the title/escrow company: {title}\n\nIMPORTANT: Please verify all wiring instructions directly with the title company by phone before sending any funds. Never wire money based solely on email instructions.\n\nLet me know once the deposit has been sent and I'll confirm receipt with escrow.\n\nBest regards,\nDana Massey\nAntigravity Real Estate`,
+    body: `Hi {contact},\n\nFriendly reminder that your earnest money deposit is due within 3 business days of contract execution.\n\n• Property: {property}\n• Please wire funds to the title/escrow company: {title}\n\nIMPORTANT: Please verify all wiring instructions directly with the title company by phone before sending any funds. Never wire money based solely on email instructions.\n\nLet me know once the deposit has been sent and I'll confirm receipt with escrow.\n\nBest regards,\n{agent_name}\n{brokerage}`,
   },
   inspection: {
     label: 'Inspection Period Update',
     subject: 'Inspection Period — {property}',
-    body: `Hi everyone,\n\nWe are now in the inspection period for {property}. Here's what to expect:\n\n• The 10-day inspection window is active\n• Home inspection, termite/WDO, and any additional inspections will be scheduled\n• All inspection reports will be reviewed thoroughly\n\n{contact} — I'll walk you through every finding and we'll discuss how to proceed before the BINSR deadline.\n\nPlease let me know if you have any questions.\n\nBest regards,\nDana Massey\nAntigravity Real Estate`,
+    body: `Hi everyone,\n\nWe are now in the inspection period for {property}. Here's what to expect:\n\n• The 10-day inspection window is active\n• Home inspection, termite/WDO, and any additional inspections will be scheduled\n• All inspection reports will be reviewed thoroughly\n\n{contact} — I'll walk you through every finding and we'll discuss how to proceed before the BINSR deadline.\n\nPlease let me know if you have any questions.\n\nBest regards,\n{agent_name}\n{brokerage}`,
   },
   binsr: {
     label: 'BINSR Filed Notification',
     subject: 'BINSR Filed — {property}',
-    body: `Hi everyone,\n\nThe Buyer's Inspection Notice and Seller's Response (BINSR) has been filed for {property} on behalf of {contact}.\n\nThe BINSR outlines requested repairs and/or credits based on the inspection findings. The seller has 5 days to respond.\n\nI'll keep everyone posted on the seller's response and next steps.\n\nBest regards,\nDana Massey\nAntigravity Real Estate`,
+    body: `Hi everyone,\n\nThe Buyer's Inspection Notice and Seller's Response (BINSR) has been filed for {property} on behalf of {contact}.\n\nThe BINSR outlines requested repairs and/or credits based on the inspection findings. The seller has 5 days to respond.\n\nI'll keep everyone posted on the seller's response and next steps.\n\nBest regards,\n{agent_name}\n{brokerage}`,
   },
   binsr_response: {
     label: 'BINSR Resolution Update',
     subject: 'BINSR Response Received — {property}',
-    body: `Hi everyone,\n\nWe've received the seller's response to the BINSR for {property}.\n\nI'm reviewing the response with {contact} and will update everyone on whether we're moving forward, negotiating further, or exercising any cancellation rights.\n\nStandby for an update shortly.\n\nBest regards,\nDana Massey\nAntigravity Real Estate`,
+    body: `Hi everyone,\n\nWe've received the seller's response to the BINSR for {property}.\n\nI'm reviewing the response with {contact} and will update everyone on whether we're moving forward, negotiating further, or exercising any cancellation rights.\n\nStandby for an update shortly.\n\nBest regards,\n{agent_name}\n{brokerage}`,
   },
   appraisal: {
     label: 'Appraisal Update',
     subject: 'Appraisal Update — {property}',
-    body: `Hi everyone,\n\nThe appraisal has been ordered for {property}. Here's where we stand:\n\n• Contract Price: {price}\n• Lender: {lender}\n• Appraisal contingency deadline is approaching\n\nI'll let everyone know as soon as the appraisal report comes back. If there are any issues, we'll work together on the best path forward.\n\nBest regards,\nDana Massey\nAntigravity Real Estate`,
+    body: `Hi everyone,\n\nThe appraisal has been ordered for {property}. Here's where we stand:\n\n• Contract Price: {price}\n• Lender: {lender}\n• Appraisal contingency deadline is approaching\n\nI'll let everyone know as soon as the appraisal report comes back. If there are any issues, we'll work together on the best path forward.\n\nBest regards,\n{agent_name}\n{brokerage}`,
   },
   loan_approval: {
     label: 'Clear to Close Update',
     subject: 'Loan Approval / Clear to Close — {property}',
-    body: `Hi everyone,\n\nGreat news — we're nearing the finish line on {property}!\n\nLoan status update:\n• Lender: {lender}\n• We are working toward final loan approval and clear to close\n\nNext steps:\n1. Final closing disclosure review\n2. Final walkthrough scheduling\n3. Signing appointment coordination with title\n\n{contact} — I'll be in touch about scheduling your final walkthrough and signing.\n\nAlmost there!\n\nBest regards,\nDana Massey\nAntigravity Real Estate`,
+    body: `Hi everyone,\n\nGreat news — we're nearing the finish line on {property}!\n\nLoan status update:\n• Lender: {lender}\n• We are working toward final loan approval and clear to close\n\nNext steps:\n1. Final closing disclosure review\n2. Final walkthrough scheduling\n3. Signing appointment coordination with title\n\n{contact} — I'll be in touch about scheduling your final walkthrough and signing.\n\nAlmost there!\n\nBest regards,\n{agent_name}\n{brokerage}`,
   },
   closing: {
     label: 'Closing Day Details',
     subject: 'Closing Day! — {property}',
-    body: `Congratulations {contact}!\n\nThe big day is here (or almost here)! Here are your closing details for {property}:\n\n• Closing Date: {closing}\n• Title/Escrow: {title}\n• Please bring a valid photo ID\n• Final walkthrough: [to be scheduled]\n\nReminders:\n- Review your closing disclosure carefully\n- Bring any required cashier's check or confirm wire transfer\n- Keys will be released upon recording\n\nIt has been an absolute pleasure working with you. Congratulations on your new home!\n\nBest regards,\nDana Massey\nAntigravity Real Estate`,
+    body: `Congratulations {contact}!\n\nThe big day is here (or almost here)! Here are your closing details for {property}:\n\n• Closing Date: {closing}\n• Title/Escrow: {title}\n• Please bring a valid photo ID\n• Final walkthrough: [to be scheduled]\n\nReminders:\n- Review your closing disclosure carefully\n- Bring any required cashier's check or confirm wire transfer\n- Keys will be released upon recording\n\nIt has been an absolute pleasure working with you. Congratulations on your new home!\n\nBest regards,\n{agent_name}\n{brokerage}`,
   },
 }
 
-function fillTemplate(template, deal) {
+function fillTemplate(template, deal, sig = {}) {
+  const agentName = sig.full_name || ''
   const replacements = {
     '{contact}': deal.contact?.name ?? 'Client',
     '{property}': deal.property?.address ?? 'the property',
@@ -248,12 +250,25 @@ function fillTemplate(template, deal) {
     '{title}': deal.title_company ?? 'TBD',
     '{closing}': fmtDate(deal.closing_date),
     '{contract_date}': fmtDate(deal.contract_date),
+    '{agent_name}': agentName,
+    '{agent_first_name}': agentName.split(' ')[0] || '',
+    '{brokerage}': sig.brokerage || '',
+    '{agent_email}': sig.email || '',
+    '{agent_phone}': sig.phone || '',
   }
   let result = template
   Object.entries(replacements).forEach(([key, val]) => {
     result = result.split(key).join(val)
   })
   return result
+}
+
+function getStageEmail(key) {
+  try {
+    const overrides = JSON.parse(localStorage.getItem('pipeline_email_templates'))
+    if (overrides?.[key]) return { ...STAGE_EMAILS[key], ...overrides[key] }
+  } catch {}
+  return STAGE_EMAILS[key]
 }
 
 // Documents required for an AZ transaction
@@ -347,6 +362,7 @@ export default function Pipeline() {
   const { data: transactions, loading, error, refetch } = useTransactions()
   const { data: contacts } = useContacts()
   const { data: properties } = useProperties()
+  const sig = useBrandSignature()
   const [docs, setDocsRaw] = useState(() => loadDocs())
   const [stageHistory, setStageHistoryRaw] = useState(() => loadStageHistory())
   const [dealContacts, setDealContactsRaw] = useState(() => loadDealContacts())
@@ -527,14 +543,14 @@ export default function Pipeline() {
 
   // Open mailto with template
   const sendStageEmail = useCallback((deal, stageKey, selectedEmails) => {
-    const tmpl = STAGE_EMAILS[stageKey]
+    const tmpl = getStageEmail(stageKey)
     if (!tmpl) return
-    const subject = fillTemplate(tmpl.subject, deal)
-    const body = fillTemplate(tmpl.body, deal)
+    const subject = fillTemplate(tmpl.subject, deal, sig)
+    const body = fillTemplate(tmpl.body, deal, sig)
     const to = selectedEmails.join(',')
     const mailto = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
     window.open(mailto, '_blank')
-  }, [])
+  }, [sig])
 
   // Computed: stages completed count for a deal
   const stagesCompleted = useCallback((dealId) => {
@@ -868,10 +884,10 @@ export default function Pipeline() {
                             )}
                             {deal.contact?.email && (() => {
                               const currentStage = stageInfo(deal.status)
-                              const tmpl = STAGE_EMAILS[currentStage.value]
+                              const tmpl = getStageEmail(currentStage.value)
                               if (tmpl) {
-                                const subject = encodeURIComponent(fillTemplate(tmpl.subject, deal))
-                                const body = encodeURIComponent(fillTemplate(tmpl.body, deal))
+                                const subject = encodeURIComponent(fillTemplate(tmpl.subject, deal, sig))
+                                const body = encodeURIComponent(fillTemplate(tmpl.body, deal, sig))
                                 return (
                                   <a
                                     href={`mailto:${deal.contact.email}?subject=${subject}&body=${body}`}

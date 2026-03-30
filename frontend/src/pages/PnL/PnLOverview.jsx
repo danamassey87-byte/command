@@ -1,7 +1,16 @@
 import { useState, useMemo } from 'react'
-import { SectionHeader, Card, TabBar, Button } from '../../components/ui/index.jsx'
-import { useAllExpenses, useAllIncomeEntries } from '../../lib/hooks.js'
+import { SectionHeader, Card, TabBar, Button, Badge } from '../../components/ui/index.jsx'
+import { useAllExpenses, useAllIncomeEntries, useTransactions } from '../../lib/hooks.js'
 import './PnL.css'
+
+// ─── Cap Settings ────────────────────────────────────────────────────────────
+const CAP_STORAGE = 'brokerage_cap_settings'
+function loadCapSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(CAP_STORAGE)) || { splitPct: 15, capAmount: 12000 }
+  } catch { return { splitPct: 15, capAmount: 12000 } }
+}
+function saveCapSettings(s) { localStorage.setItem(CAP_STORAGE, JSON.stringify(s)) }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (v) => v < 0
@@ -40,9 +49,12 @@ export default function PnLOverview() {
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [view, setView] = useState('statement')
+  const [capSettings, setCapSettings] = useState(loadCapSettings)
+  const [editingCap, setEditingCap] = useState(false)
 
-  const expenses = useAllExpenses()
-  const income   = useAllIncomeEntries()
+  const expenses     = useAllExpenses()
+  const income       = useAllIncomeEntries()
+  const transactions = useTransactions()
 
   const [rangeStart, rangeEnd] = useMemo(() => {
     if (preset === 'custom' && customFrom && customTo) {
@@ -118,6 +130,75 @@ export default function PnLOverview() {
     .filter(e => e.is_deductible !== false)
     .reduce((s, e) => s + Number(e.amount || 0), 0)
 
+  // ─── Brokerage Cap Tracker ───
+  const currentYear = new Date().getFullYear()
+  const ytdFromStr = `${currentYear}-01-01`
+  const ytdToStr = toDateStr(new Date())
+
+  const ytdIncome = useMemo(() =>
+    (income.data ?? []).filter(i => i.date >= ytdFromStr && i.date <= ytdToStr),
+    [income.data, ytdFromStr, ytdToStr])
+
+  const ytdBrokerPaid = useMemo(() =>
+    ytdIncome.reduce((s, i) => s + Number(i.broker_split_amt || 0), 0),
+    [ytdIncome])
+
+  const capRemaining = Math.max(0, capSettings.capAmount - ytdBrokerPaid)
+  const capPct = capSettings.capAmount > 0 ? Math.min(100, (ytdBrokerPaid / capSettings.capAmount) * 100) : 0
+  const isCapped = ytdBrokerPaid >= capSettings.capAmount
+
+  // Pipeline deals for projection
+  const pendingDeals = useMemo(() => {
+    const deals = transactions.data ?? []
+    return deals
+      .filter(d => d.status && d.status !== 'closed' && d.status !== 'cancelled')
+      .map(d => {
+        const gci = Number(d.expected_commission || d.offer_price * 0.025 || 0)
+        const brokerSplit = gci * (capSettings.splitPct / 100)
+        return {
+          id: d.id,
+          name: d.contact?.name || 'Unknown',
+          property: d.property?.address || 'TBD',
+          status: d.status,
+          closingDate: d.closing_date,
+          gci,
+          brokerSplit,
+        }
+      })
+      .filter(d => d.gci > 0)
+      .sort((a, b) => (a.closingDate || '9999') < (b.closingDate || '9999') ? -1 : 1)
+  }, [transactions.data, capSettings.splitPct])
+
+  // Walk through pending deals to project cap hit
+  const capProjection = useMemo(() => {
+    let running = ytdBrokerPaid
+    let capHitDeal = null
+    const rows = []
+
+    for (const deal of pendingDeals) {
+      const wouldPay = Math.min(deal.brokerSplit, Math.max(0, capSettings.capAmount - running))
+      const postCapSavings = deal.brokerSplit - wouldPay
+      running += wouldPay
+      const hitsCap = running >= capSettings.capAmount && !capHitDeal
+      if (hitsCap) capHitDeal = deal
+      rows.push({ ...deal, wouldPay, postCapSavings, runningTotal: running, hitsCap })
+    }
+
+    const totalProjectedSplits = pendingDeals.reduce((s, d) => s + d.brokerSplit, 0)
+    const totalSavings = rows.reduce((s, r) => s + r.postCapSavings, 0)
+
+    return { rows, capHitDeal, totalProjectedSplits, totalSavings }
+  }, [pendingDeals, ytdBrokerPaid, capSettings.capAmount])
+
+  // Deals closed this year (for cap progress)
+  const ytdDealsCount = ytdIncome.filter(i => Number(i.broker_split_amt) > 0).length
+
+  function updateCapSetting(key, val) {
+    const next = { ...capSettings, [key]: Number(val) || 0 }
+    setCapSettings(next)
+    saveCapSettings(next)
+  }
+
   const loading = expenses.loading || income.loading
 
   const PRESETS = [
@@ -180,6 +261,143 @@ export default function PnLOverview() {
           <p className="pnl-kpi__sub">deductible expenses</p>
         </Card>
       </div>
+
+      {/* ─── Brokerage Cap Tracker ─── */}
+      <Card className="cap-tracker">
+        <div className="cap-tracker__header">
+          <div>
+            <h3 className="cap-tracker__title">Brokerage Cap Tracker</h3>
+            <p className="cap-tracker__subtitle">
+              {capSettings.splitPct}% split · {fmt(capSettings.capAmount)} annual cap
+              {!editingCap && (
+                <button className="cap-tracker__edit-btn" onClick={() => setEditingCap(true)}>Edit</button>
+              )}
+            </p>
+          </div>
+          {isCapped ? (
+            <Badge variant="success" size="md">CAPPED</Badge>
+          ) : (
+            <Badge variant="warning" size="md">{capPct.toFixed(0)}% to Cap</Badge>
+          )}
+        </div>
+
+        {editingCap && (
+          <div className="cap-tracker__settings">
+            <div className="cap-tracker__setting">
+              <label>Broker Split %</label>
+              <input type="number" value={capSettings.splitPct} onChange={e => updateCapSetting('splitPct', e.target.value)} />
+            </div>
+            <div className="cap-tracker__setting">
+              <label>Annual Cap $</label>
+              <input type="number" value={capSettings.capAmount} onChange={e => updateCapSetting('capAmount', e.target.value)} />
+            </div>
+            <button className="cap-tracker__done-btn" onClick={() => setEditingCap(false)}>Done</button>
+          </div>
+        )}
+
+        {/* Progress bar */}
+        <div className="cap-tracker__progress">
+          <div className="cap-tracker__bar">
+            <div
+              className={`cap-tracker__fill ${isCapped ? 'cap-tracker__fill--capped' : ''}`}
+              style={{ width: `${Math.min(capPct, 100)}%` }}
+            />
+            {capProjection.rows.length > 0 && !isCapped && (
+              <div
+                className="cap-tracker__fill-projected"
+                style={{
+                  left: `${capPct}%`,
+                  width: `${Math.min(100 - capPct, (capProjection.totalProjectedSplits / capSettings.capAmount) * 100)}%`,
+                }}
+              />
+            )}
+          </div>
+          <div className="cap-tracker__bar-labels">
+            <span>{fmt(ytdBrokerPaid)} paid</span>
+            <span>{isCapped ? 'Cap reached!' : `${fmt(capRemaining)} remaining`}</span>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div className="cap-tracker__stats">
+          <div className="cap-tracker__stat">
+            <span className="cap-tracker__stat-value">{ytdDealsCount}</span>
+            <span className="cap-tracker__stat-label">Deals YTD</span>
+          </div>
+          <div className="cap-tracker__stat">
+            <span className="cap-tracker__stat-value">{fmt(ytdBrokerPaid)}</span>
+            <span className="cap-tracker__stat-label">Paid to Brokerage</span>
+          </div>
+          <div className="cap-tracker__stat">
+            <span className="cap-tracker__stat-value" style={{ color: isCapped ? 'var(--color-success)' : 'var(--brown-dark)' }}>
+              {isCapped ? fmt(capRemaining) : fmt(capRemaining)}
+            </span>
+            <span className="cap-tracker__stat-label">{isCapped ? 'Over Cap (saved)' : 'Until 100%'}</span>
+          </div>
+          <div className="cap-tracker__stat">
+            <span className="cap-tracker__stat-value" style={{ color: 'var(--color-success)' }}>
+              {isCapped ? '100%' : `${(100 - capSettings.splitPct).toFixed(0)}%`}
+            </span>
+            <span className="cap-tracker__stat-label">{isCapped ? 'You Keep' : 'Current Take'}</span>
+          </div>
+        </div>
+
+        {/* Pipeline projection */}
+        {capProjection.rows.length > 0 && (
+          <div className="cap-tracker__projection">
+            <h4 className="cap-tracker__proj-title">
+              Pipeline Projection
+              {capProjection.capHitDeal && !isCapped && (
+                <span className="cap-tracker__proj-note">
+                  Cap hit on: {capProjection.capHitDeal.property}
+                  {capProjection.capHitDeal.closingDate && ` (est. ${new Date(capProjection.capHitDeal.closingDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`}
+                </span>
+              )}
+            </h4>
+            <table className="cap-tracker__table">
+              <thead>
+                <tr>
+                  <th>Deal</th>
+                  <th>Close Date</th>
+                  <th>GCI</th>
+                  <th>Broker Split</th>
+                  <th>You Keep</th>
+                </tr>
+              </thead>
+              <tbody>
+                {capProjection.rows.map(r => (
+                  <tr key={r.id} className={r.hitsCap ? 'cap-tracker__cap-row' : ''}>
+                    <td>
+                      <span className="cap-tracker__deal-name">{r.name}</span>
+                      <span className="cap-tracker__deal-prop">{r.property}</span>
+                    </td>
+                    <td>{r.closingDate ? new Date(r.closingDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
+                    <td>{fmt(r.gci)}</td>
+                    <td>
+                      {r.postCapSavings > 0 ? (
+                        <span>
+                          <s style={{ color: 'var(--brown-light)', fontSize: '0.75rem' }}>{fmt(r.brokerSplit)}</s>{' '}
+                          <span style={{ color: 'var(--color-success)' }}>{fmt(r.wouldPay)}</span>
+                        </span>
+                      ) : (
+                        fmt(r.wouldPay)
+                      )}
+                    </td>
+                    <td style={{ fontWeight: 600, color: 'var(--color-success)' }}>
+                      {fmt(r.gci - r.wouldPay)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {capProjection.totalSavings > 0 && (
+              <div className="cap-tracker__savings">
+                Post-cap savings on pipeline deals: <strong>{fmt(capProjection.totalSavings)}</strong>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
 
       {/* ─── View Toggle ─── */}
       <TabBar

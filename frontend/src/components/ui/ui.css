@@ -87,11 +87,13 @@
   -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  padding: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
   display: flex;
   align-items: flex-start;
-  gap: var(--space-md);
+  gap: var(--space-sm);
   box-shadow: var(--shadow-xs);
+  min-width: 0;
+  overflow: hidden;
   transition: box-shadow var(--transition-fast), transform var(--transition-fast);
 }
 .stat-card:hover {
@@ -109,8 +111,9 @@
 .stat-card--accent .stat-card__value { color: var(--white); }
 
 .stat-card__icon {
-  width: 42px; height: 42px;
+  width: 36px; height: 36px;
   background: var(--cream);
+  flex-shrink: 0;
   border-radius: var(--radius-md);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
@@ -118,8 +121,9 @@
 }
 .stat-card--accent .stat-card__icon { background: rgba(255,255,255,0.12); color: var(--white); }
 .stat-card__icon svg { width: 20px; height: 20px; }
-.stat-card__label { font-size: 0.72rem; color: var(--color-text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
-.stat-card__value { font-size: 1.65rem; font-weight: 700; color: var(--brown-dark); line-height: 1; font-family: var(--font-display); }
+.stat-card__body { min-width: 0; overflow: hidden; }
+.stat-card__label { font-size: 0.65rem; color: var(--color-text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-card__value { font-size: 1.4rem; font-weight: 700; color: var(--brown-dark); line-height: 1; font-family: var(--font-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-card__delta { font-size: 0.72rem; margin-top: 6px; display: flex; align-items: center; gap: 3px; }
 .stat-card__delta--up   { color: var(--color-success); }
 .stat-card__delta--down { color: var(--color-danger); }

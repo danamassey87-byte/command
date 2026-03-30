@@ -625,3 +625,147 @@
 @media (max-width: 480px) {
   .sc-stats-row { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ═══════════════════════════════════════════════════
+   Email Template Picker
+   ═══════════════════════════════════════════════════ */
+.sc-tpl-picker { margin-top: 4px; }
+
+.sc-tpl-picker__toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  border: 2px dashed var(--brown-light);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--brown-mid);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sc-tpl-picker__toggle:hover {
+  border-color: var(--brown-mid);
+  background: rgba(183, 151, 130, 0.05);
+  color: var(--brown-dark);
+}
+.sc-tpl-picker__hint {
+  font-weight: 400;
+  font-size: 0.68rem;
+  color: var(--brown-light);
+}
+
+.sc-tpl-picker__attached {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(183, 151, 130, 0.08);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--brown-mid);
+}
+.sc-tpl-picker__attached-text {
+  flex: 1;
+  font-size: 0.75rem;
+  color: var(--brown-dark);
+}
+.sc-tpl-picker__remove {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  color: var(--color-danger);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.sc-tpl-picker__remove:hover { opacity: 0.8; }
+
+.sc-tpl-picker__dropdown {
+  padding: 12px;
+  border: 1px solid var(--brown-light);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+}
+.sc-tpl-picker__label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--brown-mid);
+  margin: 0 0 8px;
+}
+.sc-tpl-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.sc-tpl-picker__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--brown-dark);
+  cursor: pointer;
+  transition: all 0.12s;
+  text-align: left;
+}
+.sc-tpl-picker__option:hover {
+  border-color: var(--brown-mid);
+  background: var(--cream);
+}
+.sc-tpl-picker__emoji { font-size: 1.1rem; }
+.sc-tpl-picker__name { font-weight: 500; }
+
+.sc-tpl-picker__cancel {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  color: var(--brown-mid);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* ═══════════════════════════════════════════════════
+   Email Preview Inline (in queue cards)
+   ═══════════════════════════════════════════════════ */
+.sc-email-preview {
+  margin: 8px 0;
+}
+.sc-email-preview__toggle {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--brown-mid);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  text-decoration: underline;
+}
+.sc-email-preview__toggle:hover { color: var(--brown-dark); }
+
+.sc-email-preview__frame {
+  margin-top: 8px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  max-height: 400px;
+  overflow-y: auto;
+  transform: scale(0.85);
+  transform-origin: top left;
+  width: 117.6%; /* compensate for scale */
+}
+.sc-email-preview__frame > div {
+  pointer-events: none;
+}

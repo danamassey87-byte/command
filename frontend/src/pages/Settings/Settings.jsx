@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { SectionHeader, Button, Input, Textarea } from '../../components/ui/index.jsx'
 import { useBrand } from '../../lib/BrandContext'
 import * as DB from '../../lib/supabase'
+import TemplatesTab from './TemplatesTab'
 import './Settings.css'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -34,7 +35,7 @@ const SOCIAL_CHANNELS = [
   { key: 'linktree',     label: 'Linktree / Bio', icon: '🔗', placeholder: 'https://linktr.ee/yourlink' },
 ]
 
-const TABS = ['signature', 'guidelines', 'assets', 'social']
+const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social']
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 export default function Settings() {
@@ -55,12 +56,13 @@ export default function Settings() {
             className={`settings-tab${tab === t ? ' settings-tab--active' : ''}`}
             onClick={() => setTab(t)}
           >
-            {t === 'signature' ? 'Signature' : t === 'guidelines' ? 'Brand Guidelines' : t === 'assets' ? 'Logos & Headshots' : 'Social Channels'}
+            {t === 'signature' ? 'Signature' : t === 'templates' ? 'Templates & Scripts' : t === 'guidelines' ? 'Brand Guidelines' : t === 'assets' ? 'Logos & Headshots' : 'Social Channels'}
           </button>
         ))}
       </div>
 
       {tab === 'signature'  && <SignatureTab  brand={brand} refetch={refetch} />}
+      {tab === 'templates'  && <TemplatesTab />}
       {tab === 'guidelines' && <GuidelinesTab brand={brand} refetch={refetch} />}
       {tab === 'assets'     && <AssetsTab     brand={brand} refetch={refetch} />}
       {tab === 'social'     && <SocialTab     brand={brand} refetch={refetch} />}

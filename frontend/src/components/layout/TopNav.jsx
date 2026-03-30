@@ -11,21 +11,13 @@ export const MobileMenuContext = createContext({
 })
 
 const DEFAULT_NAV_ITEMS = [
-  { id: 'dashboard',   label: 'Dashboard',   emoji: '📊', path: '/' },
-  { id: 'prospecting', label: 'Prospecting', emoji: '🔎', path: '/prospecting' },
-  { id: 'crm',         label: 'CRM',         emoji: '📇', path: '/crm' },
-  { id: 'pipeline',    label: 'Pipeline',    emoji: '🏠', path: '/pipeline' },
-  { id: 'calendar',    label: 'Calendar',    emoji: '📅', path: '/calendar' },
-  { id: 'open-houses', label: 'Open Houses', emoji: '🏡', path: '/open-houses' },
-  { id: 'content',     label: 'Content',     emoji: '📝', path: '/content' },
-  { id: 'pnl',         label: 'P&L',         emoji: '💰', path: '/pnl' },
-  { id: 'net-sheet',   label: 'Net Sheet',   emoji: '📋', path: '/net-sheet' },
-  { id: 'market',      label: 'Market',      emoji: '📈', path: '/market' },
-  { id: 'goals',       label: 'Goals',       emoji: '🎯', path: '/goals' },
-  { id: 'bio-link',    label: 'Link in Bio', emoji: '🔗', path: '/bio-link' },
-  { id: 'campaigns',   label: 'Campaigns',   emoji: '🚀', path: '/campaigns' },
-  { id: 'email',       label: 'Email',       emoji: '✉️', path: '/email' },
-  { id: 'resources',   label: 'Resources',   emoji: '📁', path: '/resources' },
+  { id: 'home',     label: 'Home',     emoji: '📊', path: '/',            activePaths: ['/', '/dashboard', '/goals', '/calendar', '/tasks'] },
+  { id: 'prospect', label: 'Prospect', emoji: '🔎', path: '/prospecting', activePaths: ['/prospecting', '/open-houses'] },
+  { id: 'people',   label: 'People',   emoji: '📇', path: '/crm',         activePaths: ['/crm'] },
+  { id: 'deals',    label: 'Deals',    emoji: '🏠', path: '/pipeline',    activePaths: ['/pipeline'] },
+  { id: 'content',  label: 'Content',  emoji: '📝', path: '/content',     activePaths: ['/content', '/campaigns', '/email', '/bio-link'] },
+  { id: 'money',    label: 'Money',    emoji: '💰', path: '/pnl',         activePaths: ['/pnl', '/net-sheet', '/market'] },
+  { id: 'toolkit',  label: 'Toolkit',  emoji: '🛠️', path: '/resources',   activePaths: ['/resources', '/settings', '/pipeline/buyer-sop', '/pipeline/seller-sop'] },
 ]
 
 const STORAGE_KEY = 'command_nav_order'
@@ -62,8 +54,9 @@ export default function TopNav() {
   }, [pathname, setMobileMenuOpen])
 
   const isActive = (item) => {
-    if (item.path === '/') return pathname === '/' || pathname.startsWith('/dashboard')
-    return pathname.startsWith(item.path)
+    return item.activePaths.some(p =>
+      p === '/' ? pathname === '/' : pathname.startsWith(p)
+    )
   }
 
   const [now, setNow] = useState(new Date())

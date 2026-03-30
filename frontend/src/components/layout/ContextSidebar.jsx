@@ -24,144 +24,109 @@ const COMING_SOON = new Set([
   '/email/sent',
 ])
 
-/* ─── Section definitions ─── */
+/* ─── Section definitions (consolidated 7-tab nav) ─── */
 const SECTIONS = {
-  dashboard: {
-    title: 'Dashboard',
+  home: {
+    title: 'Home',
     items: [
-      { label: 'Overview',       path: '/',               icon: 'home' },
-      { label: 'Daily Tracker',  path: '/dashboard/daily', icon: 'check-square' },
-      { label: 'Listing Appts',  path: '/dashboard/appts', icon: 'calendar' },
+      { label: 'Dashboard',      path: '/',                  icon: 'home' },
+      { label: 'Daily Tracker',  path: '/dashboard/daily',   icon: 'check-square' },
+      { label: 'Listing Appts',  path: '/dashboard/appts',   icon: 'calendar' },
+      { label: 'Daily Tasks',    path: '/tasks',             icon: 'clipboard' },
+      { label: 'Calendar',       path: '/calendar',          icon: 'calendar',      group: 'Schedule' },
+      { label: 'Full Schedule',  path: '/calendar/schedule', icon: 'columns' },
+      { label: 'Showings Today', path: '/calendar/today',    icon: 'eye' },
+      { label: 'Tasks',          path: '/calendar/tasks',    icon: 'check-square' },
+      { label: 'Notes',          path: '/calendar/notes',    icon: 'file-text' },
+      { label: 'Goals & KPIs',   path: '/goals',             icon: 'target',        group: 'Goals' },
     ],
   },
-  prospecting: {
+  prospect: {
     title: 'Prospecting',
     items: [
-      { label: 'Overview',              path: '/prospecting',              icon: 'users' },
-      { label: 'Expired / Cannonball',  path: '/prospecting/expired',     icon: 'target' },
-      { label: 'FSBO',                  path: '/prospecting/fsbo',         icon: 'home' },
-      { label: 'Circle Prospecting',    path: '/prospecting/circle',      icon: 'map-pin' },
-      { label: 'Personal Circle',       path: '/prospecting/soi',         icon: 'heart' },
-      { label: 'Referrals',             path: '/prospecting/referrals',   icon: 'user' },
-      { label: 'Open House Leads',      path: '/prospecting/oh-leads',    icon: 'eye' },
+      { label: 'Overview',              path: '/prospecting',           icon: 'users' },
+      { label: 'Expired / Cannonball',  path: '/prospecting/expired',   icon: 'target' },
+      { label: 'FSBO',                  path: '/prospecting/fsbo',      icon: 'home' },
+      { label: 'Circle Prospecting',    path: '/prospecting/circle',    icon: 'map-pin' },
+      { label: 'Personal Circle',       path: '/prospecting/soi',       icon: 'heart' },
+      { label: 'Referrals',             path: '/prospecting/referrals', icon: 'user' },
+      { label: 'Open Houses',           path: '/open-houses',           icon: 'eye',          group: 'Open Houses' },
+      { label: 'Open House Leads',      path: '/prospecting/oh-leads',  icon: 'users' },
     ],
   },
-  crm: {
-    title: 'CRM',
+  people: {
+    title: 'People',
     items: [
-      { label: 'Overview',         path: '/crm',                  icon: 'users' },
-      { label: 'Clients',          path: '/crm/buyers',           icon: 'user',        group: 'Buyers' },
-      { label: 'Showings',         path: '/crm/showings',         icon: 'eye' },
-      { label: 'Properties',       path: '/crm/properties',       icon: 'map-pin' },
-      { label: 'Investors',        path: '/crm/investors',        icon: 'trending-up' },
-      { label: 'Listings',         path: '/crm/sellers',          icon: 'home',        group: 'Sellers' },
-      { label: 'Listing Showings', path: '/crm/seller-showings',  icon: 'eye' },
-      { label: 'Listing Plan',     path: '/crm/listing-plan',     icon: 'zap' },
-      { label: 'Intake Forms',     path: '/crm/intake-forms',     icon: 'clipboard',   group: 'Tools' },
-      { label: 'Contact Database', path: '/crm/database',         icon: 'database' },
+      { label: 'Overview',         path: '/crm',                 icon: 'users' },
+      { label: 'Clients',          path: '/crm/buyers',          icon: 'user',          group: 'Buyers' },
+      { label: 'Showings',         path: '/crm/showings',        icon: 'eye' },
+      { label: 'Properties',       path: '/crm/properties',      icon: 'map-pin' },
+      { label: 'Investors',        path: '/crm/investors',       icon: 'trending-up' },
+      { label: 'Listings',         path: '/crm/sellers',         icon: 'home',          group: 'Sellers' },
+      { label: 'Listing Showings', path: '/crm/seller-showings', icon: 'eye' },
+      { label: 'Listing Plan',     path: '/crm/listing-plan',    icon: 'zap' },
+      { label: 'Intake Forms',     path: '/crm/intake-forms',    icon: 'clipboard',     group: 'Tools' },
+      { label: 'Contact Database', path: '/crm/database',        icon: 'database' },
     ],
   },
-  pipeline: {
-    title: 'Pipeline',
+  deals: {
+    title: 'Deals',
     items: [
-      { label: 'Overview',       path: '/pipeline',             icon: 'layers' },
-      { label: 'Deal Board',     path: '/pipeline/board',       icon: 'columns' },
-      { label: 'Buyer SOP',      path: '/pipeline/buyer-sop',   icon: 'clipboard' },
-      { label: 'Seller SOP',     path: '/pipeline/seller-sop',  icon: 'clipboard' },
-      { label: 'Escrow Tracker', path: '/pipeline/escrow',      icon: 'clock' },
-      { label: 'Closed',         path: '/pipeline/closed',      icon: 'check-circle' },
-    ],
-  },
-  calendar: {
-    title: 'Calendar',
-    items: [
-      { label: 'Overview',        path: '/calendar',           icon: 'calendar' },
-      { label: 'Full Schedule',   path: '/calendar/schedule',  icon: 'columns' },
-      { label: 'Showings Today',  path: '/calendar/today',     icon: 'eye' },
-      { label: 'Tasks',           path: '/calendar/tasks',     icon: 'check-square' },
-      { label: 'Notes',           path: '/calendar/notes',     icon: 'file-text' },
-    ],
-  },
-  'open-houses': {
-    title: 'Open Houses',
-    items: [
-      { label: 'Schedule',  path: '/open-houses',           icon: 'calendar' },
+      { label: 'Overview',       path: '/pipeline',            icon: 'layers' },
+      { label: 'Deal Board',     path: '/pipeline/board',      icon: 'columns' },
+      { label: 'Escrow Tracker', path: '/pipeline/escrow',     icon: 'clock' },
+      { label: 'Closed Deals',   path: '/pipeline/closed',     icon: 'check-circle' },
     ],
   },
   content: {
     title: 'Content',
     items: [
-      { label: 'Overview',      path: '/content',            icon: 'columns' },
-      { label: 'Calendar',      path: '/content/calendar',   icon: 'calendar' },
-      { label: 'Planning',      path: '/content/planning',   icon: 'clipboard' },
-      { label: 'Templates',     path: '/content/templates',  icon: 'file-text' },
-      { label: 'Social Media',  path: '/content/social',     icon: 'trending-up' },
-      { label: 'AI Studio',     path: '/content/ai-studio',  icon: 'zap' },
-      { label: 'Stats',         path: '/content/stats',      icon: 'bar-chart' },
+      { label: 'Overview',      path: '/content',             icon: 'columns' },
+      { label: 'Calendar',      path: '/content/calendar',    icon: 'calendar' },
+      { label: 'Planning',      path: '/content/planning',    icon: 'clipboard' },
+      { label: 'Social Media',  path: '/content/social',      icon: 'trending-up' },
+      { label: 'Templates',     path: '/content/templates',   icon: 'file-text' },
+      { label: 'AI Studio',     path: '/content/ai-studio',   icon: 'zap' },
+      { label: 'Stats',         path: '/content/stats',       icon: 'bar-chart' },
+      { label: 'My Campaigns',  path: '/campaigns/manage',    icon: 'layers',        group: 'Campaigns' },
+      { label: 'Send Queue',    path: '/campaigns/queue',     icon: 'clock' },
+      { label: 'Enrollments',   path: '/campaigns/enrollments', icon: 'users' },
+      { label: 'History',       path: '/campaigns/history',   icon: 'clipboard' },
+      { label: 'Campaign Tpl',  path: '/campaigns/templates', icon: 'file-text' },
+      { label: 'Email Builder', path: '/email/builder',       icon: 'zap',           group: 'Email' },
+      { label: 'Email Tpl',     path: '/email/templates',     icon: 'file-text' },
+      { label: 'Email Sends',   path: '/email/campaigns',     icon: 'layers' },
+      { label: 'Sent',          path: '/email/sent',          icon: 'check-circle' },
+      { label: 'My Page',       path: '/bio-link/page',       icon: 'link',          group: 'Link in Bio' },
+      { label: 'Links & Forms', path: '/bio-link/forms',      icon: 'clipboard' },
+      { label: 'Guides',        path: '/bio-link/guides',     icon: 'file-text' },
+      { label: 'Drip Campaigns',path: '/bio-link/drips',      icon: 'mail' },
+      { label: 'Leads Captured',path: '/bio-link/leads',      icon: 'users' },
     ],
   },
-  pnl: {
-    title: 'P&L',
+  money: {
+    title: 'Money',
     items: [
-      { label: 'Overview',    path: '/pnl',            icon: 'dollar-sign' },
-      { label: 'Expenses',    path: '/pnl/expenses',   icon: 'minus-circle' },
-      { label: 'Income',      path: '/pnl/income',     icon: 'plus-circle' },
-      { label: 'Recurring',   path: '/pnl/recurring',  icon: 'clock' },
-      { label: 'Mileage Log', path: '/pnl/mileage',    icon: 'map-pin' },
-      { label: 'Budget',      path: '/pnl/budget',     icon: 'target' },
-      { label: 'Tax Summary', path: '/pnl/tax',        icon: 'bar-chart' },
+      { label: 'P&L Overview',  path: '/pnl',             icon: 'dollar-sign' },
+      { label: 'Expenses',      path: '/pnl/expenses',    icon: 'minus-circle' },
+      { label: 'Income',        path: '/pnl/income',      icon: 'plus-circle' },
+      { label: 'Recurring',     path: '/pnl/recurring',   icon: 'clock' },
+      { label: 'Mileage Log',   path: '/pnl/mileage',     icon: 'map-pin' },
+      { label: 'Budget',        path: '/pnl/budget',       icon: 'target' },
+      { label: 'Tax Summary',   path: '/pnl/tax',          icon: 'bar-chart' },
+      { label: 'Net Sheet',     path: '/net-sheet',        icon: 'clipboard',     group: 'Tools' },
+      { label: 'Market Stats',  path: '/market',           icon: 'bar-chart' },
     ],
   },
-  market: {
-    title: 'Market',
+  toolkit: {
+    title: 'Toolkit',
     items: [
-      { label: 'Market Report', path: '/market',       icon: 'bar-chart' },
-    ],
-  },
-  goals: {
-    title: 'Goals',
-    items: [
-      { label: 'Goals & KPIs', path: '/goals',         icon: 'target' },
-    ],
-  },
-  'bio-link': {
-    title: 'Link in Bio',
-    items: [
-      { label: 'Overview',        path: '/bio-link',            icon: 'link' },
-      { label: 'My Page',         path: '/bio-link/page',       icon: 'link' },
-      { label: 'Links & Forms',   path: '/bio-link/forms',      icon: 'clipboard' },
-      { label: 'Guides',          path: '/bio-link/guides',     icon: 'file-text' },
-      { label: 'Drip Campaigns',  path: '/bio-link/drips',      icon: 'mail' },
-      { label: 'Leads Captured',  path: '/bio-link/leads',      icon: 'users' },
-    ],
-  },
-  campaigns: {
-    title: 'Smart Campaigns',
-    items: [
-      { label: 'Overview',      path: '/campaigns',              icon: 'zap' },
-      { label: 'My Campaigns',  path: '/campaigns/manage',       icon: 'layers' },
-      { label: 'Send Queue',    path: '/campaigns/queue',        icon: 'clock' },
-      { label: 'Enrollments',   path: '/campaigns/enrollments',  icon: 'users' },
-      { label: 'History',       path: '/campaigns/history',      icon: 'clipboard' },
-      { label: 'Templates',     path: '/campaigns/templates',    icon: 'file-text' },
-    ],
-  },
-  email: {
-    title: 'Email',
-    items: [
-      { label: 'Overview',     path: '/email',            icon: 'mail' },
-      { label: 'Builder',      path: '/email/builder',    icon: 'zap' },
-      { label: 'Templates',    path: '/email/templates',  icon: 'file-text' },
-      { label: 'Campaigns',    path: '/email/campaigns',  icon: 'layers' },
-      { label: 'Sent',         path: '/email/sent',       icon: 'check-circle' },
-    ],
-  },
-  resources: {
-    title: 'Resources',
-    items: [
-      { label: 'Resource Hub',    path: '/resources',            icon: 'link' },
-      { label: 'Email Templates', path: '/resources/email',      icon: 'mail' },
-      { label: 'SMS Templates',   path: '/resources/sms',        icon: 'message-square' },
+      { label: 'Resource Hub',       path: '/resources',           icon: 'link' },
+      { label: 'Email Templates',    path: '/resources/email',     icon: 'mail' },
+      { label: 'SMS Templates',      path: '/resources/sms',       icon: 'message-square' },
+      { label: 'Buyer Playbook',     path: '/pipeline/buyer-sop',  icon: 'clipboard',     group: 'Playbooks' },
+      { label: 'Seller Playbook',    path: '/pipeline/seller-sop', icon: 'clipboard' },
+      { label: 'Settings',           path: '/settings',            icon: 'zap',           group: 'Settings' },
     ],
   },
 }
@@ -196,23 +161,16 @@ const ICONS = {
 }
 
 export function getActiveSection(pathname) {
-  if (pathname === '/' || pathname.startsWith('/dashboard')) return 'dashboard'
-  if (pathname.startsWith('/prospecting')) return 'prospecting'
-  if (pathname.startsWith('/crm'))         return 'crm'
-  if (pathname.startsWith('/pipeline'))    return 'pipeline'
-  if (pathname.startsWith('/calendar'))    return 'calendar'
-  if (pathname.startsWith('/open-houses')) return 'open-houses'
-  if (pathname.startsWith('/content'))     return 'content'
-  if (pathname.startsWith('/pnl'))         return 'pnl'
-  if (pathname.startsWith('/net-sheet'))   return 'net-sheet'
-  if (pathname.startsWith('/market'))      return 'market'
-  if (pathname.startsWith('/goals'))       return 'goals'
-  if (pathname.startsWith('/bio-link'))      return 'bio-link'
-  if (pathname.startsWith('/campaigns'))   return 'campaigns'
-  if (pathname.startsWith('/email'))        return 'email'
-  if (pathname.startsWith('/resources'))   return 'resources'
-  if (pathname.startsWith('/settings'))    return 'settings'
-  return 'dashboard'
+  if (pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/goals') || pathname.startsWith('/calendar') || pathname.startsWith('/tasks')) return 'home'
+  if (pathname.startsWith('/prospecting') || pathname.startsWith('/open-houses')) return 'prospect'
+  if (pathname.startsWith('/crm'))         return 'people'
+  // SOP/playbook routes live under toolkit, not deals
+  if (pathname === '/pipeline/buyer-sop' || pathname === '/pipeline/seller-sop') return 'toolkit'
+  if (pathname.startsWith('/pipeline'))    return 'deals'
+  if (pathname.startsWith('/content') || pathname.startsWith('/campaigns') || pathname.startsWith('/email') || pathname.startsWith('/bio-link')) return 'content'
+  if (pathname.startsWith('/pnl') || pathname.startsWith('/net-sheet') || pathname.startsWith('/market')) return 'money'
+  if (pathname.startsWith('/resources') || pathname.startsWith('/settings')) return 'toolkit'
+  return 'home'
 }
 
 export default function ContextSidebar() {
@@ -233,6 +191,7 @@ export default function ContextSidebar() {
   const endPaths = new Set([
     '/', '/crm', '/pipeline', '/calendar', '/content', '/pnl',
     '/prospecting', '/bio-link', '/campaigns', '/email', '/resources',
+    '/goals', '/tasks', '/open-houses', '/net-sheet', '/market', '/settings',
   ])
 
   return (

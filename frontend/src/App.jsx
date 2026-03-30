@@ -39,6 +39,7 @@ import CalendarDashboard from './pages/Calendar/CalendarDashboard'
 import EmailDashboard from './pages/Email/EmailDashboard'
 import CampaignsDashboard from './pages/Campaigns/CampaignsDashboard'
 import ResourcesDashboard from './pages/Resources/ResourcesDashboard'
+import AppraiserPackage from './pages/Resources/AppraiserPackage'
 import BioLinkDashboard from './pages/BioLink/BioLinkDashboard'
 
 // ─── Pipeline Pages ─────────────────────────────────────────────────────────
@@ -53,6 +54,9 @@ import DailyTasks from './pages/Tasks/DailyTasks'
 
 // ─── Notes ──────────────────────────────────────────────────────────────────
 import Notes from './pages/Notes/Notes'
+
+// ─── Expired / Cannonball Tracker ─────────────────────────────────────────────
+import ExpiredCannonball from './pages/Prospecting/ExpiredCannonball'
 
 // ─── Smart Campaigns ────────────────────────────────────────────────────────
 import SmartCampaigns from './pages/Campaigns/SmartCampaigns'
@@ -101,7 +105,7 @@ export default function App() {
 
           {/* ─── Prospecting ─── */}
           <Route path="/prospecting"            element={<ProspectingDashboard />} />
-          <Route path="/prospecting/expired"    element={<LeadGen />} />
+          <Route path="/prospecting/expired"    element={<ExpiredCannonball />} />
           <Route path="/prospecting/fsbo"       element={<ComingSoon title="FSBO Leads" />} />
           <Route path="/prospecting/circle"     element={<ComingSoon title="Circle Prospecting" />} />
           <Route path="/prospecting/soi"        element={<ComingSoon title="Personal Circle / SOI" />} />
@@ -169,6 +173,7 @@ export default function App() {
           <Route path="/resources"         element={<ResourcesDashboard />} />
           <Route path="/resources/email"   element={<ComingSoon title="Email Templates" />} />
           <Route path="/resources/sms"     element={<ComingSoon title="SMS Templates" />} />
+          <Route path="/resources/appraiser-package" element={<AppraiserPackage />} />
 
           {/* ─── Link in Bio ─── */}
           <Route path="/bio-link"          element={<BioLinkDashboard />} />

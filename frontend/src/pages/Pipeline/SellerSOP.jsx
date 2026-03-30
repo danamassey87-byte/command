@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import { Card, Badge, Button, Input, Textarea, SlidePanel } from '../../components/ui/index.jsx'
 import { useTransactions } from '../../lib/hooks.js'
+import { useBrandSignature } from '../../lib/BrandContext'
 import './SellerSOP.css'
 
 // ─── Seller SOP Stages ──────────────────────────────────────────────────────
@@ -108,19 +109,19 @@ const SELLER_SOP = [
   },
 ]
 
-// ─── Email Templates (branded for Dana Massey / Antigravity RE) ─────────────
-const DEFAULT_TEMPLATES = {
+// ─── Email Templates ─────────────────────────────────────────────────────────
+export const DEFAULT_TEMPLATES = {
   new_lead_workflow: {
     name: 'New Lead Workflow',
     type: 'email',
     subject: 'Let\'s Talk About Selling Your Home — {contact_name}',
-    body: `Hi {contact_name},\n\nThank you for reaching out! I'm Dana Massey with Antigravity Real Estate, and I'd love to help you with your home sale.\n\nI specialize in the East Valley and Gilbert market and would love to learn more about your property, your timeline, and your goals.\n\nLet's set up a quick 15-minute phone call to get started. You can reply to this email or call/text me directly.\n\nLooking forward to connecting!\n\nDana Massey\nAntigravity Real Estate\nREAL Brokerage\n480-XXX-XXXX`,
+    body: `Hi {contact_name},\n\nThank you for reaching out! I'm {agent_name} with {brokerage}, and I'd love to help you with your home sale.\n\nI specialize in the East Valley and Gilbert market and would love to learn more about your property, your timeline, and your goals.\n\nLet's set up a quick 15-minute phone call to get started. You can reply to this email or call/text me directly.\n\nLooking forward to connecting!\n\n{agent_name}\n{brokerage}\n{agent_phone}`,
   },
   post_appointment: {
     name: 'Post-Appointment Follow-Up',
     type: 'email',
     subject: 'Great Meeting You — Next Steps for {property_address}',
-    body: `Hi {contact_name},\n\nIt was great meeting with you today! I'm excited about the opportunity to help sell {property_address}.\n\nHere's what happens next:\n\n1. Please complete the seller property questionnaire I've attached — this helps me market your home effectively\n2. Review and sign the listing documents I'll be sending over\n3. We'll schedule your professional photography and 3D tour\n4. I'll prepare your complete listing package (flyers, postcards, social media content)\n\nIn the meantime, here's what you can do to prepare:\n- Touch up any minor cosmetic items\n- Declutter and depersonalize where possible\n- Gather any home warranty info, receipts for upgrades, and HOA docs\n\nI'll be in touch within 24 hours. Don't hesitate to reach out with any questions!\n\nDana Massey\nAntigravity Real Estate\nREAL Brokerage`,
+    body: `Hi {contact_name},\n\nIt was great meeting with you today! I'm excited about the opportunity to help sell {property_address}.\n\nHere's what happens next:\n\n1. Please complete the seller property questionnaire I've attached — this helps me market your home effectively\n2. Review and sign the listing documents I'll be sending over\n3. We'll schedule your professional photography and 3D tour\n4. I'll prepare your complete listing package (flyers, postcards, social media content)\n\nIn the meantime, here's what you can do to prepare:\n- Touch up any minor cosmetic items\n- Declutter and depersonalize where possible\n- Gather any home warranty info, receipts for upgrades, and HOA docs\n\nI'll be in touch within 24 hours. Don't hesitate to reach out with any questions!\n\n{agent_name}\n{brokerage}`,
   },
   seller_questionnaire: {
     name: 'Seller Property Questionnaire',
@@ -144,19 +145,19 @@ const DEFAULT_TEMPLATES = {
     name: 'We\'re Live / Showing Instructions',
     type: 'email',
     subject: 'Your Home is LIVE! — {property_address}',
-    body: `Hi {contact_name},\n\nExciting news — your home is officially live on the MLS and ready to show! Here's what you need to know:\n\nShowing Instructions:\n- You'll receive showing requests via ShowingTime — please confirm or decline promptly\n- Please have the home show-ready (lights on, blinds open, pets secured, valuables stored)\n- Try to vacate during showings for the best buyer experience\n\nWhat I'm Doing:\n- Your listing is being promoted across MLS, Zillow, Realtor.com, and social media\n- I've sent Just Listed postcards to 500 neighbors in your area\n- Open house dates are being scheduled and marketed\n\nI'll keep you updated weekly with showing feedback and market activity.\n\nLet's get this sold!\n\nDana Massey\nAntigravity Real Estate\nREAL Brokerage`,
+    body: `Hi {contact_name},\n\nExciting news — your home is officially live on the MLS and ready to show! Here's what you need to know:\n\nShowing Instructions:\n- You'll receive showing requests via ShowingTime — please confirm or decline promptly\n- Please have the home show-ready (lights on, blinds open, pets secured, valuables stored)\n- Try to vacate during showings for the best buyer experience\n\nWhat I'm Doing:\n- Your listing is being promoted across MLS, Zillow, Realtor.com, and social media\n- I've sent Just Listed postcards to 500 neighbors in your area\n- Open house dates are being scheduled and marketed\n\nI'll keep you updated weekly with showing feedback and market activity.\n\nLet's get this sold!\n\n{agent_name}\n{brokerage}`,
   },
   weekly_feedback: {
     name: 'Weekly Showing Feedback Follow-Up',
     type: 'email',
     subject: 'Weekly Update — {property_address} Showing Activity',
-    body: `Hi {contact_name},\n\nHere's your weekly update on {property_address}:\n\nThis Week's Activity:\n- Showings this week: {showing_count}\n- Total showings to date: {total_showings}\n\nShowing Feedback Summary:\n{feedback_summary}\n\nUnanswered Feedback:\nI'm following up with the following agents who haven't provided feedback yet:\n{unanswered_agents}\n\nMarket Update:\n{market_notes}\n\nLet me know if you'd like to discuss any adjustments to pricing or marketing strategy. I'm always just a call or text away.\n\nDana Massey\nAntigravity Real Estate\nREAL Brokerage`,
+    body: `Hi {contact_name},\n\nHere's your weekly update on {property_address}:\n\nThis Week's Activity:\n- Showings this week: {showing_count}\n- Total showings to date: {total_showings}\n\nShowing Feedback Summary:\n{feedback_summary}\n\nUnanswered Feedback:\nI'm following up with the following agents who haven't provided feedback yet:\n{unanswered_agents}\n\nMarket Update:\n{market_notes}\n\nLet me know if you'd like to discuss any adjustments to pricing or marketing strategy. I'm always just a call or text away.\n\n{agent_name}\n{brokerage}`,
   },
   offer_accepted: {
     name: 'Congratulations — Offer Accepted!',
     type: 'email',
     subject: 'Offer Accepted! — {property_address}',
-    body: `Congratulations {contact_name}!\n\nGreat news — we have an accepted offer on {property_address}!\n\nHere are the key details:\n\n- Sale Price: {sale_price}\n- Buyer: {buyer_name}\n- Buyer's Agent: {buyer_agent}\n- Financing: {financing_type}\n- Earnest Money: {earnest_amount}\n- Close of Escrow: {closing_date}\n- Title Company: {title_company}\n\nCritical Dates (Arizona Standard):\n- Earnest Money Due: 3 business days from contract\n- Inspection Period: 10 days from contract\n- BINSR Deadline: 10 days from contract\n- Seller BINSR Response: 5 days from BINSR delivery\n- Appraisal Contingency: 25 days from contract\n- Loan Approval: 30 days from contract\n- Close of Escrow: {closing_date}\n\nI'll be sending over a full critical dates spreadsheet so we can track every deadline together.\n\nNext steps:\n1. I'll open escrow and send you the opening package\n2. Please submit your SPDS and Claims History ASAP\n3. Buyer will schedule inspections within their 10-day window\n\nWe're on our way! I'll keep you informed every step.\n\nDana Massey\nAntigravity Real Estate\nREAL Brokerage`,
+    body: `Congratulations {contact_name}!\n\nGreat news — we have an accepted offer on {property_address}!\n\nHere are the key details:\n\n- Sale Price: {sale_price}\n- Buyer: {buyer_name}\n- Buyer's Agent: {buyer_agent}\n- Financing: {financing_type}\n- Earnest Money: {earnest_amount}\n- Close of Escrow: {closing_date}\n- Title Company: {title_company}\n\nCritical Dates (Arizona Standard):\n- Earnest Money Due: 3 business days from contract\n- Inspection Period: 10 days from contract\n- BINSR Deadline: 10 days from contract\n- Seller BINSR Response: 5 days from BINSR delivery\n- Appraisal Contingency: 25 days from contract\n- Loan Approval: 30 days from contract\n- Close of Escrow: {closing_date}\n\nI'll be sending over a full critical dates spreadsheet so we can track every deadline together.\n\nNext steps:\n1. I'll open escrow and send you the opening package\n2. Please submit your SPDS and Claims History ASAP\n3. Buyer will schedule inspections within their 10-day window\n\nWe're on our way! I'll keep you informed every step.\n\n{agent_name}\n{brokerage}`,
   },
   critical_dates: {
     name: 'Critical Dates Tracker',
@@ -180,13 +181,13 @@ const DEFAULT_TEMPLATES = {
     name: 'Closing Day',
     type: 'email',
     subject: 'Closing Day! — {property_address}',
-    body: `Congratulations {contact_name}!\n\nToday is the big day! Here's everything you need for a smooth closing on {property_address}:\n\nClosing Details:\n- Date: {closing_date}\n- Title Company: {title_company}\n- Please bring a valid government-issued photo ID\n\nReminders:\n- Review your Closing Disclosure carefully — verify all numbers, credits, and prorations\n- Confirm wire instructions directly with the title company by phone (never trust emailed wire instructions alone)\n- Keys, garage remotes, and access codes should be left for the buyer\n\nAfter Closing:\n- I'll update the MLS to Sold status\n- Yard sign and lockbox will be removed within 48 hours\n- You'll receive your proceeds via wire or check from the title company\n\nIt has been an absolute pleasure working with you on the sale of your home. Thank you for trusting me with one of life's biggest transactions.\n\nIf you know anyone else thinking about buying or selling, I'd be honored to help them too!\n\nDana Massey\nAntigravity Real Estate\nREAL Brokerage`,
+    body: `Congratulations {contact_name}!\n\nToday is the big day! Here's everything you need for a smooth closing on {property_address}:\n\nClosing Details:\n- Date: {closing_date}\n- Title Company: {title_company}\n- Please bring a valid government-issued photo ID\n\nReminders:\n- Review your Closing Disclosure carefully — verify all numbers, credits, and prorations\n- Confirm wire instructions directly with the title company by phone (never trust emailed wire instructions alone)\n- Keys, garage remotes, and access codes should be left for the buyer\n\nAfter Closing:\n- I'll update the MLS to Sold status\n- Yard sign and lockbox will be removed within 48 hours\n- You'll receive your proceeds via wire or check from the title company\n\nIt has been an absolute pleasure working with you on the sale of your home. Thank you for trusting me with one of life's biggest transactions.\n\nIf you know anyone else thinking about buying or selling, I'd be honored to help them too!\n\n{agent_name}\n{brokerage}`,
   },
   review_request: {
     name: 'Review Request',
     type: 'email',
-    subject: 'Quick Favor? — Dana Massey',
-    body: `Hi {contact_name},\n\nI hope you're settling in and enjoying the next chapter! It was truly a pleasure helping you with the sale of {property_address}.\n\nIf you had a positive experience, would you mind taking 2 minutes to leave a review? It means the world to my small business.\n\nGoogle: [Your Google Review Link]\nZillow: [Your Zillow Review Link]\n\nThank you so much — and please don't hesitate to reach out anytime, whether it's real estate related or you just need a great contractor recommendation!\n\nDana Massey\nAntigravity Real Estate\nREAL Brokerage`,
+    subject: 'Quick Favor? — {agent_name}',
+    body: `Hi {contact_name},\n\nI hope you're settling in and enjoying the next chapter! It was truly a pleasure helping you with the sale of {property_address}.\n\nIf you had a positive experience, would you mind taking 2 minutes to leave a review? It means the world to my small business.\n\nGoogle: [Your Google Review Link]\nZillow: [Your Zillow Review Link]\n\nThank you so much — and please don't hesitate to reach out anytime, whether it's real estate related or you just need a great contractor recommendation!\n\n{agent_name}\n{brokerage}`,
   },
 }
 
@@ -213,6 +214,7 @@ function addDays(dateStr, days) {
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function SellerSOP() {
   const { data: transactions } = useTransactions()
+  const sig = useBrandSignature()
   const [progress, setProgressRaw] = useState(() => loadProgress())
   const [templates, setTemplatesRaw] = useState(() => loadTemplates() || DEFAULT_TEMPLATES)
   const [activeDeal, setActiveDeal] = useState(null)
@@ -295,7 +297,12 @@ export default function SellerSOP() {
       .replace(/\{buyer_agent\}/g, '{buyer_agent}')
       .replace(/\{financing_type\}/g, '{financing_type}')
       .replace(/\{earnest_amount\}/g, '{earnest_amount}')
-  }, [activeDeal, closingDate])
+      .replace(/\{agent_name\}/g, sig.full_name || '')
+      .replace(/\{agent_first_name\}/g, (sig.full_name || '').split(' ')[0] || '')
+      .replace(/\{brokerage\}/g, sig.brokerage || '')
+      .replace(/\{agent_email\}/g, sig.email || '')
+      .replace(/\{agent_phone\}/g, sig.phone || '')
+  }, [activeDeal, closingDate, sig])
 
   return (
     <div className="seller-sop">

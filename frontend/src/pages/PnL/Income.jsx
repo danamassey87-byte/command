@@ -1,10 +1,18 @@
 import { useState, useMemo } from 'react'
-import { SectionHeader, Card, TabBar, Button, SlidePanel, Input, Select } from '../../components/ui/index.jsx'
+import { SectionHeader, Card, TabBar, Button, SlidePanel, Input, Select, Badge } from '../../components/ui/index.jsx'
 import { useAllIncomeEntries, useExpenseCategories } from '../../lib/hooks.js'
 import { createIncomeEntry, updateIncomeEntry, deleteIncomeEntry } from '../../lib/supabase.js'
 import './PnL.css'
 
 const fmt = (v) => `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+// ─── Cap Settings (shared with PnLOverview) ───
+const CAP_STORAGE = 'brokerage_cap_settings'
+function loadCapSettings() {
+  try {
+    return JSON.parse(localStorage.getItem(CAP_STORAGE)) || { splitPct: 15, capAmount: 12000 }
+  } catch { return { splitPct: 15, capAmount: 12000 } }
+}
 
 const EMPTY = {
   date: new Date().toISOString().split('T')[0],
@@ -55,6 +63,17 @@ export default function Income() {
   const grandTotal  = all.reduce((s, i) => s + Number(i.amount || 0), 0)
   const pendingTotal = all.filter(i => i.status === 'pending').reduce((s, i) => s + Number(i.amount || 0), 0)
   const receivedTotal = all.filter(i => i.status !== 'pending').reduce((s, i) => s + Number(i.amount || 0), 0)
+
+  // Cap awareness
+  const cap = loadCapSettings()
+  const currentYear = new Date().getFullYear()
+  const ytdBrokerPaid = useMemo(() => {
+    return all
+      .filter(i => i.date && i.date.startsWith(String(currentYear)))
+      .reduce((s, i) => s + Number(i.broker_split_amt || 0), 0)
+  }, [all, currentYear])
+  const isCapped = ytdBrokerPaid >= cap.capAmount
+  const capRemaining = Math.max(0, cap.capAmount - ytdBrokerPaid)
 
   // Category summary
   const catSummary = useMemo(() => {
@@ -188,6 +207,15 @@ export default function Income() {
           <p className="pnl-kpi__value">{fmt(pendingTotal)}</p>
           <p className="pnl-kpi__sub">{all.filter(i => i.status === 'pending').length} awaiting payment</p>
         </Card>
+        <Card className="pnl-kpi" style={{ borderLeft: isCapped ? '3px solid var(--color-success)' : '3px solid var(--brown-mid)' }}>
+          <p className="pnl-kpi__label">Brokerage Cap</p>
+          <p className={`pnl-kpi__value ${isCapped ? 'pnl-kpi__value--green' : ''}`}>
+            {isCapped ? 'CAPPED' : fmt(capRemaining)}
+          </p>
+          <p className="pnl-kpi__sub">
+            {isCapped ? `${fmt(ytdBrokerPaid)} paid · keep 100%` : `${fmt(ytdBrokerPaid)} of ${fmt(cap.capAmount)}`}
+          </p>
+        </Card>
       </div>
 
       {/* ─── Filters ─── */}
@@ -294,7 +322,14 @@ export default function Income() {
           <hr className="pnl-form__divider" />
 
           {/* ─── Commission Calculator ─── */}
-          <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--brown-mid)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Commission Calculator</p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--brown-mid)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Commission Calculator</p>
+            {isCapped ? (
+              <Badge variant="success" size="sm">CAPPED — 0% broker split</Badge>
+            ) : (
+              <span style={{ fontSize: '0.68rem', color: 'var(--brown-mid)' }}>{fmt(capRemaining)} to cap</span>
+            )}
+          </div>
           <div className="pnl-form__row">
             <Input label="Sale Price" type="number" step="0.01" value={draft.sale_price} onChange={e => updateField('sale_price', e.target.value)} placeholder="350,000" />
             <Input label="Commission %" type="number" step="0.001" value={draft.commission_pct} onChange={e => updateField('commission_pct', e.target.value)} placeholder="2.5" />

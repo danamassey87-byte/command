@@ -1,6 +1,8 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { Card, Button, Badge, Input, Select, Textarea, TabBar, SlidePanel, EmptyState, SectionHeader } from '../../components/ui'
 import { useContacts } from '../../lib/hooks'
+import { useBrandSignature } from '../../lib/BrandContext'
+import { blocksToHtml, getEmailTemplates, CAMPAIGN_EMAIL_TEMPLATES } from '../../lib/emailHtml'
 import './SmartCampaigns.css'
 
 // ─── localStorage Keys ──────────────────────────────────────────────────────
@@ -29,12 +31,12 @@ const STARTER_CAMPAIGNS = [
     type: 'buyer',
     status: 'template',
     steps: [
-      { id: 's1', order: 1, type: 'email', delay_days: 0, delay_label: 'Immediately', subject: 'Welcome! Let\'s find your perfect home', body: 'Hi {first_name},\n\nThank you for reaching out about buying a home in the East Valley! I\'m Dana Massey with Antigravity Real Estate, and I\'m excited to help you on this journey.\n\nTo get started, I\'d love to learn more about what you\'re looking for:\n- What areas are you most interested in?\n- What\'s your ideal timeline?\n- Have you been pre-approved for a mortgage yet?\n\nI\'ll be sending you some helpful resources over the next few weeks. In the meantime, feel free to reply to this email or call/text me anytime.\n\nLooking forward to connecting!\n\nDana Massey\nAntigravity Real Estate' },
-      { id: 's2', order: 2, type: 'sms', delay_days: 1, delay_label: '1 day later', body: 'Hi {first_name}! It\'s Dana from Antigravity RE. Just wanted to make sure you got my email yesterday. I\'d love to chat about your home search — what works best for a quick call?' },
-      { id: 's3', order: 3, type: 'email', delay_days: 3, delay_label: '3 days later', subject: 'Your Arizona Buyer\'s Guide', body: 'Hi {first_name},\n\nI put together a quick guide covering everything you need to know about buying in Arizona — from earnest money timelines to inspection periods.\n\nKey things to know:\n- Earnest money is due within 3 business days of acceptance\n- You\'ll have a 10-day inspection period\n- Arizona uses a Buyer Broker Agreement (BBA)\n\nWould you like me to send you the full buyer\'s guide? Also happy to hop on a call to walk through the process.\n\nDana' },
-      { id: 's4', order: 4, type: 'email', delay_days: 7, delay_label: '7 days later', subject: 'Homes that match your search', body: 'Hi {first_name},\n\nI\'ve been keeping an eye on the market and wanted to share some properties that might interest you. The East Valley market is moving — homes in Gilbert, Chandler, and Mesa are seeing strong activity.\n\nWould you like me to set up a custom search so you get notified the moment new listings hit the market?\n\nLet me know what price range and areas you\'re focused on, and I\'ll get that set up for you today.\n\nDana' },
+      { id: 's1', order: 1, type: 'email', delay_days: 0, delay_label: 'Immediately', subject: 'Welcome! Let\'s find your perfect home', body: 'Hi {first_name},\n\nThank you for reaching out about buying a home in the East Valley! I\'m {agent_name} with {brokerage}, and I\'m excited to help you on this journey.\n\nTo get started, I\'d love to learn more about what you\'re looking for:\n- What areas are you most interested in?\n- What\'s your ideal timeline?\n- Have you been pre-approved for a mortgage yet?\n\nI\'ll be sending you some helpful resources over the next few weeks. In the meantime, feel free to reply to this email or call/text me anytime.\n\nLooking forward to connecting!\n\n{agent_name}\n{brokerage}' },
+      { id: 's2', order: 2, type: 'sms', delay_days: 1, delay_label: '1 day later', body: 'Hi {first_name}! It\'s {agent_first_name} from {brokerage}. Just wanted to make sure you got my email yesterday. I\'d love to chat about your home search — what works best for a quick call?' },
+      { id: 's3', order: 3, type: 'email', delay_days: 3, delay_label: '3 days later', subject: 'Your Arizona Buyer\'s Guide', body: 'Hi {first_name},\n\nI put together a quick guide covering everything you need to know about buying in Arizona — from earnest money timelines to inspection periods.\n\nKey things to know:\n- Earnest money is due within 3 business days of acceptance\n- You\'ll have a 10-day inspection period\n- Arizona uses a Buyer Broker Agreement (BBA)\n\nWould you like me to send you the full buyer\'s guide? Also happy to hop on a call to walk through the process.\n\n{agent_first_name}' },
+      { id: 's4', order: 4, type: 'email', delay_days: 7, delay_label: '7 days later', subject: 'Homes that match your search', body: 'Hi {first_name},\n\nI\'ve been keeping an eye on the market and wanted to share some properties that might interest you. The East Valley market is moving — homes in Gilbert, Chandler, and Mesa are seeing strong activity.\n\nWould you like me to set up a custom search so you get notified the moment new listings hit the market?\n\nLet me know what price range and areas you\'re focused on, and I\'ll get that set up for you today.\n\n{agent_first_name}' },
       { id: 's5', order: 5, type: 'sms', delay_days: 10, delay_label: '10 days later', body: 'Hey {first_name}! Just checking in on your home search. Any questions I can answer? I have some great new listings in the East Valley if you\'d like to take a look.' },
-      { id: 's6', order: 6, type: 'email', delay_days: 14, delay_label: '14 days later', subject: 'Market update + next steps', body: 'Hi {first_name},\n\nI wanted to give you a quick market update — the East Valley is still competitive but there are great opportunities if you\'re prepared.\n\nHere\'s what I\'m seeing:\n- Average days on market: ~30 days\n- Multiple offer situations on well-priced homes\n- Sellers are motivated before summer\n\nIf you\'re ready to start touring homes, I\'d love to set up some showings. The first step is getting pre-approved (if you haven\'t already) — I can connect you with a great local lender.\n\nWhat does your schedule look like this week?\n\nDana' },
+      { id: 's6', order: 6, type: 'email', delay_days: 14, delay_label: '14 days later', subject: 'Market update + next steps', body: 'Hi {first_name},\n\nI wanted to give you a quick market update — the East Valley is still competitive but there are great opportunities if you\'re prepared.\n\nHere\'s what I\'m seeing:\n- Average days on market: ~30 days\n- Multiple offer situations on well-priced homes\n- Sellers are motivated before summer\n\nIf you\'re ready to start touring homes, I\'d love to set up some showings. The first step is getting pre-approved (if you haven\'t already) — I can connect you with a great local lender.\n\nWhat does your schedule look like this week?\n\n{agent_first_name}' },
     ],
   },
   {
@@ -43,12 +45,12 @@ const STARTER_CAMPAIGNS = [
     description: 'Engage potential sellers with market data and listing prep tips',
     type: 'seller',
     steps: [
-      { id: 's1', order: 1, type: 'email', delay_days: 0, delay_label: 'Immediately', subject: 'Your home\'s value in today\'s market', body: 'Hi {first_name},\n\nThank you for your interest in selling your home! I\'m Dana Massey with Antigravity Real Estate, and I specialize in the East Valley market.\n\nI\'d love to provide you with a complimentary market analysis of your home. This will give you a clear picture of what similar homes in your area are selling for and help you understand your options.\n\nWould you prefer to:\n1. Receive a detailed CMA via email\n2. Schedule a quick in-person walkthrough\n3. Hop on a call to discuss your timeline\n\nLooking forward to helping you make the most of this market!\n\nDana Massey\nAntigravity Real Estate' },
-      { id: 's2', order: 2, type: 'sms', delay_days: 1, delay_label: '1 day later', body: 'Hi {first_name}! It\'s Dana from Antigravity RE. I\'d love to get you a home value estimate. What\'s the best way to connect — call, text, or email?' },
-      { id: 's3', order: 3, type: 'email', delay_days: 4, delay_label: '4 days later', subject: '5 things that increase your home\'s value', body: 'Hi {first_name},\n\nWhether you\'re selling now or in a few months, here are 5 things that can significantly impact your sale price:\n\n1. Curb appeal — first impressions matter\n2. Kitchen & bath updates — even small refreshes help\n3. Decluttering & staging — buyers need to envision themselves\n4. Professional photography — 90% of buyers start online\n5. Strategic pricing — overpricing costs you more than underpricing\n\nI help my sellers with all of this as part of my listing process. Would you like to learn more about my marketing plan?\n\nDana' },
-      { id: 's4', order: 4, type: 'email', delay_days: 8, delay_label: '8 days later', subject: 'What\'s happening in your neighborhood', body: 'Hi {first_name},\n\nI wanted to share what\'s been happening in your area recently:\n\n- Homes are selling in an average of X days\n- The average sale price has [increased/decreased] X% this year\n- Buyer demand remains strong in the East Valley\n\nTiming is everything in real estate. If you\'re curious about where your home fits in this market, I\'d be happy to run the numbers for you.\n\nNo pressure — just information to help you make the best decision.\n\nDana' },
+      { id: 's1', order: 1, type: 'email', delay_days: 0, delay_label: 'Immediately', subject: 'Your home\'s value in today\'s market', body: 'Hi {first_name},\n\nThank you for your interest in selling your home! I\'m {agent_name} with {brokerage}, and I specialize in the East Valley market.\n\nI\'d love to provide you with a complimentary market analysis of your home. This will give you a clear picture of what similar homes in your area are selling for and help you understand your options.\n\nWould you prefer to:\n1. Receive a detailed CMA via email\n2. Schedule a quick in-person walkthrough\n3. Hop on a call to discuss your timeline\n\nLooking forward to helping you make the most of this market!\n\n{agent_name}\n{brokerage}' },
+      { id: 's2', order: 2, type: 'sms', delay_days: 1, delay_label: '1 day later', body: 'Hi {first_name}! It\'s {agent_first_name} from {brokerage}. I\'d love to get you a home value estimate. What\'s the best way to connect — call, text, or email?' },
+      { id: 's3', order: 3, type: 'email', delay_days: 4, delay_label: '4 days later', subject: '5 things that increase your home\'s value', body: 'Hi {first_name},\n\nWhether you\'re selling now or in a few months, here are 5 things that can significantly impact your sale price:\n\n1. Curb appeal — first impressions matter\n2. Kitchen & bath updates — even small refreshes help\n3. Decluttering & staging — buyers need to envision themselves\n4. Professional photography — 90% of buyers start online\n5. Strategic pricing — overpricing costs you more than underpricing\n\nI help my sellers with all of this as part of my listing process. Would you like to learn more about my marketing plan?\n\n{agent_first_name}' },
+      { id: 's4', order: 4, type: 'email', delay_days: 8, delay_label: '8 days later', subject: 'What\'s happening in your neighborhood', body: 'Hi {first_name},\n\nI wanted to share what\'s been happening in your area recently:\n\n- Homes are selling in an average of X days\n- The average sale price has [increased/decreased] X% this year\n- Buyer demand remains strong in the East Valley\n\nTiming is everything in real estate. If you\'re curious about where your home fits in this market, I\'d be happy to run the numbers for you.\n\nNo pressure — just information to help you make the best decision.\n\n{agent_first_name}' },
       { id: 's5', order: 5, type: 'sms', delay_days: 12, delay_label: '12 days later', body: 'Hi {first_name}! Homes in your area are moving fast right now. Would you like me to send you a quick snapshot of recent sales near you?' },
-      { id: 's6', order: 6, type: 'email', delay_days: 21, delay_label: '21 days later', subject: 'Still thinking about selling?', body: 'Hi {first_name},\n\nJust wanted to follow up and see where you\'re at with your plans. Whether you\'re ready to list next week or next year, I\'m here as a resource.\n\nIf you\'d like, I can:\n- Send you a current CMA for your home\n- Walk through my marketing and pricing strategy\n- Answer any questions about the process\n\nNo obligation — I want to make sure you have all the info you need to make the right decision for your family.\n\nDana' },
+      { id: 's6', order: 6, type: 'email', delay_days: 21, delay_label: '21 days later', subject: 'Still thinking about selling?', body: 'Hi {first_name},\n\nJust wanted to follow up and see where you\'re at with your plans. Whether you\'re ready to list next week or next year, I\'m here as a resource.\n\nIf you\'d like, I can:\n- Send you a current CMA for your home\n- Walk through my marketing and pricing strategy\n- Answer any questions about the process\n\nNo obligation — I want to make sure you have all the info you need to make the right decision for your family.\n\n{agent_first_name}' },
     ],
     status: 'template',
   },
@@ -58,10 +60,10 @@ const STARTER_CAMPAIGNS = [
     description: 'Nurture leads captured at open houses',
     type: 'open_house',
     steps: [
-      { id: 's1', order: 1, type: 'email', delay_days: 0, delay_label: 'Same day', subject: 'Great meeting you at the open house!', body: 'Hi {first_name},\n\nIt was great meeting you at today\'s open house at {property_address}! I hope you enjoyed the tour.\n\nI\'d love to know — what did you think of the home? Are there other properties you\'d like to see?\n\nIf this home interested you, I can get you more details on the seller\'s situation and help you put together a competitive offer.\n\nEither way, I\'m here to help with your home search. Let me know how I can help!\n\nDana Massey\nAntigravity Real Estate' },
+      { id: 's1', order: 1, type: 'email', delay_days: 0, delay_label: 'Same day', subject: 'Great meeting you at the open house!', body: 'Hi {first_name},\n\nIt was great meeting you at today\'s open house at {property_address}! I hope you enjoyed the tour.\n\nI\'d love to know — what did you think of the home? Are there other properties you\'d like to see?\n\nIf this home interested you, I can get you more details on the seller\'s situation and help you put together a competitive offer.\n\nEither way, I\'m here to help with your home search. Let me know how I can help!\n\n{agent_name}\n{brokerage}' },
       { id: 's2', order: 2, type: 'sms', delay_days: 1, delay_label: '1 day later', body: 'Hi {first_name}! Thanks again for coming to the open house yesterday. Any thoughts on the home? I\'d love to help you find the right one!' },
-      { id: 's3', order: 3, type: 'email', delay_days: 3, delay_label: '3 days later', subject: 'Similar homes you might love', body: 'Hi {first_name},\n\nSince you showed interest in {property_address}, I pulled some similar properties in the area that you might like.\n\nWant me to set up showings for any of these? I\'m available this week and would love to show you around.\n\nDana' },
-      { id: 's4', order: 4, type: 'email', delay_days: 7, delay_label: '7 days later', subject: 'Your home search — let\'s make a plan', body: 'Hi {first_name},\n\nI wanted to check in and see how your home search is going. If you\'re actively looking, here\'s how I can help:\n\n- Set up automated listings alerts tailored to you\n- Schedule private showings at your convenience\n- Help you get pre-approved if you haven\'t already\n\nWhat does your ideal home look like? Let\'s chat and get you on the right track.\n\nDana' },
+      { id: 's3', order: 3, type: 'email', delay_days: 3, delay_label: '3 days later', subject: 'Similar homes you might love', body: 'Hi {first_name},\n\nSince you showed interest in {property_address}, I pulled some similar properties in the area that you might like.\n\nWant me to set up showings for any of these? I\'m available this week and would love to show you around.\n\n{agent_first_name}' },
+      { id: 's4', order: 4, type: 'email', delay_days: 7, delay_label: '7 days later', subject: 'Your home search — let\'s make a plan', body: 'Hi {first_name},\n\nI wanted to check in and see how your home search is going. If you\'re actively looking, here\'s how I can help:\n\n- Set up automated listings alerts tailored to you\n- Schedule private showings at your convenience\n- Help you get pre-approved if you haven\'t already\n\nWhat does your ideal home look like? Let\'s chat and get you on the right track.\n\n{agent_first_name}' },
       { id: 's5', order: 5, type: 'sms', delay_days: 14, delay_label: '14 days later', body: 'Hey {first_name}! Hope your home search is going well. I have some new listings that just hit the market. Want me to send them your way?' },
     ],
     status: 'template',
@@ -72,10 +74,10 @@ const STARTER_CAMPAIGNS = [
     description: 'Stay top-of-mind with past clients for referrals and repeat business',
     type: 'past_client',
     steps: [
-      { id: 's1', order: 1, type: 'email', delay_days: 0, delay_label: 'Immediately', subject: 'Happy homeversary! + a gift for you', body: 'Hi {first_name},\n\nCan you believe it\'s been [X time] since you closed on your home? I hope you\'re loving it!\n\nI wanted to check in and see how everything is going. Also, I have a small gift I\'d love to drop off — are you available this week?\n\nIf you know anyone thinking about buying or selling, I\'d love the opportunity to help them the way I helped you. Referrals mean the world to me.\n\nHope to see you soon!\n\nDana' },
+      { id: 's1', order: 1, type: 'email', delay_days: 0, delay_label: 'Immediately', subject: 'Happy homeversary! + a gift for you', body: 'Hi {first_name},\n\nCan you believe it\'s been [X time] since you closed on your home? I hope you\'re loving it!\n\nI wanted to check in and see how everything is going. Also, I have a small gift I\'d love to drop off — are you available this week?\n\nIf you know anyone thinking about buying or selling, I\'d love the opportunity to help them the way I helped you. Referrals mean the world to me.\n\nHope to see you soon!\n\n{agent_first_name}' },
       { id: 's2', order: 2, type: 'sms', delay_days: 2, delay_label: '2 days later', body: 'Hey {first_name}! Happy homeversary! I\'d love to stop by with a small gift. What day works best for you this week?' },
-      { id: 's3', order: 3, type: 'email', delay_days: 7, delay_label: '7 days later', subject: 'Your neighborhood market update', body: 'Hi {first_name},\n\nI thought you might be interested to see what\'s been happening in your neighborhood. Here\'s a quick snapshot of recent activity:\n\n- Homes near you are selling for $X on average\n- Your home\'s estimated value has [increased/remained strong]\n- Demand in your area remains high\n\nEven if you\'re not thinking of selling, it\'s always good to know where you stand. Let me know if you\'d ever like a detailed update.\n\nDana' },
-      { id: 's4', order: 4, type: 'email', delay_days: 30, delay_label: '30 days later', subject: 'Quick favor?', body: 'Hi {first_name},\n\nI hope you\'re doing well! I have a quick favor to ask — if you had a great experience working with me, would you mind leaving a review on Google or Zillow?\n\nIt really helps other buyers and sellers find the right agent, and I\'d be so grateful.\n\n[Review Link]\n\nThank you so much! And remember, if you know anyone looking to buy or sell, I\'m always here to help.\n\nDana' },
+      { id: 's3', order: 3, type: 'email', delay_days: 7, delay_label: '7 days later', subject: 'Your neighborhood market update', body: 'Hi {first_name},\n\nI thought you might be interested to see what\'s been happening in your neighborhood. Here\'s a quick snapshot of recent activity:\n\n- Homes near you are selling for $X on average\n- Your home\'s estimated value has [increased/remained strong]\n- Demand in your area remains high\n\nEven if you\'re not thinking of selling, it\'s always good to know where you stand. Let me know if you\'d ever like a detailed update.\n\n{agent_first_name}' },
+      { id: 's4', order: 4, type: 'email', delay_days: 30, delay_label: '30 days later', subject: 'Quick favor?', body: 'Hi {first_name},\n\nI hope you\'re doing well! I have a quick favor to ask — if you had a great experience working with me, would you mind leaving a review on Google or Zillow?\n\nIt really helps other buyers and sellers find the right agent, and I\'d be so grateful.\n\n[Review Link]\n\nThank you so much! And remember, if you know anyone looking to buy or sell, I\'m always here to help.\n\n{agent_first_name}' },
     ],
     status: 'template',
   },
@@ -85,9 +87,9 @@ const STARTER_CAMPAIGNS = [
     description: 'Stay connected with your SOI — friends, family, past coworkers',
     type: 'sphere',
     steps: [
-      { id: 's1', order: 1, type: 'email', delay_days: 0, delay_label: 'Immediately', subject: 'Hey! Quick real estate question for you', body: 'Hey {first_name}!\n\nI hope you\'re doing great! I wanted to reach out because I\'ve been growing my real estate business here in the East Valley and I\'d love your help.\n\nDo you know anyone who\'s thinking about buying or selling a home? I\'m always looking to help great people, and a personal introduction goes a long way.\n\nNo pressure at all — just thought I\'d ask! Let\'s catch up soon.\n\nDana' },
+      { id: 's1', order: 1, type: 'email', delay_days: 0, delay_label: 'Immediately', subject: 'Hey! Quick real estate question for you', body: 'Hey {first_name}!\n\nI hope you\'re doing great! I wanted to reach out because I\'ve been growing my real estate business here in the East Valley and I\'d love your help.\n\nDo you know anyone who\'s thinking about buying or selling a home? I\'m always looking to help great people, and a personal introduction goes a long way.\n\nNo pressure at all — just thought I\'d ask! Let\'s catch up soon.\n\n{agent_first_name}' },
       { id: 's2', order: 2, type: 'sms', delay_days: 3, delay_label: '3 days later', body: 'Hey {first_name}! Just reaching out to say hi. If you ever hear of anyone looking to buy or sell, keep me in mind! Hope you\'re doing awesome.' },
-      { id: 's3', order: 3, type: 'email', delay_days: 14, delay_label: '14 days later', subject: 'Cool market stat I thought you\'d find interesting', body: 'Hey {first_name}!\n\nI came across something interesting and thought of you — did you know that home values in the East Valley have [stat]?\n\nWhether you\'re a homeowner curious about your equity or know someone thinking about making a move, I\'m always happy to chat real estate.\n\nHope we can grab coffee soon!\n\nDana' },
+      { id: 's3', order: 3, type: 'email', delay_days: 14, delay_label: '14 days later', subject: 'Cool market stat I thought you\'d find interesting', body: 'Hey {first_name}!\n\nI came across something interesting and thought of you — did you know that home values in the East Valley have [stat]?\n\nWhether you\'re a homeowner curious about your equity or know someone thinking about making a move, I\'m always happy to chat real estate.\n\nHope we can grab coffee soon!\n\n{agent_first_name}' },
     ],
     status: 'template',
   },
@@ -97,11 +99,11 @@ const STARTER_CAMPAIGNS = [
     description: 'Re-engage homeowners whose listing expired without selling',
     type: 'expired',
     steps: [
-      { id: 's1', order: 1, type: 'email', delay_days: 0, delay_label: 'Immediately', subject: 'I noticed your home didn\'t sell — can I help?', body: 'Hi {first_name},\n\nI noticed your home at {property_address} recently came off the market. I know that can be frustrating, especially when you were counting on a sale.\n\nI\'ve helped several homeowners in similar situations, and I\'d love to share what I think went wrong and how we can fix it. Common reasons listings expire:\n\n1. Pricing strategy that didn\'t match the market\n2. Insufficient marketing and exposure\n3. Poor presentation or staging\n\nI have a different approach that gets results. Would you be open to a quick conversation?\n\nDana Massey\nAntigravity Real Estate' },
-      { id: 's2', order: 2, type: 'sms', delay_days: 1, delay_label: '1 day later', body: 'Hi {first_name}, it\'s Dana with Antigravity RE. I saw your listing expired — I have some ideas on how to get it sold. Would you be open to a quick chat?' },
-      { id: 's3', order: 3, type: 'email', delay_days: 4, delay_label: '4 days later', subject: 'What I\'d do differently with your listing', body: 'Hi {first_name},\n\nI\'ve been thinking about your home at {property_address} and what it would take to get it sold. Here\'s what my listing strategy includes:\n\n- Professional photography + video tour + drone\n- Targeted social media advertising\n- Strategic pricing based on current market data\n- Open house strategy with neighborhood marketing\n- Weekly communication and transparency\n\nI\'d love to show you my full marketing plan. No obligation — just a conversation to see if we\'re a good fit.\n\nDana' },
+      { id: 's1', order: 1, type: 'email', delay_days: 0, delay_label: 'Immediately', subject: 'I noticed your home didn\'t sell — can I help?', body: 'Hi {first_name},\n\nI noticed your home at {property_address} recently came off the market. I know that can be frustrating, especially when you were counting on a sale.\n\nI\'ve helped several homeowners in similar situations, and I\'d love to share what I think went wrong and how we can fix it. Common reasons listings expire:\n\n1. Pricing strategy that didn\'t match the market\n2. Insufficient marketing and exposure\n3. Poor presentation or staging\n\nI have a different approach that gets results. Would you be open to a quick conversation?\n\n{agent_name}\n{brokerage}' },
+      { id: 's2', order: 2, type: 'sms', delay_days: 1, delay_label: '1 day later', body: 'Hi {first_name}, it\'s {agent_first_name} with {brokerage}. I saw your listing expired — I have some ideas on how to get it sold. Would you be open to a quick chat?' },
+      { id: 's3', order: 3, type: 'email', delay_days: 4, delay_label: '4 days later', subject: 'What I\'d do differently with your listing', body: 'Hi {first_name},\n\nI\'ve been thinking about your home at {property_address} and what it would take to get it sold. Here\'s what my listing strategy includes:\n\n- Professional photography + video tour + drone\n- Targeted social media advertising\n- Strategic pricing based on current market data\n- Open house strategy with neighborhood marketing\n- Weekly communication and transparency\n\nI\'d love to show you my full marketing plan. No obligation — just a conversation to see if we\'re a good fit.\n\n{agent_first_name}' },
       { id: 's4', order: 4, type: 'sms', delay_days: 8, delay_label: '8 days later', body: 'Hey {first_name} — just wanted to follow up one more time. I truly believe I can get your home sold. Happy to meet for a quick coffee to chat. No pressure!' },
-      { id: 's5', order: 5, type: 'email', delay_days: 14, delay_label: '14 days later', subject: 'One last thought about your home', body: 'Hi {first_name},\n\nI wanted to reach out one final time. I understand the frustration of a listing that didn\'t sell, and I respect your time.\n\nIf and when you\'re ready to try again, I\'d love to be your agent. I\'ll be here whenever you\'re ready — no expiration date on that offer.\n\nWishing you the best!\n\nDana' },
+      { id: 's5', order: 5, type: 'email', delay_days: 14, delay_label: '14 days later', subject: 'One last thought about your home', body: 'Hi {first_name},\n\nI wanted to reach out one final time. I understand the frustration of a listing that didn\'t sell, and I respect your time.\n\nIf and when you\'re ready to try again, I\'d love to be your agent. I\'ll be here whenever you\'re ready — no expiration date on that offer.\n\nWishing you the best!\n\n{agent_first_name}' },
     ],
     status: 'template',
   },
@@ -144,7 +146,8 @@ const DELAY_OPTIONS = [
 // ─── Variable tokens for templates ──────────────────────────────────────────
 const TEMPLATE_VARS = [
   '{first_name}', '{last_name}', '{full_name}', '{email}', '{phone}',
-  '{property_address}', '{agent_name}',
+  '{property_address}', '{agent_name}', '{agent_first_name}', '{brokerage}',
+  '{agent_email}', '{agent_phone}',
 ]
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -154,6 +157,20 @@ export default function SmartCampaigns() {
   /* ─── Data ─── */
   const { data: contacts } = useContacts()
   const allContacts = contacts ?? []
+  const sig = useBrandSignature()
+
+  /* ─── Agent profile variable resolver ─── */
+  const resolveAgentVars = useCallback((text) => {
+    if (!text) return text
+    const agentName = sig.full_name || ''
+    const agentFirst = agentName.split(' ')[0] || ''
+    return text
+      .replace(/\{agent_name\}/g, agentName)
+      .replace(/\{agent_first_name\}/g, agentFirst)
+      .replace(/\{brokerage\}/g, sig.brokerage || '')
+      .replace(/\{agent_email\}/g, sig.email || '')
+      .replace(/\{agent_phone\}/g, sig.phone || '')
+  }, [sig])
 
   /* ─── State ─── */
   const [campaigns, setCampaigns]       = useState(() => loadJSON(CAMPAIGNS_KEY, []))
@@ -312,14 +329,65 @@ export default function SmartCampaigns() {
     if (e) addHistory(enrollmentId, e.campaign_id, e.contact_id, e.contact_name, e.campaign_name, 'step_sent', `${step?.type === 'sms' ? 'SMS' : 'Email'} sent: ${step?.subject || '(SMS)'}`)
   }, [campaigns, enrollments])
 
+  const buildVars = useCallback((enrollment) => {
+    const contact = allContacts.find(c => c.id === enrollment.contact_id) ?? {}
+    const firstName = (contact.name || enrollment.contact_name || '').split(' ')[0]
+    const agentName = sig.full_name || ''
+    return {
+      first_name: firstName,
+      last_name: (contact.name || '').split(' ').slice(1).join(' '),
+      full_name: contact.name || enrollment.contact_name || '',
+      email: contact.email || enrollment.contact_email || '',
+      phone: contact.phone || enrollment.contact_phone || '',
+      agent_name: agentName,
+      agent_first_name: agentName.split(' ')[0] || '',
+      brokerage: sig.brokerage || '',
+      agent_email: sig.email || '',
+      agent_phone: sig.phone || '',
+      property_address: '',
+    }
+  }, [allContacts, sig])
+
   const openGmail = useCallback((enrollment, step) => {
     const contact = allContacts.find(c => c.id === enrollment.contact_id) ?? {}
     const email = contact.email || enrollment.contact_email || ''
     const firstName = (contact.name || enrollment.contact_name || '').split(' ')[0]
-    let subject = (step.subject || '').replace(/\{first_name\}/g, firstName).replace(/\{full_name\}/g, contact.name || '')
-    let body = (step.body || '').replace(/\{first_name\}/g, firstName).replace(/\{full_name\}/g, contact.name || '').replace(/\{agent_name\}/g, 'Dana Massey')
+    let subject = resolveAgentVars((step.subject || '').replace(/\{first_name\}/g, firstName).replace(/\{full_name\}/g, contact.name || ''))
+    let body = resolveAgentVars((step.body || '').replace(/\{first_name\}/g, firstName).replace(/\{full_name\}/g, contact.name || ''))
     window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
-  }, [allContacts])
+  }, [allContacts, resolveAgentVars])
+
+  const copyFormattedEmail = useCallback((enrollment, step) => {
+    if (!step.email_blocks?.length) return
+    const vars = buildVars(enrollment)
+    // Fill text blocks with the step's body content
+    const blocks = step.email_blocks.map(b => {
+      if (b.type === 'text' && !b.content && step.body) return { ...b, content: step.body }
+      // Fill signature from brand
+      if (b.type === 'signature') return {
+        ...b,
+        name: b.name || sig.full_name || '',
+        title: b.title || sig.brokerage || '',
+        phone: b.phone || sig.phone || '',
+        email: b.email || sig.email || '',
+      }
+      return b
+    })
+    const html = blocksToHtml(blocks, step.email_settings || {}, vars)
+
+    // Copy as rich HTML using clipboard API
+    const blob = new Blob([html], { type: 'text/html' })
+    const textBlob = new Blob([step.body || ''], { type: 'text/plain' })
+    navigator.clipboard.write([
+      new ClipboardItem({ 'text/html': blob, 'text/plain': textBlob })
+    ]).then(() => {
+      alert('Formatted email copied! Paste it into Gmail compose (Ctrl+V / Cmd+V)')
+    }).catch(() => {
+      // Fallback: copy plain HTML
+      navigator.clipboard.writeText(html)
+      alert('HTML copied to clipboard')
+    })
+  }, [buildVars, sig])
 
   function addHistory(enrollmentId, campaignId, contactId, contactName, campaignName, action, detail) {
     setHistory(prev => [{
@@ -514,8 +582,14 @@ export default function SmartCampaigns() {
                   <h4 className="sc-queue-card__contact">{enrollment.contact_name}</h4>
                   <p className="sc-queue-card__campaign">{campaign?.name ?? 'Unknown'} — Step {(enrollment.current_step ?? 0) + 1} of {campaign?.steps?.length ?? '?'}</p>
                   {step?.subject && <p className="sc-queue-card__subject">Subject: {step.subject}</p>}
-                  <div className="sc-queue-card__preview">{step?.body?.slice(0, 200)}...</div>
+                  <div className="sc-queue-card__preview">{resolveAgentVars(step?.body)?.slice(0, 200)}...</div>
+                  {step?.email_blocks?.length > 0 && (
+                    <EmailPreviewInline blocks={step.email_blocks} settings={step.email_settings} vars={buildVars(enrollment)} body={step.body} sig={sig} />
+                  )}
                   <div className="sc-queue-card__actions">
+                    {step?.type === 'email' && step?.email_blocks?.length > 0 && (
+                      <Button size="sm" variant="accent" onClick={() => copyFormattedEmail(enrollment, step)}>Copy Formatted</Button>
+                    )}
                     {step?.type === 'email' && (
                       <Button size="sm" variant="ghost" onClick={() => openGmail(enrollment, step)}>Open in Gmail</Button>
                     )}
@@ -523,7 +597,7 @@ export default function SmartCampaigns() {
                       <Button size="sm" variant="ghost" onClick={() => {
                         const phone = enrollment.contact_phone || ''
                         const firstName = (enrollment.contact_name || '').split(' ')[0]
-                        const body = (step.body || '').replace(/\{first_name\}/g, firstName)
+                        const body = resolveAgentVars((step.body || '').replace(/\{first_name\}/g, firstName))
                         window.open(`sms:${phone}?body=${encodeURIComponent(body)}`, '_blank')
                       }}>Open SMS</Button>
                     )}
@@ -741,6 +815,7 @@ export default function SmartCampaigns() {
           onStop={() => stopEnrollment(detailPanel)}
           onMarkSent={(stepIdx) => markStepSent(detailPanel, stepIdx)}
           onOpenGmail={(enrollment, step) => openGmail(enrollment, step)}
+          onCopyFormatted={(enrollment, step) => copyFormattedEmail(enrollment, step)}
           allEnrollments={enrollments}
         />}
       </SlidePanel>
@@ -854,6 +929,14 @@ function CampaignEditor({ campaign, onSave, onCancel }) {
                   <Input label="Subject Line" value={step.subject || ''} onChange={e => updateStep(idx, { subject: e.target.value })} placeholder="e.g., Welcome! Let's get started" />
                 )}
                 <Textarea label={step.type === 'sms' ? 'Message' : 'Email Body'} value={step.body || ''} onChange={e => updateStep(idx, { body: e.target.value })} rows={step.type === 'sms' ? 3 : 8} placeholder={step.type === 'sms' ? 'Keep SMS under 160 characters for best delivery' : 'Write your email content here...'} />
+
+                {step.type === 'email' && (
+                  <EmailTemplatePicker
+                    currentTemplate={step.email_blocks ? { blocks: step.email_blocks, settings: step.email_settings } : null}
+                    onSelect={(tpl) => updateStep(idx, { email_blocks: tpl.blocks, email_settings: tpl.settings })}
+                    onClear={() => updateStep(idx, { email_blocks: null, email_settings: null })}
+                  />
+                )}
                 <div className="sc-step-card__vars">
                   <span className="sc-step-card__vars-label">Variables:</span>
                   {TEMPLATE_VARS.map(v => (
@@ -885,7 +968,7 @@ function CampaignEditor({ campaign, onSave, onCancel }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Enrollment Detail Sub-Component
 // ═══════════════════════════════════════════════════════════════════════════════
-function EnrollmentDetail({ enrollment, campaign, history, onPause, onResume, onStop, onMarkSent, onOpenGmail, allEnrollments }) {
+function EnrollmentDetail({ enrollment, campaign, history, onPause, onResume, onStop, onMarkSent, onOpenGmail, onCopyFormatted, allEnrollments }) {
   if (!enrollment) return null
 
   const steps = campaign?.steps ?? []
@@ -938,6 +1021,7 @@ function EnrollmentDetail({ enrollment, campaign, history, onPause, onResume, on
                   <span className="sc-detail__check">✓</span>
                 ) : isCurrent ? (
                   <div style={{ display: 'flex', gap: 4 }}>
+                    {step.type === 'email' && step.email_blocks?.length > 0 && <Button size="sm" variant="accent" onClick={() => onCopyFormatted(enrollment, step)}>Copy Formatted</Button>}
                     {step.type === 'email' && <Button size="sm" variant="ghost" onClick={() => onOpenGmail(enrollment, step)}>Gmail</Button>}
                     <Button size="sm" onClick={() => onMarkSent(idx)}>Mark Sent</Button>
                   </div>
@@ -982,6 +1066,93 @@ function EnrollmentDetail({ enrollment, campaign, history, onPause, onResume, on
           ))
         )}
       </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Email Template Picker — attach beautiful templates to campaign steps
+// ═══════════════════════════════════════════════════════════════════════════════
+function EmailTemplatePicker({ currentTemplate, onSelect, onClear }) {
+  const [open, setOpen] = useState(false)
+  const { saved } = getEmailTemplates()
+  const allTemplates = [...CAMPAIGN_EMAIL_TEMPLATES, ...saved.map(t => ({ ...t, blocks: t.blocks, settings: t.emailSettings || {} }))]
+
+  if (currentTemplate) {
+    return (
+      <div className="sc-tpl-picker">
+        <div className="sc-tpl-picker__attached">
+          <Badge variant="accent" size="sm">TEMPLATE ATTACHED</Badge>
+          <span className="sc-tpl-picker__attached-text">This email will be sent as a beautiful formatted email</span>
+          <button className="sc-tpl-picker__remove" onClick={onClear}>Remove</button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="sc-tpl-picker">
+      {!open ? (
+        <button className="sc-tpl-picker__toggle" onClick={() => setOpen(true)}>
+          + Attach Email Design
+          <span className="sc-tpl-picker__hint">Make this a beautiful formatted email</span>
+        </button>
+      ) : (
+        <div className="sc-tpl-picker__dropdown">
+          <p className="sc-tpl-picker__label">Choose a design template:</p>
+          <div className="sc-tpl-picker__grid">
+            {allTemplates.map(tpl => (
+              <button
+                key={tpl.id}
+                className="sc-tpl-picker__option"
+                onClick={() => {
+                  onSelect({ blocks: tpl.blocks.map(b => ({ ...b })), settings: tpl.settings || {} })
+                  setOpen(false)
+                }}
+              >
+                <span className="sc-tpl-picker__emoji">{tpl.emoji || '✉'}</span>
+                <span className="sc-tpl-picker__name">{tpl.name}</span>
+              </button>
+            ))}
+          </div>
+          <button className="sc-tpl-picker__cancel" onClick={() => setOpen(false)}>Cancel</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Email Preview Inline — shows a mini preview of the formatted email in queue
+// ═══════════════════════════════════════════════════════════════════════════════
+function EmailPreviewInline({ blocks, settings, vars, body, sig }) {
+  const [expanded, setExpanded] = useState(false)
+  const previewRef = useRef(null)
+
+  const filledBlocks = (blocks || []).map(b => {
+    if (b.type === 'text' && !b.content && body) return { ...b, content: body }
+    if (b.type === 'signature') return {
+      ...b,
+      name: b.name || sig?.full_name || '',
+      title: b.title || sig?.brokerage || '',
+      phone: b.phone || sig?.phone || '',
+      email: b.email || sig?.email || '',
+    }
+    return b
+  })
+
+  const html = blocksToHtml(filledBlocks, settings || {}, vars || {})
+
+  return (
+    <div className="sc-email-preview">
+      <button className="sc-email-preview__toggle" onClick={() => setExpanded(!expanded)}>
+        {expanded ? 'Hide Preview' : 'Preview Formatted Email'}
+      </button>
+      {expanded && (
+        <div className="sc-email-preview__frame">
+          <div ref={previewRef} dangerouslySetInnerHTML={{ __html: html }} />
+        </div>
+      )}
     </div>
   )
 }
