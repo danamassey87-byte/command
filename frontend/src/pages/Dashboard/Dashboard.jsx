@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { StatCard, Card, Badge, InfoTip, AddressLink } from '../../components/ui/index.jsx'
-import { useDashboardData } from '../../lib/hooks.js'
+import { useDashboardData, useAllDailyTasks, useDailyStreaks } from '../../lib/hooks.js'
+import * as DB from '../../lib/supabase.js'
 import './Dashboard.css'
 
 const PLANNED_WEEKS = 43
@@ -564,6 +566,107 @@ function ActivityFeedCard({ activity }) {
   )
 }
 
+// ─── Daily Tasks Widget ──────────────────────────────────────────────────────
+function DailyTasksWidget() {
+  const navigate = useNavigate()
+  const { data: allTasks, refetch } = useAllDailyTasks()
+  const { data: streaks } = useDailyStreaks()
+  const today = new Date().toISOString().slice(0, 10)
+
+  const tasks = allTasks ?? []
+  const todayTasks = tasks.filter(t => {
+    if (t.is_recurring) return t.recur_day === new Date().getDay()
+    return t.due_date === today
+  })
+  const pending = todayTasks.filter(t => t.status !== 'completed')
+  const done = todayTasks.filter(t => t.status === 'completed')
+  const pct = todayTasks.length > 0 ? Math.round((done.length / todayTasks.length) * 100) : 0
+
+  const streak = useMemo(() => {
+    if (!streaks?.length) return 0
+    let count = 0
+    const sorted = [...streaks].sort((a, b) => b.date.localeCompare(a.date))
+    for (const s of sorted) {
+      if (s.all_completed) count++
+      else break
+    }
+    return count
+  }, [streaks])
+
+  const toggleTask = async (task) => {
+    try {
+      if (task.status === 'completed') await DB.uncompleteDailyTask(task.id)
+      else await DB.completeDailyTask(task.id)
+      refetch()
+    } catch (e) { console.error(e) }
+  }
+
+  const overdue = tasks.filter(t => t.due_date && t.due_date < today && t.status !== 'completed' && !t.is_recurring)
+
+  const catColors = {
+    email: 'var(--color-info)', sms: '#7ba1c7', transaction: 'var(--color-success)',
+    prospecting: 'var(--color-warning)', admin: '#8b8b8b', marketing: '#8b7ec8',
+    vendor: '#b07d62', showing: '#6a9e72', follow_up: '#c9962e',
+    general: 'var(--brown-mid)', personal: 'var(--color-danger)',
+  }
+
+  return (
+    <DbCard title="Daily Tasks" tip="Your task hub — everything you need to do today from across the app. Click to open full view.">
+      <div className="dtw-top">
+        <div className="dtw-progress">
+          <svg viewBox="0 0 36 36" className="dtw-progress__svg">
+            <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--color-border-light)" strokeWidth="3" />
+            <circle cx="18" cy="18" r="15.5" fill="none"
+              stroke={pct >= 100 ? 'var(--color-success)' : 'var(--brown-mid)'}
+              strokeWidth="3" strokeDasharray={`${pct} 100`}
+              strokeLinecap="round" transform="rotate(-90 18 18)" />
+          </svg>
+          <span className="dtw-progress__pct">{pct}%</span>
+        </div>
+        <div className="dtw-stats">
+          <span className="dtw-stats__line"><strong>{done.length}</strong> done / <strong>{todayTasks.length}</strong> total</span>
+          {streak > 0 && <span className="dtw-stats__streak">{'\u{1F525}'} {streak} day streak</span>}
+          {overdue.length > 0 && <span className="dtw-stats__overdue">{'\u26A0'} {overdue.length} overdue</span>}
+        </div>
+      </div>
+
+      {pending[0] && (
+        <div className="dtw-next">
+          <span className="dtw-next__label">Next up:</span>
+          <span className="dtw-next__title">{pending[0].title}</span>
+          {pending[0].due_time && <span className="dtw-next__time">{
+            (() => { const [h,m] = pending[0].due_time.split(':'); const hr = Number(h); return `${hr > 12 ? hr-12 : hr||12}:${m} ${hr >= 12 ? 'PM' : 'AM'}` })()
+          }</span>}
+        </div>
+      )}
+
+      <div className="dtw-list">
+        {pending.slice(0, 5).map(t => (
+          <div key={t.id} className="dtw-item">
+            <button className="dtw-item__check" onClick={e => { e.stopPropagation(); toggleTask(t) }}>
+              <span className="dtw-item__circle" style={{ borderColor: catColors[t.category] || 'var(--brown-mid)' }} />
+            </button>
+            <span className="dtw-item__title">{t.title}</span>
+            {t.priority === 'urgent' && <span className="dtw-item__flag">!</span>}
+          </div>
+        ))}
+        {done.slice(0, 2).map(t => (
+          <div key={t.id} className="dtw-item dtw-item--done">
+            <button className="dtw-item__check" onClick={e => { e.stopPropagation(); toggleTask(t) }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><polyline points="20 6 9 17 4 12" /></svg>
+            </button>
+            <span className="dtw-item__title">{t.title}</span>
+          </div>
+        ))}
+      </div>
+
+      {todayTasks.length > 7 && <p className="dtw-more">+{todayTasks.length - 7} more tasks</p>}
+
+      <button className="dtw-cta" onClick={() => navigate('/tasks')}>Open Daily Tasks &rarr;</button>
+    </DbCard>
+  )
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const {
@@ -617,6 +720,9 @@ export default function Dashboard() {
       </div>
 
       {error && <div className="dashboard__error"><strong>Error:</strong> {error}</div>}
+
+      {/* Daily Tasks Widget */}
+      <DailyTasksWidget />
 
       {/* Pipeline + Funnel */}
       <div className="db-row db-row--60-40">

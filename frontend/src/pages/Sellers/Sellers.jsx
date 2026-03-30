@@ -1,6 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, CheckItem, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
-import { useListings, useTasksForListing } from '../../lib/hooks.js'
+import { TagPicker } from '../../components/ui/TagPicker.jsx'
+import { useListings, useTasksForListing, useContactTags, useNotesForContact } from '../../lib/hooks.js'
+import { useNotesContext } from '../../lib/NotesContext.jsx'
+import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
 import './Sellers.css'
 
@@ -216,6 +219,12 @@ const COMMON_FEATURES = [
 // ─── Seller / Listing Form ────────────────────────────────────────────────────
 function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
   const isNew = !listing?.id || typeof listing.id === 'number'
+  const contactId = listing?.contact_id
+  const { data: tagData } = useContactTags(contactId)
+  const [contactTags, setContactTags] = useState([])
+  useEffect(() => {
+    if (tagData) setContactTags((tagData ?? []).map(ct => ct.tag).filter(Boolean))
+  }, [tagData])
   const [draft, setDraft] = useState({
     address:      listing?.address       ?? '',
     city:         listing?.city          ?? '',
@@ -505,6 +514,20 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
       <hr className="panel-divider" />
       <Textarea label="Notes" rows={3} value={draft.notes} onChange={e => set('notes', e.target.value)} placeholder="Key notes, seller goals, timeline…" />
 
+      {!isNew && contactId && (
+        <>
+          <hr className="panel-divider" />
+          <div className="panel-section">
+            <p className="panel-section-label">Seller Tags</p>
+            <TagPicker
+              contactId={contactId}
+              assignedTags={contactTags}
+              onTagsChange={setContactTags}
+            />
+          </div>
+        </>
+      )}
+
       {listing?.created_at && (
         <p className="panel-timestamp">Added {new Date(listing.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
       )}
@@ -532,6 +555,9 @@ function PlanView({ listing, onBack, onEdit }) {
 
   // Try to load real checklist tasks when it's a DB listing
   const { data: dbTasks, refetch: refetchTasks } = useTasksForListing(isDbRow ? listing.id : null)
+  const contactId = listing.contact_id ?? listing.contact?.id
+  const { data: linkedNotes, refetch: refetchNotes } = useNotesForContact(contactId)
+  const { openNote, createAndOpen } = useNotesContext()
   const hasTasks = dbTasks && dbTasks.length > 0
 
   // Fallback to listing.checklist for mock data
@@ -647,6 +673,33 @@ function PlanView({ listing, onBack, onEdit }) {
           )
         })}
       </div>
+
+      {/* ── Linked Notes ── */}
+      {contactId && (
+        <div style={{ marginTop: 'var(--space-lg)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <h3 style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--brown-dark)' }}>Notes ({(linkedNotes ?? []).length})</h3>
+            <Button variant="ghost" size="sm" onClick={async () => { await createAndOpen({ contact_id: contactId }); refetchNotes() }}>+ Add Note</Button>
+          </div>
+          {(linkedNotes ?? []).length === 0 ? (
+            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>No notes linked to this listing's seller yet.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {(linkedNotes ?? []).map(n => (
+                <div key={n.id} onClick={() => openNote(n)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--cream)', borderRadius: 'var(--radius-md)', cursor: 'pointer', borderLeft: n.color ? `3px solid ${n.color}` : '3px solid var(--brown-mid)' }}>
+                  <div>
+                    <p style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--brown-dark)' }}>{n.title || 'Untitled'}</p>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{(n.body ?? '').slice(0, 80)}{(n.body ?? '').length > 80 ? '...' : ''}</p>
+                  </div>
+                  <div onClick={e => e.stopPropagation()}>
+                    <FavoriteButton type="note" id={n.id} label={n.title || 'Untitled'} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

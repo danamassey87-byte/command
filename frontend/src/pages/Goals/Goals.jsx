@@ -136,8 +136,10 @@ function HeroKPIs({ stats, weekNum, fields }) {
   )
 }
 
-// ─── Scoreboard (card grid per group) ────────────────────────────────────────
+// ─── Scoreboard (tabbed groups with expandable cards) ────────────────────────
 function ScoreboardCard({ stats, weekNum, fields }) {
+  const [activeGroup, setActiveGroup] = useState('activity')
+  const [expandedCard, setExpandedCard] = useState(null)
   const weeksLogged = stats.length
   const weeksScheduledRemaining = Math.max(1, PLANNED_WEEKS * (52 - weekNum) / 52)
 
@@ -145,6 +147,8 @@ function ScoreboardCard({ stats, weekNum, fields }) {
     acc[f.key] = stats.reduce((sum, w) => sum + (Number(w[f.key]) || 0), 0)
     return acc
   }, {})
+
+  const rows = fields.filter(f => f.group === activeGroup)
 
   return (
     <div className="scoreboard">
@@ -158,69 +162,81 @@ function ScoreboardCard({ stats, weekNum, fields }) {
         </span>
       </div>
 
-      {GROUPS.map(group => {
-        const rows = fields.filter(f => f.group === group.key)
-        return (
-          <div key={group.key} className="scoreboard__group">
-            <div className="scoreboard__group-label" style={{ borderLeftColor: group.color }}>
-              {group.label}
-            </div>
-            <div className="scoreboard__grid">
-              {rows.map(f => {
-                const ytd = totals[f.key] || 0
-                const shouldBe = Math.round(f.annualGoal * weekNum / 52)
-                const weeklyAvg = weeksLogged > 0 ? ytd / weeksLogged : 0
-                const onTrackFor = Math.round(weeklyAvg * PLANNED_WEEKS)
-                const wklyReq = Math.max(0, Math.ceil((f.annualGoal - ytd) / weeksScheduledRemaining))
-                const isAhead = ytd >= shouldBe
-                const p = pct(ytd, f.annualGoal)
+      <div className="scoreboard__tabs">
+        {GROUPS.map(g => (
+          <button
+            key={g.key}
+            className={`scoreboard__tab ${activeGroup === g.key ? 'scoreboard__tab--active' : ''}`}
+            style={{ '--tab-color': g.color }}
+            onClick={() => { setActiveGroup(g.key); setExpandedCard(null) }}
+          >
+            <span className="scoreboard__tab-dot" style={{ background: g.color }} />
+            {g.label}
+          </button>
+        ))}
+      </div>
 
-                return (
-                  <div key={f.key} className="sc-card">
-                    <div className="sc-card__top">
-                      <span className="sc-card__label">{f.label}</span>
-                      <span className={`sc-card__ytd ${ytd > 0 ? (isAhead ? 'sc-card__ytd--ahead' : 'sc-card__ytd--behind') : ''}`}>
-                        {fmtN(ytd, f.isCurrency)}
-                      </span>
-                    </div>
-                    <div className="sc-card__bar">
-                      <div
-                        className={`sc-card__bar-fill ${p >= 100 ? 'sc-card__bar-fill--done' : isAhead ? 'sc-card__bar-fill--ahead' : 'sc-card__bar-fill--behind'}`}
-                        style={{ width: `${p}%` }}
-                      />
-                    </div>
-                    <div className="sc-card__meta">
-                      <div className="sc-card__meta-item">
-                        <span className="sc-card__meta-val">{fmtN(f.annualGoal, f.isCurrency)}</span>
-                        <span className="sc-card__meta-label">Goal</span>
-                      </div>
-                      <div className="sc-card__meta-item">
-                        <span className="sc-card__meta-val">{fmtN(shouldBe, f.isCurrency)}</span>
-                        <span className="sc-card__meta-label">Should Be</span>
-                      </div>
-                      <div className="sc-card__meta-item">
-                        <span className="sc-card__meta-val">{fmtAvg(weeklyAvg, f.isCurrency)}</span>
-                        <span className="sc-card__meta-label">Wkly Avg</span>
-                      </div>
-                      <div className="sc-card__meta-item">
-                        <span className={`sc-card__meta-val ${weeksLogged > 0 && ytd > 0 ? (onTrackFor >= f.annualGoal ? 'sc-card__meta-val--good' : 'sc-card__meta-val--low') : ''}`}>
-                          {weeksLogged > 0 ? fmtN(onTrackFor, f.isCurrency) : '—'}
-                        </span>
-                        <span className="sc-card__meta-label">On Track</span>
-                      </div>
-                      <div className="sc-card__meta-item">
-                        <span className="sc-card__meta-val sc-card__meta-val--req">{fmtAvg(wklyReq, f.isCurrency)}</span>
-                        <span className="sc-card__meta-label">Wkly Req</span>
-                      </div>
-                    </div>
-                    <span className="sc-card__pct">{p}%</span>
+      <div className="scoreboard__grid">
+        {rows.map(f => {
+          const ytd = totals[f.key] || 0
+          const shouldBe = Math.round(f.annualGoal * weekNum / 52)
+          const weeklyAvg = weeksLogged > 0 ? ytd / weeksLogged : 0
+          const onTrackFor = Math.round(weeklyAvg * PLANNED_WEEKS)
+          const wklyReq = Math.max(0, Math.ceil((f.annualGoal - ytd) / weeksScheduledRemaining))
+          const isAhead = ytd >= shouldBe
+          const p = pct(ytd, f.annualGoal)
+          const isExpanded = expandedCard === f.key
+
+          return (
+            <div
+              key={f.key}
+              className={`sc-card ${isExpanded ? 'sc-card--expanded' : ''}`}
+              onClick={() => setExpandedCard(isExpanded ? null : f.key)}
+            >
+              <div className="sc-card__top">
+                <span className="sc-card__label">{f.label}</span>
+                <span className={`sc-card__ytd ${ytd > 0 ? (isAhead ? 'sc-card__ytd--ahead' : 'sc-card__ytd--behind') : ''}`}>
+                  {fmtN(ytd, f.isCurrency)}
+                </span>
+              </div>
+              <div className="sc-card__bar">
+                <div
+                  className={`sc-card__bar-fill ${p >= 100 ? 'sc-card__bar-fill--done' : isAhead ? 'sc-card__bar-fill--ahead' : 'sc-card__bar-fill--behind'}`}
+                  style={{ width: `${p}%` }}
+                />
+              </div>
+              <div className="sc-card__summary">
+                <span className="sc-card__summary-req">
+                  {fmtAvg(wklyReq, f.isCurrency)}<span className="sc-card__summary-label"> /wk needed</span>
+                </span>
+                <span className="sc-card__pct">{p}%</span>
+              </div>
+              {isExpanded && (
+                <div className="sc-card__details">
+                  <div className="sc-card__detail-row">
+                    <span className="sc-card__detail-label">Annual Goal</span>
+                    <span className="sc-card__detail-val">{fmtN(f.annualGoal, f.isCurrency)}</span>
                   </div>
-                )
-              })}
+                  <div className="sc-card__detail-row">
+                    <span className="sc-card__detail-label">Should Be (Wk {weekNum})</span>
+                    <span className="sc-card__detail-val">{fmtN(shouldBe, f.isCurrency)}</span>
+                  </div>
+                  <div className="sc-card__detail-row">
+                    <span className="sc-card__detail-label">Weekly Avg</span>
+                    <span className="sc-card__detail-val">{fmtAvg(weeklyAvg, f.isCurrency)}</span>
+                  </div>
+                  <div className="sc-card__detail-row">
+                    <span className="sc-card__detail-label">On Track For</span>
+                    <span className={`sc-card__detail-val ${weeksLogged > 0 && ytd > 0 ? (onTrackFor >= f.annualGoal ? 'sc-card__detail-val--good' : 'sc-card__detail-val--low') : ''}`}>
+                      {weeksLogged > 0 ? fmtN(onTrackFor, f.isCurrency) : '—'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </div>
   )
 }

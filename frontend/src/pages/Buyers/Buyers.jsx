@@ -1,6 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
-import { useBuyers, useShowingSessionsForContact } from '../../lib/hooks.js'
+import { TagPicker, TagBadge } from '../../components/ui/TagPicker.jsx'
+import { useBuyers, useShowingSessionsForContact, useContactTags, useNotesForContact } from '../../lib/hooks.js'
+import { useNotesContext } from '../../lib/NotesContext.jsx'
+import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
 import './Buyers.css'
 
@@ -45,6 +48,11 @@ const showingStatusVariant = { 'scheduled': 'info', 'toured': 'default', 'offer-
 // ─── Buyer Edit Form ───────────────────────────────────────────────────────────
 function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
   const isNew = !buyer?.id || typeof buyer.id === 'number'
+  const { data: tagData } = useContactTags(buyer?.id)
+  const [contactTags, setContactTags] = useState([])
+  useEffect(() => {
+    if (tagData) setContactTags((tagData ?? []).map(ct => ct.tag).filter(Boolean))
+  }, [tagData])
   const [draft, setDraft] = useState({
     name:                buyer?.name ?? '',
     phone:               buyer?.phone ?? '',
@@ -139,6 +147,20 @@ function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
       <hr className="panel-divider" />
       <Textarea label="Notes" rows={3} value={draft.notes} onChange={e => set('notes', e.target.value)} placeholder="Key requirements, timeline, financing notes…" />
 
+      {!isNew && buyer?.id && (
+        <>
+          <hr className="panel-divider" />
+          <div className="panel-section">
+            <p className="panel-section-label">Tags</p>
+            <TagPicker
+              contactId={buyer.id}
+              assignedTags={contactTags}
+              onTagsChange={setContactTags}
+            />
+          </div>
+        </>
+      )}
+
       {buyer?.created_at && (
         <p className="panel-timestamp">Added {new Date(buyer.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
       )}
@@ -161,6 +183,8 @@ function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
 // ─── Buyer Detail ─────────────────────────────────────────────────────────────
 function BuyerDetail({ buyer, onBack, onEdit }) {
   const { data: sessionsData, refetch: refetchSessions } = useShowingSessionsForContact(buyer.id)
+  const { data: linkedNotes, refetch: refetchNotes } = useNotesForContact(buyer.id)
+  const { openNote, createAndOpen } = useNotesContext()
   const sessions = sessionsData ?? []
 
   const [editingShowingId, setEditingShowingId] = useState(null)
@@ -255,6 +279,31 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
           Added {new Date(buyer.created_at).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}
         </p>
       )}
+
+      {/* ── Linked Notes ── */}
+      <div className="buyer-detail__showings-section">
+        <div className="buyer-detail__showings-header">
+          <h3>Notes ({(linkedNotes ?? []).length})</h3>
+          <Button variant="ghost" size="sm" onClick={async () => { await createAndOpen({ contact_id: buyer.id }); refetchNotes() }}>+ Add Note</Button>
+        </div>
+        {(linkedNotes ?? []).length === 0 ? (
+          <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', padding: '8px 0' }}>No notes linked to this client yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(linkedNotes ?? []).map(n => (
+              <div key={n.id} onClick={() => openNote(n)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--cream)', borderRadius: 'var(--radius-md)', cursor: 'pointer', borderLeft: n.color ? `3px solid ${n.color}` : '3px solid var(--brown-mid)' }}>
+                <div>
+                  <p style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--brown-dark)' }}>{n.title || 'Untitled'}</p>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{(n.body ?? '').slice(0, 80)}{(n.body ?? '').length > 80 ? '...' : ''}</p>
+                </div>
+                <div onClick={e => e.stopPropagation()}>
+                  <FavoriteButton type="note" id={n.id} label={n.title || 'Untitled'} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* ── Showings ── */}
       <div className="buyer-detail__showings-section">

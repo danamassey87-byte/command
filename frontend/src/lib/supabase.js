@@ -428,3 +428,170 @@ export async function deleteBrandAsset(path) {
   const { error } = await supabase.storage.from('brand-assets').remove([path])
   if (error) throw new Error(error.message)
 }
+
+// ─── Tags ────────────────────────────────────────────────────────────────────
+export const getTags = () =>
+  query(supabase.from('tags').select('*').order('category').order('name'))
+
+export const createTag = (d) =>
+  query(supabase.from('tags').insert(d).select().single())
+
+export const updateTag = (id, d) =>
+  query(supabase.from('tags').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+
+export const deleteTag = (id) =>
+  query(supabase.from('tags').delete().eq('id', id))
+
+// ─── Contact Tags (junction) ─────────────────────────────────────────────────
+export const getContactTags = (contactId) =>
+  query(supabase.from('contact_tags').select('*, tag:tags(*)').eq('contact_id', contactId))
+
+export const getAllContactTags = () =>
+  query(supabase.from('contact_tags').select('contact_id, tag:tags(id, name, color, category)'))
+
+export const addContactTag = (contactId, tagId) =>
+  query(supabase.from('contact_tags').upsert({ contact_id: contactId, tag_id: tagId }, { onConflict: 'contact_id,tag_id' }).select().single())
+
+export const removeContactTag = (contactId, tagId) =>
+  query(supabase.from('contact_tags').delete().eq('contact_id', contactId).eq('tag_id', tagId))
+
+export const bulkAddContactTags = (rows) =>
+  query(supabase.from('contact_tags').upsert(rows, { onConflict: 'contact_id,tag_id' }).select())
+
+// ─── Contacts with Tags (for Database page) ─────────────────────────────────
+export const getContactsWithTags = () =>
+  query(supabase.from('contacts').select('*, contact_tags(tag:tags(id, name, color, category))').order('name'))
+
+// ─── Daily Tasks ─────────────────────────────────────────────────────────────
+export const getDailyTasks = (from, to) =>
+  query(supabase.from('daily_tasks').select('*')
+    .or(`due_date.gte.${from},due_date.lte.${to},due_date.is.null,rolled_from.is.not.null`)
+    .order('due_date', { ascending: true, nullsFirst: false })
+    .order('priority', { ascending: true })
+    .order('created_at', { ascending: false }))
+
+export const getAllDailyTasks = () =>
+  query(supabase.from('daily_tasks').select('*')
+    .order('due_date', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false }))
+
+export const createDailyTask = (d) =>
+  query(supabase.from('daily_tasks').insert(d).select().single())
+
+export const updateDailyTask = (id, d) =>
+  query(supabase.from('daily_tasks').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+
+export const deleteDailyTask = (id) =>
+  query(supabase.from('daily_tasks').delete().eq('id', id))
+
+export const completeDailyTask = (id) =>
+  query(supabase.from('daily_tasks').update({
+    status: 'completed',
+    completed_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq('id', id).select().single())
+
+export const uncompleteDailyTask = (id) =>
+  query(supabase.from('daily_tasks').update({
+    status: 'pending',
+    completed_at: null,
+    updated_at: new Date().toISOString(),
+  }).eq('id', id).select().single())
+
+// Roll over incomplete tasks from yesterday to today
+export const rollOverTasks = async (fromDate, toDate) => {
+  const { data } = await supabase.from('daily_tasks').select('*')
+    .eq('due_date', fromDate)
+    .in('status', ['pending', 'in_progress'])
+    .eq('is_recurring', false)
+  if (!data?.length) return []
+  const updates = data.map(t =>
+    supabase.from('daily_tasks').update({
+      due_date: toDate,
+      rolled_from: t.rolled_from || fromDate,
+      updated_at: new Date().toISOString(),
+    }).eq('id', t.id)
+  )
+  await Promise.all(updates)
+  return data
+}
+
+// ─── Daily Streaks ──────────────────────────────────────────────────────────
+export const getDailyStreaks = (limit = 30) =>
+  query(supabase.from('daily_streaks').select('*')
+    .order('date', { ascending: false }).limit(limit))
+
+export const upsertDailyStreak = (d) =>
+  query(supabase.from('daily_streaks').upsert(d, { onConflict: 'date' }).select().single())
+
+// ─── Vendors ────────────────────────────────────────────────────────────────
+export const getVendors = () =>
+  query(supabase.from('vendors').select('*').order('role').order('name'))
+
+export const createVendor = (d) =>
+  query(supabase.from('vendors').insert(d).select().single())
+
+export const updateVendor = (id, d) =>
+  query(supabase.from('vendors').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+
+export const deleteVendor = (id) =>
+  query(supabase.from('vendors').delete().eq('id', id))
+
+// ─── Vendor Assignments ─────────────────────────────────────────────────────
+export const getVendorAssignments = () =>
+  query(supabase.from('vendor_assignments').select('*, vendor:vendors(*)').order('scheduled_date', { ascending: true }))
+
+export const getVendorAssignmentsForDeal = (dealId) =>
+  query(supabase.from('vendor_assignments').select('*, vendor:vendors(*)').eq('deal_id', dealId).order('scheduled_date'))
+
+export const createVendorAssignment = (d) =>
+  query(supabase.from('vendor_assignments').insert(d).select().single())
+
+export const updateVendorAssignment = (id, d) =>
+  query(supabase.from('vendor_assignments').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+
+export const deleteVendorAssignment = (id) =>
+  query(supabase.from('vendor_assignments').delete().eq('id', id))
+
+// ─── Notes ──────────────────────────────────────────────────────────────────
+export const getNotes = () =>
+  query(supabase.from('notes').select(`
+    *, contact:contacts(id,name)
+  `).order('is_pinned', { ascending: false }).order('updated_at', { ascending: false }))
+
+export const getNotesForContact = (contactId) =>
+  query(supabase.from('notes').select('*').eq('contact_id', contactId).order('updated_at', { ascending: false }))
+
+export const getNotesForTransaction = (txId) =>
+  query(supabase.from('notes').select('*').eq('transaction_id', txId).order('updated_at', { ascending: false }))
+
+export const createNote = (d) =>
+  query(supabase.from('notes').insert(d).select().single())
+
+export const updateNote = (id, d) =>
+  query(supabase.from('notes').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+
+export const deleteNote = (id) =>
+  query(supabase.from('notes').delete().eq('id', id))
+
+// ─── Note Tags ──────────────────────────────────────────────────────────────
+export const getNoteTags = (noteId) =>
+  query(supabase.from('note_tags').select('*, tag:tags(*)').eq('note_id', noteId))
+
+export const getAllNoteTags = () =>
+  query(supabase.from('note_tags').select('note_id, tag:tags(id, name, color, category)'))
+
+export const addNoteTag = (noteId, tagId) =>
+  query(supabase.from('note_tags').upsert({ note_id: noteId, tag_id: tagId }, { onConflict: 'note_id,tag_id' }).select().single())
+
+export const removeNoteTag = (noteId, tagId) =>
+  query(supabase.from('note_tags').delete().eq('note_id', noteId).eq('tag_id', tagId))
+
+// ─── Favorites ──────────────────────────────────────────────────────────────
+export const getFavorites = () =>
+  query(supabase.from('user_settings').select('*').eq('key', 'favorites').maybeSingle())
+
+export const updateFavorites = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'favorites', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())

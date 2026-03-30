@@ -1,0 +1,52 @@
+/* ─── Calendar Dashboard ─── */
+.cal-schedule { display: flex; flex-direction: column; gap: var(--space-xs); }
+.cal-event-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+.cal-event-row:last-child { border-bottom: none; }
+.cal-event-row__left { display: flex; flex-direction: column; gap: 2px; }
+.cal-event-row__name { font-size: 0.82rem; font-weight: 500; color: var(--brown-dark); }
+.cal-event-row__meta { font-size: 0.72rem; color: var(--color-text-muted); }
+
+.cal-today {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  text-align: center;
+  margin-bottom: var(--space-md);
+}
+.cal-today__stat {
+  padding: var(--space-md);
+  background: var(--cream);
+  border-radius: var(--radius-md);
+}
+.cal-today__val {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+}
+.cal-today__label { font-size: 0.72rem; color: var(--color-text-muted); font-weight: 500; }
+
+.cal-quick-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-lg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: var(--brown-dark);
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+.cal-quick-link:hover { background: var(--brown-mid); color: #fff; }
+.cal-quick-link__icon { font-size: 1.4rem; }

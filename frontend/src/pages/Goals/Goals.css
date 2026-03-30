@@ -137,26 +137,51 @@
   white-space: nowrap;
 }
 
-.scoreboard__group {
+/* ─── Scoreboard Tabs ─── */
+.scoreboard__tabs {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-sm);
+  flex-wrap: wrap;
 }
 
-.scoreboard__group-label {
-  font-family: var(--font-display);
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
+.scoreboard__tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--glass-bg-strong);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+}
+.scoreboard__tab:hover {
+  border-color: var(--brown-mid);
   color: var(--brown-dark);
-  padding-left: var(--space-md);
-  border-left: 3px solid var(--brown-mid);
+}
+.scoreboard__tab--active {
+  background: var(--brown-dark);
+  border-color: var(--brown-dark);
+  color: var(--white);
+}
+.scoreboard__tab--active .scoreboard__tab-dot {
+  background: var(--white) !important;
+}
+
+.scoreboard__tab-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .scoreboard__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--space-md);
 }
 
@@ -166,17 +191,21 @@
 
 /* Individual metric card inside scoreboard */
 .sc-card {
-  position: relative;
   background: var(--cream);
   border-radius: var(--radius-md);
-  padding: var(--space-md) var(--space-lg);
+  padding: var(--space-lg) var(--space-xl);
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  transition: box-shadow var(--transition-fast);
+  cursor: pointer;
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast);
 }
 .sc-card:hover {
   box-shadow: var(--shadow-xs);
+  transform: translateY(-1px);
+}
+.sc-card--expanded {
+  box-shadow: var(--shadow-sm);
 }
 
 .sc-card__top {
@@ -198,7 +227,7 @@
 
 .sc-card__ytd {
   font-family: var(--font-display);
-  font-size: 1.35rem;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--brown-dark);
   line-height: 1;
@@ -208,7 +237,7 @@
 .sc-card__ytd--behind { color: var(--color-danger); }
 
 .sc-card__bar {
-  height: 6px;
+  height: 10px;
   background: var(--color-border-light);
   border-radius: var(--radius-full);
   overflow: hidden;
@@ -223,47 +252,67 @@
 .sc-card__bar-fill--ahead  { background: var(--brown-mid); }
 .sc-card__bar-fill--behind { background: var(--color-danger); opacity: 0.6; }
 
-.sc-card__meta {
+.sc-card__summary {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm) var(--space-md);
-  padding-top: var(--space-xs);
+  justify-content: space-between;
+  align-items: center;
 }
 
-.sc-card__meta-item {
-  display: flex;
-  flex-direction: column;
+.sc-card__summary-req {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--brown-mid);
 }
 
-.sc-card__meta-val {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--brown-dark);
-  line-height: 1.2;
-}
-.sc-card__meta-val--good { color: var(--color-success); }
-.sc-card__meta-val--low  { color: var(--color-warning, #c28a1f); }
-.sc-card__meta-val--req  { color: var(--brown-mid); }
-
-.sc-card__meta-label {
-  font-size: 0.6rem;
+.sc-card__summary-label {
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+  font-size: 0.72rem;
   color: var(--color-text-muted);
 }
 
 .sc-card__pct {
-  position: absolute;
-  top: var(--space-md);
-  right: var(--space-lg);
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--color-text-muted);
   background: var(--glass-bg-strong);
-  padding: 2px 8px;
+  padding: 2px 10px;
   border-radius: var(--radius-full);
 }
+
+/* ─── Expanded card details ─── */
+.sc-card__details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border-light);
+  margin-top: var(--space-xs);
+  animation: fadeInDetails 0.2s ease;
+}
+
+@keyframes fadeInDetails {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sc-card__detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sc-card__detail-label {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.sc-card__detail-val {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+}
+.sc-card__detail-val--good { color: var(--color-success); }
+.sc-card__detail-val--low  { color: var(--color-warning, #c28a1f); }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    Planning Ratios

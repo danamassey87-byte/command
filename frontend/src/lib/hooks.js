@@ -47,6 +47,12 @@ export const useOHOutreach     = ()      => useQuery(DB.getOHOutreach)
 export const useHostReports    = ()      => useQuery(DB.getHostReports)
 export const useOHTasksForOH   = (ohId)  => useQuery(() => DB.getOHTasksForOH(ohId), [ohId])
 
+// ─── Tags hooks ─────────────────────────────────────────────────────────────
+export const useTags             = ()    => useQuery(DB.getTags)
+export const useContactTags      = (cid) => useQuery(() => DB.getContactTags(cid), [cid])
+export const useAllContactTags   = ()    => useQuery(DB.getAllContactTags)
+export const useContactsWithTags = ()    => useQuery(DB.getContactsWithTags)
+
 // ─── Daily Tracker hooks ──────────────────────────────────────────────────────
 export const useActivityTargets  = ()               => useQuery(DB.getActivityTargets)
 export const useDailyActivity    = (from, to)       => useQuery(() => DB.getDailyActivity(from, to), [from, to])
@@ -74,6 +80,20 @@ export const useAllExpenses      = ()          => useQuery(DB.getAllExpenses)
 export const useIncomeEntries    = (from, to) => useQuery(() => DB.getIncomeEntries(from, to), [from, to])
 export const useAllIncomeEntries = ()          => useQuery(DB.getAllIncomeEntries)
 export const useMileageLog       = (from, to) => useQuery(() => DB.getMileageLog(from, to), [from, to])
+
+// ─── Daily Tasks hooks ──────────────────────────────────────────────────────
+export const useDailyTasks      = (from, to) => useQuery(() => DB.getDailyTasks(from, to), [from, to])
+export const useAllDailyTasks   = ()         => useQuery(DB.getAllDailyTasks)
+export const useDailyStreaks    = ()         => useQuery(() => DB.getDailyStreaks(30))
+export const useVendors         = ()         => useQuery(DB.getVendors)
+export const useVendorAssignments = ()       => useQuery(DB.getVendorAssignments)
+
+// ─── Notes hooks ──────────────────────────────────────────────────────────────
+export const useNotes               = ()    => useQuery(DB.getNotes)
+export const useNotesForContact     = (cid) => useQuery(() => DB.getNotesForContact(cid), [cid])
+export const useNotesForTransaction = (tid) => useQuery(() => DB.getNotesForTransaction(tid), [tid])
+export const useAllNoteTags         = ()    => useQuery(DB.getAllNoteTags)
+export const useFavorites           = ()    => useQuery(DB.getFavorites)
 
 // ─── Dashboard aggregate hook ─────────────────────────────────────────────────
 export function useDashboardData() {

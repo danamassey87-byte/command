@@ -1,0 +1,58 @@
+/* ─── Campaigns Dashboard ─── */
+.camp-list, .camp-queue, .camp-history { display: flex; flex-direction: column; gap: var(--space-xs); }
+.camp-row, .camp-queue-row, .camp-history-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+.camp-row:last-child, .camp-queue-row:last-child, .camp-history-row:last-child { border-bottom: none; }
+.camp-row__left { display: flex; flex-direction: column; gap: 2px; }
+.camp-row__name { font-size: 0.82rem; font-weight: 500; color: var(--brown-dark); }
+.camp-row__meta { font-size: 0.72rem; color: var(--color-text-muted); }
+.camp-queue-row__name { font-size: 0.82rem; color: var(--brown-dark); }
+.camp-history-row__text { font-size: 0.8rem; color: var(--brown-dark); }
+.camp-history-row__date { font-size: 0.72rem; color: var(--color-text-muted); }
+
+.camp-overview {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-md);
+  text-align: center;
+}
+.camp-overview__stat {
+  padding: var(--space-md);
+  background: var(--cream);
+  border-radius: var(--radius-md);
+}
+.camp-overview__stat--active { border-top: 3px solid var(--color-success); }
+.camp-overview__stat--paused { border-top: 3px solid var(--color-warning); }
+.camp-overview__stat--done { border-top: 3px solid var(--color-info); }
+.camp-overview__stat--total { border-top: 3px solid var(--brown-mid); }
+.camp-overview__val {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+}
+.camp-overview__label { font-size: 0.72rem; color: var(--color-text-muted); font-weight: 500; }
+
+.camp-quick-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-lg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: var(--brown-dark);
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+.camp-quick-link:hover { background: var(--brown-mid); color: #fff; }
+.camp-quick-link__icon { font-size: 1.4rem; }

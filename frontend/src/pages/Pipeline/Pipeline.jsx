@@ -1,6 +1,9 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Button, Badge, Card, SlidePanel, Input, Select, Textarea, EmptyState } from '../../components/ui/index.jsx'
-import { useTransactions, useContacts, useProperties } from '../../lib/hooks.js'
+import { TagPicker } from '../../components/ui/TagPicker.jsx'
+import { useTransactions, useContacts, useProperties, useContactTags, useNotesForContact } from '../../lib/hooks.js'
+import { useNotesContext } from '../../lib/NotesContext.jsx'
+import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
 import './Pipeline.css'
 
@@ -299,6 +302,47 @@ const AZ_DOCS_SELLER = [
   { key: 'keys_delivered',  label: 'Keys / Remotes / Codes Delivered', stage: 'closing' },
 ]
 
+// ─── Pipeline Tag Picker (self-contained with its own tag state) ─────────────
+function PipelineTagPicker({ contactId }) {
+  const { data: tagData } = useContactTags(contactId)
+  const [tags, setTags] = useState([])
+  useEffect(() => {
+    if (tagData) setTags((tagData ?? []).map(ct => ct.tag).filter(Boolean))
+  }, [tagData])
+  return <TagPicker contactId={contactId} assignedTags={tags} onTagsChange={setTags} />
+}
+
+function DealNotesTab({ contactId, dealId }) {
+  const { data: notes, refetch } = useNotesForContact(contactId)
+  const { openNote, createAndOpen } = useNotesContext()
+  const list = notes ?? []
+  return (
+    <div className="pipe__detail-section">
+      <div className="pipe__detail-section-header">
+        <h4 className="pipe__detail-section-title">Notes ({list.length})</h4>
+        <button className="pipe__btn pipe__btn--sm" onClick={async () => { await createAndOpen({ contact_id: contactId }); refetch() }}>+ Add</button>
+      </div>
+      {list.length === 0 ? (
+        <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', padding: '12px 0' }}>No notes yet. Add one to track details about this deal.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {list.map(n => (
+            <div key={n.id} onClick={() => openNote(n)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--cream)', borderRadius: 'var(--radius-md)', cursor: 'pointer', borderLeft: n.color ? `3px solid ${n.color}` : '3px solid var(--brown-mid)' }}>
+              <div>
+                <p style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--brown-dark)' }}>{n.title || 'Untitled'}</p>
+                <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{(n.body ?? '').slice(0, 80)}{(n.body ?? '').length > 80 ? '...' : ''}</p>
+              </div>
+              <div onClick={e => e.stopPropagation()}>
+                <FavoriteButton type="note" id={n.id} label={n.title || 'Untitled'} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Pipeline() {
   const { data: transactions, loading, error, refetch } = useTransactions()
   const { data: contacts } = useContacts()
@@ -313,7 +357,7 @@ export default function Pipeline() {
   const [editDeal, setEditDeal] = useState(null)
   const [saving, setSaving] = useState(false)
   const [emailStage, setEmailStage] = useState(null)
-  const [detailTab, setDetailTab] = useState('overview') // 'overview' | 'sop' | 'docs'
+  const [detailTab, setDetailTab] = useState('overview') // 'overview' | 'sop' | 'docs' | 'notes'
   const [collapsedSections, setCollapsedSections] = useState({}) // { 'stageName': true }
 
   // Transaction links (dotloop, SkySlope, etc.)
@@ -947,6 +991,7 @@ export default function Pipeline() {
                 <button className={`pipe__detail-tab ${detailTab === 'sop' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('sop')}>
                   SOP {sopTotal > 0 && <span className="pipe__detail-tab-count">{sopDone}/{sopTotal}</span>}
                 </button>
+                <button className={`pipe__detail-tab ${detailTab === 'notes' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('notes')}>Notes</button>
                 <button className={`pipe__detail-tab ${detailTab === 'docs' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('docs')}>
                   Docs {dl.length > 0 && <span className="pipe__detail-tab-count">{completed}/{dl.length}</span>}
                 </button>
@@ -1016,6 +1061,14 @@ export default function Pipeline() {
                       </div>
                     )}
                   </div>
+
+                  {/* Client Tags */}
+                  {deal.contact?.id && (
+                    <div className="pipe__detail-section">
+                      <h4 className="pipe__detail-section-title">Client Tags</h4>
+                      <PipelineTagPicker contactId={deal.contact.id} />
+                    </div>
+                  )}
 
                   {/* Action buttons */}
                   <div className="pipe__detail-actions">
@@ -1165,6 +1218,11 @@ export default function Pipeline() {
               )}
 
               {/* ═══ DOCS & DEADLINES TAB ═══ */}
+              {detailTab === 'notes' && (() => {
+                const cid = deal.contact_id ?? deal.contact?.id
+                return <DealNotesTab contactId={cid} dealId={deal.id} />
+              })()}
+
               {detailTab === 'docs' && (
                 <>
                   {/* Stage Timeline */}

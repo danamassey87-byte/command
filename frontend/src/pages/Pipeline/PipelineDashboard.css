@@ -1,0 +1,89 @@
+/* ─── Pipeline Dashboard ─── */
+.pl-stages { display: flex; flex-direction: column; gap: var(--space-sm); }
+.pl-stage-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 36px;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.pl-stage-row__label { font-size: 0.78rem; color: var(--brown-dark); font-weight: 500; }
+.pl-stage-row__track { height: 10px; background: var(--cream); border-radius: 5px; overflow: hidden; }
+.pl-stage-row__fill { height: 100%; border-radius: 5px; transition: width 0.4s ease; }
+.pl-stage-row__count { font-size: 0.75rem; font-weight: 600; color: var(--brown-dark); text-align: right; }
+
+.pl-forecast-total {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--color-success);
+  line-height: 1;
+}
+.pl-forecast-sub {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-md);
+}
+.pl-top-deals { display: flex; flex-direction: column; gap: var(--space-xs); }
+.pl-deal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+.pl-deal-row:last-child { border-bottom: none; }
+.pl-deal-row__addr { font-size: 0.8rem; color: var(--brown-dark); }
+.pl-deal-row__val { font-size: 0.8rem; font-weight: 600; color: var(--color-success); }
+
+.pl-risk-list, .pl-deadlines, .pl-listings, .pl-closed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.pl-risk-row, .pl-deadline-row, .pl-listing-row, .pl-closed-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+.pl-risk-row:last-child, .pl-deadline-row:last-child, .pl-listing-row:last-child, .pl-closed-row:last-child { border-bottom: none; }
+
+.pl-risk-row__left, .pl-deadline-row__left, .pl-listing-row__left, .pl-closed-row__left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pl-risk-row__addr, .pl-deadline-row__addr, .pl-listing-row__addr, .pl-closed-row__addr {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--brown-dark);
+}
+.pl-risk-row__days, .pl-deadline-row__date, .pl-listing-row__meta, .pl-closed-row__date {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+.pl-closed-row__price {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+}
+
+.pl-quick-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-lg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: var(--brown-dark);
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+.pl-quick-link:hover { background: var(--brown-mid); color: #fff; }
+.pl-quick-link__icon { font-size: 1.4rem; }

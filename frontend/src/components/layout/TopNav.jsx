@@ -23,6 +23,7 @@ const DEFAULT_NAV_ITEMS = [
   { id: 'market',      label: 'Market',      emoji: '📈', path: '/market' },
   { id: 'goals',       label: 'Goals',       emoji: '🎯', path: '/goals' },
   { id: 'bio-link',    label: 'Link in Bio', emoji: '🔗', path: '/bio-link' },
+  { id: 'campaigns',   label: 'Campaigns',   emoji: '🚀', path: '/campaigns' },
   { id: 'email',       label: 'Email',       emoji: '✉️', path: '/email' },
   { id: 'resources',   label: 'Resources',   emoji: '📁', path: '/resources' },
 ]

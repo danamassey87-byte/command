@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { BrandProvider } from './lib/BrandContext'
+import { NotesProvider } from './lib/NotesContext'
+import { FavoritesProvider } from './lib/FavoritesContext'
 import Layout from './components/layout/Layout'
 
 // ─── Existing pages ──────────────────────────────────────────────────────────
@@ -28,12 +30,35 @@ import TodayShowings from './pages/Calendar/TodayShowings'
 import CalendarTasks from './pages/Calendar/Tasks'
 import SocialDashboard from './pages/Content/SocialDashboard'
 
+// ─── Section Dashboards ────────────────────────────────────────────────────────
+import CrmDashboard from './pages/CRM/CrmDashboard'
+import PipelineDashboard from './pages/Pipeline/PipelineDashboard'
+import ProspectingDashboard from './pages/Prospecting/ProspectingDashboard'
+import ContentDashboard from './pages/Content/ContentDashboard'
+import CalendarDashboard from './pages/Calendar/CalendarDashboard'
+import EmailDashboard from './pages/Email/EmailDashboard'
+import CampaignsDashboard from './pages/Campaigns/CampaignsDashboard'
+import ResourcesDashboard from './pages/Resources/ResourcesDashboard'
+import BioLinkDashboard from './pages/BioLink/BioLinkDashboard'
+
 // ─── Pipeline Pages ─────────────────────────────────────────────────────────
 import PipelineBoard from './pages/Pipeline/Pipeline'
 import EscrowTracker from './pages/Pipeline/EscrowTracker'
 import ClosedDeals from './pages/Pipeline/ClosedDeals'
 import SellerSOP from './pages/Pipeline/SellerSOP'
 import BuyerSOP from './pages/Pipeline/BuyerSOP'
+
+// ─── Daily Tasks ─────────────────────────────────────────────────────────────
+import DailyTasks from './pages/Tasks/DailyTasks'
+
+// ─── Notes ──────────────────────────────────────────────────────────────────
+import Notes from './pages/Notes/Notes'
+
+// ─── Smart Campaigns ────────────────────────────────────────────────────────
+import SmartCampaigns from './pages/Campaigns/SmartCampaigns'
+
+// ─── Database (Contact Hub) ──────────────────────────────────────────────────
+import Database from './pages/Database/Database'
 
 // ─── Net Sheet ──────────────────────────────────────────────────────────────
 import NetSheet from './pages/NetSheet/NetSheet'
@@ -60,6 +85,8 @@ function ComingSoon({ title }) {
 export default function App() {
   return (
     <BrandProvider>
+    <NotesProvider>
+    <FavoritesProvider>
     <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
@@ -68,8 +95,12 @@ export default function App() {
           <Route path="/dashboard/daily"   element={<DailyTracker />} />
           <Route path="/dashboard/appts"   element={<ListingAppts />} />
 
+          {/* ─── Daily Tasks ─── */}
+          <Route path="/tasks"             element={<DailyTasks />} />
+          <Route path="/tasks/vendors"     element={<DailyTasks />} />
+
           {/* ─── Prospecting ─── */}
-          <Route path="/prospecting"            element={<LeadGen />} />
+          <Route path="/prospecting"            element={<ProspectingDashboard />} />
           <Route path="/prospecting/expired"    element={<LeadGen />} />
           <Route path="/prospecting/fsbo"       element={<ComingSoon title="FSBO Leads" />} />
           <Route path="/prospecting/circle"     element={<ComingSoon title="Circle Prospecting" />} />
@@ -78,7 +109,7 @@ export default function App() {
           <Route path="/prospecting/oh-leads"   element={<ComingSoon title="Open House Leads" />} />
 
           {/* ─── CRM ─── */}
-          <Route path="/crm"              element={<Buyers />} />
+          <Route path="/crm"              element={<CrmDashboard />} />
           <Route path="/crm/buyers"       element={<Buyers />} />
           <Route path="/crm/sellers"      element={<Sellers />} />
           <Route path="/crm/showings"         element={<BuyerShowings />} />
@@ -87,25 +118,28 @@ export default function App() {
           <Route path="/crm/investors"        element={<Investors />} />
           <Route path="/crm/properties"       element={<Properties />} />
           <Route path="/crm/intake-forms"    element={<IntakeForms />} />
-          {/* leads moved to /prospecting */}
+          <Route path="/crm/database"       element={<Database />} />
 
           {/* ─── Pipeline ─── */}
-          <Route path="/pipeline"            element={<PipelineBoard />} />
+          <Route path="/pipeline"            element={<PipelineDashboard />} />
+          <Route path="/pipeline/board"      element={<PipelineBoard />} />
           <Route path="/pipeline/buyer-sop"  element={<BuyerSOP />} />
           <Route path="/pipeline/seller-sop" element={<SellerSOP />} />
           <Route path="/pipeline/escrow"     element={<EscrowTracker />} />
           <Route path="/pipeline/closed"     element={<ClosedDeals />} />
 
           {/* ─── Calendar ─── */}
-          <Route path="/calendar"          element={<CalendarSchedule />} />
+          <Route path="/calendar"          element={<CalendarDashboard />} />
+          <Route path="/calendar/schedule" element={<CalendarSchedule />} />
           <Route path="/calendar/today"    element={<TodayShowings />} />
           <Route path="/calendar/tasks"    element={<CalendarTasks />} />
+          <Route path="/calendar/notes"    element={<Notes />} />
 
           {/* ─── Open Houses ─── */}
           <Route path="/open-houses"       element={<OpenHouses />} />
 
           {/* ─── Content ─── */}
-          <Route path="/content"           element={<ComingSoon title="Content Pillars" />} />
+          <Route path="/content"           element={<ContentDashboard />} />
           <Route path="/content/calendar"  element={<ContentPlanner />} />
           <Route path="/content/planning"  element={<ContentPlanner />} />
           <Route path="/content/templates" element={<ComingSoon title="Content Templates" />} />
@@ -132,19 +166,29 @@ export default function App() {
           <Route path="/goals"             element={<Goals />} />
 
           {/* ─── Resources ─── */}
-          <Route path="/resources"         element={<ComingSoon title="Resource Hub" />} />
+          <Route path="/resources"         element={<ResourcesDashboard />} />
           <Route path="/resources/email"   element={<ComingSoon title="Email Templates" />} />
           <Route path="/resources/sms"     element={<ComingSoon title="SMS Templates" />} />
 
           {/* ─── Link in Bio ─── */}
-          <Route path="/bio-link"          element={<BioLinkBuilder />} />
+          <Route path="/bio-link"          element={<BioLinkDashboard />} />
+          <Route path="/bio-link/page"     element={<BioLinkBuilder />} />
           <Route path="/bio-link/forms"    element={<ComingSoon title="Links & Forms" />} />
           <Route path="/bio-link/guides"   element={<ComingSoon title="Guides" />} />
           <Route path="/bio-link/drips"    element={<ComingSoon title="Drip Campaigns" />} />
           <Route path="/bio-link/leads"    element={<ComingSoon title="Leads Captured" />} />
 
+          {/* ─── Smart Campaigns ─── */}
+          <Route path="/campaigns"            element={<CampaignsDashboard />} />
+          <Route path="/campaigns/manage"     element={<SmartCampaigns />} />
+          <Route path="/campaigns/queue"      element={<SmartCampaigns />} />
+          <Route path="/campaigns/enrollments" element={<SmartCampaigns />} />
+          <Route path="/campaigns/history"    element={<SmartCampaigns />} />
+          <Route path="/campaigns/templates"  element={<SmartCampaigns />} />
+
           {/* ─── Email ─── */}
-          <Route path="/email"             element={<EmailBuilder />} />
+          <Route path="/email"             element={<EmailDashboard />} />
+          <Route path="/email/builder"     element={<EmailBuilder />} />
           <Route path="/email/templates"   element={<ComingSoon title="Email Templates" />} />
           <Route path="/email/campaigns"   element={<ComingSoon title="Campaigns" />} />
           <Route path="/email/sent"        element={<ComingSoon title="Sent Emails" />} />
@@ -154,6 +198,8 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </FavoritesProvider>
+    </NotesProvider>
     </BrandProvider>
   )
 }

@@ -3,6 +3,27 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { MobileMenuContext } from './TopNav'
 import './ContextSidebar.css'
 
+/* ─── Routes that are ComingSoon (greyed out in sidebar) ─── */
+const COMING_SOON = new Set([
+  '/prospecting/fsbo',
+  '/prospecting/circle',
+  '/prospecting/soi',
+  '/prospecting/referrals',
+  '/prospecting/oh-leads',
+  '/content/templates',
+  '/content/ai-studio',
+  '/content/stats',
+  '/resources/email',
+  '/resources/sms',
+  '/bio-link/forms',
+  '/bio-link/guides',
+  '/bio-link/drips',
+  '/bio-link/leads',
+  '/email/templates',
+  '/email/campaigns',
+  '/email/sent',
+])
+
 /* ─── Section definitions ─── */
 const SECTIONS = {
   dashboard: {
@@ -16,19 +37,19 @@ const SECTIONS = {
   prospecting: {
     title: 'Prospecting',
     items: [
-      { label: 'All Prospects',       path: '/prospecting',              icon: 'users' },
-      { label: 'Expired / Cannonball', path: '/prospecting/expired',     icon: 'target' },
-      { label: 'FSBO',                path: '/prospecting/fsbo',         icon: 'home' },
-      { label: 'Circle Prospecting',  path: '/prospecting/circle',      icon: 'map-pin' },
-      { label: 'Personal Circle',     path: '/prospecting/soi',         icon: 'heart' },
-      { label: 'Referrals',           path: '/prospecting/referrals',   icon: 'user' },
-      { label: 'Open House Leads',    path: '/prospecting/oh-leads',    icon: 'eye' },
+      { label: 'Overview',              path: '/prospecting',              icon: 'users' },
+      { label: 'Expired / Cannonball',  path: '/prospecting/expired',     icon: 'target' },
+      { label: 'FSBO',                  path: '/prospecting/fsbo',         icon: 'home' },
+      { label: 'Circle Prospecting',    path: '/prospecting/circle',      icon: 'map-pin' },
+      { label: 'Personal Circle',       path: '/prospecting/soi',         icon: 'heart' },
+      { label: 'Referrals',             path: '/prospecting/referrals',   icon: 'user' },
+      { label: 'Open House Leads',      path: '/prospecting/oh-leads',    icon: 'eye' },
     ],
   },
   crm: {
     title: 'CRM',
     items: [
-      { label: 'All Contacts',     path: '/crm',                  icon: 'users' },
+      { label: 'Overview',         path: '/crm',                  icon: 'users' },
       { label: 'Clients',          path: '/crm/buyers',           icon: 'user',        group: 'Buyers' },
       { label: 'Showings',         path: '/crm/showings',         icon: 'eye' },
       { label: 'Properties',       path: '/crm/properties',       icon: 'map-pin' },
@@ -37,12 +58,14 @@ const SECTIONS = {
       { label: 'Listing Showings', path: '/crm/seller-showings',  icon: 'eye' },
       { label: 'Listing Plan',     path: '/crm/listing-plan',     icon: 'zap' },
       { label: 'Intake Forms',     path: '/crm/intake-forms',     icon: 'clipboard',   group: 'Tools' },
+      { label: 'Contact Database', path: '/crm/database',         icon: 'database' },
     ],
   },
   pipeline: {
     title: 'Pipeline',
     items: [
-      { label: 'Active Deals',   path: '/pipeline',             icon: 'layers' },
+      { label: 'Overview',       path: '/pipeline',             icon: 'layers' },
+      { label: 'Deal Board',     path: '/pipeline/board',       icon: 'columns' },
       { label: 'Buyer SOP',      path: '/pipeline/buyer-sop',   icon: 'clipboard' },
       { label: 'Seller SOP',     path: '/pipeline/seller-sop',  icon: 'clipboard' },
       { label: 'Escrow Tracker', path: '/pipeline/escrow',      icon: 'clock' },
@@ -52,9 +75,11 @@ const SECTIONS = {
   calendar: {
     title: 'Calendar',
     items: [
-      { label: 'Schedule',       path: '/calendar',           icon: 'calendar' },
-      { label: 'Showings Today', path: '/calendar/today',     icon: 'eye' },
-      { label: 'Tasks',          path: '/calendar/tasks',     icon: 'check-square' },
+      { label: 'Overview',        path: '/calendar',           icon: 'calendar' },
+      { label: 'Full Schedule',   path: '/calendar/schedule',  icon: 'columns' },
+      { label: 'Showings Today',  path: '/calendar/today',     icon: 'eye' },
+      { label: 'Tasks',           path: '/calendar/tasks',     icon: 'check-square' },
+      { label: 'Notes',           path: '/calendar/notes',     icon: 'file-text' },
     ],
   },
   'open-houses': {
@@ -66,13 +91,13 @@ const SECTIONS = {
   content: {
     title: 'Content',
     items: [
-      { label: 'Pillars',      path: '/content',            icon: 'columns' },
-      { label: 'Calendar',     path: '/content/calendar',   icon: 'calendar' },
-      { label: 'Planning',     path: '/content/planning',   icon: 'clipboard' },
-      { label: 'Templates',    path: '/content/templates',  icon: 'file-text' },
+      { label: 'Overview',      path: '/content',            icon: 'columns' },
+      { label: 'Calendar',      path: '/content/calendar',   icon: 'calendar' },
+      { label: 'Planning',      path: '/content/planning',   icon: 'clipboard' },
+      { label: 'Templates',     path: '/content/templates',  icon: 'file-text' },
       { label: 'Social Media',  path: '/content/social',     icon: 'trending-up' },
-      { label: 'AI Studio',    path: '/content/ai-studio',  icon: 'zap' },
-      { label: 'Stats',        path: '/content/stats',      icon: 'bar-chart' },
+      { label: 'AI Studio',     path: '/content/ai-studio',  icon: 'zap' },
+      { label: 'Stats',         path: '/content/stats',      icon: 'bar-chart' },
     ],
   },
   pnl: {
@@ -102,20 +127,33 @@ const SECTIONS = {
   'bio-link': {
     title: 'Link in Bio',
     items: [
-      { label: 'My Page',         path: '/bio-link',            icon: 'link' },
+      { label: 'Overview',        path: '/bio-link',            icon: 'link' },
+      { label: 'My Page',         path: '/bio-link/page',       icon: 'link' },
       { label: 'Links & Forms',   path: '/bio-link/forms',      icon: 'clipboard' },
       { label: 'Guides',          path: '/bio-link/guides',     icon: 'file-text' },
       { label: 'Drip Campaigns',  path: '/bio-link/drips',      icon: 'mail' },
       { label: 'Leads Captured',  path: '/bio-link/leads',      icon: 'users' },
     ],
   },
+  campaigns: {
+    title: 'Smart Campaigns',
+    items: [
+      { label: 'Overview',      path: '/campaigns',              icon: 'zap' },
+      { label: 'My Campaigns',  path: '/campaigns/manage',       icon: 'layers' },
+      { label: 'Send Queue',    path: '/campaigns/queue',        icon: 'clock' },
+      { label: 'Enrollments',   path: '/campaigns/enrollments',  icon: 'users' },
+      { label: 'History',       path: '/campaigns/history',      icon: 'clipboard' },
+      { label: 'Templates',     path: '/campaigns/templates',    icon: 'file-text' },
+    ],
+  },
   email: {
     title: 'Email',
     items: [
-      { label: 'Builder',     path: '/email',            icon: 'mail' },
-      { label: 'Templates',   path: '/email/templates',  icon: 'file-text' },
-      { label: 'Campaigns',   path: '/email/campaigns',  icon: 'layers' },
-      { label: 'Sent',        path: '/email/sent',       icon: 'check-circle' },
+      { label: 'Overview',     path: '/email',            icon: 'mail' },
+      { label: 'Builder',      path: '/email/builder',    icon: 'zap' },
+      { label: 'Templates',    path: '/email/templates',  icon: 'file-text' },
+      { label: 'Campaigns',    path: '/email/campaigns',  icon: 'layers' },
+      { label: 'Sent',         path: '/email/sent',       icon: 'check-circle' },
     ],
   },
   resources: {
@@ -154,6 +192,7 @@ const ICONS = {
   'message-square':<><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></>,
   'map-pin':       <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></>,
   'heart':         <><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></>,
+  'database':      <><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/></>,
 }
 
 export function getActiveSection(pathname) {
@@ -169,6 +208,7 @@ export function getActiveSection(pathname) {
   if (pathname.startsWith('/market'))      return 'market'
   if (pathname.startsWith('/goals'))       return 'goals'
   if (pathname.startsWith('/bio-link'))      return 'bio-link'
+  if (pathname.startsWith('/campaigns'))   return 'campaigns'
   if (pathname.startsWith('/email'))        return 'email'
   if (pathname.startsWith('/resources'))   return 'resources'
   if (pathname.startsWith('/settings'))    return 'settings'
@@ -189,6 +229,12 @@ export default function ContextSidebar() {
   // Single-page sections don't need a sidebar
   if (!section || section.items.length <= 1) return null
 
+  // Determine which paths need "end" matching (dashboard-level overview routes)
+  const endPaths = new Set([
+    '/', '/crm', '/pipeline', '/calendar', '/content', '/pnl',
+    '/prospecting', '/bio-link', '/campaigns', '/email', '/resources',
+  ])
+
   return (
     <>
       {/* Desktop sidebar (always visible) + Mobile sidebar (conditionally visible) */}
@@ -198,23 +244,29 @@ export default function ContextSidebar() {
       <aside className={`ctx-sidebar ${mobileSidebarOpen ? 'ctx-sidebar--open' : ''}`}>
         <h3 className="ctx-sidebar__title">{section.title}</h3>
         <nav className="ctx-sidebar__nav">
-          {section.items.map(item => (
-            <React.Fragment key={item.path}>
-              {item.group && <span className="ctx-sidebar__group-label">{item.group}</span>}
-              <NavLink
-                to={item.path}
-                end={item.path === '/' || item.path === '/crm' || item.path === '/pipeline' || item.path === '/showings' || item.path === '/content' || item.path === '/pnl' || item.path === '/resources'}
-                className={({ isActive }) => `ctx-sidebar__link ${isActive ? 'ctx-sidebar__link--active' : ''}`}
-              >
-                <span className="ctx-sidebar__icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    {ICONS[item.icon]}
-                  </svg>
-                </span>
-                <span className="ctx-sidebar__label">{item.label}</span>
-              </NavLink>
-            </React.Fragment>
-          ))}
+          {section.items.map(item => {
+            const isComingSoon = COMING_SOON.has(item.path)
+            return (
+              <React.Fragment key={item.path}>
+                {item.group && <span className="ctx-sidebar__group-label">{item.group}</span>}
+                <NavLink
+                  to={item.path}
+                  end={endPaths.has(item.path)}
+                  className={({ isActive }) =>
+                    `ctx-sidebar__link ${isActive ? 'ctx-sidebar__link--active' : ''} ${isComingSoon ? 'ctx-sidebar__link--coming-soon' : ''}`
+                  }
+                >
+                  <span className="ctx-sidebar__icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      {ICONS[item.icon]}
+                    </svg>
+                  </span>
+                  <span className="ctx-sidebar__label">{item.label}</span>
+                  {isComingSoon && <span className="ctx-sidebar__soon-badge">Soon</span>}
+                </NavLink>
+              </React.Fragment>
+            )
+          })}
         </nav>
       </aside>
     </>

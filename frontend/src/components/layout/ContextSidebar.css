@@ -104,6 +104,26 @@
   opacity: 0.7;
 }
 
+/* ─── Coming Soon items (greyed out) ─── */
+.ctx-sidebar__link--coming-soon {
+  opacity: 0.45;
+  pointer-events: auto;
+}
+.ctx-sidebar__link--coming-soon:hover {
+  opacity: 0.6;
+}
+.ctx-sidebar__soon-badge {
+  margin-left: auto;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--brown-mid);
+  background: var(--cream);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
 /* ─── Mobile overlay backdrop ─── */
 .ctx-sidebar__overlay {
   display: none;

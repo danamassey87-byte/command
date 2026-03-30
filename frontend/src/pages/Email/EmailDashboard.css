@@ -1,0 +1,60 @@
+/* ─── Email Dashboard ─── */
+.em-hero {
+  text-align: center;
+  padding: var(--space-lg) 0;
+}
+.em-hero__title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  color: var(--brown-dark);
+  font-weight: 700;
+}
+.em-hero__sub {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin-top: var(--space-xs);
+}
+
+.em-templates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+@media (max-width: 600px) { .em-templates { grid-template-columns: 1fr; } }
+.em-template-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--cream);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+.em-template-card:hover { background: var(--brown-mid); }
+.em-template-card:hover .em-template-card__name,
+.em-template-card:hover .em-template-card__desc { color: #fff; }
+.em-template-card__icon { font-size: 1.2rem; }
+.em-template-card__text { display: flex; flex-direction: column; }
+.em-template-card__name { font-size: 0.8rem; font-weight: 600; color: var(--brown-dark); }
+.em-template-card__desc { font-size: 0.7rem; color: var(--color-text-muted); }
+
+.em-tools { display: flex; flex-direction: column; gap: var(--space-sm); }
+.em-tool-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--cream);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+.em-tool-link:hover { background: var(--brown-mid); }
+.em-tool-link:hover .em-tool-link__name,
+.em-tool-link:hover .em-tool-link__desc { color: #fff; }
+.em-tool-link__icon { font-size: 1.3rem; }
+.em-tool-link__name { font-size: 0.82rem; font-weight: 600; color: var(--brown-dark); display: block; }
+.em-tool-link__desc { font-size: 0.72rem; color: var(--color-text-muted); display: block; }
