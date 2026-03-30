@@ -597,6 +597,200 @@
   border-top: 1px solid var(--color-border-light);
 }
 
+.sd-manager__handle-input--wide {
+  max-width: 100%;
+}
+
+.sd-manager__apify-key {
+  background: var(--color-warning-bg);
+  border-radius: var(--radius-sm);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sd-manager__hint {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* ─── Connection Type Picker ──────────────────────────────────────────────── */
+.sd-manager__connection-picker {
+  display: flex;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.sd-conn-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  font-size: 0.65rem;
+  font-family: var(--font-body);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.sd-conn-btn:hover {
+  border-color: var(--brown-mid);
+  color: var(--brown-dark);
+}
+
+.sd-conn-btn--active {
+  background: var(--brown-dark);
+  border-color: var(--brown-dark);
+  color: white;
+}
+
+.sd-conn-btn__icon {
+  font-size: 0.7rem;
+}
+
+.sd-conn-btn__label {
+  font-weight: 500;
+}
+
+.sd-manager__conn-hint {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.sd-manager__conn-hint--native {
+  color: var(--color-info);
+}
+
+.sd-manager__conn-hint--apify {
+  color: var(--color-warning);
+}
+
+/* ─── Connection Badge ────────────────────────────────────────────────────── */
+.sd-conn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 0.6rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.sd-conn-badge--manual {
+  background: var(--cream);
+  color: var(--brown-dark);
+}
+
+.sd-conn-badge--apify {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.sd-conn-badge--native {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.sd-conn-badge--mini {
+  padding: 1px 5px;
+  margin-left: auto;
+}
+
+/* ─── Channel Detail Footer ──────────────────────────────────────────────── */
+.sd-channel-detail__header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.sd-channel-detail__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-border-light);
+}
+
+.sd-update-btn {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: 3px 12px;
+  font-size: 0.7rem;
+  font-family: var(--font-body);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.sd-update-btn:hover {
+  border-color: var(--brown-mid);
+  color: var(--brown-dark);
+}
+
+/* ─── Manual Entry Panel ──────────────────────────────────────────────────── */
+.sd-manual {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.sd-manual__divider {
+  height: 1px;
+  background: var(--color-border-light);
+  margin: var(--space-xs) 0;
+}
+
+.sd-manual__field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sd-manual__label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--brown-dark);
+}
+
+.sd-manual__input {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.sd-manual__input:focus {
+  outline: none;
+  border-color: var(--brown-mid);
+}
+
+.sd-manual__input[type="number"] {
+  max-width: 160px;
+}
+
+.sd-manual__actions {
+  display: flex;
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  margin-top: var(--space-sm);
+  border-top: 1px solid var(--color-border-light);
+}
+
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .sd-hero-stats {
