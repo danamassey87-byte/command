@@ -772,8 +772,24 @@
   margin: 0;
 }
 
+/* ─── ManyChat combo (dropdown + text) ─── */
+.cp__mc-combo {
+  display: flex;
+  gap: 4px;
+}
+.cp__mc-combo .cp__select { flex: 1; min-width: 0; }
+.cp__mc-input {
+  width: 110px;
+  flex-shrink: 0;
+  font-family: monospace;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
 @media (max-width: 600px) {
   .cp__strategy-row { grid-template-columns: 1fr; }
   .cp__slot-tabs { flex-direction: column; }
   .cp__platform-chips { flex-direction: column; }
+  .cp__mc-combo { flex-direction: column; }
+  .cp__mc-input { width: 100%; }
 }

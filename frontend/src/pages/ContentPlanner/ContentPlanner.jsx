@@ -8,6 +8,11 @@ import './ContentPlanner.css'
 const STORAGE_KEY = 'content_planner_v2'
 const FORMAT_KEY = 'content_weekly_format'
 const INSPO_KEY = 'content_inspo_bank'
+const MANYCHAT_KEY = 'manychat_keywords'
+
+function loadKeywords() {
+  try { return JSON.parse(localStorage.getItem(MANYCHAT_KEY)) || [] } catch { return [] }
+}
 
 // ─── Content slot types (daily) ───
 const SLOT_TYPES = [
@@ -158,6 +163,7 @@ export default function ContentPlanner() {
   const [aiPrompt, setAiPrompt] = useState('')
   const [selectedPromptTemplate, setSelectedPromptTemplate] = useState('')
   const [aiRepurposeLoading, setAiRepurposeLoading] = useState(false)
+  const [mcKeywords] = useState(loadKeywords)
 
   const { data: pillars } = useContentPillars()
   const { data: avatars } = useClientAvatars()
@@ -563,7 +569,32 @@ export default function ContentPlanner() {
                     </div>
                     <div className="cp__strategy-field">
                       <label className="cp__field-label">MANYCHAT KEYWORD</label>
-                      <input className="cp__input" value={sel.manychatKeyword} onChange={e => updateSlot(selectedDate, selectedSlot, { manychatKeyword: e.target.value })} placeholder="e.g. ARCADIA" />
+                      <div className="cp__mc-combo">
+                        <select
+                          className="cp__select"
+                          value={mcKeywords.some(k => k.keyword === sel.manychatKeyword) ? sel.manychatKeyword : sel.manychatKeyword ? '__custom__' : ''}
+                          onChange={e => {
+                            if (e.target.value === '__custom__') return
+                            updateSlot(selectedDate, selectedSlot, { manychatKeyword: e.target.value })
+                          }}
+                        >
+                          <option value="">-- None --</option>
+                          {mcKeywords.map(k => (
+                            <option key={k.keyword} value={k.keyword}>
+                              {k.keyword}{k.description ? ` — ${k.description}` : ''}{k.linkedTo ? ` (${k.linkedTo})` : ''}
+                            </option>
+                          ))}
+                          {sel.manychatKeyword && !mcKeywords.some(k => k.keyword === sel.manychatKeyword) && (
+                            <option value="__custom__">Custom: {sel.manychatKeyword}</option>
+                          )}
+                        </select>
+                        <input
+                          className="cp__input cp__mc-input"
+                          value={sel.manychatKeyword || ''}
+                          onChange={e => updateSlot(selectedDate, selectedSlot, { manychatKeyword: e.target.value.toUpperCase() })}
+                          placeholder="or type custom..."
+                        />
+                      </div>
                     </div>
                   </div>
 
