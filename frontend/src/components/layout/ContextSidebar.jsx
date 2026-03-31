@@ -30,6 +30,7 @@ const SECTIONS = {
     title: 'Home',
     items: [
       { label: 'Dashboard',      path: '/',                  icon: 'home' },
+      { label: 'Goals & KPIs',   path: '/goals',             icon: 'target' },
       { label: 'Daily Tracker',  path: '/dashboard/daily',   icon: 'check-square' },
       { label: 'Daily Tasks',    path: '/tasks',             icon: 'clipboard' },
       { label: 'Calendar',       path: '/calendar',          icon: 'calendar',      group: 'Schedule' },
@@ -38,7 +39,6 @@ const SECTIONS = {
       { label: 'Showings Today', path: '/calendar/today',    icon: 'eye' },
       { label: 'Tasks',          path: '/calendar/tasks',    icon: 'check-square' },
       { label: 'Notes',          path: '/calendar/notes',    icon: 'file-text' },
-      { label: 'Goals & KPIs',   path: '/goals',             icon: 'target',        group: 'Goals' },
     ],
   },
   prospect: {
@@ -50,8 +50,8 @@ const SECTIONS = {
       { label: 'Circle Prospecting',    path: '/prospecting/circle',    icon: 'map-pin' },
       { label: 'Personal Circle',       path: '/prospecting/soi',       icon: 'heart' },
       { label: 'Referrals',             path: '/prospecting/referrals', icon: 'user' },
-      { label: 'Open Houses',           path: '/open-houses',           icon: 'eye',          group: 'Open Houses' },
-      { label: 'Open House Leads',      path: '/prospecting/oh-leads',  icon: 'users' },
+      { label: 'OH Prospecting',          path: '/prospecting/oh-leads',  icon: 'users',        group: 'Open Houses' },
+      { label: 'Confirmed Events',      path: '/open-houses',           icon: 'eye' },
     ],
   },
   people: {

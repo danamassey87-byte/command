@@ -4,6 +4,7 @@ import TopNav, { MobileMenuContext } from './TopNav'
 import ContextSidebar, { getActiveSection } from './ContextSidebar'
 import DockPanel from './DockPanel'
 import FavoritesTray from './FavoritesTray'
+import NotesWidget from './NotesWidget'
 import { useNotesContext } from '../../lib/NotesContext'
 import './Layout.css'
 
@@ -135,6 +136,7 @@ export default function Layout() {
           {dockOpen && <DockPanel />}
         </div>
         <FavoritesTray />
+        <NotesWidget />
       </div>
     </MobileMenuContext.Provider>
   )
