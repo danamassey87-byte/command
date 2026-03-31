@@ -31,10 +31,10 @@ const SECTIONS = {
     items: [
       { label: 'Dashboard',      path: '/',                  icon: 'home' },
       { label: 'Daily Tracker',  path: '/dashboard/daily',   icon: 'check-square' },
-      { label: 'Listing Appts',  path: '/dashboard/appts',   icon: 'calendar' },
       { label: 'Daily Tasks',    path: '/tasks',             icon: 'clipboard' },
       { label: 'Calendar',       path: '/calendar',          icon: 'calendar',      group: 'Schedule' },
       { label: 'Full Schedule',  path: '/calendar/schedule', icon: 'columns' },
+      { label: 'Listing Appts',  path: '/dashboard/appts',   icon: 'calendar' },
       { label: 'Showings Today', path: '/calendar/today',    icon: 'eye' },
       { label: 'Tasks',          path: '/calendar/tasks',    icon: 'check-square' },
       { label: 'Notes',          path: '/calendar/notes',    icon: 'file-text' },
