@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { Button } from '../../components/ui/index.jsx'
 import { generateContent } from '../../lib/supabase'
-import { useContentPillars, useClientAvatars } from '../../lib/hooks'
+import { useContentPillars, useClientAvatars, useProperties } from '../../lib/hooks'
 import './ContentPlanner.css'
 
 // ─── Storage ───
@@ -114,7 +114,7 @@ function emptySlot() {
   return {
     topic: '', hook: '', caption: '', hashtags: '', keywords: '', link: '',
     manychatKeyword: '', canvaLink: '', notes: '',
-    pillar_id: '', avatar_id: '', neighborhood: '',
+    pillar_id: '', avatar_id: '', property_id: '', neighborhood: '',
     repurpose: {},  // { platformId: { caption, hashtags, keywords, link, cta } }
   }
 }
@@ -161,8 +161,10 @@ export default function ContentPlanner() {
 
   const { data: pillars } = useContentPillars()
   const { data: avatars } = useClientAvatars()
+  const { data: properties } = useProperties()
   const pillarList = pillars ?? []
   const avatarList = avatars ?? []
+  const propertyList = properties ?? []
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset])
   const today = fmtDate(new Date())
@@ -535,15 +537,33 @@ export default function ContentPlanner() {
 
                   <div className="cp__strategy-row">
                     <div className="cp__strategy-field">
+                      <label className="cp__field-label">LINKED PROPERTY</label>
+                      <select className="cp__select" value={sel.property_id || ''} onChange={e => updateSlot(selectedDate, selectedSlot, { property_id: e.target.value })}>
+                        <option value="">-- No Property --</option>
+                        {propertyList.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.address}{p.city ? `, ${p.city}` : ''}{p.price ? ` — $${Number(p.price).toLocaleString()}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="cp__strategy-field">
                       <label className="cp__field-label">NEIGHBORHOOD / AREA</label>
                       <input className="cp__input" value={sel.neighborhood || ''} onChange={e => updateSlot(selectedDate, selectedSlot, { neighborhood: e.target.value })} placeholder="e.g. Power Ranch, Downtown Gilbert..." />
                     </div>
+                  </div>
+
+                  <div className="cp__strategy-row">
                     <div className="cp__strategy-field">
                       <label className="cp__field-label">PROMPT TEMPLATE</label>
                       <select className="cp__select" value={selectedPromptTemplate} onChange={e => setSelectedPromptTemplate(e.target.value)}>
                         <option value="">-- Freeform --</option>
                         {PROMPT_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                       </select>
+                    </div>
+                    <div className="cp__strategy-field">
+                      <label className="cp__field-label">MANYCHAT KEYWORD</label>
+                      <input className="cp__input" value={sel.manychatKeyword} onChange={e => updateSlot(selectedDate, selectedSlot, { manychatKeyword: e.target.value })} placeholder="e.g. ARCADIA" />
                     </div>
                   </div>
 
@@ -596,21 +616,16 @@ export default function ContentPlanner() {
                     <textarea className="cp__textarea" value={sel.hashtags} onChange={e => updateSlot(selectedDate, selectedSlot, { hashtags: e.target.value })} placeholder="#realestate #gilbertaz #eastvalley #justlisted..." rows={2} />
                   </div>
 
-                  {/* Link / ManyChat / Canva */}
+                  {/* Link / Canva */}
                   <div className="cp__strategy-row">
                     <div className="cp__strategy-field">
                       <label className="cp__field-label">LINK</label>
                       <input className="cp__input" value={sel.link} onChange={e => updateSlot(selectedDate, selectedSlot, { link: e.target.value })} placeholder="https://..." />
                     </div>
                     <div className="cp__strategy-field">
-                      <label className="cp__field-label">MANYCHAT KEYWORD</label>
-                      <input className="cp__input" value={sel.manychatKeyword} onChange={e => updateSlot(selectedDate, selectedSlot, { manychatKeyword: e.target.value })} placeholder="e.g. ARCADIA" />
+                      <label className="cp__field-label">CANVA LINK</label>
+                      <input className="cp__input" value={sel.canvaLink} onChange={e => updateSlot(selectedDate, selectedSlot, { canvaLink: e.target.value })} placeholder="https://canva.com/design/..." />
                     </div>
-                  </div>
-
-                  <div className="cp__field-group">
-                    <label className="cp__field-label">CANVA LINK</label>
-                    <input className="cp__input" value={sel.canvaLink} onChange={e => updateSlot(selectedDate, selectedSlot, { canvaLink: e.target.value })} placeholder="https://canva.com/design/..." />
                   </div>
 
                   <div className="cp__field-group">
