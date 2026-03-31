@@ -27,7 +27,7 @@ const RESOURCES = [
     title: 'Marketing Materials',
     desc: 'Flyers, social posts, and listing assets',
     icon: '🎨',
-    link: '/content/calendar',
+    link: '/content/templates',
     items: ['Social Media Templates', 'Open House Flyers', 'Just Listed/Sold Cards', 'Market Update Graphics'],
   },
 ]

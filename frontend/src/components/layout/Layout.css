@@ -29,14 +29,7 @@
 
 /* ─── Header ─── */
 .layout__header {
-  position: sticky;
-  top: var(--topnav-height);
-  z-index: 40;
-  background: var(--glass-bg-strong);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border-bottom: 1px solid var(--glass-border);
-  padding: var(--space-lg) var(--space-xl) var(--space-md);
+  padding: var(--space-md) var(--space-xl) 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -90,7 +83,7 @@
   }
 
   .layout__header {
-    padding: var(--space-md) var(--space-md) var(--space-sm);
+    padding: var(--space-sm) var(--space-md) 0;
     flex-wrap: wrap;
     gap: var(--space-sm);
   }

@@ -20,7 +20,7 @@ const DEFAULT_NAV_ITEMS = [
   { id: 'toolkit',  label: 'Toolkit',  emoji: '🛠️', path: '/resources',   activePaths: ['/resources', '/settings', '/pipeline/buyer-sop', '/pipeline/seller-sop'] },
 ]
 
-const STORAGE_KEY = 'command_nav_order'
+const STORAGE_KEY = 'command_nav_order_v2'
 
 function loadOrder() {
   try {
