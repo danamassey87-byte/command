@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Button } from '../../components/ui/index.jsx'
 import { generateContent } from '../../lib/supabase'
+import { useContentPillars, useClientAvatars } from '../../lib/hooks'
 import './ContentPlanner.css'
 
 // ─── Storage ───
@@ -74,6 +75,20 @@ function loadInspo() {
 function saveInspo(data) { localStorage.setItem(INSPO_KEY, JSON.stringify(data)) }
 
 // ─── Main Component ───
+/* ─── Pre-stored prompt templates ─── */
+const PROMPT_TEMPLATES = [
+  { id: 'just_listed',    label: 'Just Listed',            prompt: 'Write an engaging social media post announcing a new listing. Highlight the best features, create urgency, and include a call to action.' },
+  { id: 'just_sold',      label: 'Just Sold',              prompt: 'Write a celebratory post about a recently sold property. Thank the clients and subtly encourage other potential sellers to reach out.' },
+  { id: 'market_update',  label: 'Market Update',          prompt: 'Write a concise market update post that breaks down current trends in simple terms. Include actionable takeaways.' },
+  { id: 'buyer_tip',      label: 'Buyer Tip',              prompt: 'Write a helpful tip post for home buyers. Break down a common misconception or share insider knowledge.' },
+  { id: 'seller_tip',     label: 'Seller Tip',             prompt: 'Write a practical tip for home sellers. Focus on maximizing value or navigating the selling process.' },
+  { id: 'neighborhood',   label: 'Neighborhood Spotlight', prompt: 'Write a post highlighting what makes a specific neighborhood special. Cover the vibe, amenities, schools, dining.' },
+  { id: 'local_biz',      label: 'Local Biz Shoutout',     prompt: 'Write a warm shoutout post for a local business. Highlight what makes them special and encourage your audience to check them out.' },
+  { id: 'behind_scenes',  label: 'Behind the Scenes',      prompt: 'Write a relatable behind-the-scenes post about a day in your life as a real estate agent. Be authentic.' },
+  { id: 'client_story',   label: 'Client Success Story',   prompt: 'Write a story post about helping a client find their perfect home. Focus on the journey and the happy ending.' },
+  { id: 'open_house',     label: 'Open House Invite',      prompt: 'Write an inviting open house announcement. Create excitement about the property and make people want to come see it.' },
+]
+
 export default function ContentPlanner() {
   const [weekOffset, setWeekOffset] = useState(0)
   const [planner, setPlanner] = useState(loadPlanner)
@@ -87,6 +102,13 @@ export default function ContentPlanner() {
   const [aiHooks, setAiHooks] = useState([])
   const [aiTopicsLoading, setAiTopicsLoading] = useState(false)
   const [aiPrompt, setAiPrompt] = useState('')
+  const [selectedPromptTemplate, setSelectedPromptTemplate] = useState('')
+
+  // Content strategy data
+  const { data: pillars } = useContentPillars()
+  const { data: avatars } = useClientAvatars()
+  const pillarList = pillars ?? []
+  const avatarList = avatars ?? []
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset])
   const today = fmtDate(new Date())
@@ -107,6 +129,9 @@ export default function ContentPlanner() {
       manychatKeyword: '',
       notes: '',
       canvaLink: '',
+      pillar_id: '',
+      avatar_id: '',
+      neighborhood: '',
       planned: false,
       ...planner[dateStr],
     }
@@ -149,16 +174,45 @@ export default function ContentPlanner() {
     const entry = getDayEntry(selectedDate)
     const dayOfWeek = new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' })
     const fmt = format.find(f => f.day === dayOfWeek)
-    const prompt = aiPrompt.trim() || entry.hook || entry.topic || fmt?.topic || 'Real estate content'
+
+    // Use prompt template if selected, otherwise freeform
+    const templatePrompt = selectedPromptTemplate
+      ? PROMPT_TEMPLATES.find(t => t.id === selectedPromptTemplate)?.prompt
+      : null
+    const prompt = templatePrompt || aiPrompt.trim() || entry.hook || entry.topic || fmt?.topic || 'Real estate content'
+
+    // Build pillar context
+    const pillar = pillarList.find(p => p.id === entry.pillar_id)
+    const pillarName = pillar?.name || entry.niche || fmt?.niche || 'Real Estate'
+
+    // Build avatar context
+    const avatar = avatarList.find(a => a.id === entry.avatar_id)
+    let avatarContext = ''
+    if (avatar) {
+      avatarContext = `\n\nTarget audience: ${avatar.name}`
+      if (avatar.age_range) avatarContext += `, age ${avatar.age_range}`
+      if (avatar.family_status) avatarContext += `, ${avatar.family_status}`
+      if (avatar.motivation) avatarContext += `, motivation: ${avatar.motivation}`
+      if (avatar.pain_points) avatarContext += `\nPain points: ${avatar.pain_points}`
+      if (avatar.content_resonates) avatarContext += `\nContent they respond to: ${avatar.content_resonates}`
+    }
+
+    // Neighborhood context
+    let neighborhoodContext = ''
+    if (entry.neighborhood) {
+      neighborhoodContext = `\nNeighborhood/Area focus: ${entry.neighborhood}`
+    }
+
     setAiLoading(true)
     try {
       const { text } = await generateContent({
         type: 'write',
-        pillar: entry.niche || fmt?.niche || 'Real Estate',
-        prompt: `${prompt}\n\nFormat: ${entry.format || fmt?.format || 'social media post'}${entry.hook ? `\nHook to use: "${entry.hook}"` : ''}`,
+        pillar: pillarName,
+        prompt: `${prompt}\n\nFormat: ${entry.format || fmt?.format || 'social media post'}${entry.hook ? `\nHook to use: "${entry.hook}"` : ''}${avatarContext}${neighborhoodContext}`,
       })
       updateDay(selectedDate, { caption: text })
       setAiPrompt('')
+      setSelectedPromptTemplate('')
     } catch (e) {
       alert('Claude error: ' + e.message)
     } finally {
@@ -285,6 +339,61 @@ export default function ContentPlanner() {
                 </p>
                 <span className="cp__detail-format">{sel.format || format.find(f => f.day === selDayName)?.format}</span>
                 {sel.niche && <span className="cp__detail-niche" style={{ background: NICHE_COLORS[sel.niche] || 'var(--brown-mid)' }}>{sel.niche}</span>}
+              </div>
+
+              {/* ─── Content Strategy Selectors ─── */}
+              <div className="cp__strategy-row">
+                <div className="cp__strategy-field">
+                  <label className="cp__field-label">PILLAR</label>
+                  <select
+                    className="cp__select"
+                    value={sel.pillar_id || ''}
+                    onChange={e => updateDay(selectedDate, { pillar_id: e.target.value })}
+                  >
+                    <option value="">-- Select Pillar --</option>
+                    {pillarList.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="cp__strategy-field">
+                  <label className="cp__field-label">TARGET AVATAR</label>
+                  <select
+                    className="cp__select"
+                    value={sel.avatar_id || ''}
+                    onChange={e => updateDay(selectedDate, { avatar_id: e.target.value })}
+                  >
+                    <option value="">-- Select Avatar --</option>
+                    {avatarList.map(a => (
+                      <option key={a.id} value={a.id}>{a.type === 'buyer' ? '🏠' : '📋'} {a.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="cp__strategy-row">
+                <div className="cp__strategy-field">
+                  <label className="cp__field-label">NEIGHBORHOOD / AREA</label>
+                  <input
+                    className="cp__input"
+                    value={sel.neighborhood || ''}
+                    onChange={e => updateDay(selectedDate, { neighborhood: e.target.value })}
+                    placeholder="e.g. Power Ranch, Downtown Gilbert..."
+                  />
+                </div>
+                <div className="cp__strategy-field">
+                  <label className="cp__field-label">PROMPT TEMPLATE</label>
+                  <select
+                    className="cp__select"
+                    value={selectedPromptTemplate}
+                    onChange={e => setSelectedPromptTemplate(e.target.value)}
+                  >
+                    <option value="">-- Freeform --</option>
+                    {PROMPT_TEMPLATES.map(t => (
+                      <option key={t.id} value={t.id}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="cp__field-group">
