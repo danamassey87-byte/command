@@ -141,27 +141,19 @@
   text-transform: uppercase;
   color: var(--color-text-muted);
 }
-.cp__plan-btn {
-  font-family: var(--font-body);
-  font-size: 0.6rem;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--color-border);
-  background: var(--white);
-  color: var(--color-text-muted);
-  cursor: pointer;
-  margin-top: 6px;
-  transition: background var(--transition-fast), color var(--transition-fast);
+/* Day slot dots */
+.cp__day-slots {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin: 2px 0;
 }
-.cp__plan-btn:hover { background: var(--brown-dark); color: var(--white); border-color: var(--brown-dark); }
-.cp__day--planned .cp__plan-btn {
-  background: var(--color-success);
-  color: var(--white);
-  border-color: var(--color-success);
+.cp__day-slot-dot {
+  font-size: 0.7rem;
+  opacity: 0.3;
+  transition: opacity var(--transition-fast);
 }
+.cp__day-slot-dot--filled { opacity: 1; }
 
 /* ─── Bottom Section ─── */
 .cp__bottom {
@@ -599,6 +591,189 @@
   box-shadow: 0 0 0 3px rgba(183, 151, 130, 0.15);
 }
 
+/* ─── Slot Tabs (Story / Reel / Carousel) ─── */
+.cp__slot-tabs {
+  display: flex;
+  gap: 6px;
+}
+.cp__slot-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 8px;
+  background: var(--glass-bg-strong);
+  border: 2px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  transition: all var(--transition-fast);
+}
+.cp__slot-tab:hover { background: var(--cream); }
+.cp__slot-tab--active {
+  background: var(--brown-dark);
+  color: var(--white);
+  border-color: var(--brown-dark);
+}
+.cp__slot-tab--filled { position: relative; }
+.cp__slot-tab-check {
+  font-size: 0.7rem;
+  color: var(--color-success);
+}
+.cp__slot-tab--active .cp__slot-tab-check { color: #8fdb8f; }
+
+/* ─── Mode Tabs (Compose / Repurpose) ─── */
+.cp__mode-tabs {
+  display: flex;
+  background: var(--glass-bg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+}
+.cp__mode-tab {
+  flex: 1;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.cp__mode-tab:hover { background: var(--cream); }
+.cp__mode-tab--active {
+  background: var(--brown-mid);
+  color: var(--white);
+}
+
+/* ─── Copy Button ─── */
+.cp__copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.cp__copy-btn:hover {
+  background: var(--brown-dark);
+  color: var(--white);
+  border-color: var(--brown-dark);
+}
+.cp__copy-btn--copied {
+  background: var(--color-success);
+  color: var(--white);
+  border-color: var(--color-success);
+}
+
+/* ─── Repurpose Tab ─── */
+.cp__repurpose-intro {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.cp__repurpose-empty {
+  text-align: center;
+  padding: var(--space-lg);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.cp__platform-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cp__platform-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.cp__platform-chip:hover { background: var(--cream); border-color: var(--brown-mid); }
+.cp__platform-chip--on {
+  background: var(--brown-dark);
+  color: var(--white);
+  border-color: var(--brown-dark);
+}
+.cp__platform-chip-check { font-size: 0.7rem; }
+
+/* Repurpose platform tabs */
+.cp__rp-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: var(--space-sm);
+}
+
+.cp__rp-tab {
+  padding: 6px 12px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.cp__rp-tab:hover { background: var(--cream); }
+.cp__rp-tab--active {
+  background: var(--brown-mid);
+  color: var(--white);
+  border-color: var(--brown-mid);
+}
+
+.cp__rp-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+}
+
+.cp__rp-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cp__rp-detail-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+  margin: 0;
+}
+
 @media (max-width: 600px) {
   .cp__strategy-row { grid-template-columns: 1fr; }
+  .cp__slot-tabs { flex-direction: column; }
+  .cp__platform-chips { flex-direction: column; }
 }

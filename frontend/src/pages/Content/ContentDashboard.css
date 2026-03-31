@@ -590,3 +590,57 @@
   border: 1px solid var(--glass-border);
   color: var(--color-text);
 }
+
+/* ─── ManyChat Keyword Library ─── */
+.ct-kw-card { grid-column: 1 / -1; }
+
+.ct-kw-add { margin-bottom: var(--space-md); }
+.ct-kw-add-row {
+  display: flex;
+  gap: 8px;
+}
+.ct-kw-add-row .cc-topic-input { flex: 1; }
+
+.ct-kw-table {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.ct-kw-header {
+  display: grid;
+  grid-template-columns: 140px 1fr 1fr 36px;
+  gap: var(--space-sm);
+  padding: 8px 14px;
+  background: var(--cream);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.ct-kw-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 1fr 36px;
+  gap: var(--space-sm);
+  padding: 10px 14px;
+  border-top: 1px solid var(--glass-border);
+  align-items: center;
+  font-size: 0.82rem;
+}
+.ct-kw-row:hover { background: var(--glass-bg); }
+
+.ct-kw-keyword {
+  font-weight: 700;
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: var(--brown-dark);
+  letter-spacing: 0.03em;
+}
+
+.ct-kw-desc { color: var(--color-text-secondary); }
+.ct-kw-linked {
+  color: var(--color-info);
+  font-weight: 500;
+}

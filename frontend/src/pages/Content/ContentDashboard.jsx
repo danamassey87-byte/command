@@ -108,6 +108,14 @@ function loadLocalBank() {
 }
 function saveLocalBank(data) { localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data)) }
 
+/* ─── ManyChat keyword library ─── */
+const MANYCHAT_STORAGE_KEY = 'manychat_keywords'
+function loadKeywords() {
+  try { return JSON.parse(localStorage.getItem(MANYCHAT_STORAGE_KEY)) || [] }
+  catch { return [] }
+}
+function saveKeywords(data) { localStorage.setItem(MANYCHAT_STORAGE_KEY, JSON.stringify(data)) }
+
 function DashCard({ title, children, className = '', action }) {
   return (
     <div className={`sd-card ${className}`}>
@@ -157,6 +165,12 @@ export default function ContentDashboard() {
 
   // Prompt templates panel
   const [promptPanelOpen, setPromptPanelOpen] = useState(false)
+
+  // ManyChat keyword library
+  const [keywords, setKeywords] = useState(loadKeywords)
+  const [kwInput, setKwInput] = useState('')
+  const [kwDesc, setKwDesc] = useState('')
+  const [kwLinkedTo, setKwLinkedTo] = useState('')
 
   const p = pillars ?? []
   const pc = pieces ?? []
@@ -352,6 +366,24 @@ export default function ContentDashboard() {
     const updated = { ...localBank, [cat]: localBank[cat].filter((_, i) => i !== idx) }
     setLocalBank(updated)
     saveLocalBank(updated)
+  }
+
+  /* ─── ManyChat keyword helpers ─── */
+  function addKeyword() {
+    const kw = kwInput.trim().toUpperCase()
+    if (!kw || keywords.some(k => k.keyword === kw)) return
+    const updated = [...keywords, { keyword: kw, description: kwDesc.trim(), linkedTo: kwLinkedTo.trim(), createdAt: new Date().toISOString() }]
+    setKeywords(updated)
+    saveKeywords(updated)
+    setKwInput('')
+    setKwDesc('')
+    setKwLinkedTo('')
+  }
+
+  function removeKeyword(idx) {
+    const updated = keywords.filter((_, i) => i !== idx)
+    setKeywords(updated)
+    saveKeywords(updated)
   }
 
   if (loading) return <div className="section-dash"><div className="sd-loading">Loading content data...</div></div>
@@ -756,6 +788,61 @@ export default function ContentDashboard() {
         ) : (
           <p className="sd-empty" style={{ marginTop: 'var(--space-md)' }}>
             No {localCategory} added yet. Start building your local content library.
+          </p>
+        )}
+      </DashCard>
+
+      {/* ─── ManyChat Keyword Library ─── */}
+      <DashCard title={`ManyChat Keywords (${keywords.length})`} className="ct-kw-card">
+        <p className="ct-pillars-intro">
+          Track all your ManyChat automation keywords. Link each keyword to a property, open house, or lead gen campaign so you can map engagement stats.
+        </p>
+
+        <div className="ct-kw-add">
+          <div className="ct-kw-add-row">
+            <input
+              className="cc-topic-input"
+              value={kwInput}
+              onChange={e => setKwInput(e.target.value.toUpperCase())}
+              placeholder="KEYWORD (e.g. ARCADIA)"
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addKeyword() } }}
+            />
+            <input
+              className="cc-topic-input"
+              value={kwDesc}
+              onChange={e => setKwDesc(e.target.value)}
+              placeholder="Description (e.g. Gilbert open house)"
+            />
+            <input
+              className="cc-topic-input"
+              value={kwLinkedTo}
+              onChange={e => setKwLinkedTo(e.target.value)}
+              placeholder="Linked to (property, client, campaign...)"
+            />
+            <button type="button" className="cc-topic-add-btn" onClick={addKeyword}>+</button>
+          </div>
+        </div>
+
+        {keywords.length > 0 ? (
+          <div className="ct-kw-table">
+            <div className="ct-kw-header">
+              <span>Keyword</span>
+              <span>Description</span>
+              <span>Linked To</span>
+              <span></span>
+            </div>
+            {keywords.map((kw, i) => (
+              <div key={i} className="ct-kw-row">
+                <span className="ct-kw-keyword">{kw.keyword}</span>
+                <span className="ct-kw-desc">{kw.description || '--'}</span>
+                <span className="ct-kw-linked">{kw.linkedTo || '--'}</span>
+                <button className="cc-topic-remove" onClick={() => removeKeyword(i)}>&times;</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="sd-empty" style={{ marginTop: 'var(--space-md)' }}>
+            No keywords added yet. Add your ManyChat automation keywords to track usage.
           </p>
         )}
       </DashCard>

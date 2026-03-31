@@ -29,6 +29,7 @@ import CalendarSchedule from './pages/Calendar/CalendarSchedule'
 import TodayShowings from './pages/Calendar/TodayShowings'
 import CalendarTasks from './pages/Calendar/Tasks'
 import SocialDashboard from './pages/Content/SocialDashboard'
+import AIStudio from './pages/AIStudio/AIStudio'
 
 // ─── Section Dashboards ────────────────────────────────────────────────────────
 import CrmDashboard from './pages/CRM/CrmDashboard'
@@ -147,8 +148,10 @@ export default function App() {
           <Route path="/content/calendar"  element={<ContentPlanner />} />
           <Route path="/content/planning"  element={<ContentPlanner />} />
           <Route path="/content/templates" element={<ComingSoon title="Content Templates" />} />
-          <Route path="/content/ai-studio" element={<ComingSoon title="AI Studio" />} />
+          <Route path="/content/ai-studio" element={<AIStudio />} />
           <Route path="/content/social"    element={<SocialDashboard />} />
+          <Route path="/content/ads"       element={<ComingSoon title="Ads Manager" />} />
+          <Route path="/content/ads/reports" element={<ComingSoon title="Ad Reports" />} />
           <Route path="/content/stats"     element={<ComingSoon title="Content Stats" />} />
 
           {/* ─── P&L ─── */}
