@@ -95,7 +95,7 @@ export default function Layout() {
   })
 
   const section = getActiveSection(pathname)
-  const sidebarSections = ['dashboard', 'prospecting', 'crm', 'pipeline', 'calendar', 'content', 'pnl', 'campaigns', 'bio-link', 'email', 'resources']
+  const sidebarSections = ['home', 'prospect', 'people', 'deals', 'content', 'money', 'toolkit']
   const showSidebar = sidebarSections.includes(section)
 
   const ctxValue = {
