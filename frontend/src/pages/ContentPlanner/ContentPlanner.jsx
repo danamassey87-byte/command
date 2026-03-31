@@ -9,6 +9,39 @@ const STORAGE_KEY = 'content_planner_v2'
 const FORMAT_KEY = 'content_weekly_format'
 const INSPO_KEY = 'content_inspo_bank'
 const MANYCHAT_KEY = 'manychat_keywords'
+const FORMAT_OPTIONS_KEY = 'content_format_options'
+
+// ─── Default dropdown options for weekly format ───
+const DEFAULT_FORMAT_OPTIONS = {
+  formats: ['CAROUSEL', 'REEL', 'STORY', 'STORY / TIP', 'REEL / CAROUSEL', 'STORY / REEL', 'STATIC POST', 'LIVE', 'GUIDE', 'COLLAB'],
+  topics: [
+    'Area spotlight — bars, restaurants, things to do',
+    'House For Sale / Listing showcase',
+    'Me as Expert — market stats, tips, listing tips',
+    'Coffee & Contracts — Q&A, behind the scenes',
+    'Houses I\'d Send My Buyers — curated picks',
+    'Life Lately / Day in the Life — personal, family',
+    'Coffee & Contracts Random — casual tips, weekly wrap',
+    'Neighborhood tour / hidden gems',
+    'Client win / testimonial / just sold',
+    'Local business shoutout',
+    'Home buyer tips & tricks',
+    'Seller strategy / pricing breakdown',
+    'Market update / data drop',
+    'Myth busting / FAQ',
+    'Open house promo',
+    'Personal story / milestone',
+    'Home design inspo / staging tips',
+    'Weekend guide / things to do',
+  ],
+  niches: ['COMMUNITY', 'LISTINGS', 'AUTHORITY', 'PERSONAL', 'LOCAL', 'EDUCATION', 'SOCIAL PROOF', 'LIFESTYLE'],
+}
+
+function loadFormatOptions() {
+  try { return JSON.parse(localStorage.getItem(FORMAT_OPTIONS_KEY)) || DEFAULT_FORMAT_OPTIONS }
+  catch { return DEFAULT_FORMAT_OPTIONS }
+}
+function saveFormatOptions(data) { localStorage.setItem(FORMAT_OPTIONS_KEY, JSON.stringify(data)) }
 
 function loadKeywords() {
   try { return JSON.parse(localStorage.getItem(MANYCHAT_KEY)) || [] } catch { return [] }
@@ -154,6 +187,10 @@ export default function ContentPlanner() {
   const [activeTab, setActiveTab] = useState('compose')   // compose | repurpose
   const [activePlatform, setActivePlatform] = useState(null)
   const [editingFormat, setEditingFormat] = useState(false)
+  const [formatOptions, setFormatOptions] = useState(loadFormatOptions)
+  const [editingOptions, setEditingOptions] = useState(false)
+  const [optionInput, setOptionInput] = useState('')
+  const [optionCategory, setOptionCategory] = useState('formats') // formats | topics | niches
   const [copiedId, setCopiedId] = useState(null)
 
   const [aiLoading, setAiLoading] = useState(false)
@@ -263,6 +300,22 @@ export default function ContentPlanner() {
     const updated = inspoBank.filter(i => i.id !== id)
     setInspoBank(updated)
     saveInspo(updated)
+  }
+
+  // ─── Format options management ───
+  function addFormatOption() {
+    const val = optionInput.trim()
+    if (!val || formatOptions[optionCategory]?.includes(val)) return
+    const updated = { ...formatOptions, [optionCategory]: [...(formatOptions[optionCategory] || []), val] }
+    setFormatOptions(updated)
+    saveFormatOptions(updated)
+    setOptionInput('')
+  }
+
+  function removeFormatOption(cat, idx) {
+    const updated = { ...formatOptions, [cat]: formatOptions[cat].filter((_, i) => i !== idx) }
+    setFormatOptions(updated)
+    saveFormatOptions(updated)
   }
 
   // ─── AI: Generate caption ───
@@ -846,10 +899,55 @@ export default function ContentPlanner() {
           <div className="cp__weekly-format">
             <div className="cp__format-header">
               <h4 className="cp__section-title">YOUR WEEKLY FORMAT</h4>
-              <button className="cp__edit-format-btn" onClick={() => setEditingFormat(e => !e)}>
-                {editingFormat ? '✓ Done' : '✏️ Edit'}
-              </button>
+              <div className="cp__format-header-actions">
+                <button className="cp__edit-format-btn" onClick={() => setEditingOptions(e => !e)}>
+                  {editingOptions ? '✓ Close' : '⚙ Options'}
+                </button>
+                <button className="cp__edit-format-btn" onClick={() => setEditingFormat(e => !e)}>
+                  {editingFormat ? '✓ Done' : '✏️ Edit'}
+                </button>
+              </div>
             </div>
+
+            {/* Options editor */}
+            {editingOptions && (
+              <div className="cp__options-editor">
+                <div className="cp__options-tabs">
+                  {[
+                    { key: 'formats', label: 'Formats' },
+                    { key: 'topics', label: 'Topics' },
+                    { key: 'niches', label: 'Niches' },
+                  ].map(t => (
+                    <button key={t.key} className={`cp__options-tab${optionCategory === t.key ? ' cp__options-tab--active' : ''}`} onClick={() => setOptionCategory(t.key)}>
+                      {t.label} ({formatOptions[t.key]?.length || 0})
+                    </button>
+                  ))}
+                </div>
+                <div className="cp__options-add">
+                  <input
+                    className="cp__input"
+                    value={optionInput}
+                    onChange={e => setOptionInput(optionCategory === 'niches' ? e.target.value.toUpperCase() : e.target.value)}
+                    placeholder={
+                      optionCategory === 'formats' ? 'e.g. CAROUSEL, LIVE, GUIDE...' :
+                      optionCategory === 'topics' ? 'e.g. Client win / testimonial...' :
+                      'e.g. EDUCATION, LIFESTYLE...'
+                    }
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addFormatOption() } }}
+                  />
+                  <button type="button" className="cp__options-add-btn" onClick={addFormatOption}>+</button>
+                </div>
+                <div className="cp__options-list">
+                  {(formatOptions[optionCategory] || []).map((item, i) => (
+                    <span key={i} className="cp__options-chip">
+                      {item}
+                      <button className="cp__options-remove" onClick={() => removeFormatOption(optionCategory, i)}>&times;</button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {format.map((f, idx) => (
               <div key={f.day} className="cp__format-row">
                 <span className="cp__format-emoji">{f.emoji}</span>
@@ -860,15 +958,22 @@ export default function ContentPlanner() {
                         <strong>{f.day}</strong>
                         <input value={f.emoji} onChange={e => updateFormat(idx, { emoji: e.target.value })} className="cp__format-input cp__format-input--sm" placeholder="emoji" />
                       </div>
-                      <input value={f.format} onChange={e => updateFormat(idx, { format: e.target.value })} className="cp__format-input" placeholder="CAROUSEL, REEL, STORY..." />
-                      <input value={f.topic} onChange={e => updateFormat(idx, { topic: e.target.value })} className="cp__format-input" placeholder="Topic description..." />
-                      <select value={f.niche} onChange={e => updateFormat(idx, { niche: e.target.value })} className="cp__format-input">
-                        <option value="">Niche...</option>
-                        <option value="COMMUNITY">COMMUNITY</option>
-                        <option value="LISTINGS">LISTINGS</option>
-                        <option value="AUTHORITY">AUTHORITY</option>
-                        <option value="PERSONAL">PERSONAL</option>
-                        <option value="LOCAL">LOCAL</option>
+                      <select value={formatOptions.formats?.includes(f.format) ? f.format : ''} onChange={e => updateFormat(idx, { format: e.target.value })} className="cp__format-input">
+                        <option value="">-- Select Format --</option>
+                        {(formatOptions.formats || []).map(o => <option key={o} value={o}>{o}</option>)}
+                        {f.format && !formatOptions.formats?.includes(f.format) && <option value={f.format}>{f.format} (custom)</option>}
+                      </select>
+                      <select value={formatOptions.topics?.includes(f.topic) ? f.topic : ''} onChange={e => updateFormat(idx, { topic: e.target.value })} className="cp__format-input">
+                        <option value="">-- Select Topic --</option>
+                        {(formatOptions.topics || []).map(o => <option key={o} value={o}>{o}</option>)}
+                        {f.topic && !formatOptions.topics?.includes(f.topic) && <option value={f.topic}>{f.topic} (custom)</option>}
+                      </select>
+                      <select value={formatOptions.niches?.includes(f.niche) ? f.niche : ''} onChange={e => updateFormat(idx, { niche: e.target.value })} className="cp__format-input">
+                        <option value="">-- Select Niche --</option>
+                        {(formatOptions.niches || []).map(o => (
+                          <option key={o} value={o} style={{ color: NICHE_COLORS[o] }}>{o}</option>
+                        ))}
+                        {f.niche && !formatOptions.niches?.includes(f.niche) && <option value={f.niche}>{f.niche} (custom)</option>}
                       </select>
                     </>
                   ) : (
