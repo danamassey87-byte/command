@@ -244,6 +244,7 @@ function ManualEntryPanel({ open, onClose, platformKey, existingMetrics, onSaved
 function ChannelManager({ open, onClose, config, onSave }) {
   const [draft, setDraft] = useState({ platforms: {}, apify_key: '' })
   const [saving, setSaving] = useState(false)
+  const [showKey, setShowKey] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -313,13 +314,21 @@ function ChannelManager({ open, onClose, config, onSave }) {
           <div className="sd-manager__apify-key">
             <label className="sd-manager__label">Apify API Key</label>
             <p className="sd-manager__hint">One key for all Apify-connected platforms. Find it at apify.com &rarr; Settings &rarr; Integrations.</p>
-            <input
-              type="password"
-              className="sd-manager__handle-input sd-manager__handle-input--wide"
-              value={draft.apify_key}
-              onChange={e => setDraft(prev => ({ ...prev, apify_key: e.target.value }))}
-              placeholder="apify_api_xxxxxxxxxxxxxxx"
-            />
+            <div className="sd-manager__key-row">
+              <input
+                type={showKey ? 'text' : 'password'}
+                className="sd-manager__handle-input sd-manager__handle-input--wide"
+                value={draft.apify_key}
+                onChange={e => setDraft(prev => ({ ...prev, apify_key: e.target.value }))}
+                placeholder="apify_api_xxxxxxxxxxxxxxx"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                autoComplete="off"
+              />
+              <button type="button" className="sd-manager__key-toggle" onClick={() => setShowKey(v => !v)}>
+                {showKey ? '🙈' : '👁'}
+              </button>
+            </div>
           </div>
         )}
 

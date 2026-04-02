@@ -1,0 +1,367 @@
+/* ─── AI Studio ─── */
+.ai-studio__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-lg);
+}
+.ai-studio__title {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+  margin: 0;
+}
+.ai-studio__subtitle {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+}
+
+/* ─── Steps indicator ─── */
+.ai-studio__steps {
+  display: flex;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-xl);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+}
+.ai-studio__step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  opacity: 0.4;
+  transition: opacity var(--transition-fast);
+}
+.ai-studio__step--active,
+.ai-studio__step--done { opacity: 1; }
+.ai-studio__step-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  background: var(--cream);
+  border: 1.5px solid var(--color-border);
+}
+.ai-studio__step--active .ai-studio__step-num {
+  background: var(--brown-dark);
+  color: #fff;
+  border-color: var(--brown-dark);
+}
+.ai-studio__step--done .ai-studio__step-num {
+  background: var(--color-success);
+  color: #fff;
+  border-color: var(--color-success);
+}
+.ai-studio__step-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+}
+
+/* ─── Error banner ─── */
+.ai-studio__error {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  color: var(--color-danger);
+  font-size: 0.82rem;
+  margin-bottom: var(--space-lg);
+}
+.ai-studio__error button {
+  background: none;
+  border: none;
+  color: var(--color-danger);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 0.78rem;
+}
+
+/* ─── Step 1: Type grid ─── */
+.ai-studio__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--space-md);
+}
+.ai-studio__type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg) var(--space-md);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+}
+.ai-studio__type-card:hover {
+  border-color: var(--brown-mid);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+}
+.ai-studio__type-card--selected {
+  border-color: var(--brown-dark);
+  background: var(--cream);
+}
+.ai-studio__type-icon {
+  font-size: 1.8rem;
+}
+.ai-studio__type-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+}
+.ai-studio__type-desc {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  line-height: 1.35;
+}
+
+/* ─── Step 2: Customize ─── */
+.ai-studio__customize {
+  max-width: 680px;
+}
+.ai-studio__customize-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--cream);
+  border-radius: var(--radius-lg);
+}
+.ai-studio__customize-icon { font-size: 2rem; }
+.ai-studio__customize-title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+  margin: 0;
+}
+.ai-studio__customize-desc {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+}
+
+.ai-studio__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+.ai-studio__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* Selected property chip */
+.ai-studio__selected-property {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+}
+.ai-studio__selected-property strong {
+  color: var(--brown-dark);
+  display: block;
+}
+.ai-studio__property-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+.ai-studio__remove-prop {
+  background: none;
+  border: none;
+  color: var(--color-danger);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* Batch mode */
+.ai-studio__batch-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 0.82rem;
+  color: var(--brown-dark);
+  cursor: pointer;
+}
+.ai-studio__batch-toggle input { accent-color: var(--brown-dark); }
+.ai-studio__batch-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+.ai-studio__batch-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: 0.78rem;
+  color: var(--brown-dark);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.ai-studio__batch-chip input { display: none; }
+.ai-studio__batch-chip--on {
+  background: var(--brown-dark);
+  color: #fff;
+  border-color: var(--brown-dark);
+}
+
+/* Prompt preview */
+.ai-studio__preview-prompt {
+  padding: var(--space-md);
+  background: var(--cream);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+}
+.ai-studio__prompt-text {
+  font-size: 0.78rem;
+  color: var(--brown-dark);
+  line-height: 1.55;
+  margin: var(--space-sm) 0 0;
+  font-style: italic;
+}
+
+/* Actions */
+.ai-studio__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+/* ─── Generating spinner ─── */
+.ai-studio__generating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-2xl);
+  text-align: center;
+}
+.ai-studio__spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--brown-dark);
+  border-radius: 50%;
+  animation: ai-spin 0.8s linear infinite;
+}
+@keyframes ai-spin { to { transform: rotate(360deg); } }
+.ai-studio__generating p {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+  margin: 0;
+}
+.ai-studio__gen-sub {
+  font-size: 0.78rem !important;
+  font-weight: 400 !important;
+  color: var(--color-text-muted) !important;
+}
+
+/* ─── Step 3: Results ─── */
+.ai-studio__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+.ai-studio__result-group {}
+.ai-studio__result-type {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+  margin: 0 0 var(--space-md);
+  text-transform: capitalize;
+}
+.ai-studio__candidates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-md);
+}
+.ai-studio__candidate {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: box-shadow var(--transition-fast);
+}
+.ai-studio__candidate:hover {
+  box-shadow: var(--shadow-md);
+}
+.ai-studio__candidate-img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+  background: var(--cream);
+}
+.ai-studio__candidate-placeholder {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cream);
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+.ai-studio__candidate-actions {
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  justify-content: center;
+}
+
+.ai-studio__results-footer {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-md);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-border-light);
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 600px) {
+  .ai-studio__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .ai-studio__steps {
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+  }
+  .ai-studio__step-label { display: none; }
+  .ai-studio__candidates {
+    grid-template-columns: 1fr;
+  }
+}

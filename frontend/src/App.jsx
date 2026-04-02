@@ -1,8 +1,10 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { BrandProvider } from './lib/BrandContext'
 import { NotesProvider } from './lib/NotesContext'
 import { FavoritesProvider } from './lib/FavoritesContext'
+import { AuthProvider, useAuth } from './lib/AuthContext'
 import Layout from './components/layout/Layout'
+import Login from './pages/Login/Login'
 
 // ─── Existing pages ──────────────────────────────────────────────────────────
 import Dashboard from './pages/Dashboard/Dashboard'
@@ -89,14 +91,20 @@ function ComingSoon({ title }) {
   )
 }
 
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth()
+  if (loading) return null
+  if (!user) return <Navigate to="/login" replace />
+  return children
+}
+
 export default function App() {
   return (
-    <BrandProvider>
-    <NotesProvider>
-    <FavoritesProvider>
+    <AuthProvider>
     <BrowserRouter>
       <Routes>
-        <Route element={<Layout />}>
+        <Route path="/login" element={<LoginGate />} />
+        <Route element={<ProtectedRoute><BrandProvider><NotesProvider><FavoritesProvider><Layout /></FavoritesProvider></NotesProvider></BrandProvider></ProtectedRoute>}>
           {/* ─── Dashboard ─── */}
           <Route path="/"                  element={<Dashboard />} />
           <Route path="/dashboard/daily"   element={<DailyTracker />} />
@@ -208,8 +216,13 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
-    </FavoritesProvider>
-    </NotesProvider>
-    </BrandProvider>
+    </AuthProvider>
   )
+}
+
+function LoginGate() {
+  const { user, loading } = useAuth()
+  if (loading) return null
+  if (user) return <Navigate to="/" replace />
+  return <Login />
 }

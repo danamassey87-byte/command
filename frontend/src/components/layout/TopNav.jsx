@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
+import supabase from '../../lib/supabase'
 import './TopNav.css'
 
 // Shared mobile menu context so Layout can control sidebar too
@@ -143,6 +144,13 @@ export default function TopNav() {
             <NavLink to="/settings" className="topnav__settings-link">
               ⚙️
             </NavLink>
+            <button
+              className="topnav__logout-btn"
+              onClick={() => supabase.auth.signOut()}
+              title="Sign out"
+            >
+              Sign Out
+            </button>
           </div>
         </div>
 

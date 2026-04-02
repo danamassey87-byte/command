@@ -84,6 +84,24 @@
   color: var(--brown-dark);
 }
 
+.topnav__logout-btn {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: none;
+  border: 1px solid var(--color-border);
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.topnav__logout-btn:hover {
+  background: var(--cream);
+  color: var(--brown-dark);
+}
+
 /* ─── Tabs Row ─── */
 .topnav__tabs-row {
   display: flex;

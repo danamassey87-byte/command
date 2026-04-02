@@ -610,6 +610,38 @@
   gap: 6px;
 }
 
+/* Hide password-manager injected icons (LastPass, 1Password, etc.) inside API key field */
+.sd-manager__apify-key [data-lastpass-icon-root],
+.sd-manager__apify-key div[id^="__lpform"],
+.sd-manager__apify-key [data-lp-point] {
+  display: none !important;
+}
+.sd-manager__apify-key input[type="password"],
+.sd-manager__apify-key input[type="text"] {
+  padding-right: 12px !important;
+  background-image: none !important;
+}
+
+.sd-manager__key-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sd-manager__key-row .sd-manager__handle-input {
+  flex: 1;
+  min-width: 0;
+}
+.sd-manager__key-toggle {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .sd-manager__hint {
   font-size: 0.7rem;
   color: var(--color-text-muted);
