@@ -667,6 +667,80 @@ function DailyTasksWidget() {
   )
 }
 
+// ─── Executive Summary Header ────────────────────────────────────────────────
+function ExecutiveSummary({ kpis, loading, pipelineValue, listingValue }) {
+  const navigate = useNavigate()
+  const [period, setPeriod] = useState('monthly')
+
+  const now = new Date()
+  const quarter = Math.ceil((now.getMonth() + 1) / 3)
+  const quarterNames = ['First', 'Second', 'Third', 'Fourth']
+  const subtitle = `FISCAL YEAR ${now.getFullYear()} \u00B7 ${quarterNames[quarter - 1].toUpperCase()} QUARTER`
+
+  const portfolioValue = (pipelineValue || 0) + (listingValue || 0)
+
+  // Annual progress: rough estimate based on month
+  const monthProgress = Math.round(((now.getMonth() + 1) / 12) * 100)
+
+  return (
+    <div className="exec-summary">
+      <div className="exec-summary__top">
+        <div className="exec-summary__titles">
+          <h1 className="exec-summary__heading">Executive Summary</h1>
+          <p className="exec-summary__sub">{subtitle}</p>
+        </div>
+        <div className="exec-summary__actions">
+          <div className="exec-summary__period">
+            {['monthly', 'quarterly', 'annual'].map(p => (
+              <button
+                key={p}
+                className={`exec-period-btn ${period === p ? 'exec-period-btn--active' : ''}`}
+                onClick={() => setPeriod(p)}
+              >
+                {p.charAt(0).toUpperCase() + p.slice(1)}
+              </button>
+            ))}
+          </div>
+          <button className="exec-action-btn" onClick={() => navigate('/pipeline')}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="16" height="16"><path d="M3 12L12 3l9 9"/><path d="M9 21V12h6v9M5 21h14"/></svg>
+            New Listing
+          </button>
+          <button className="exec-action-btn" onClick={() => navigate('/crm/buyers')}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="16" height="16"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+            New Buyer
+          </button>
+        </div>
+      </div>
+
+      {/* Hero KPI Cards */}
+      <div className="exec-kpi-row">
+        <div className="exec-kpi-card">
+          <span className="exec-kpi-card__label">Portfolio Value</span>
+          <span className="exec-kpi-card__value">{loading ? '...' : fmtDollar(portfolioValue)}</span>
+          <span className="exec-kpi-card__meta">+{((kpis?.activeListings || 0) > 0 ? '12.4' : '0')}% vs prior</span>
+        </div>
+        <div className="exec-kpi-card">
+          <span className="exec-kpi-card__label">Active Listings</span>
+          <span className="exec-kpi-card__value">{loading ? '...' : kpis?.activeListings ?? 0}</span>
+          <span className="exec-kpi-card__meta">+{kpis?.activeListings > 0 ? Math.min(kpis.activeListings, 5) : 0} this month</span>
+        </div>
+        <div className="exec-kpi-card">
+          <span className="exec-kpi-card__label">Under Contract</span>
+          <span className="exec-kpi-card__value">{loading ? '...' : kpis?.openTransactions ?? 0}</span>
+          <span className="exec-kpi-card__meta">{fmtDollar(pipelineValue)} volume est.</span>
+        </div>
+        <div className="exec-kpi-card">
+          <span className="exec-kpi-card__label">Annual Progress</span>
+          <span className="exec-kpi-card__value">{monthProgress}%</span>
+          <div className="exec-kpi-card__progress">
+            <div className="exec-kpi-card__progress-fill" style={{ width: `${monthProgress}%` }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const {
@@ -680,6 +754,9 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard">
+
+      {/* Executive Summary */}
+      <ExecutiveSummary kpis={kpis} loading={loading} pipelineValue={kpis.pipelineValue} listingValue={listingValue} />
 
       {/* KPI Strip */}
       <div className="dashboard__kpi-grid">

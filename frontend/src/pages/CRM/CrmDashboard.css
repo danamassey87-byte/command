@@ -6,9 +6,10 @@
 
 .sd-row { display: grid; gap: var(--space-lg); align-items: start; }
 .sd-row--60-40 { grid-template-columns: 3fr 2fr; }
+.sd-row--40-60 { grid-template-columns: 2fr 3fr; }
 .sd-row--50-50 { grid-template-columns: 1fr 1fr; }
 .sd-row--33-33-33 { grid-template-columns: 1fr 1fr 1fr; }
-@media (max-width: 900px) { .sd-row--60-40, .sd-row--50-50, .sd-row--33-33-33 { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .sd-row--60-40, .sd-row--40-60, .sd-row--50-50, .sd-row--33-33-33 { grid-template-columns: 1fr; } }
 
 .sd-card {
   padding: var(--space-lg) var(--space-xl);

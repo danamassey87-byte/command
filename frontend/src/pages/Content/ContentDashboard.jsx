@@ -512,7 +512,7 @@ export default function ContentDashboard() {
             </Link>
             <Link to="/content/ai-studio" className="ct-quick-link ct-quick-link--compact">
               <span className="ct-quick-link__icon">⚡</span>
-              <span>AI Studio</span>
+              <span>Content Studio</span>
             </Link>
           </div>
         </DashCard>

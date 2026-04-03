@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { StatCard, Badge } from '../../components/ui/index.jsx'
-import { useTransactions, useListings, useAllIncomeEntries } from '../../lib/hooks.js'
+import { useTransactions, useListings, useAllIncomeEntries, useContacts, useActivityLog } from '../../lib/hooks.js'
 import './PipelineDashboard.css'
 
 function DashCard({ title, children, className = '' }) {
@@ -28,6 +28,8 @@ export default function PipelineDashboard() {
   const { data: transactions, loading } = useTransactions()
   const { data: listings } = useListings()
   const { data: income } = useAllIncomeEntries()
+  const { data: contacts } = useContacts()
+  const { data: activityLog } = useActivityLog()
 
   const t = transactions ?? []
   const l = listings ?? []
@@ -78,6 +80,37 @@ export default function PipelineDashboard() {
 
   // Top deals by value
   const topDeals = [...active].sort((a, b) => (Number(b.property?.price) || 0) - (Number(a.property?.price) || 0)).slice(0, 3)
+
+  // ─── Conversion Health ──────────────────────────────────────────────────
+  const allContacts = contacts ?? []
+  const totalLeads = allContacts.length
+  const qualified = allContacts.filter(x => ['active', 'under_contract', 'closed'].includes((x.stage ?? '').toLowerCase().replace(/\s/g, '_')))
+  const qualifyingRate = totalLeads ? Math.round(qualified.length / totalLeads * 100) : 0
+
+  // Contact velocity: avg hours from created_at to updated_at for contacts touched in last 30 days
+  const thirtyAgo = new Date(now); thirtyAgo.setDate(now.getDate() - 30)
+  const recentlyTouched = allContacts.filter(x => x.updated_at && new Date(x.updated_at) >= thirtyAgo && x.updated_at !== x.created_at)
+  const avgVelocityHrs = recentlyTouched.length
+    ? (recentlyTouched.reduce((s, x) => s + (new Date(x.updated_at) - new Date(x.created_at)) / 3600000, 0) / recentlyTouched.length).toFixed(1)
+    : '—'
+
+  // Closing confidence based on deal progress
+  const closingConfidence = active.length === 0 ? '—' : (
+    closed.length >= active.length ? 'HIGH' :
+    closed.length >= active.length * 0.5 ? 'MODERATE' : 'BUILDING'
+  )
+
+  // Activity log entries
+  const logEntries = activityLog ?? []
+
+  // Icon by activity type
+  const activityIcon = (type) => {
+    const icons = {
+      call: '📞', email: '✉️', meeting: '🤝', showing: '🏠',
+      note: '📝', status_change: '🔄', proposal: '📄', closing: '🎉',
+    }
+    return icons[type] || '●'
+  }
 
   if (loading) return <div className="section-dash"><div className="sd-loading">Loading pipeline...</div></div>
 
@@ -195,6 +228,66 @@ export default function PipelineDashboard() {
               ))}
             </div>
           ) : <p className="sd-empty">No closed deals this year</p>}
+        </DashCard>
+      </div>
+
+      <div className="sd-row sd-row--40-60">
+        <DashCard title="Conversion Health" className="pl-conversion-health">
+          <div className="pl-ch-metrics">
+            <div className="pl-ch-metric">
+              <span className="pl-ch-metric__label">QUALIFYING RATE</span>
+              <span className="pl-ch-metric__value">{qualifyingRate}%</span>
+              <div className="pl-ch-metric__bar">
+                <div className="pl-ch-metric__fill pl-ch-metric__fill--rate" style={{ width: `${qualifyingRate}%` }} />
+              </div>
+            </div>
+            <div className="pl-ch-metric">
+              <span className="pl-ch-metric__label">CONTACT VELOCITY</span>
+              <span className="pl-ch-metric__value">{avgVelocityHrs}{avgVelocityHrs !== '—' ? ' HRS' : ''}</span>
+              <div className="pl-ch-metric__bar">
+                <div className="pl-ch-metric__fill pl-ch-metric__fill--velocity" style={{ width: avgVelocityHrs !== '—' ? `${Math.min(100, Math.round(100 - Number(avgVelocityHrs)))}%` : '0%' }} />
+              </div>
+            </div>
+            <div className="pl-ch-metric">
+              <span className="pl-ch-metric__label">CLOSING CONFIDENCE</span>
+              <span className={`pl-ch-metric__value pl-ch-metric__value--${closingConfidence.toLowerCase()}`}>{closingConfidence}</span>
+            </div>
+          </div>
+          <p className="pl-ch-footnote">Data curated from the last 30 business days across all active deals.</p>
+        </DashCard>
+
+        <DashCard title="Lead Activity Log" className="pl-activity-log">
+          {logEntries.length > 0 ? (
+            <div className="pl-log-list">
+              {logEntries.slice(0, 8).map(entry => {
+                const entryDate = new Date(entry.created_at)
+                const isToday = entryDate.toDateString() === now.toDateString()
+                const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1)
+                const isYesterday = entryDate.toDateString() === yesterday.toDateString()
+                const timeStr = isToday
+                  ? `Today, ${entryDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+                  : isYesterday
+                    ? `Yesterday, ${entryDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+                    : `${fmtDate(entry.created_at)}, ${entryDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+
+                return (
+                  <div key={entry.id} className="pl-log-entry">
+                    <span className="pl-log-entry__icon">{activityIcon(entry.type)}</span>
+                    <div className="pl-log-entry__body">
+                      <div className="pl-log-entry__header">
+                        <span className="pl-log-entry__title">
+                          {entry.type?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                          {entry.contact?.name ? `: ${entry.contact.name}` : ''}
+                        </span>
+                        <span className="pl-log-entry__time">{timeStr}</span>
+                      </div>
+                      <p className="pl-log-entry__desc">{entry.description}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : <p className="sd-empty">No activity logged yet</p>}
         </DashCard>
       </div>
 

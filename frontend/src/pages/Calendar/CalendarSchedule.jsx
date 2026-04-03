@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, Badge, Card, SlidePanel, TabBar } from '../../components/ui/index.jsx'
 import { useShowingSessions, useOpenHouses, useListingAppointments } from '../../lib/hooks.js'
 import './CalendarSchedule.css'
@@ -64,6 +65,7 @@ function buildEvents(sessions, openHouses, listingAppts, tasks) {
       subtitle: (s.showings ?? []).map(sh => sh.property?.address).filter(Boolean).join(', '),
       color: 'var(--color-info)',
       raw: s,
+      link: '/calendar/today',
     })
   })
 
@@ -76,10 +78,11 @@ function buildEvents(sessions, openHouses, listingAppts, tasks) {
       type: 'open-house',
       date: d,
       time: oh.start_time,
-      title: 'Open House',
-      subtitle: oh.property?.address ?? '',
+      title: oh.property?.address ? `Open House` : 'Open House',
+      subtitle: [oh.property?.address, oh.property?.city].filter(Boolean).join(', '),
       color: 'var(--color-warning)',
       raw: oh,
+      link: '/calendar/today',
     })
   })
 
@@ -87,15 +90,18 @@ function buildEvents(sessions, openHouses, listingAppts, tasks) {
   ;(listingAppts ?? []).forEach(a => {
     const d = parseDate(a.appointment_date)
     if (!d) return
+    const name = a.seller_name || a.contact?.name || 'Listing Appt'
+    const addr = [a.address, a.city].filter(Boolean).join(', ')
     events.push({
       id: `appt-${a.id}`,
       type: 'listing-appt',
       date: d,
       time: a.appointment_time,
-      title: 'Listing Appt',
-      subtitle: a.contact?.name ?? '',
+      title: name,
+      subtitle: addr || 'Listing Appointment',
       color: 'var(--color-success)',
       raw: a,
+      link: '/dashboard/appts',
     })
   })
 
@@ -121,6 +127,7 @@ function buildEvents(sessions, openHouses, listingAppts, tasks) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function CalendarSchedule() {
+  const navigate = useNavigate()
   const { data: sessions, loading: loadSessions }   = useShowingSessions()
   const { data: openHouses, loading: loadOH }        = useOpenHouses()
   const { data: listingAppts, loading: loadAppts }   = useListingAppointments()
@@ -321,7 +328,10 @@ export default function CalendarSchedule() {
                     {dayEvents.map(ev => (
                       <button key={ev.id} className="cal__week-event" onClick={() => setDetailEvent(ev)}>
                         <span className="cal__event-dot" style={{ background: ev.color }} />
-                        <span className="cal__week-event-title">{ev.title}</span>
+                        <div className="cal__week-event-info">
+                          <span className="cal__week-event-title">{ev.title}</span>
+                          {ev.subtitle && <span className="cal__week-event-sub">{ev.subtitle}</span>}
+                        </div>
                         {ev.time && <span className="cal__week-event-time">{fmtTime(ev.time)}</span>}
                       </button>
                     ))}
@@ -423,9 +433,15 @@ export default function CalendarSchedule() {
             {detailEvent.type === 'listing-appt' && detailEvent.raw && (
               <>
                 <div className="cal__detail-row">
-                  <span className="cal__detail-label">Contact</span>
-                  <span>{detailEvent.raw.contact?.name ?? '—'}</span>
+                  <span className="cal__detail-label">Seller</span>
+                  <span>{detailEvent.raw.seller_name || detailEvent.raw.contact?.name || '—'}</span>
                 </div>
+                {detailEvent.raw.address && (
+                  <div className="cal__detail-row">
+                    <span className="cal__detail-label">Property</span>
+                    <span>{[detailEvent.raw.address, detailEvent.raw.city].filter(Boolean).join(', ')}</span>
+                  </div>
+                )}
                 {detailEvent.raw.contact?.phone && (
                   <div className="cal__detail-row">
                     <span className="cal__detail-label">Phone</span>
@@ -439,6 +455,16 @@ export default function CalendarSchedule() {
                   </div>
                 )}
               </>
+            )}
+
+            {/* Navigate to full page */}
+            {detailEvent.link && (
+              <button
+                className="cal__detail-go-btn"
+                onClick={() => { navigate(detailEvent.link); setDetailEvent(null) }}
+              >
+                Open in {detailEvent.type === 'listing-appt' ? 'Listing Appts' : detailEvent.type === 'showing' ? 'Showings' : detailEvent.type === 'open-house' ? 'Open Houses' : 'Tasks'} →
+              </button>
             )}
           </div>
         )}

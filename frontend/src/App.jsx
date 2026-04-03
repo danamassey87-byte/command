@@ -63,6 +63,14 @@ import Notes from './pages/Notes/Notes'
 // ─── Expired / Cannonball Tracker ─────────────────────────────────────────────
 import ExpiredCannonball from './pages/Prospecting/ExpiredCannonball'
 
+// ─── Prospecting Pages ──────────────────────────────────────────────────────
+import AllProspects from './pages/Prospecting/AllProspects'
+import FsboLeads from './pages/Prospecting/FsboLeads'
+import CircleProspecting from './pages/Prospecting/CircleProspecting'
+import PersonalCircle from './pages/Prospecting/PersonalCircle'
+import Referrals from './pages/Prospecting/Referrals'
+import OHLeads from './pages/Prospecting/OHLeads'
+
 // ─── Smart Campaigns ────────────────────────────────────────────────────────
 import SmartCampaigns from './pages/Campaigns/SmartCampaigns'
 
@@ -116,12 +124,13 @@ export default function App() {
 
           {/* ─── Prospecting ─── */}
           <Route path="/prospecting"            element={<ProspectingDashboard />} />
+          <Route path="/prospecting/all"        element={<AllProspects />} />
           <Route path="/prospecting/expired"    element={<ExpiredCannonball />} />
-          <Route path="/prospecting/fsbo"       element={<ComingSoon title="FSBO Leads" />} />
-          <Route path="/prospecting/circle"     element={<ComingSoon title="Circle Prospecting" />} />
-          <Route path="/prospecting/soi"        element={<ComingSoon title="Personal Circle / SOI" />} />
-          <Route path="/prospecting/referrals"  element={<ComingSoon title="Referrals" />} />
-          <Route path="/prospecting/oh-leads"   element={<ComingSoon title="Open House Leads" />} />
+          <Route path="/prospecting/fsbo"       element={<FsboLeads />} />
+          <Route path="/prospecting/circle"     element={<CircleProspecting />} />
+          <Route path="/prospecting/soi"        element={<PersonalCircle />} />
+          <Route path="/prospecting/referrals"  element={<Referrals />} />
+          <Route path="/prospecting/oh-leads"   element={<OHLeads />} />
 
           {/* ─── CRM ─── */}
           <Route path="/crm"              element={<CrmDashboard />} />

@@ -202,7 +202,9 @@
   font-family: var(--font-body);
 }
 .cal__week-event:hover { background: var(--cream); }
-.cal__week-event-title { font-size: 0.72rem; font-weight: 500; color: var(--brown-dark); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal__week-event-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cal__week-event-title { font-size: 0.72rem; font-weight: 500; color: var(--brown-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal__week-event-sub { font-size: 0.62rem; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cal__week-event-time { font-size: 0.65rem; color: var(--color-text-muted); white-space: nowrap; }
 
 /* ─── Day View ─── */
@@ -246,6 +248,25 @@
 }
 .cal__detail-addr { font-size: 0.85rem; font-weight: 500; color: var(--brown-dark); display: block; margin-bottom: 4px; }
 .cal__detail-meta { display: flex; align-items: center; gap: var(--space-sm); font-size: 0.8rem; color: var(--color-text-muted); }
+
+/* Go-to button */
+.cal__detail-go-btn {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-md);
+  padding: 10px 16px;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--white);
+  background: var(--brown-dark);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+}
+.cal__detail-go-btn:hover { background: var(--brown-mid); }
 
 /* ─── Responsive ─── */
 @media (max-width: 900px) {

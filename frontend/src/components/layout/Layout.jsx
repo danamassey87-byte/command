@@ -49,7 +49,7 @@ const pageTitles = {
   '/content/planning':   'Content Planning',
   '/content/templates':  'Content Templates',
   '/content/social':     'Social Media',
-  '/content/ai-studio':  'AI Studio',
+  '/content/ai-studio':  'Content Studio',
   '/content/stats':      'Content Stats',
   '/pnl':                'P&L Overview',
   '/pnl/expenses':       'Expenses',

@@ -4,6 +4,183 @@
   gap: var(--space-xl);
 }
 
+/* ─── Executive Summary ─── */
+.exec-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.exec-summary__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.exec-summary__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.exec-summary__heading {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--brown-dark);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.exec-summary__sub {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.exec-summary__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.exec-summary__period {
+  display: flex;
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.exec-period-btn {
+  padding: 8px 18px;
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.exec-period-btn:hover {
+  color: var(--brown-dark);
+}
+.exec-period-btn--active {
+  background: var(--brown-dark);
+  color: var(--white);
+}
+
+.exec-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 22px;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--brown-dark);
+  background: var(--white);
+  border: 1.5px solid var(--brown-dark);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.exec-action-btn:hover {
+  background: var(--brown-dark);
+  color: var(--white);
+}
+.exec-action-btn svg {
+  flex-shrink: 0;
+}
+
+/* ─── Executive KPI Cards ─── */
+.exec-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-md);
+}
+
+.exec-kpi-card {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg) var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.exec-kpi-card__label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--color-text-muted);
+}
+
+.exec-kpi-card__value {
+  font-family: var(--font-display);
+  font-size: 2.2rem;
+  font-weight: 400;
+  color: var(--brown-dark);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.exec-kpi-card__meta {
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+}
+
+.exec-kpi-card__progress {
+  height: 3px;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.exec-kpi-card__progress-fill {
+  height: 100%;
+  background: var(--brown-dark);
+  border-radius: var(--radius-full);
+  transition: width var(--transition-slow);
+}
+
+@media (max-width: 1100px) {
+  .exec-kpi-row { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .exec-summary__heading { font-size: 1.8rem; }
+  .exec-summary__top { flex-direction: column; }
+  .exec-summary__actions { width: 100%; }
+  .exec-kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .exec-action-btn { padding: 8px 16px; font-size: 0.72rem; }
+}
+
+@media (max-width: 480px) {
+  .exec-kpi-row { grid-template-columns: 1fr; }
+  .exec-summary__heading { font-size: 1.5rem; }
+  .exec-summary__actions { flex-direction: column; align-items: stretch; }
+  .exec-summary__period { width: 100%; justify-content: center; }
+  .exec-action-btn { justify-content: center; }
+}
+
 /* ─── KPI Strip (horizontal scroll) ─── */
 .dashboard__kpi-grid {
   display: flex;

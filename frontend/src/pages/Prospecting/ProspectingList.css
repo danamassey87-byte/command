@@ -1,0 +1,651 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   ProspectingList — Unified prospecting pages
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.prospect-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* ─── Pipeline Strip (reuses LeadGen pattern) ─── */
+.prospect-list .pipeline-strip {
+  display: flex;
+  gap: var(--space-xs);
+  overflow-x: auto;
+  padding-bottom: var(--space-xs);
+}
+
+.prospect-list .pipeline-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 100px;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  text-align: center;
+  flex: 1;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.prospect-list .pipeline-stage--active {
+  border-color: var(--brown-mid);
+  background: rgba(183, 151, 130, 0.08);
+}
+
+.prospect-list .pipeline-stage__count {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+  line-height: 1;
+}
+
+.prospect-list .pipeline-stage__label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+/* ─── Filters ─── */
+.pl-filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.pl-filters__row {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-end;
+}
+
+.pl-source-filter {
+  min-width: 160px;
+  max-width: 200px;
+}
+
+.pl-search {
+  flex: 1;
+  max-width: 400px;
+}
+
+/* ─── Table cell styles ─── */
+.pl-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pl-name {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--brown-dark);
+}
+
+.pl-sub {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.pl-muted {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.pl-overdue {
+  color: var(--color-danger);
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
+/* ─── Mini workflow progress bar in table ─── */
+.pl-wf-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 90px;
+}
+
+.pl-wf-mini__track {
+  flex: 1;
+  height: 4px;
+  background: var(--color-border-light);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.pl-wf-mini__fill {
+  height: 100%;
+  background: var(--brown-dark);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.pl-wf-mini__label {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* ─── Stage select in table ─── */
+.prospect-list .stage-select {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg);
+  color: var(--brown-dark);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.prospect-list .stage-select:hover {
+  border-color: var(--brown-mid);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Workflow Checklist (SlidePanel)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.wf-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.wf-checklist__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.wf-checklist__title {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.wf-checklist__pct {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+}
+
+/* Progress bar */
+.wf-checklist__progress {
+  height: 4px;
+  background: var(--color-border-light);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: var(--space-xs);
+}
+
+.wf-checklist__bar {
+  height: 100%;
+  background: var(--brown-dark);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* Group */
+.wf-checklist__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: var(--space-xs);
+}
+
+.wf-checklist__group-label {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding: 8px 0 4px;
+}
+
+/* Step */
+.wf-checklist__step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  border-bottom: 1px solid var(--color-border-light);
+  transition: opacity var(--transition-fast);
+}
+
+.wf-checklist__step:last-child {
+  border-bottom: none;
+}
+
+.wf-checklist__step:hover {
+  opacity: 0.75;
+}
+
+.wf-checklist__step--done {
+  opacity: 0.55;
+}
+
+.wf-checklist__step--done .wf-checklist__label {
+  text-decoration: line-through;
+}
+
+.wf-checklist__check {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wf-checklist__label {
+  font-size: 0.82rem;
+  color: var(--brown-dark);
+  flex: 1;
+}
+
+.wf-checklist__date {
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   Labels (inline pills in table + editor in panel)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.pl-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pl-label-pill {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(183, 151, 130, 0.12);
+  color: var(--brown-dark);
+  white-space: nowrap;
+}
+
+.pl-label-more {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  padding: 2px 4px;
+}
+
+/* Labels Editor (panel) */
+.labels-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.labels-editor__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.labels-editor__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(183, 151, 130, 0.15);
+  color: var(--brown-dark);
+}
+
+.labels-editor__remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  padding: 0 2px;
+  line-height: 1;
+  transition: color var(--transition-fast);
+}
+.labels-editor__remove:hover {
+  color: var(--color-danger);
+}
+
+.labels-editor__input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.labels-editor__input {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg);
+  color: var(--brown-dark);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+.labels-editor__input:focus {
+  border-color: var(--brown-mid);
+}
+
+.labels-editor__add {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 6px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg);
+  color: var(--brown-dark);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.labels-editor__add:hover:not(:disabled) {
+  border-color: var(--brown-dark);
+  background: var(--cream);
+}
+.labels-editor__add:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CSV Import Modal
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.csv-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.csv-modal {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 720px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.csv-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-lg) var(--space-xl);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.csv-modal__title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--brown-dark);
+}
+
+.csv-modal__close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 4px;
+  transition: color var(--transition-fast);
+}
+.csv-modal__close:hover { color: var(--brown-dark); }
+
+.csv-modal__body {
+  padding: var(--space-xl);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.csv-modal__body--center {
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.csv-modal__hint {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.csv-modal__warn {
+  font-size: 0.82rem;
+  color: var(--color-danger);
+  font-weight: 500;
+}
+
+.csv-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border-light);
+}
+
+.csv-modal__count {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+/* Upload zone */
+.csv-upload-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-2xl) var(--space-xl);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-align: center;
+}
+.csv-upload-zone:hover {
+  border-color: var(--brown-mid);
+  background: rgba(183, 151, 130, 0.04);
+}
+.csv-upload-zone__sub {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+/* Mapping settings row */
+.csv-map__settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+/* Mapping table */
+.csv-map__table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+}
+
+.csv-map__table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.csv-map__table thead th {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+  background: var(--cream);
+}
+
+.csv-map__table tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: 0.82rem;
+  color: var(--brown-dark);
+  vertical-align: middle;
+}
+
+.csv-map__col-name {
+  font-weight: 600;
+}
+
+.csv-map__sample {
+  color: var(--color-text-muted);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.csv-map__select {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  padding: 5px 8px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg);
+  color: var(--brown-dark);
+  cursor: pointer;
+  min-width: 140px;
+}
+
+/* Progress */
+.csv-progress {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.csv-progress__bar {
+  width: 100%;
+  height: 6px;
+  background: var(--color-border-light);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.csv-progress__fill {
+  height: 100%;
+  background: var(--brown-dark);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.csv-progress__text {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+/* Done state */
+.csv-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.csv-done__text {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 400;
+  color: var(--brown-dark);
+}
+
+.csv-done__errors {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.csv-done__error {
+  font-size: 0.78rem;
+  color: var(--color-danger);
+}
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .prospect-list .pipeline-strip {
+    gap: var(--space-xs);
+  }
+  .prospect-list .pipeline-stage {
+    min-width: 80px;
+    padding: var(--space-xs) var(--space-sm);
+  }
+  .pl-filters__row {
+    flex-direction: column;
+  }
+  .pl-source-filter,
+  .pl-search {
+    max-width: 100%;
+    width: 100%;
+  }
+  .csv-modal {
+    max-width: 100%;
+    max-height: 95vh;
+  }
+  .csv-map__settings {
+    grid-template-columns: 1fr;
+  }
+  .csv-overlay {
+    padding: 8px;
+  }
+}

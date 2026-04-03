@@ -70,18 +70,19 @@
 }
 
 .topnav__settings-link {
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brown-dark);
+  opacity: 0.5;
   text-decoration: none;
   padding: 4px 10px;
   border-radius: var(--radius-sm);
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: background var(--transition-fast), opacity var(--transition-fast);
 }
 .topnav__settings-link:hover {
   background: var(--cream);
-  color: var(--brown-dark);
+  opacity: 1;
 }
 
 .topnav__logout-btn {
@@ -140,9 +141,27 @@
   border-bottom-color: var(--brown-dark);
 }
 
-.topnav__tab-emoji {
-  font-size: 0.82rem;
-  line-height: 1;
+.topnav__tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--brown-dark);
+  opacity: 0.5;
+}
+
+.topnav__tab-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.topnav__tab--active .topnav__tab-icon {
+  opacity: 1;
+}
+
+.topnav__tab:hover .topnav__tab-icon {
+  opacity: 0.8;
 }
 
 /* ─── Edit Button ─── */
@@ -359,8 +378,14 @@
     border-right: 3px solid var(--brown-mid);
   }
 
-  .topnav__mobile-link .topnav__tab-emoji {
-    font-size: 1.1rem;
+  .topnav__mobile-link .topnav__tab-icon {
+    width: 20px;
+    height: 20px;
+    opacity: 0.6;
+  }
+
+  .topnav__mobile-link--active .topnav__tab-icon {
+    opacity: 1;
   }
 }
 

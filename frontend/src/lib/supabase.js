@@ -411,6 +411,25 @@ export const getSocialMetricsHistory = (platform, weeks = 12) =>
   query(supabase.from('social_metrics').select('week_of,followers,reach,engagement_rate')
     .eq('platform', platform).order('week_of', { ascending: true }).limit(weeks))
 
+// ─── Prospects ──────────────────────────────────────────────────────────────
+export const getProspects = (source) => {
+  let q = supabase.from('prospects').select('*, prospect_tags(tag:tags(id, name, color, category))').order('created_at', { ascending: false })
+  if (source) q = q.eq('source', source)
+  return query(q)
+}
+export const createProspect  = (d)      => query(supabase.from('prospects').insert(d).select().single())
+export const updateProspect  = (id, d)  => query(supabase.from('prospects').update(d).eq('id', id).select().single())
+export const deleteProspect  = (id)     => query(supabase.from('prospects').delete().eq('id', id))
+export const bulkCreateProspects = (rows) => query(supabase.from('prospects').insert(rows).select())
+
+// Prospect Tags
+export const getProspectTags = (prospectId) =>
+  query(supabase.from('prospect_tags').select('*, tag:tags(*)').eq('prospect_id', prospectId))
+export const addProspectTag = (prospectId, tagId) =>
+  query(supabase.from('prospect_tags').upsert({ prospect_id: prospectId, tag_id: tagId }, { onConflict: 'prospect_id,tag_id' }).select().single())
+export const removeProspectTag = (prospectId, tagId) =>
+  query(supabase.from('prospect_tags').delete().eq('prospect_id', prospectId).eq('tag_id', tagId))
+
 // ─── Brand Asset Upload (Supabase Storage) ───────────────────────────────────
 export async function uploadBrandAsset(file, folder = 'general') {
   const ext = file.name.split('.').pop()
