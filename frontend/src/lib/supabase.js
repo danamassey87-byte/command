@@ -431,15 +431,17 @@ const LAUNCH_TEMPLATE = [
 
 /**
  * Build content_pieces rows for a property launch from the LAUNCH_TEMPLATE.
- * Used by both the auto-trigger (Sellers status → active) and the manual
- * "Push to Calendar" button on the Listing Plan page.
+ * Each slot's day is relative to launchDate (Day 0 = launch day).
+ * Pre-launch slots (day: -3, -2, -1) land before the launch date.
  */
-function buildLaunchContentRows({ property, clientName, listingId, startDate = new Date() }) {
+function buildLaunchContentRows({ property, clientName, listingId, launchDate, extraNotes = '' }) {
   const addr = property?.address || 'Property'
   const client = clientName || 'Client'
+  // launchDate is the Day 0 anchor; parse defensively
+  const anchor = launchDate ? new Date(launchDate + 'T00:00:00') : new Date()
 
   const addDays = (days) => {
-    const d = new Date(startDate)
+    const d = new Date(anchor)
     d.setDate(d.getDate() + days)
     return d.toISOString().slice(0, 10)
   }
@@ -453,22 +455,43 @@ function buildLaunchContentRows({ property, clientName, listingId, startDate = n
     launch_day: slot.day,
     property_id: property?.id || null,
     listing_id: listingId || null,
-    notes: slot.notes,
+    notes: extraNotes ? `${slot.notes}\n\nPlan adjustments: ${extraNotes}` : slot.notes,
   }))
 }
 
 /**
  * Push the launch plan to the content calendar.
- * Idempotent guard: pass `replace=true` to wipe existing entries for this listing first.
+ * @param {Object} opts
+ * @param {string} opts.launchDate   YYYY-MM-DD of the actual listing launch (Day 0)
+ * @param {boolean} opts.replace     If true, wipes existing entries for the listing first
+ * @param {string} opts.extraNotes   Optional changes/adjustments to apply to every slot's notes
  */
-export async function pushListingPlanToCalendar({ listingId, property, clientName, replace = false }) {
+export async function pushListingPlanToCalendar({ listingId, property, clientName, launchDate, replace = false, extraNotes = '' }) {
   if (replace && listingId) {
     await query(supabase.from('content_pieces').delete().eq('listing_id', listingId))
   }
-  const rows = buildLaunchContentRows({ property, clientName, listingId })
+  const rows = buildLaunchContentRows({ property, clientName, listingId, launchDate, extraNotes })
   await query(supabase.from('content_pieces').insert(rows))
   return { count: rows.length }
 }
+
+/** Snooze a content piece by N days (or to a specific date if `toDate` provided). */
+export async function snoozeContentPiece(id, { days = 1, toDate = null } = {}) {
+  let newDate
+  if (toDate) {
+    newDate = toDate
+  } else {
+    const { data } = await supabase.from('content_pieces').select('content_date').eq('id', id).single()
+    const d = new Date((data?.content_date || new Date().toISOString().slice(0, 10)) + 'T00:00:00')
+    d.setDate(d.getDate() + days)
+    newDate = d.toISOString().slice(0, 10)
+  }
+  return query(supabase.from('content_pieces').update({ content_date: newDate }).eq('id', id).select().single())
+}
+
+/** Reschedule a content piece to a specific date. */
+export const rescheduleContentPiece = (id, newDate) =>
+  query(supabase.from('content_pieces').update({ content_date: newDate }).eq('id', id).select().single())
 
 /**
  * Trigger the full seller marketing pipeline for a listing.
@@ -479,7 +502,7 @@ export async function pushListingPlanToCalendar({ listingId, property, clientNam
  *
  * Canva designs are generated separately via Content Studio (requires Canva OAuth).
  */
-export async function triggerListingMarketing({ listingId, property, clientName }) {
+export async function triggerListingMarketing({ listingId, property, clientName, launchDate = null }) {
   await query(supabase.from('listings').update({
     marketing_pipeline_status: 'generating',
     marketing_pipeline_started_at: new Date().toISOString(),
@@ -509,7 +532,13 @@ export async function triggerListingMarketing({ listingId, property, clientName 
   // Seed multi-channel content calendar
   let count = 0
   try {
-    const result = await pushListingPlanToCalendar({ listingId, property, clientName })
+    // Default launch date = 14 days from now if not explicitly provided
+    const effectiveLaunchDate = launchDate || (() => {
+      const d = new Date()
+      d.setDate(d.getDate() + 14)
+      return d.toISOString().slice(0, 10)
+    })()
+    const result = await pushListingPlanToCalendar({ listingId, property, clientName, launchDate: effectiveLaunchDate })
     count = result.count
   } catch (e) {
     console.error('Content calendar seeding failed:', e)

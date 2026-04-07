@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { SectionHeader, Input, Badge } from '../../components/ui/index.jsx'
+import { SectionHeader, Input, Badge, SlidePanel, Button, Textarea } from '../../components/ui/index.jsx'
 import { PropertyPicker } from '../../components/ui/PropertyPicker.jsx'
 import { generateContent, pushListingPlanToCalendar } from '../../lib/supabase.js'
 import './ListingPlan.css'
@@ -229,6 +229,13 @@ export default function ListingPlan() {
   const [pushing, setPushing]         = useState(false)
   const [pushedCount, setPushedCount] = useState(null)
   const [clientName, setClientName]   = useState('')
+  const [modalOpen, setModalOpen]     = useState(false)
+  const [launchDate, setLaunchDate]   = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 14) // default: 14 days from today
+    return d.toISOString().slice(0, 10)
+  })
+  const [planChanges, setPlanChanges] = useState('')
   const [savedPlans, setSavedPlans]   = useState(() => {
     try { return JSON.parse(localStorage.getItem('listing_plans') || '[]') } catch { return [] }
   })
@@ -289,9 +296,26 @@ export default function ListingPlan() {
     setPlanType(plan.type)
   }
 
-  const handlePushToCalendar = async () => {
+  // Minimum launch date is 7 days from today (pre-launch content needs lead time)
+  const minLaunchDate = (() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 7)
+    return d.toISOString().slice(0, 10)
+  })()
+
+  const handleOpenModal = () => {
     if (!linkedProperty) {
       setError('Pick a property from your database first — required to push to calendar.')
+      return
+    }
+    setError(null)
+    setModalOpen(true)
+  }
+
+  const handleConfirmPush = async () => {
+    // Guard: launch date must be at least 7 days out
+    if (launchDate < minLaunchDate) {
+      setError('Launch date must be at least 7 days from today so pre-launch content has lead time.')
       return
     }
     setPushing(true)
@@ -300,8 +324,12 @@ export default function ListingPlan() {
       const { count } = await pushListingPlanToCalendar({
         property: linkedProperty,
         clientName: clientName.trim() || 'Client',
+        launchDate,
+        extraNotes: planChanges.trim(),
       })
       setPushedCount(count)
+      setModalOpen(false)
+      setPlanChanges('')
     } catch (e) {
       setError(e.message || 'Failed to push plan to calendar.')
     } finally {
@@ -436,15 +464,15 @@ export default function ListingPlan() {
               </button>
               <button
                 className="listing-plan__copy-btn"
-                onClick={handlePushToCalendar}
-                disabled={pushing || !linkedProperty}
-                title={!linkedProperty ? 'Pick a property from the dropdown above to enable' : 'Push the launch plan to your content calendar'}
+                onClick={handleOpenModal}
+                disabled={!linkedProperty}
+                title={!linkedProperty ? 'Pick a property from the dropdown above to enable' : 'Schedule this plan into your content calendar'}
                 style={{ background: linkedProperty ? 'var(--brown-dark)' : undefined, color: linkedProperty ? '#fff' : undefined, borderColor: linkedProperty ? 'var(--brown-dark)' : undefined }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
-                {pushing ? 'Pushing…' : 'Push to Calendar'}
+                Auto-Generate Calendar
               </button>
             </div>
           </div>
@@ -531,6 +559,73 @@ export default function ListingPlan() {
           ))}
         </div>
       )}
+
+      {/* ═══════ Auto-Generate Calendar Modal ═══════ */}
+      <SlidePanel
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Auto-Generate Content Calendar"
+        subtitle={linkedProperty ? `${clientName || 'Client'} — ${linkedProperty.address}` : ''}
+        width={520}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
+
+          {/* What's being scheduled */}
+          <div style={{ padding: 'var(--space-md)', background: 'var(--cream)', borderRadius: 'var(--radius-md)' }}>
+            <p style={{ fontSize: '0.82rem', color: 'var(--brown-dark)', fontWeight: 600, margin: 0, marginBottom: 6 }}>
+              37 content pieces will be scheduled across:
+            </p>
+            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.6 }}>
+              Blog · Google My Business · Instagram (post/story/reel) · Facebook (post/event) · TikTok · Pinterest · Email Blast
+            </p>
+          </div>
+
+          {/* Launch date picker */}
+          <div>
+            <label className="field__label" htmlFor="launch-date">
+              Listing Launch Date (Day 1)
+            </label>
+            <input
+              id="launch-date"
+              className="field__input"
+              type="date"
+              min={minLaunchDate}
+              value={launchDate}
+              onChange={e => setLaunchDate(e.target.value)}
+            />
+            <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', margin: '6px 0 0' }}>
+              Minimum 7 days from today. Coming Soon content will be scheduled 3 days before launch, so you need lead time.
+            </p>
+          </div>
+
+          {/* Schedule preview */}
+          <div style={{ padding: 'var(--space-sm) var(--space-md)', background: 'var(--color-info-bg)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-info)' }}>
+            <p style={{ fontSize: '0.75rem', color: 'var(--brown-dark)', margin: 0, lineHeight: 1.6 }}>
+              <strong>Coming Soon:</strong> {(() => { const d = new Date(launchDate + 'T00:00:00'); d.setDate(d.getDate() - 3); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) })()}<br />
+              <strong>Launch Day:</strong> {new Date(launchDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}<br />
+              <strong>21-Day Check:</strong> {(() => { const d = new Date(launchDate + 'T00:00:00'); d.setDate(d.getDate() + 20); return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) })()}
+            </p>
+          </div>
+
+          {/* Plan adjustments */}
+          <Textarea
+            label="Any changes or notes to apply to the plan? (optional)"
+            id="plan-changes"
+            placeholder="e.g. Skip Pinterest this time, emphasize the pool in feature highlight, add a Saturday open house instead of Sunday..."
+            value={planChanges}
+            onChange={e => setPlanChanges(e.target.value)}
+            rows={4}
+          />
+
+          {/* Actions */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-sm)', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--color-border-light)' }}>
+            <Button variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
+            <Button onClick={handleConfirmPush} disabled={pushing || !launchDate || launchDate < minLaunchDate}>
+              {pushing ? 'Generating…' : 'Generate Calendar'}
+            </Button>
+          </div>
+        </div>
+      </SlidePanel>
     </div>
   )
 }
