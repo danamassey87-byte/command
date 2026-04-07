@@ -5,6 +5,7 @@ import { useListings, useTasksForListing, useContactTags, useNotesForContact, us
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
+import { emitListingContentReminder } from '../../lib/notifications.js'
 import './Sellers.css'
 
 // ─── Checklist definitions ────────────────────────────────────────────────────
@@ -1416,6 +1417,15 @@ export default function Sellers() {
         await DB.bulkCreateTasks(taskRows)
         await DB.logActivity('listing_created', `New listing added: ${draft.address}`, { propertyId: property_id })
         savedListingId = newListing.id
+
+        // Emit content-plan reminder notification (snoozeable, deduped).
+        // Fires for EVERY new listing so it nags until you run the plan.
+        emitListingContentReminder({
+          listingId: newListing.id,
+          address: draft.address,
+          clientName: draft.seller_name?.trim() || '',
+        }).catch(e => console.error('Failed to emit listing content reminder:', e))
+
         // Trigger marketing pipeline if created as active
         if (draft.status === 'active') shouldTriggerMarketing = true
       }

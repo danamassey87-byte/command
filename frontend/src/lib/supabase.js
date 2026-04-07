@@ -472,6 +472,17 @@ export async function pushListingPlanToCalendar({ listingId, property, clientNam
   }
   const rows = buildLaunchContentRows({ property, clientName, listingId, launchDate, extraNotes })
   await query(supabase.from('content_pieces').insert(rows))
+
+  // Auto-resolve any outstanding content-reminder notification for this listing
+  if (listingId) {
+    try {
+      const { resolveListingContentReminder } = await import('./notifications.js')
+      await resolveListingContentReminder(listingId)
+    } catch (e) {
+      console.error('Failed to resolve listing content reminder:', e)
+    }
+  }
+
   return { count: rows.length }
 }
 

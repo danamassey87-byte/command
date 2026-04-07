@@ -10,6 +10,7 @@ export const NOTIFICATION_TYPES = {
   task_due:          { label: 'Task Due',          icon: '⏰', color: '#c8a05a' },
   message:           { label: 'Message',           icon: '💬', color: '#7a93b7' },
   system:            { label: 'System',            icon: '⚙️', color: '#999999' },
+  listing_content:   { label: 'Content Reminder',  icon: '📣', color: '#c99a2e' },
 }
 
 export function typeMeta(type) {
@@ -160,6 +161,52 @@ export function resolveSnoozeTime(duration) {
     default:         d.setHours(d.getHours() + 1)
   }
   return d
+}
+
+// ─── Listing content reminder helpers ───────────────────────────────────────
+
+/**
+ * Emit a reminder that a listing still needs its content plan generated.
+ * Deduped by source_id — won't create a second reminder for the same listing
+ * unless the prior one is dismissed/resolved.
+ */
+export async function emitListingContentReminder({ listingId, address, clientName }) {
+  // Dedupe: is there already an active (unread/read/kept/snoozed) reminder for this listing?
+  const { data: existing } = await supabase
+    .from('notifications')
+    .select('id')
+    .eq('type', 'listing_content')
+    .eq('source_id', listingId)
+    .in('status', ['unread', 'read', 'kept', 'snoozed'])
+    .limit(1)
+
+  if (existing && existing.length > 0) return existing[0]
+
+  return emit({
+    type: 'listing_content',
+    title: `Generate content plan for ${address}`,
+    body: `${clientName ? clientName + ' — ' : ''}The 37-slot launch calendar hasn't been generated yet. Run the Listing Plan prompt when you're ready.`,
+    link: '/crm/listing-plan',
+    source_table: 'listings',
+    source_id: listingId,
+    metadata: { reason: 'listing_plan_not_run' },
+  })
+}
+
+/**
+ * Auto-resolve any content reminder for a listing once the plan has been pushed.
+ * Called after pushListingPlanToCalendar succeeds.
+ */
+export async function resolveListingContentReminder(listingId) {
+  return q(
+    supabase
+      .from('notifications')
+      .update({ status: 'dismissed' })
+      .eq('type', 'listing_content')
+      .eq('source_id', listingId)
+      .in('status', ['unread', 'read', 'kept', 'snoozed'])
+      .select()
+  )
 }
 
 // ─── Demo helper ─────────────────────────────────────────────────────────────
