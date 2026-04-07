@@ -75,6 +75,8 @@ create table if not exists listings (
   property_condition       text default 'move_in_ready',
   commission_rate          numeric,
   listing_agreement_signed boolean default false,
+  agreement_signed_date    date,
+  agreement_expires_date   date,
   pre_inspection_done      boolean default false,
   home_warranty_offered    boolean default false
 );
@@ -113,6 +115,20 @@ create table if not exists checklist_tasks (
   due_date      date,
   reminded_at   timestamptz,
   sort_order    int default 0
+);
+
+-- ─── listing_documents ───────────────────────────────────────────────────────
+-- Attached files (disclosures, photos, contracts, etc.) per listing
+create table if not exists listing_documents (
+  id          uuid primary key default gen_random_uuid(),
+  created_at  timestamptz default now(),
+  listing_id  uuid references listings(id) on delete cascade,
+  name        text not null,
+  file_url    text not null,
+  file_path   text not null,
+  file_type   text,
+  file_size   bigint,
+  category    text default 'general'
 );
 
 -- ─── transactions ─────────────────────────────────────────────────────────────

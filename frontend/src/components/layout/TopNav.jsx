@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import supabase from '../../lib/supabase'
+import GlobalActionBar from '../quick-add/GlobalActionBar'
+import NotificationsBell from '../notifications/NotificationsBell'
 import './TopNav.css'
 
 // Shared mobile menu context so Layout can control sidebar too
@@ -143,6 +145,8 @@ export default function TopNav() {
             <span className="topnav__tagline">Command Center</span>
           </div>
           <div className="topnav__right">
+            <GlobalActionBar />
+            <NotificationsBell />
             <span className="topnav__date">{today}</span>
             <span className="topnav__time">{time}</span>
             <button

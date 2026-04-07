@@ -23,10 +23,12 @@ import Stats from './pages/Stats/Stats'
 import Goals from './pages/Goals/Goals'
 import ContentPlanner from './pages/ContentPlanner/ContentPlanner'
 import Settings from './pages/Settings/Settings'
+import Recovery from './pages/Recovery/Recovery'
 import ListingPlan from './pages/ListingPlan/ListingPlan'
 import BioLinkBuilder from './pages/BioLink/BioLinkBuilder'
 import EmailBuilder from './pages/EmailBuilder/EmailBuilder'
 import IntakeForms from './pages/IntakeForms/IntakeForms'
+import Notifications from './pages/Notifications/Notifications'
 import CalendarSchedule from './pages/Calendar/CalendarSchedule'
 import TodayShowings from './pages/Calendar/TodayShowings'
 import CalendarTasks from './pages/Calendar/Tasks'
@@ -220,8 +222,12 @@ export default function App() {
           <Route path="/email/campaigns"   element={<ComingSoon title="Campaigns" />} />
           <Route path="/email/sent"        element={<ComingSoon title="Sent Emails" />} />
 
+          {/* ─── Notifications ─── */}
+          <Route path="/notifications"     element={<Notifications />} />
+
           {/* ─── Settings ─── */}
           <Route path="/settings"          element={<Settings />} />
+          <Route path="/settings/recovery" element={<Recovery />} />
         </Route>
       </Routes>
     </BrowserRouter>

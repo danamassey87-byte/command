@@ -1,0 +1,126 @@
+.recovery {
+  max-width: 1100px;
+  font-family: 'Poppins', sans-serif;
+  color: #524136;
+}
+
+.recovery__intro {
+  padding: 12px 16px;
+  background: #faf9f6;
+  border: 1px solid #efede8;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: #6a5445;
+  margin-bottom: 16px;
+}
+
+.recovery__tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #efede8;
+  margin-bottom: 14px;
+}
+
+.recovery__tab {
+  padding: 9px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #8b7b6e;
+  cursor: pointer;
+}
+.recovery__tab--active {
+  color: #524136;
+  border-bottom-color: #524136;
+}
+
+.recovery__error {
+  padding: 10px 12px;
+  background: #fdf0ee;
+  border: 1px solid #e8c1b8;
+  border-radius: 6px;
+  color: #8a3828;
+  font-size: 12.5px;
+  margin-bottom: 12px;
+}
+
+.recovery__empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #8b7b6e;
+  font-size: 13px;
+  background: #faf9f6;
+  border: 1px dashed #d6cfc2;
+  border-radius: 8px;
+}
+
+.recovery__table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff;
+  border: 1px solid #efede8;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 12.5px;
+}
+
+.recovery__table th,
+.recovery__table td {
+  padding: 11px 14px;
+  text-align: left;
+  border-bottom: 1px solid #efede8;
+}
+.recovery__table th {
+  background: #faf9f6;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8b7b6e;
+}
+.recovery__table tr:last-child td { border-bottom: none; }
+
+.recovery__pill {
+  display: inline-block;
+  padding: 3px 8px;
+  background: #efede8;
+  border-radius: 10px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #6a5445;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.recovery__label {
+  font-weight: 500;
+  color: #524136;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recovery__days {
+  display: inline-block;
+  padding: 3px 8px;
+  background: #eef3ef;
+  color: #3d5a46;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.recovery__days--warn {
+  background: #fdf7ec;
+  color: #7a5d20;
+}
+
+.recovery__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}

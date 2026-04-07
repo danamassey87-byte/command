@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { StatCard, Card, Badge, InfoTip, AddressLink } from '../../components/ui/index.jsx'
 import { useDashboardData, useAllDailyTasks, useDailyStreaks } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
+import StaleRecordsWidget from '../../components/StaleRecordsWidget'
 import './Dashboard.css'
 
 const PLANNED_WEEKS = 43
@@ -800,6 +801,9 @@ export default function Dashboard() {
 
       {/* Daily Tasks Widget */}
       <DailyTasksWidget />
+
+      {/* Stale records — surfaces cold leads, overdue appts, overdue closings */}
+      <StaleRecordsWidget />
 
       {/* Pipeline + Funnel */}
       <div className="db-row db-row--60-40">

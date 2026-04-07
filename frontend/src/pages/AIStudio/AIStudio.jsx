@@ -89,8 +89,8 @@ function buildPrompt(designType, property, clientName, customPrompt) {
     if (property.city) parts.push(`in ${property.city}, AZ ${property.zip || ''}`.trim())
     if (property.price) parts.push(`listed at $${Number(property.price).toLocaleString()}`)
     const specs = [
-      property.beds && `${property.beds} bedrooms`,
-      property.baths && `${property.baths} bathrooms`,
+      property.bedrooms && `${property.bedrooms} bedrooms`,
+      property.bathrooms && `${property.bathrooms} bathrooms`,
       property.sqft && `${Number(property.sqft).toLocaleString()} sq ft`,
       property.year_built && `built in ${property.year_built}`,
       property.pool && 'pool',
@@ -183,8 +183,8 @@ export default function AIStudio() {
             address: property.address,
             city: property.city,
             price: property.price,
-            beds: property.beds,
-            baths: property.baths,
+            beds: property.bedrooms,
+            baths: property.bathrooms,
             sqft: property.sqft,
           } : null,
         },
@@ -318,7 +318,7 @@ export default function AIStudio() {
                   <div>
                     <strong>{property.address}</strong>
                     <span className="ai-studio__property-meta">
-                      {[property.city && `${property.city}, AZ`, property.price && `$${Number(property.price).toLocaleString()}`, property.beds && `${property.beds}bd`, property.baths && `${property.baths}ba`, property.sqft && `${Number(property.sqft).toLocaleString()}sf`].filter(Boolean).join(' · ')}
+                      {[property.city && `${property.city}, AZ`, property.price && `$${Number(property.price).toLocaleString()}`, property.bedrooms && `${property.bedrooms}bd`, property.bathrooms && `${property.bathrooms}ba`, property.sqft && `${Number(property.sqft).toLocaleString()}sf`].filter(Boolean).join(' · ')}
                     </span>
                   </div>
                   <button className="ai-studio__remove-prop" onClick={() => setProperty(null)}>Remove</button>

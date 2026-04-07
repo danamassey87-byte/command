@@ -3,6 +3,7 @@ import { SectionHeader, Button, Input, Textarea } from '../../components/ui/inde
 import { useBrand } from '../../lib/BrandContext'
 import * as DB from '../../lib/supabase'
 import TemplatesTab from './TemplatesTab'
+import Recovery from '../Recovery/Recovery'
 import './Settings.css'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -35,7 +36,26 @@ const SOCIAL_CHANNELS = [
   { key: 'linktree',     label: 'Linktree / Bio', icon: '🔗', placeholder: 'https://linktr.ee/yourlink' },
 ]
 
-const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social']
+const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'lists', 'recovery']
+
+// Each entry = one user-managed dropdown list shown in the Lists tab.
+const DROPDOWN_LISTS_META = [
+  {
+    key: 'lead_sources',
+    label: 'Lead Sources',
+    desc: 'Where leads come from. Used in the New Lead form.',
+  },
+  {
+    key: 'appointment_sources',
+    label: 'Listing Appointment Sources',
+    desc: 'Where listing appointments originate. Used in the New Listing Appointment form.',
+  },
+  {
+    key: 'appointment_locations',
+    label: 'Appointment Locations',
+    desc: 'Where appointments take place (on-site, video, office, etc.).',
+  },
+]
 
 // ─── Main Page ──────────────────────────────────────────────────────────────
 export default function Settings() {
@@ -56,7 +76,7 @@ export default function Settings() {
             className={`settings-tab${tab === t ? ' settings-tab--active' : ''}`}
             onClick={() => setTab(t)}
           >
-            {t === 'signature' ? 'Signature' : t === 'templates' ? 'Templates & Scripts' : t === 'guidelines' ? 'Brand Guidelines' : t === 'assets' ? 'Logos & Headshots' : 'Social Channels'}
+            {t === 'signature' ? 'Signature' : t === 'templates' ? 'Templates & Scripts' : t === 'guidelines' ? 'Brand Guidelines' : t === 'assets' ? 'Logos & Headshots' : t === 'social' ? 'Social Channels' : t === 'lists' ? 'Lists & Tags' : 'Trash & Archive'}
           </button>
         ))}
       </div>
@@ -66,6 +86,8 @@ export default function Settings() {
       {tab === 'guidelines' && <GuidelinesTab brand={brand} refetch={refetch} />}
       {tab === 'assets'     && <AssetsTab     brand={brand} refetch={refetch} />}
       {tab === 'social'     && <SocialTab     brand={brand} refetch={refetch} />}
+      {tab === 'lists'      && <ListsTab />}
+      {tab === 'recovery'   && <Recovery />}
     </div>
   )
 }
@@ -500,5 +522,250 @@ function SocialTab({ brand, refetch }) {
         <Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save Channels'}</Button>
       </div>
     </form>
+  )
+}
+
+// ─── Lists & Tags Tab ───────────────────────────────────────────────────────
+function ListsTab() {
+  const [lists, setLists] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [tags, setTags] = useState([])
+  const [tagsLoading, setTagsLoading] = useState(true)
+  const [newItemDraft, setNewItemDraft] = useState({}) // { listKey: 'value' }
+  const [newTag, setNewTag] = useState({ name: '', color: '#b79782', category: 'custom' })
+
+  async function loadLists() {
+    setLoading(true)
+    try {
+      const data = await DB.getDropdownLists()
+      setLists(data || {})
+    } catch (err) {
+      alert('Failed to load lists: ' + err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function loadTags() {
+    setTagsLoading(true)
+    try {
+      setTags(await DB.getTags())
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setTagsLoading(false)
+    }
+  }
+
+  useEffect(() => { loadLists(); loadTags() }, [])
+
+  async function saveLists(next) {
+    setLists(next)
+    try { await DB.updateDropdownLists(next) }
+    catch (err) { alert('Save failed: ' + err.message); loadLists() }
+  }
+
+  async function addItem(listKey) {
+    const v = (newItemDraft[listKey] || '').trim()
+    if (!v) return
+    const current = Array.isArray(lists[listKey]) ? lists[listKey] : []
+    if (current.some(x => x.toLowerCase() === v.toLowerCase())) {
+      setNewItemDraft(d => ({ ...d, [listKey]: '' }))
+      return
+    }
+    const next = { ...lists, [listKey]: [...current, v] }
+    setNewItemDraft(d => ({ ...d, [listKey]: '' }))
+    await saveLists(next)
+  }
+
+  async function removeItem(listKey, item) {
+    if (!confirm(`Remove "${item}" from this list?`)) return
+    const current = Array.isArray(lists[listKey]) ? lists[listKey] : []
+    const next = { ...lists, [listKey]: current.filter(x => x !== item) }
+    await saveLists(next)
+  }
+
+  async function renameItem(listKey, oldVal) {
+    const next = prompt(`Rename "${oldVal}" to:`, oldVal)
+    if (next == null) return
+    const trimmed = next.trim()
+    if (!trimmed || trimmed === oldVal) return
+    const current = Array.isArray(lists[listKey]) ? lists[listKey] : []
+    const updated = { ...lists, [listKey]: current.map(x => (x === oldVal ? trimmed : x)) }
+    await saveLists(updated)
+  }
+
+  // ─── Tags ───
+  async function handleCreateTag(e) {
+    e.preventDefault()
+    if (!newTag.name.trim()) return
+    try {
+      await DB.createTag({
+        name: newTag.name.trim(),
+        color: newTag.color,
+        category: newTag.category,
+      })
+      setNewTag({ name: '', color: '#b79782', category: 'custom' })
+      loadTags()
+    } catch (err) {
+      alert('Could not create tag: ' + err.message)
+    }
+  }
+
+  async function handleRenameTag(tag) {
+    const next = prompt(`Rename "${tag.name}" to:`, tag.name)
+    if (next == null) return
+    const trimmed = next.trim()
+    if (!trimmed || trimmed === tag.name) return
+    try { await DB.updateTag(tag.id, { name: trimmed }); loadTags() }
+    catch (err) { alert('Rename failed: ' + err.message) }
+  }
+
+  async function handleRecolorTag(tag, color) {
+    try { await DB.updateTag(tag.id, { color }); loadTags() }
+    catch (err) { alert('Update failed: ' + err.message) }
+  }
+
+  async function handleDeleteTag(tag) {
+    if (!confirm(`Delete tag "${tag.name}"? It will be removed from any contacts that have it.`)) return
+    try { await DB.deleteTag(tag.id); loadTags() }
+    catch (err) { alert('Delete failed: ' + err.message) }
+  }
+
+  // Group tags by category
+  const tagsByCategory = tags.reduce((acc, t) => {
+    const cat = t.category || 'custom'
+    ;(acc[cat] ||= []).push(t)
+    return acc
+  }, {})
+
+  return (
+    <div className="settings-section">
+      <div className="settings-section__header">
+        <h3 className="settings-section__title">Lists & Tags</h3>
+        <p className="settings-section__desc">
+          Manage the dropdown options used across the app — sources, locations, tags, and more.
+          Anything you add here shows up everywhere it's used.
+        </p>
+      </div>
+
+      {loading ? (
+        <p className="settings-field-hint">Loading lists…</p>
+      ) : (
+        DROPDOWN_LISTS_META.map(meta => {
+          const items = Array.isArray(lists[meta.key]) ? lists[meta.key] : []
+          return (
+            <div key={meta.key} className="settings-subsection">
+              <h4 className="settings-subsection__title">{meta.label}</h4>
+              <p className="settings-field-hint" style={{ marginBottom: 8 }}>{meta.desc}</p>
+
+              <div className="lists-chip-grid">
+                {items.length === 0 && (
+                  <div className="lists-empty">No options yet — add one below.</div>
+                )}
+                {items.map(item => (
+                  <div key={item} className="lists-chip">
+                    <span className="lists-chip__label" onClick={() => renameItem(meta.key, item)} title="Click to rename">
+                      {item}
+                    </span>
+                    <button
+                      type="button"
+                      className="lists-chip__remove"
+                      onClick={() => removeItem(meta.key, item)}
+                      aria-label={`Remove ${item}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="lists-add-row">
+                <Input
+                  value={newItemDraft[meta.key] || ''}
+                  onChange={e => setNewItemDraft(d => ({ ...d, [meta.key]: e.target.value }))}
+                  placeholder={`Add a new ${meta.label.toLowerCase().replace(/s$/, '')}…`}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addItem(meta.key) } }}
+                />
+                <Button type="button" onClick={() => addItem(meta.key)} disabled={!(newItemDraft[meta.key] || '').trim()}>
+                  Add
+                </Button>
+              </div>
+            </div>
+          )
+        })
+      )}
+
+      {/* ─── Tags ─── */}
+      <div className="settings-subsection">
+        <h4 className="settings-subsection__title">Tags</h4>
+        <p className="settings-field-hint" style={{ marginBottom: 8 }}>
+          Tags can be assigned to contacts, prospects, and notes. Click a tag name to rename it.
+        </p>
+
+        {tagsLoading ? (
+          <p className="settings-field-hint">Loading tags…</p>
+        ) : (
+          Object.keys(tagsByCategory).sort().map(cat => (
+            <div key={cat} className="lists-tag-group">
+              <div className="lists-tag-group__title">{cat}</div>
+              <div className="lists-chip-grid">
+                {tagsByCategory[cat].map(tag => (
+                  <div key={tag.id} className="lists-chip lists-chip--tag" style={{ '--tag-color': tag.color }}>
+                    <input
+                      type="color"
+                      className="lists-chip__color"
+                      value={tag.color}
+                      onChange={e => handleRecolorTag(tag, e.target.value)}
+                      title="Change color"
+                    />
+                    <span className="lists-chip__label" onClick={() => handleRenameTag(tag)} title="Click to rename">
+                      {tag.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="lists-chip__remove"
+                      onClick={() => handleDeleteTag(tag)}
+                      aria-label={`Delete ${tag.name}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+
+        <form className="lists-add-row lists-add-row--tag" onSubmit={handleCreateTag}>
+          <Input
+            value={newTag.name}
+            onChange={e => setNewTag(t => ({ ...t, name: e.target.value }))}
+            placeholder="New tag name…"
+          />
+          <input
+            type="color"
+            className="lists-tag-color-input"
+            value={newTag.color}
+            onChange={e => setNewTag(t => ({ ...t, color: e.target.value }))}
+            title="Tag color"
+          />
+          <select
+            className="field__input field__select lists-tag-cat"
+            value={newTag.category}
+            onChange={e => setNewTag(t => ({ ...t, category: e.target.value }))}
+          >
+            <option value="status">status</option>
+            <option value="pipeline">pipeline</option>
+            <option value="relationship">relationship</option>
+            <option value="email">email</option>
+            <option value="interest">interest</option>
+            <option value="priority">priority</option>
+            <option value="custom">custom</option>
+          </select>
+          <Button type="submit" disabled={!newTag.name.trim()}>Add Tag</Button>
+        </form>
+      </div>
+    </div>
   )
 }

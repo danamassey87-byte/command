@@ -529,6 +529,18 @@ export const updateBrandProfile = (value) =>
     .upsert({ key: 'brand_profile', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
     .select().single())
 
+// ─── USPS Address Validation ─────────────────────────────────────────────────
+// Calls the validate-address edge function. Returns:
+//   { valid, deliverable, dpvConfirmation, standardized: {...} }
+// or { valid: false, reason } if USPS could not match the address.
+export const validateAddress = async ({ address, city, state, zip }) => {
+  const { data, error } = await supabase.functions.invoke('validate-address', {
+    body: { address, city, state, zip },
+  })
+  if (error) throw new Error(error.message || 'Address validation failed')
+  return data
+}
+
 // ─── Dropdown Lists (lookup values for sources, locations, etc.) ────────────
 const DEFAULT_DROPDOWN_LISTS = {
   lead_sources: [

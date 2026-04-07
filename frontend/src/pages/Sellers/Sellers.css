@@ -217,7 +217,378 @@
   margin-top: 6px;
 }
 
+/* ─── Plan Actions Bar ─── */
+.sellers-plan__actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+/* ─── Plan Sections (Documents, Notes) ─── */
+.sellers-plan__section {
+  margin-top: var(--space-lg);
+}
+
+.sellers-plan__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.sellers-plan__section-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+}
+
+/* ─── Documents Grid ─── */
+.sellers-plan__docs-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sellers-plan__doc-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--cream);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--brown-mid);
+  transition: background var(--transition-fast);
+}
+
+.sellers-plan__doc-card:hover {
+  background: rgba(183, 151, 130, 0.12);
+}
+
+.sellers-plan__doc-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
+.sellers-plan__doc-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.sellers-plan__doc-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sellers-plan__doc-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sellers-plan__doc-meta {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
+
+.sellers-plan__doc-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.sellers-plan__doc-card:hover .sellers-plan__doc-delete {
+  opacity: 1;
+}
+
+.sellers-plan__doc-delete:hover {
+  color: var(--color-danger);
+}
+
+/* ─── Plan Modal (Add Task, AI Plan) ─── */
+.plan-modal__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeInPage var(--transition-fast) ease forwards;
+}
+
+.plan-modal {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  width: 440px;
+  max-width: 90vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.plan-modal--wide {
+  width: 580px;
+}
+
+.plan-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.plan-modal__header h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+}
+
+.plan-modal__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.plan-modal__close:hover {
+  color: var(--brown-dark);
+}
+
+.plan-modal__body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.plan-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.plan-modal__label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+}
+
+.plan-modal__input {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  color: var(--brown-dark);
+  background: var(--white);
+  transition: border-color var(--transition-fast);
+}
+
+.plan-modal__input:focus {
+  outline: none;
+  border-color: var(--brown-mid);
+}
+
+.plan-modal__select {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  color: var(--brown-dark);
+  background: var(--white);
+}
+
+.plan-modal__textarea {
+  padding: 10px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  font-size: 0.78rem;
+  font-family: var(--font-mono, monospace);
+  color: var(--brown-dark);
+  background: var(--white);
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.plan-modal__textarea:focus {
+  outline: none;
+  border-color: var(--brown-mid);
+}
+
+.plan-modal__fieldset {
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plan-modal__legend {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+  padding: 0 4px;
+}
+
+.plan-modal__radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--brown-dark);
+  cursor: pointer;
+}
+
+.plan-modal__radio-label input[type="radio"] {
+  accent-color: var(--brown-mid);
+}
+
+/* ─── Prompt Header (label + edit template btn) ─── */
+.plan-modal__prompt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.plan-modal__template-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--brown-mid);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.plan-modal__template-btn:hover {
+  border-color: var(--brown-mid);
+  background: rgba(183, 151, 130, 0.06);
+}
+
+/* ─── Variable Chips ─── */
+.plan-modal__var-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.plan-modal__var-chip {
+  font-size: 0.68rem;
+  font-family: var(--font-mono, monospace);
+  background: rgba(90, 135, 180, 0.1);
+  color: #5a87b4;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+}
+
+/* ─── Context Row (client/property selector) ─── */
+.plan-modal__context-row {
+  margin-bottom: 2px;
+}
+
+.plan-modal__label--inline {
+  gap: 6px;
+}
+
+/* ─── Context Card (auto-filled fields) ─── */
+.plan-modal__context-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 16px;
+  padding: 10px 14px;
+  background: var(--cream);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+  font-size: 0.78rem;
+}
+
+.plan-modal__context-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.plan-modal__context-key {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+/* ─── AI Plan Preview ─── */
+.ai-plan-preview {
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  background: var(--cream);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.ai-plan-preview__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-plan-preview__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--brown-dark);
+}
+
+.ai-plan-preview__phase {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--brown-mid);
+  background: rgba(183, 151, 130, 0.12);
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
 /* ─── Mobile ─── */
 @media (max-width: 768px) {
   .seller-features-grid { grid-template-columns: 1fr; }
+  .plan-modal { width: 95vw; }
+  .plan-modal--wide { width: 95vw; }
 }

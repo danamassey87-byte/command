@@ -43,6 +43,9 @@ export const useActivityLog   = () => useQuery(() => DB.getActivityLog(25))
 export const useTasksForListing = (listingId) =>
   useQuery(() => DB.getTasksForListing(listingId), [listingId])
 
+export const useDocumentsForListing = (listingId) =>
+  useQuery(() => DB.getDocumentsForListing(listingId), [listingId])
+
 export const useSellerShowings = ()      => useQuery(DB.getSellerShowings)
 export const useOHOutreach     = ()      => useQuery(DB.getOHOutreach)
 export const useHostReports    = ()      => useQuery(DB.getHostReports)
