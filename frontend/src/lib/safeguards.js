@@ -239,3 +239,65 @@ function linkForStale(s) {
   if (s.table_name === 'transactions')         return `/pipeline`
   return null
 }
+
+/* ─── Listing-content reminder sync ────────────────────────────────────── */
+/**
+ * Find listings with NO generated content plan and emit/refresh a reminder.
+ *
+ *  - listings.status = 'active' (or 'pre_listing'/'pending') AND listing_plan_text IS NULL
+ *  - Listing has existed for at least `minAgeDays` days (so we don't nag the
+ *    moment a listing is created — that's covered by the inline emit on save)
+ *  - Dedupes against active reminders for the same listing_id
+ *  - Re-emits if the previous reminder was dismissed (lets the system nag again)
+ *
+ * Call this on app load (e.g., from Layout) and/or on a setInterval.
+ */
+export async function syncListingContentReminders({ minAgeDays = 1 } = {}) {
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - minAgeDays)
+  const cutoffIso = cutoff.toISOString()
+
+  // Find active-ish listings missing a content plan, older than the cutoff
+  const stale = await q(supabase
+    .from('listings')
+    .select(`
+      id,
+      created_at,
+      list_date,
+      status,
+      contact:contacts(name),
+      property:properties(address)
+    `)
+    .is('listing_plan_text', null)
+    .in('status', ['active', 'pre_listing', 'coming_soon', 'pending'])
+    .lte('created_at', cutoffIso)
+    .is('deleted_at', null)
+  )
+
+  if (!stale?.length) return 0
+
+  let inserted = 0
+  for (const listing of stale) {
+    // Skip if active/snoozed/kept reminder already exists for this listing
+    const existing = await q(supabase.from('notifications')
+      .select('id').eq('type', 'listing_content').eq('source_id', listing.id)
+      .in('status', ['unread', 'read', 'kept', 'snoozed']).limit(1))
+    if (existing.length) continue
+
+    const daysOld = Math.max(1, Math.floor((Date.now() - new Date(listing.created_at).getTime()) / (1000 * 60 * 60 * 24)))
+    const address = listing.property?.address || 'a listing'
+    const clientName = listing.contact?.name || ''
+
+    await q(supabase.from('notifications').insert({
+      type: 'listing_content',
+      title: `Generate content plan for ${address}`,
+      body: `${clientName ? clientName + ' — ' : ''}This listing has been on your books for ${daysOld} day${daysOld === 1 ? '' : 's'} without a content plan. Run the Listing Plan prompt when you're ready.`,
+      source_table: 'listings',
+      source_id: listing.id,
+      link: '/crm/listing-plan',
+      metadata: { days_stale: daysOld, reason: 'listing_plan_not_run' },
+    }))
+    inserted++
+  }
+  return inserted
+}

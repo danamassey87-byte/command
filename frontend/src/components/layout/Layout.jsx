@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import TopNav, { MobileMenuContext } from './TopNav'
 import ContextSidebar, { getActiveSection } from './ContextSidebar'
@@ -6,6 +6,7 @@ import DockPanel from './DockPanel'
 import FavoritesTray from './FavoritesTray'
 import NotesWidget from './NotesWidget'
 import { useNotesContext } from '../../lib/NotesContext'
+import { syncListingContentReminders } from '../../lib/safeguards'
 import './Layout.css'
 
 const pageTitles = {
@@ -98,6 +99,20 @@ export default function Layout() {
   const section = getActiveSection(pathname)
   const sidebarSections = ['home', 'prospect', 'people', 'deals', 'content', 'money', 'toolkit']
   const showSidebar = sidebarSections.includes(section)
+
+  // Periodically scan for listings missing a content plan and emit reminders.
+  // Runs once on mount + every 30 minutes thereafter. Failures are non-fatal.
+  useEffect(() => {
+    let cancelled = false
+    const tick = () => {
+      syncListingContentReminders({ minAgeDays: 1 }).catch(e => {
+        if (!cancelled) console.error('syncListingContentReminders failed:', e)
+      })
+    }
+    tick()
+    const interval = setInterval(tick, 30 * 60 * 1000) // 30 min
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [])
 
   const ctxValue = {
     mobileMenuOpen,
