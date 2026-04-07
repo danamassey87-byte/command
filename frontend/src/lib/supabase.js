@@ -363,11 +363,119 @@ export async function generateContent(payload) {
 }
 
 // ─── Marketing Pipeline (auto-triggered when listing goes active) ─────────────
+
 /**
- * Trigger the seller marketing pipeline for a listing.
- *  1. Generates a launch plan via Claude (saved to listings.listing_plan_text)
- *  2. Creates content_pieces entries for the 21-day launch timeline
- *  3. Marks marketing_pipeline_status = 'ready'
+ * Comprehensive multi-channel launch template.
+ * Each entry creates one content_pieces row.
+ *  - day: offset from launch (0 = launch day, negative = pre-launch teaser)
+ *  - channel: blog | gmb | instagram | facebook | tiktok | pinterest | email
+ *  - format:  post | story | reel | pin | event | article
+ *  - concept: short label that becomes part of the title
+ *  - notes:   what to say / what to design
+ */
+const LAUNCH_TEMPLATE = [
+  // ─── Pre-launch (Coming Soon) ───
+  { day: -3, channel: 'instagram', format: 'story', concept: 'Coming Soon Teaser',         notes: 'Sneak peek of one signature room or exterior. Build anticipation.' },
+  { day: -3, channel: 'facebook',  format: 'post',  concept: 'Coming Soon Announcement',   notes: 'Tag the seller (with permission). "Coming soon to the East Valley market…"' },
+  { day: -2, channel: 'instagram', format: 'reel',  concept: 'Coming Soon Walk-Through',   notes: 'Quick teaser reel — exterior + 2-3 interior shots, no full reveal.' },
+  { day: -1, channel: 'gmb',       format: 'post',  concept: 'Coming Soon GMB Update',     notes: 'Coming Soon post on Google Business Profile with property highlights.' },
+
+  // ─── Day 1: LAUNCH (Just Listed) ───
+  { day: 0,  channel: 'instagram', format: 'post',  concept: 'Just Listed Announcement',   notes: 'Hero photo + 2-line emotional headline. Address and price in caption.' },
+  { day: 0,  channel: 'instagram', format: 'story', concept: 'Just Listed Story',          notes: 'Story version — large JUST LISTED text + swipe up to listing page.' },
+  { day: 0,  channel: 'instagram', format: 'reel',  concept: 'Just Listed Property Tour',  notes: 'Quick walkthrough reel — 15-30 seconds. Music + key features.' },
+  { day: 0,  channel: 'facebook',  format: 'post',  concept: 'Just Listed Facebook Post',  notes: 'Carousel of photos + emotional caption. Tag local groups.' },
+  { day: 0,  channel: 'tiktok',    format: 'reel',  concept: 'Just Listed Property Tour',  notes: 'Property tour with trending audio. Hook in first 1.5 seconds.' },
+  { day: 0,  channel: 'gmb',       format: 'post',  concept: 'Just Listed GMB Post',       notes: 'Just Listed post on Google Business Profile with link to listing.' },
+  { day: 0,  channel: 'blog',      format: 'article', concept: 'Just Listed Blog Showcase', notes: 'Long-form blog: hero image, 5-7 photos, neighborhood story, agent bio.' },
+  { day: 0,  channel: 'pinterest', format: 'pin',   concept: 'Hero Photo Pin',             notes: 'Vertical hero shot of front of home. Pin to "Homes for Sale" board.' },
+  { day: 0,  channel: 'pinterest', format: 'pin',   concept: 'Lifestyle Pin',              notes: 'Interior lifestyle pin — kitchen or living room. Pin to "Home Inspo" board.' },
+  { day: 0,  channel: 'email',     format: 'post',  concept: 'Just Listed Email Blast',    notes: 'Email blast to SOI / database with photos and price.' },
+
+  // ─── Day 3: Lifestyle ───
+  { day: 2,  channel: 'instagram', format: 'post',  concept: 'Lifestyle Walkthrough',      notes: '"What it\'s like to live here" — focus on daily-life moments and feel.' },
+  { day: 2,  channel: 'instagram', format: 'story', concept: 'Behind the Scenes Story',    notes: 'Behind-the-scenes prep, staging details, or seller story.' },
+  { day: 2,  channel: 'facebook',  format: 'post',  concept: 'Lifestyle Story',            notes: 'Narrative caption — what makes this house feel like home.' },
+  { day: 2,  channel: 'pinterest', format: 'pin',   concept: 'Interior Detail Pin',        notes: 'Close-up detail — countertop, fireplace, built-ins, etc.' },
+
+  // ─── Day 5: Area Spotlight ───
+  { day: 4,  channel: 'instagram', format: 'reel',  concept: 'Area Spotlight Reel',        notes: 'Drone or walking footage of the neighborhood, parks, schools, dining.' },
+  { day: 4,  channel: 'facebook',  format: 'post',  concept: 'Neighborhood Highlight',     notes: 'Why this area? Schools, commute, dining, community.' },
+  { day: 4,  channel: 'tiktok',    format: 'reel',  concept: 'Neighborhood Walk',          notes: '"POV: you\'re moving to this neighborhood" walkthrough TikTok.' },
+  { day: 4,  channel: 'gmb',       format: 'post',  concept: 'Local Highlight GMB',        notes: 'Highlight a nearby business or amenity tied to the listing.' },
+  { day: 4,  channel: 'pinterest', format: 'pin',   concept: 'Neighborhood Pin',           notes: 'Aerial / map / community photo. Pin to "East Valley Living" board.' },
+
+  // ─── Day 7: Open House ───
+  { day: 6,  channel: 'instagram', format: 'post',  concept: 'Open House Announcement',    notes: 'Open house date, time, address. Encourage shares and saves.' },
+  { day: 6,  channel: 'instagram', format: 'story', concept: 'Open House Countdown',       notes: 'Countdown sticker story — drives last-minute attendance.' },
+  { day: 6,  channel: 'facebook',  format: 'event', concept: 'Open House Facebook Event',  notes: 'Create a Facebook Event so people can RSVP and get reminders.' },
+  { day: 6,  channel: 'gmb',       format: 'event', concept: 'Open House GMB Event',       notes: 'Create event on Google Business Profile.' },
+  { day: 6,  channel: 'blog',      format: 'article', concept: 'Open House Blog Post',     notes: 'Blog post promoting the open house with map, parking, what to expect.' },
+
+  // ─── Day 10: Feature Highlight ───
+  { day: 9,  channel: 'instagram', format: 'post',  concept: 'Feature Highlight',          notes: 'Spotlight a single best feature — pool, kitchen, view, primary suite.' },
+  { day: 9,  channel: 'instagram', format: 'story', concept: 'Detail Spotlight Story',     notes: 'Behind-the-scenes detail story.' },
+  { day: 9,  channel: 'facebook',  format: 'post',  concept: 'Feature Highlight FB',       notes: 'Highlight the same feature with longer-form caption.' },
+  { day: 9,  channel: 'pinterest', format: 'pin',   concept: 'Feature Pin',                notes: 'Pin showing off the highlighted feature.' },
+
+  // ─── Day 14: Social Proof / Showings ───
+  { day: 13, channel: 'instagram', format: 'post',  concept: 'Showings Update',            notes: 'Showings update / "still available" / interest level.' },
+  { day: 13, channel: 'facebook',  format: 'post',  concept: 'Showings Update FB',         notes: 'Same update, longer-form caption.' },
+  { day: 13, channel: 'tiktok',    format: 'reel',  concept: 'Day in the Life',            notes: '"Day in the life of a listing agent" featuring this home.' },
+
+  // ─── Day 21: Price Check / Status ───
+  { day: 20, channel: 'instagram', format: 'post',  concept: 'Status Check',               notes: 'Still available reminder OR price reduction announcement.' },
+  { day: 20, channel: 'facebook',  format: 'post',  concept: 'Status Update',              notes: 'Same as above, FB version.' },
+  { day: 20, channel: 'gmb',       format: 'post',  concept: 'Status GMB Post',            notes: 'Status update on Google Business Profile.' },
+]
+
+/**
+ * Build content_pieces rows for a property launch from the LAUNCH_TEMPLATE.
+ * Used by both the auto-trigger (Sellers status → active) and the manual
+ * "Push to Calendar" button on the Listing Plan page.
+ */
+function buildLaunchContentRows({ property, clientName, listingId, startDate = new Date() }) {
+  const addr = property?.address || 'Property'
+  const client = clientName || 'Client'
+
+  const addDays = (days) => {
+    const d = new Date(startDate)
+    d.setDate(d.getDate() + days)
+    return d.toISOString().slice(0, 10)
+  }
+
+  return LAUNCH_TEMPLATE.map(slot => ({
+    title: `${client}_${addr}-${slot.concept} [${slot.channel.toUpperCase()} ${slot.format}]`,
+    content_date: addDays(slot.day),
+    status: 'idea',
+    content_type: slot.concept.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 40),
+    channel: slot.channel,
+    launch_day: slot.day,
+    property_id: property?.id || null,
+    listing_id: listingId || null,
+    notes: slot.notes,
+  }))
+}
+
+/**
+ * Push the launch plan to the content calendar.
+ * Idempotent guard: pass `replace=true` to wipe existing entries for this listing first.
+ */
+export async function pushListingPlanToCalendar({ listingId, property, clientName, replace = false }) {
+  if (replace && listingId) {
+    await query(supabase.from('content_pieces').delete().eq('listing_id', listingId))
+  }
+  const rows = buildLaunchContentRows({ property, clientName, listingId })
+  await query(supabase.from('content_pieces').insert(rows))
+  return { count: rows.length }
+}
+
+/**
+ * Trigger the full seller marketing pipeline for a listing.
+ *  1. Marks marketing_pipeline_status = 'generating'
+ *  2. Generates a launch plan via Claude → saved to listings.listing_plan_text
+ *  3. Seeds the multi-channel content calendar (~37 entries across 21+ days)
+ *  4. Marks marketing_pipeline_status = 'ready'
  *
  * Canva designs are generated separately via Content Studio (requires Canva OAuth).
  */
@@ -398,36 +506,11 @@ export async function triggerListingMarketing({ listingId, property, clientName 
     }).eq('id', listingId))
   }
 
-  // Seed 21-day content calendar
-  const today = new Date()
-  const addDays = (days) => {
-    const d = new Date(today)
-    d.setDate(d.getDate() + days)
-    return d.toISOString().slice(0, 10)
-  }
-
-  const addr = property?.address || 'Property'
-  const client = clientName || 'Client'
-  const contentSlots = [
-    { day: 0,  title: `${client}_${addr}-Just Listed Announcement`, content_type: 'just_listed',  notes: 'Day 1 — Just Listed across all platforms (IG post, story, FB, mailer)' },
-    { day: 2,  title: `${client}_${addr}-Lifestyle Walkthrough`,    content_type: 'just_listed',  notes: 'Day 3 — What it\'s like to live here' },
-    { day: 4,  title: `${client}_${addr}-Area Spotlight`,           content_type: 'neighborhood', notes: 'Day 5 — Neighborhood / area highlights' },
-    { day: 6,  title: `${client}_${addr}-Open House Promo`,         content_type: 'open_house',   notes: 'Day 7 — Promote upcoming open house' },
-    { day: 9,  title: `${client}_${addr}-Feature Highlight`,        content_type: 'just_listed',  notes: 'Day 10 — Spotlight a unique feature' },
-    { day: 13, title: `${client}_${addr}-Showings Update`,          content_type: 'just_listed',  notes: 'Day 14 — Social proof / showings update' },
-    { day: 20, title: `${client}_${addr}-Price Check / Reminder`,   content_type: 'just_listed',  notes: 'Day 21 — Still available reminder or price-position check' },
-  ]
-
-  const contentRows = contentSlots.map(slot => ({
-    title: slot.title,
-    content_date: addDays(slot.day),
-    status: 'idea',
-    content_type: slot.content_type,
-    notes: slot.notes,
-  }))
-
+  // Seed multi-channel content calendar
+  let count = 0
   try {
-    await query(supabase.from('content_pieces').insert(contentRows))
+    const result = await pushListingPlanToCalendar({ listingId, property, clientName })
+    count = result.count
   } catch (e) {
     console.error('Content calendar seeding failed:', e)
   }
@@ -437,7 +520,7 @@ export async function triggerListingMarketing({ listingId, property, clientName 
     marketing_pipeline_completed_at: new Date().toISOString(),
   }).eq('id', listingId))
 
-  return { planText, contentSlotsCount: contentSlots.length }
+  return { planText, contentSlotsCount: count }
 }
 
 // ─── Client Avatars ─────────────────────────────────────────────────────────

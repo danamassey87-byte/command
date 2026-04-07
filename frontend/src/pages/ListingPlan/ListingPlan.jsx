@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { SectionHeader, Input, Badge } from '../../components/ui/index.jsx'
 import { PropertyPicker } from '../../components/ui/PropertyPicker.jsx'
-import { generateContent } from '../../lib/supabase.js'
+import { generateContent, pushListingPlanToCalendar } from '../../lib/supabase.js'
 import './ListingPlan.css'
 
 // ─── AI Prompts ─────────────────────────────────────────────────────────────
@@ -226,6 +226,9 @@ export default function ListingPlan() {
   const [showPrompt, setShowPrompt]   = useState(false)
   const [copied, setCopied]           = useState(false)
   const [error, setError]             = useState(null)
+  const [pushing, setPushing]         = useState(false)
+  const [pushedCount, setPushedCount] = useState(null)
+  const [clientName, setClientName]   = useState('')
   const [savedPlans, setSavedPlans]   = useState(() => {
     try { return JSON.parse(localStorage.getItem('listing_plans') || '[]') } catch { return [] }
   })
@@ -286,6 +289,26 @@ export default function ListingPlan() {
     setPlanType(plan.type)
   }
 
+  const handlePushToCalendar = async () => {
+    if (!linkedProperty) {
+      setError('Pick a property from your database first — required to push to calendar.')
+      return
+    }
+    setPushing(true)
+    setError(null)
+    try {
+      const { count } = await pushListingPlanToCalendar({
+        property: linkedProperty,
+        clientName: clientName.trim() || 'Client',
+      })
+      setPushedCount(count)
+    } catch (e) {
+      setError(e.message || 'Failed to push plan to calendar.')
+    } finally {
+      setPushing(false)
+    }
+  }
+
   const handleDeletePlan = (id) => {
     const updated = savedPlans.filter(p => p.id !== id)
     setSavedPlans(updated)
@@ -314,6 +337,16 @@ export default function ListingPlan() {
           >
             Expired / Relisting
           </button>
+        </div>
+
+        {/* Client name */}
+        <div style={{ marginBottom: 'var(--space-md)' }}>
+          <Input
+            label="Client Name"
+            value={clientName}
+            onChange={e => setClientName(e.target.value)}
+            placeholder="e.g. Don Neves"
+          />
         </div>
 
         {/* Property picker — auto-fills address from your DB */}
@@ -401,8 +434,27 @@ export default function ListingPlan() {
                 </svg>
                 Save
               </button>
+              <button
+                className="listing-plan__copy-btn"
+                onClick={handlePushToCalendar}
+                disabled={pushing || !linkedProperty}
+                title={!linkedProperty ? 'Pick a property from the dropdown above to enable' : 'Push the launch plan to your content calendar'}
+                style={{ background: linkedProperty ? 'var(--brown-dark)' : undefined, color: linkedProperty ? '#fff' : undefined, borderColor: linkedProperty ? 'var(--brown-dark)' : undefined }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                {pushing ? 'Pushing…' : 'Push to Calendar'}
+              </button>
             </div>
           </div>
+
+          {pushedCount !== null && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--color-success-bg)', border: '1px solid var(--color-success)', borderRadius: 'var(--radius-md)', color: 'var(--color-success)', fontSize: '0.82rem', margin: '12px 0' }}>
+              <span><strong>{pushedCount}</strong> content slots added to your calendar across Blog, GMB, IG, FB, TikTok, Pinterest & Email</span>
+              <button onClick={() => setPushedCount(null)} style={{ background: 'none', border: 'none', color: 'var(--color-success)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', fontSize: '0.78rem' }}>Dismiss</button>
+            </div>
+          )}
 
           {output.content ? (
             <div className="listing-plan__content" style={{ whiteSpace: 'pre-wrap' }}>{output.content}</div>
