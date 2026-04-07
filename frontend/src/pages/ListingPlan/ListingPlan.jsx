@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { SectionHeader, Input, Badge } from '../../components/ui/index.jsx'
+import { PropertyPicker } from '../../components/ui/PropertyPicker.jsx'
+import { generateContent } from '../../lib/supabase.js'
 import './ListingPlan.css'
 
 // ─── AI Prompts ─────────────────────────────────────────────────────────────
@@ -218,10 +220,12 @@ Using Dana's brand voice, create a complete listing strategy:
 export default function ListingPlan() {
   const [planType, setPlanType]       = useState('new')      // 'new' | 'expired'
   const [address, setAddress]         = useState('')
+  const [linkedProperty, setLinkedProperty] = useState(null)
   const [generating, setGenerating]   = useState(false)
   const [output, setOutput]           = useState(null)
   const [showPrompt, setShowPrompt]   = useState(false)
   const [copied, setCopied]           = useState(false)
+  const [error, setError]             = useState(null)
   const [savedPlans, setSavedPlans]   = useState(() => {
     try { return JSON.parse(localStorage.getItem('listing_plans') || '[]') } catch { return [] }
   })
@@ -241,28 +245,31 @@ export default function ListingPlan() {
     if (!address.trim()) return
     setGenerating(true)
     setOutput(null)
+    setError(null)
 
-    // For now, copy the prompt to clipboard and show a placeholder
-    // This will be wired to Claude API / Supabase Edge Function
     try {
-      await navigator.clipboard.writeText(promptWithAddress)
+      const result = await generateContent({
+        type: 'listing_plan',
+        plan_type: planType,
+        address: address.trim(),
+        property: linkedProperty,
+      })
+
       setOutput({
         address: address.trim(),
         type: planType,
-        content: null, // Will hold AI response when wired up
+        content: result?.text || null,
         prompt: promptWithAddress,
+        property: linkedProperty,
         generatedAt: new Date().toISOString(),
       })
-    } catch {
-      setOutput({
-        address: address.trim(),
-        type: planType,
-        content: null,
-        prompt: promptWithAddress,
-        generatedAt: new Date().toISOString(),
-      })
+    } catch (e) {
+      setError(e.message || 'Failed to generate plan. Check your Anthropic API key in Supabase.')
+      // Fallback: copy prompt to clipboard
+      try { await navigator.clipboard.writeText(promptWithAddress) } catch { /* silent */ }
+    } finally {
+      setGenerating(false)
     }
-    setGenerating(false)
   }
 
   const handleSavePlan = () => {
@@ -309,6 +316,32 @@ export default function ListingPlan() {
           </button>
         </div>
 
+        {/* Property picker — auto-fills address from your DB */}
+        <div style={{ marginBottom: 'var(--space-md)' }}>
+          {linkedProperty ? (
+            <div className="listing-plan__linked-property">
+              <div>
+                <strong>{linkedProperty.address}</strong>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginLeft: 8 }}>
+                  {[linkedProperty.city && `${linkedProperty.city}, AZ`, linkedProperty.beds && `${linkedProperty.beds}bd`, linkedProperty.baths && `${linkedProperty.baths}ba`, linkedProperty.sqft && `${Number(linkedProperty.sqft).toLocaleString()}sf`].filter(Boolean).join(' · ')}
+                </span>
+              </div>
+              <button
+                onClick={() => { setLinkedProperty(null); setAddress('') }}
+                style={{ background: 'none', border: 'none', color: 'var(--color-danger)', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <PropertyPicker
+              label="Pick from your properties (optional)"
+              onSelect={(p) => { setLinkedProperty(p); setAddress(`${p.address}, ${p.city || ''} AZ ${p.zip || ''}`.trim()) }}
+              placeholder="Choose a property to auto-fill..."
+            />
+          )}
+        </div>
+
         <div className="listing-plan__row">
           <Input
             label="Property Address"
@@ -332,6 +365,14 @@ export default function ListingPlan() {
           </button>
         </div>
       </div>
+
+      {/* Error banner */}
+      {error && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--color-danger-bg)', border: '1px solid var(--color-danger)', borderRadius: 'var(--radius-md)', color: 'var(--color-danger)', fontSize: '0.82rem', margin: '16px 0' }}>
+          <span>{error}</span>
+          <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: 'var(--color-danger)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', fontSize: '0.78rem' }}>Dismiss</button>
+        </div>
+      )}
 
       {/* Output area */}
       {output ? (
@@ -364,7 +405,7 @@ export default function ListingPlan() {
           </div>
 
           {output.content ? (
-            <div className="listing-plan__content">{output.content}</div>
+            <div className="listing-plan__content" style={{ whiteSpace: 'pre-wrap' }}>{output.content}</div>
           ) : (
             <div className="listing-plan__empty">
               <div className="listing-plan__empty-icon">
@@ -373,11 +414,10 @@ export default function ListingPlan() {
                 </svg>
               </div>
               <p style={{ fontWeight: 500, marginBottom: 8, color: 'var(--brown-dark)' }}>
-                Prompt copied to clipboard
+                AI returned no content
               </p>
               <p>
-                Paste this into Claude to generate your {output.type === 'new' ? 'listing launch' : 'relisting'} plan.
-                Once AI integration is live, the plan will appear here automatically.
+                The prompt was copied to your clipboard as a fallback. You can paste it into Claude manually.
               </p>
             </div>
           )}

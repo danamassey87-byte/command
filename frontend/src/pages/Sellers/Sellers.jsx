@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, CheckItem, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
-import { useListings, useTasksForListing, useContactTags, useNotesForContact } from '../../lib/hooks.js'
+import { useListings, useTasksForListing, useContactTags, useNotesForContact, useDocumentsForListing } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
@@ -547,11 +547,474 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
   )
 }
 
+// ─── Document category helpers ───────────────────────────────────────────────
+const DOC_CATEGORIES = [
+  { value: 'general',     label: 'General' },
+  { value: 'disclosure',  label: 'Disclosure' },
+  { value: 'contract',    label: 'Contract' },
+  { value: 'inspection',  label: 'Inspection' },
+  { value: 'photo',       label: 'Photo' },
+  { value: 'marketing',   label: 'Marketing' },
+  { value: 'appraisal',   label: 'Appraisal' },
+]
+
+const fileIcon = (type) => {
+  if (!type) return '📄'
+  if (type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(type)) return '🖼'
+  if (type === 'application/pdf' || type === 'pdf') return '📑'
+  if (type.includes('word') || type === 'docx' || type === 'doc') return '📝'
+  if (type.includes('sheet') || type === 'xlsx' || type === 'csv') return '📊'
+  return '📄'
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+// ─── Add Checklist Item Modal ────────────────────────────────────────────────
+function AddTaskModal({ listing, onClose, onAdded }) {
+  const [label, setLabel] = useState('')
+  const [phase, setPhase] = useState(listing.type === 'new' ? 'prep' : 'analysis')
+  const [scope, setScope] = useState('this')  // 'this' | 'all_current' | 'all_future' | 'all_both'
+  const [saving, setSaving] = useState(false)
+
+  const isNew = listing.type === 'new'
+  const phaseOptions = isNew
+    ? [{ value: 'prep', label: 'Preparation' }, { value: 'mls', label: 'MLS' }, { value: 'marketing', label: 'Marketing' }]
+    : [{ value: 'analysis', label: 'Analysis' }, { value: 'refresh', label: 'Refresh' }, { value: 'relaunch', label: 'Relaunch' }]
+
+  const handleAdd = async () => {
+    if (!label.trim()) return
+    setSaving(true)
+    try {
+      if (scope === 'this') {
+        await DB.createTask({
+          listing_id: listing.id,
+          phase,
+          label: label.trim(),
+          sort_order: 99,
+          completed: false,
+        })
+      } else {
+        // Get all listings of same type
+        const allListings = await DB.getListings()
+        const targetListings = allListings.filter(l => l.type === listing.type)
+
+        if (scope === 'all_current' || scope === 'all_both') {
+          const taskRows = targetListings.map(l => ({
+            listing_id: l.id,
+            phase,
+            label: label.trim(),
+            sort_order: 99,
+            completed: false,
+          }))
+          if (taskRows.length) await DB.bulkCreateTasks(taskRows)
+        }
+
+        if (scope === 'all_future' || scope === 'all_both') {
+          // Add to the template checklist (stored in localStorage for persistence)
+          const storageKey = isNew ? 'custom_launch_tasks' : 'custom_relaunch_tasks'
+          const existing = JSON.parse(localStorage.getItem(storageKey) || '[]')
+          existing.push({ label: label.trim(), phase })
+          localStorage.setItem(storageKey, JSON.stringify(existing))
+        }
+
+        if (scope === 'this') {
+          await DB.createTask({
+            listing_id: listing.id,
+            phase,
+            label: label.trim(),
+            sort_order: 99,
+            completed: false,
+          })
+        }
+      }
+      await DB.logActivity('task_created', `Added checklist item: ${label.trim()}`)
+      onAdded()
+      onClose()
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="plan-modal__overlay" onClick={onClose}>
+      <div className="plan-modal" onClick={e => e.stopPropagation()}>
+        <div className="plan-modal__header">
+          <h3>Add Checklist Item</h3>
+          <button className="plan-modal__close" onClick={onClose}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div className="plan-modal__body">
+          <label className="plan-modal__label">
+            Task
+            <input
+              className="plan-modal__input"
+              type="text"
+              value={label}
+              onChange={e => setLabel(e.target.value)}
+              placeholder="e.g. Schedule drone photography"
+              autoFocus
+            />
+          </label>
+
+          <label className="plan-modal__label">
+            Phase
+            <select className="plan-modal__select" value={phase} onChange={e => setPhase(e.target.value)}>
+              {phaseOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </label>
+
+          <fieldset className="plan-modal__fieldset">
+            <legend className="plan-modal__legend">Apply to</legend>
+            <label className="plan-modal__radio-label">
+              <input type="radio" name="scope" value="this" checked={scope === 'this'} onChange={() => setScope('this')} />
+              This listing only
+            </label>
+            <label className="plan-modal__radio-label">
+              <input type="radio" name="scope" value="all_current" checked={scope === 'all_current'} onChange={() => setScope('all_current')} />
+              All current {isNew ? 'new' : 'expired'} listings
+            </label>
+            <label className="plan-modal__radio-label">
+              <input type="radio" name="scope" value="all_future" checked={scope === 'all_future'} onChange={() => setScope('all_future')} />
+              All new {isNew ? 'launch' : 'relaunch'} plans going forward
+            </label>
+            <label className="plan-modal__radio-label">
+              <input type="radio" name="scope" value="all_both" checked={scope === 'all_both'} onChange={() => setScope('all_both')} />
+              All current + all future
+            </label>
+          </fieldset>
+        </div>
+
+        <div className="plan-modal__footer">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" size="sm" onClick={handleAdd} disabled={!label.trim() || saving}>
+            {saving ? 'Adding…' : 'Add Item'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── AI Plan Generator Modal ─────────────────────────────────────────────────
+const DEFAULT_LAUNCH_TEMPLATE = `Generate a complete launch plan for this listing:
+
+Client: {clientName}
+Property: {address}
+City/Zip: {city}, AZ {zip}
+Price: {price}
+DOM: {dom}
+Status: {status}
+
+Create a step-by-step checklist organized by phase.
+Phases: "prep" (listing preparation), "mls" (MLS & syndication), "marketing" (promotion & outreach)
+
+For each item, return JSON: [{"label": "...", "phase": "..."}]
+Focus on actionable, specific tasks. Include 12-18 items total.`
+
+const DEFAULT_RELAUNCH_TEMPLATE = `Generate a complete relaunch plan for this expired/stale listing:
+
+Client: {clientName}
+Property: {address}
+City/Zip: {city}, AZ {zip}
+Price: {price}
+DOM: {dom}
+Status: {status}
+
+This listing needs a fresh strategy. Create a step-by-step checklist organized by phase.
+Phases: "analysis" (market review & strategy), "refresh" (property improvements), "relaunch" (re-activation & promotion)
+
+For each item, return JSON: [{"label": "...", "phase": "..."}]
+Focus on actionable, specific tasks. Include 12-18 items total.`
+
+const TEMPLATE_STORAGE_KEY_LAUNCH   = 'ai_plan_template_launch'
+const TEMPLATE_STORAGE_KEY_RELAUNCH = 'ai_plan_template_relaunch'
+
+function getSavedTemplate(type) {
+  const key = type === 'new' ? TEMPLATE_STORAGE_KEY_LAUNCH : TEMPLATE_STORAGE_KEY_RELAUNCH
+  const saved = localStorage.getItem(key)
+  return saved || (type === 'new' ? DEFAULT_LAUNCH_TEMPLATE : DEFAULT_RELAUNCH_TEMPLATE)
+}
+
+function saveTemplate(type, template) {
+  const key = type === 'new' ? TEMPLATE_STORAGE_KEY_LAUNCH : TEMPLATE_STORAGE_KEY_RELAUNCH
+  localStorage.setItem(key, template)
+}
+
+function resolveTemplate(template, vars) {
+  return template
+    .replace(/\{clientName\}/g, vars.clientName || '')
+    .replace(/\{address\}/g,    vars.address || '')
+    .replace(/\{city\}/g,       vars.city || '')
+    .replace(/\{zip\}/g,        vars.zip || '')
+    .replace(/\{price\}/g,      vars.price || '')
+    .replace(/\{dom\}/g,        vars.dom ?? '')
+    .replace(/\{status\}/g,     vars.status || '')
+    .replace(/\{type\}/g,       vars.type || '')
+}
+
+function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
+  const isNew = listing.type === 'new'
+
+  // Which listing is selected (defaults to current)
+  const [selectedListingId, setSelectedListingId] = useState(listing.id)
+  const selectedListing = (allListings ?? []).find(l => l.id === selectedListingId) ?? listing
+
+  // Template editing
+  const [editingTemplate, setEditingTemplate] = useState(false)
+  const [template, setTemplate] = useState(getSavedTemplate(listing.type))
+  const [templateDraft, setTemplateDraft] = useState(template)
+
+  // Resolved prompt
+  const resolvedPrompt = resolveTemplate(template, {
+    clientName: selectedListing.contact_name,
+    address:    selectedListing.address,
+    city:       selectedListing.city,
+    zip:        selectedListing.zip,
+    price:      selectedListing.listPrice,
+    dom:        selectedListing.dom,
+    status:     selectedListing.status,
+    type:       selectedListing.type,
+  })
+
+  const [prompt, setPrompt] = useState(resolvedPrompt)
+  const [generating, setGenerating] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
+
+  // Re-resolve prompt when listing selection changes (only if user hasn't manually edited)
+  const [manuallyEdited, setManuallyEdited] = useState(false)
+  useEffect(() => {
+    if (!manuallyEdited) {
+      setPrompt(resolveTemplate(template, {
+        clientName: selectedListing.contact_name,
+        address:    selectedListing.address,
+        city:       selectedListing.city,
+        zip:        selectedListing.zip,
+        price:      selectedListing.listPrice,
+        dom:        selectedListing.dom,
+        status:     selectedListing.status,
+        type:       selectedListing.type,
+      }))
+    }
+  }, [selectedListingId, template])
+
+  const handleSaveTemplate = () => {
+    saveTemplate(listing.type, templateDraft)
+    setTemplate(templateDraft)
+    setEditingTemplate(false)
+    setManuallyEdited(false)
+  }
+
+  const handleGenerate = async () => {
+    setGenerating(true)
+    setError(null)
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-plan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ prompt, listing_id: selectedListing.id }),
+      })
+      if (!response.ok) throw new Error('AI generation failed — check edge function')
+      const data = await response.json()
+      setResult(data.tasks || data)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleApply = async () => {
+    if (!result?.length) return
+    setGenerating(true)
+    try {
+      const existing = await DB.getTasksForListing(selectedListing.id)
+      for (const t of existing) await DB.deleteTask(t.id)
+
+      const taskRows = result.map((step, i) => ({
+        listing_id: selectedListing.id,
+        phase: step.phase,
+        label: step.label,
+        sort_order: i,
+        completed: false,
+      }))
+      await DB.bulkCreateTasks(taskRows)
+      await DB.logActivity('plan_generated', `AI generated ${isNew ? 'launch' : 'relaunch'} plan for ${selectedListing.address}`)
+      onGenerated()
+      onClose()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  // Template editor sub-view
+  if (editingTemplate) {
+    return (
+      <div className="plan-modal__overlay" onClick={() => setEditingTemplate(false)}>
+        <div className="plan-modal plan-modal--wide" onClick={e => e.stopPropagation()}>
+          <div className="plan-modal__header">
+            <h3>Edit {isNew ? 'Launch' : 'Relaunch'} Prompt Template</h3>
+            <button className="plan-modal__close" onClick={() => setEditingTemplate(false)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div className="plan-modal__body">
+            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: 4 }}>
+              This template is used for all future <strong>{isNew ? 'launch' : 'relaunch'}</strong> plan generations. Use these variables and they will auto-fill:
+            </p>
+            <div className="plan-modal__var-chips">
+              {['{clientName}', '{address}', '{city}', '{zip}', '{price}', '{dom}', '{status}', '{type}'].map(v => (
+                <span key={v} className="plan-modal__var-chip">{v}</span>
+              ))}
+            </div>
+            <textarea
+              className="plan-modal__textarea"
+              value={templateDraft}
+              onChange={e => setTemplateDraft(e.target.value)}
+              rows={14}
+            />
+          </div>
+          <div className="plan-modal__footer">
+            <Button variant="ghost" size="sm" onClick={() => {
+              setTemplateDraft(isNew ? DEFAULT_LAUNCH_TEMPLATE : DEFAULT_RELAUNCH_TEMPLATE)
+            }}>Reset to Default</Button>
+            <div style={{ flex: 1 }} />
+            <Button variant="ghost" size="sm" onClick={() => setEditingTemplate(false)}>Cancel</Button>
+            <Button variant="primary" size="sm" onClick={handleSaveTemplate}>Save Template</Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="plan-modal__overlay" onClick={onClose}>
+      <div className="plan-modal plan-modal--wide" onClick={e => e.stopPropagation()}>
+        <div className="plan-modal__header">
+          <h3>Generate {isNew ? 'Launch' : 'Relaunch'} Plan with AI</h3>
+          <button className="plan-modal__close" onClick={onClose}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div className="plan-modal__body">
+          {/* ── Client & Property Selector ── */}
+          <div className="plan-modal__context-row">
+            <label className="plan-modal__label plan-modal__label--inline">
+              Client / Property
+              <select
+                className="plan-modal__select"
+                value={selectedListingId}
+                onChange={e => { setSelectedListingId(e.target.value); setManuallyEdited(false); setResult(null) }}
+              >
+                {(allListings ?? [listing]).map(l => (
+                  <option key={l.id} value={l.id}>
+                    {l.contact_name ? `${l.contact_name} — ` : ''}{l.address}{l.city ? `, ${l.city}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {/* ── Auto-filled context card ── */}
+          <div className="plan-modal__context-card">
+            <div className="plan-modal__context-item">
+              <span className="plan-modal__context-key">Client</span>
+              <span>{selectedListing.contact_name || '—'}</span>
+            </div>
+            <div className="plan-modal__context-item">
+              <span className="plan-modal__context-key">Property</span>
+              <span>{selectedListing.address}, {selectedListing.city} {selectedListing.zip}</span>
+            </div>
+            <div className="plan-modal__context-item">
+              <span className="plan-modal__context-key">Price</span>
+              <span>{selectedListing.listPrice}</span>
+            </div>
+            <div className="plan-modal__context-item">
+              <span className="plan-modal__context-key">DOM</span>
+              <span>{selectedListing.dom}</span>
+            </div>
+          </div>
+
+          {/* ── Prompt ── */}
+          <div className="plan-modal__prompt-header">
+            <span className="plan-modal__label" style={{ marginBottom: 0 }}>
+              {isNew ? 'Launch' : 'Relaunch'} Prompt
+            </span>
+            <button className="plan-modal__template-btn" onClick={() => { setTemplateDraft(template); setEditingTemplate(true) }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.32 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+              Edit Template
+            </button>
+          </div>
+          <textarea
+            className="plan-modal__textarea"
+            value={prompt}
+            onChange={e => { setPrompt(e.target.value); setManuallyEdited(true) }}
+            rows={10}
+          />
+          <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
+            Auto-filled from your saved {isNew ? 'launch' : 'relaunch'} template. Edit inline for this run, or click Edit Template to change for all future use.
+          </p>
+
+          {error && <p style={{ fontSize: '0.8rem', color: 'var(--color-danger)', marginTop: 8 }}>{error}</p>}
+
+          {result && (
+            <div className="ai-plan-preview">
+              <h4 style={{ fontSize: '0.82rem', fontWeight: 700, marginBottom: 8, color: 'var(--brown-dark)' }}>
+                Generated Plan ({result.length} items)
+              </h4>
+              <div className="ai-plan-preview__list">
+                {result.map((item, i) => (
+                  <div key={i} className="ai-plan-preview__item">
+                    <span className="ai-plan-preview__phase">{phaseLabels[item.phase]?.label ?? item.phase}</span>
+                    <span>{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="plan-modal__footer">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          {result ? (
+            <Button variant="primary" size="sm" onClick={handleApply} disabled={generating}>
+              {generating ? 'Applying…' : 'Replace Current Plan'}
+            </Button>
+          ) : (
+            <Button variant="primary" size="sm" onClick={handleGenerate} disabled={generating || !prompt.trim()}>
+              {generating ? 'Generating…' : 'Generate Plan'}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Plan View (real tasks from DB when available) ────────────────────────────
-function PlanView({ listing, onBack, onEdit }) {
+function PlanView({ listing, allListings, onBack, onEdit }) {
   const isNew   = listing.type === 'new'
-  const plan    = isNew ? launchChecklist : relaunchChecklist
   const isDbRow = typeof listing.id === 'string'
+
+  // Merge hardcoded + custom tasks from localStorage
+  const customKey = isNew ? 'custom_launch_tasks' : 'custom_relaunch_tasks'
+  const customTasks = JSON.parse(localStorage.getItem(customKey) || '[]')
+  const plan = [...(isNew ? launchChecklist : relaunchChecklist), ...customTasks]
 
   // Try to load real checklist tasks when it's a DB listing
   const { data: dbTasks, refetch: refetchTasks } = useTasksForListing(isDbRow ? listing.id : null)
@@ -560,8 +1023,23 @@ function PlanView({ listing, onBack, onEdit }) {
   const { openNote, createAndOpen } = useNotesContext()
   const hasTasks = dbTasks && dbTasks.length > 0
 
+  // Documents
+  const { data: docs, refetch: refetchDocs } = useDocumentsForListing(isDbRow ? listing.id : null)
+  const fileInputRef = useRef(null)
+  const [uploading, setUploading] = useState(false)
+
+  // Modals
+  const [showAddTask, setShowAddTask] = useState(false)
+  const [showAIPlan, setShowAIPlan] = useState(false)
+
   // Fallback to listing.checklist for mock data
   const [localChecks, setLocalChecks] = useState(listing.checklist ?? {})
+
+  // Use DB tasks when available, merge with plan for display
+  const displayTasks = hasTasks ? dbTasks : plan
+  const displayPhases = hasTasks
+    ? [...new Set(dbTasks.map(t => t.phase))]
+    : [...new Set(plan.map(s => s.phase))]
 
   const getChecked = (i) => {
     if (hasTasks) return dbTasks[i]?.completed ?? false
@@ -595,9 +1073,36 @@ function PlanView({ listing, onBack, onEdit }) {
     ? Object.fromEntries(dbTasks.map((t, i) => [i, t.completed]))
     : localChecks
 
+  const totalItems = hasTasks ? dbTasks.length : plan.length
   const completed = Object.values(checks).filter(Boolean).length
-  const pct = Math.round((completed / plan.length) * 100)
-  const phases = [...new Set(plan.map(s => s.phase))]
+  const pct = totalItems > 0 ? Math.round((completed / totalItems) * 100) : 0
+
+  // File upload handler
+  const handleFileUpload = async (e) => {
+    const files = Array.from(e.target.files)
+    if (!files.length || !isDbRow) return
+    setUploading(true)
+    try {
+      for (const file of files) {
+        await DB.uploadListingDocument(file, listing.id)
+      }
+      await DB.logActivity('document_uploaded', `Uploaded ${files.length} document(s) to ${listing.address}`)
+      refetchDocs()
+    } catch (err) {
+      console.error('Upload failed:', err)
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleDeleteDoc = async (doc) => {
+    if (!confirm(`Remove "${doc.name}"?`)) return
+    try {
+      await DB.deleteDocument(doc.id, doc.file_path)
+      refetchDocs()
+    } catch (e) { console.error(e) }
+  }
 
   return (
     <div className="sellers-plan">
@@ -641,15 +1146,29 @@ function PlanView({ listing, onBack, onEdit }) {
             </svg>
             <span className="sellers-plan__progress-pct">{pct}%</span>
           </div>
-          <p className="sellers-plan__progress-label">{completed}/{plan.length} steps</p>
+          <p className="sellers-plan__progress-label">{completed}/{totalItems} steps</p>
         </div>
       </div>
 
+      {/* ── Action Buttons ── */}
+      {isDbRow && (
+        <div className="sellers-plan__actions">
+          <Button variant="ghost" size="sm" onClick={() => setShowAIPlan(true)}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M12 2a4 4 0 014 4c0 1.95-1.4 3.58-3.25 3.93L12 22"/><path d="M8 6a4 4 0 010-8"/><circle cx="12" cy="6" r="4"/></svg>}
+          >Generate Plan with AI</Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowAddTask(true)}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}
+          >Add Checklist Item</Button>
+        </div>
+      )}
+
       <div className="sellers-plan__phases">
-        {phases.map(phase => {
-          const phaseItems = plan.map((step, i) => ({ ...step, i })).filter(s => s.phase === phase)
+        {displayPhases.map(phase => {
+          const phaseItems = hasTasks
+            ? dbTasks.map((t, i) => ({ ...t, i })).filter(t => t.phase === phase)
+            : plan.map((step, i) => ({ ...step, i })).filter(s => s.phase === phase)
           const phaseCompleted = phaseItems.filter(s => !!checks[s.i]).length
-          const meta = phaseLabels[phase]
+          const meta = phaseLabels[phase] ?? { label: phase, color: '#888' }
           return (
             <Card key={phase} className="sellers-plan__phase-card">
               <div className="sellers-plan__phase-header">
@@ -674,11 +1193,57 @@ function PlanView({ listing, onBack, onEdit }) {
         })}
       </div>
 
+      {/* ── Documents ── */}
+      {isDbRow && (
+        <div className="sellers-plan__section">
+          <div className="sellers-plan__section-header">
+            <h3 className="sellers-plan__section-title">Documents ({(docs ?? []).length})</h3>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                style={{ display: 'none' }}
+                onChange={handleFileUpload}
+              />
+              <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>}
+              >{uploading ? 'Uploading…' : 'Attach File'}</Button>
+            </div>
+          </div>
+
+          {(docs ?? []).length === 0 ? (
+            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>No documents attached yet. Upload disclosures, contracts, photos, or any listing files.</p>
+          ) : (
+            <div className="sellers-plan__docs-grid">
+              {(docs ?? []).map(doc => (
+                <div key={doc.id} className="sellers-plan__doc-card">
+                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="sellers-plan__doc-link">
+                    <span className="sellers-plan__doc-icon">{fileIcon(doc.file_type)}</span>
+                    <div className="sellers-plan__doc-info">
+                      <span className="sellers-plan__doc-name">{doc.name}</span>
+                      <span className="sellers-plan__doc-meta">
+                        {formatFileSize(doc.file_size)}
+                        {doc.category && doc.category !== 'general' && ` · ${doc.category}`}
+                        {' · '}{new Date(doc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                  </a>
+                  <button className="sellers-plan__doc-delete" onClick={() => handleDeleteDoc(doc)} title="Remove">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Linked Notes ── */}
       {contactId && (
-        <div style={{ marginTop: 'var(--space-lg)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <h3 style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--brown-dark)' }}>Notes ({(linkedNotes ?? []).length})</h3>
+        <div className="sellers-plan__section">
+          <div className="sellers-plan__section-header">
+            <h3 className="sellers-plan__section-title">Notes ({(linkedNotes ?? []).length})</h3>
             <Button variant="ghost" size="sm" onClick={async () => { await createAndOpen({ contact_id: contactId }); refetchNotes() }}>+ Add Note</Button>
           </div>
           {(linkedNotes ?? []).length === 0 ? (
@@ -699,6 +1264,23 @@ function PlanView({ listing, onBack, onEdit }) {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── Modals ── */}
+      {showAddTask && (
+        <AddTaskModal
+          listing={listing}
+          onClose={() => setShowAddTask(false)}
+          onAdded={refetchTasks}
+        />
+      )}
+      {showAIPlan && (
+        <AIPlanModal
+          listing={listing}
+          allListings={allListings}
+          onClose={() => setShowAIPlan(false)}
+          onGenerated={refetchTasks}
+        />
       )}
     </div>
   )
@@ -809,13 +1391,21 @@ export default function Sellers() {
         home_warranty_offered:    draft.home_warranty_offered,
       }
 
+      let savedListingId = null
+      let shouldTriggerMarketing = false
+
       if (editingListing && typeof editingListing.id === 'string') {
+        const wasActive = editingListing.status === 'active'
         await DB.updateListing(editingListing.id, dbRow)
         await DB.logActivity('listing_updated', `Updated listing: ${draft.address}`, { propertyId: property_id })
+        savedListingId = editingListing.id
+        // Trigger marketing pipeline if newly went active
+        if (!wasActive && draft.status === 'active') shouldTriggerMarketing = true
       } else {
         const newListing = await DB.createListing(dbRow)
-        // Auto-create checklist tasks
-        const plan = draft.type === 'new' ? launchChecklist : relaunchChecklist
+        const customKey = draft.type === 'new' ? 'custom_launch_tasks' : 'custom_relaunch_tasks'
+        const customItems = JSON.parse(localStorage.getItem(customKey) || '[]')
+        const plan = [...(draft.type === 'new' ? launchChecklist : relaunchChecklist), ...customItems]
         const taskRows = plan.map((step, i) => ({
           listing_id: newListing.id,
           phase:      step.phase,
@@ -825,7 +1415,39 @@ export default function Sellers() {
         }))
         await DB.bulkCreateTasks(taskRows)
         await DB.logActivity('listing_created', `New listing added: ${draft.address}`, { propertyId: property_id })
+        savedListingId = newListing.id
+        // Trigger marketing pipeline if created as active
+        if (draft.status === 'active') shouldTriggerMarketing = true
       }
+
+      // Auto-trigger marketing pipeline (listing plan + 21-day content calendar)
+      if (shouldTriggerMarketing && savedListingId) {
+        // Fire-and-forget — don't block the UI
+        DB.triggerListingMarketing({
+          listingId: savedListingId,
+          property: {
+            address: draft.address,
+            city: draft.city,
+            zip: draft.zip,
+            beds: draft.bedrooms ? Number(draft.bedrooms) : null,
+            baths: draft.bathrooms ? Number(draft.bathrooms) : null,
+            sqft: draft.sqft ? Number(draft.sqft) : null,
+            year_built: draft.year_built ? Number(draft.year_built) : null,
+            pool: draft.pool,
+            subdivision: draft.subdivision,
+            price: draft.listPrice ? Number(draft.listPrice) : null,
+            notes: draft.marketing_remarks || draft.description,
+          },
+          clientName: draft.seller_name?.trim() || 'Client',
+        }).then(({ contentSlotsCount }) => {
+          DB.logActivity('marketing_pipeline_triggered',
+            `Marketing pipeline started for ${draft.address} — ${contentSlotsCount} content slots created`,
+            { propertyId: property_id })
+        }).catch((e) => {
+          console.error('Marketing pipeline failed:', e)
+        })
+      }
+
       await refetch()
       closePanel()
     } catch (e) {
@@ -860,6 +1482,7 @@ export default function Sellers() {
       <>
         <PlanView
           listing={listing}
+          allListings={listings}
           onBack={() => setSelectedListing(null)}
           onEdit={() => openEdit(listing)}
         />

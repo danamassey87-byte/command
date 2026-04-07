@@ -15,40 +15,110 @@ async function query(promise) {
 }
 
 // ─── Contacts ────────────────────────────────────────────────────────────────
-export const getContacts  = ()     => query(supabase.from('contacts').select('*').order('name'))
-export const getBuyers    = ()     => query(supabase.from('contacts').select('*').in('type', ['buyer', 'both']).order('name'))
-export const getSellers   = ()     => query(supabase.from('contacts').select('*').in('type', ['seller', 'both']).order('name'))
+// All "list" queries hide soft-deleted + archived rows by default. Use the
+// safeguards.js helpers (getTrashRecords, restore) to access them.
+export const getContacts  = ()     => query(supabase.from('contacts').select('*')
+  .is('deleted_at', null).is('archived_at', null).order('name'))
+export const getBuyers    = ()     => query(supabase.from('contacts').select('*')
+  .in('type', ['buyer', 'both']).is('deleted_at', null).is('archived_at', null).order('name'))
+export const getSellers   = ()     => query(supabase.from('contacts').select('*')
+  .in('type', ['seller', 'both']).is('deleted_at', null).is('archived_at', null).order('name'))
 export const createContact = (d)  => query(supabase.from('contacts').insert(d).select().single())
-export const updateContact = (id, d) => query(supabase.from('contacts').update(d).eq('id', id).select().single())
-export const deleteContact = (id) => query(supabase.from('contacts').delete().eq('id', id))
+// updateContact runs through updateWithAudit so every change is field-diffed
+export const updateContact = async (id, d) => {
+  const { updateWithAudit } = await import('./safeguards')
+  return updateWithAudit('contacts', id, d)
+}
+// deleteContact is now soft-delete (recoverable for 30 days)
+export const deleteContact = async (id) => {
+  const { softDelete } = await import('./safeguards')
+  return softDelete('contacts', id)
+}
 
 // ─── Properties ──────────────────────────────────────────────────────────────
-export const getProperties  = ()      => query(supabase.from('properties').select('*').order('address'))
+export const getProperties  = ()      => query(supabase.from('properties').select('*')
+  .is('deleted_at', null).is('archived_at', null).order('address'))
 
-/** Find existing property by address (case-insensitive) or create a new one. Returns the property id. */
+/** Find existing property by normalized address (using DB column) or create new.
+ *  Also short-circuits on MLS-id match. Returns the property id. */
 export async function ensureProperty({ address, city = null, zip = null, mls_id = null, price = null, dom = null, expired_date = null }) {
   if (!address?.trim()) throw new Error('Address is required')
-  const { data } = await supabase.from('properties').select('id').ilike('address', address.trim()).limit(1)
-  if (data?.length > 0) return data[0].id
-  const result = await createProperty({ address: address.trim(), city, state: 'AZ', zip, mls_id, price: price ? Number(price) : null, dom: dom ? Number(dom) : null, expired_date })
+
+  // 1. MLS-id exact match (#7)
+  if (mls_id?.trim()) {
+    const { data: byMls } = await supabase.from('properties').select('id')
+      .eq('mls_id', mls_id.trim()).is('deleted_at', null).limit(1)
+    if (byMls?.length > 0) return byMls[0].id
+  }
+
+  // 2. Normalized-address match (#8) — relies on the generated column
+  const norm = address.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  let normQ = supabase.from('properties').select('id')
+    .eq('normalized_address', norm).is('deleted_at', null).limit(1)
+  if (zip) normQ = normQ.eq('zip', zip)
+  const { data: byNorm } = await normQ
+  if (byNorm?.length > 0) return byNorm[0].id
+
+  // 3. Create
+  const result = await createProperty({
+    address: address.trim(), city, state: 'AZ', zip, mls_id,
+    price: price ? Number(price) : null,
+    dom: dom ? Number(dom) : null,
+    expired_date,
+  })
   return result.id
 }
 export const createProperty  = (d)   => query(supabase.from('properties').insert(d).select().single())
-export const updateProperty  = (id, d) => query(supabase.from('properties').update(d).eq('id', id).select().single())
+export const updateProperty  = async (id, d) => {
+  const { updateWithAudit } = await import('./safeguards')
+  return updateWithAudit('properties', id, d)
+}
+export const deleteProperty = async (id) => {
+  const { softDelete } = await import('./safeguards')
+  return softDelete('properties', id)
+}
 
 /** Get properties with all detail fields for content/marketing use */
 export const getPropertiesForContent = () =>
-  query(supabase.from('properties').select('*').order('address'))
+  query(supabase.from('properties').select('*')
+    .is('deleted_at', null).is('archived_at', null).order('address'))
 
 // ─── Listings ────────────────────────────────────────────────────────────────
 export const getListings = () =>
   query(supabase.from('listings').select(`
     *, contact:contacts(id,name,email,phone), property:properties(*)
-  `).order('created_at', { ascending: false }))
+  `).is('deleted_at', null).is('archived_at', null).order('created_at', { ascending: false }))
 
 export const createListing  = (d)      => query(supabase.from('listings').insert(d).select().single())
-export const updateListing  = (id, d)  => query(supabase.from('listings').update(d).eq('id', id).select().single())
-export const deleteListing  = (id)     => query(supabase.from('listings').delete().eq('id', id))
+export const updateListing  = async (id, d) => {
+  const { updateWithAudit } = await import('./safeguards')
+  return updateWithAudit('listings', id, d)
+}
+export const deleteListing  = async (id) => {
+  const { softDelete } = await import('./safeguards')
+  return softDelete('listings', id)
+}
+
+// ─── Listing Appointments (seller consultations) ─────────────────────────────
+export const getListingAppointments = () =>
+  query(supabase.from('listing_appointments').select(`
+    *, contact:contacts(id,name,email,phone), property:properties(id,address,city,zip)
+  `).is('deleted_at', null).is('archived_at', null).order('scheduled_at', { ascending: false }))
+
+export const createListingAppointment = (d) =>
+  query(supabase.from('listing_appointments').insert(d).select(`
+    *, contact:contacts(id,name), property:properties(id,address)
+  `).single())
+
+export const updateListingAppointment = async (id, d) => {
+  const { updateWithAudit } = await import('./safeguards')
+  return updateWithAudit('listing_appointments', id, d)
+}
+
+export const deleteListingAppointment = async (id) => {
+  const { softDelete } = await import('./safeguards')
+  return softDelete('listing_appointments', id)
+}
 
 // ─── Checklist Tasks ─────────────────────────────────────────────────────────
 export const getTasksForListing = (listingId) =>
@@ -58,6 +128,35 @@ export const createTask  = (d)      => query(supabase.from('checklist_tasks').in
 export const updateTask  = (id, d)  => query(supabase.from('checklist_tasks').update(d).eq('id', id).select().single())
 export const deleteTask  = (id)     => query(supabase.from('checklist_tasks').delete().eq('id', id))
 export const bulkCreateTasks = (rows) => query(supabase.from('checklist_tasks').insert(rows).select())
+
+// ─── Listing Documents ───────────────────────────────────────────────────────
+export const getDocumentsForListing = (listingId) =>
+  query(supabase.from('listing_documents').select('*').eq('listing_id', listingId).order('created_at', { ascending: false }))
+
+export const deleteDocument = async (id, filePath) => {
+  await supabase.storage.from('listing-documents').remove([filePath])
+  return query(supabase.from('listing_documents').delete().eq('id', id))
+}
+
+export async function uploadListingDocument(file, listingId) {
+  const ext = file.name.split('.').pop()
+  const path = `${listingId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const { error } = await supabase.storage.from('listing-documents').upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+  })
+  if (error) throw new Error(error.message)
+  const { data: { publicUrl } } = supabase.storage.from('listing-documents').getPublicUrl(path)
+  const doc = await query(supabase.from('listing_documents').insert({
+    listing_id: listingId,
+    name: file.name,
+    file_url: publicUrl,
+    file_path: path,
+    file_type: file.type || ext,
+    file_size: file.size,
+  }).select().single())
+  return doc
+}
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
 export const getTransactions = () =>
@@ -178,21 +277,7 @@ export const getActivityTargets = () =>
 export const updateActivityTargets = (id, data) =>
   query(supabase.from('activity_targets').update({ ...data, updated_at: new Date().toISOString() }).eq('id', id).select().single())
 
-// ─── Listing Appointments ──────────────────────────────────────────────────────
-export const getListingAppointments = () =>
-  query(supabase.from('listing_appointments')
-    .select('*, contact:contacts(id,name,phone,email)')
-    .order('appointment_date', { ascending: true }))
-
-export const createListingAppointment = (d) =>
-  query(supabase.from('listing_appointments').insert(d).select().single())
-
-export const updateListingAppointment = (id, d) =>
-  query(supabase.from('listing_appointments').update(d).eq('id', id).select().single())
-
-export const deleteListingAppointment = (id) =>
-  query(supabase.from('listing_appointments').delete().eq('id', id))
-
+// ─── Listing Appointment Checklist ───────────────────────────────────────────
 export const getApptChecklist = (apptId) =>
   query(supabase.from('listing_appt_checklist').select('*').eq('appointment_id', apptId).order('sort_order'))
 
@@ -275,6 +360,84 @@ export async function generateContent(payload) {
   const { data, error } = await supabase.functions.invoke('generate-content', { body: payload })
   if (error) throw new Error(error.message)
   return data
+}
+
+// ─── Marketing Pipeline (auto-triggered when listing goes active) ─────────────
+/**
+ * Trigger the seller marketing pipeline for a listing.
+ *  1. Generates a launch plan via Claude (saved to listings.listing_plan_text)
+ *  2. Creates content_pieces entries for the 21-day launch timeline
+ *  3. Marks marketing_pipeline_status = 'ready'
+ *
+ * Canva designs are generated separately via Content Studio (requires Canva OAuth).
+ */
+export async function triggerListingMarketing({ listingId, property, clientName }) {
+  await query(supabase.from('listings').update({
+    marketing_pipeline_status: 'generating',
+    marketing_pipeline_started_at: new Date().toISOString(),
+  }).eq('id', listingId))
+
+  // Generate launch plan via Claude
+  let planText = null
+  try {
+    const result = await generateContent({
+      type: 'listing_plan',
+      plan_type: 'new',
+      address: property?.address || '',
+      property,
+    })
+    planText = result?.text || null
+  } catch (e) {
+    console.error('Listing plan generation failed:', e)
+  }
+
+  if (planText) {
+    await query(supabase.from('listings').update({
+      listing_plan_text: planText,
+      listing_plan_generated_at: new Date().toISOString(),
+    }).eq('id', listingId))
+  }
+
+  // Seed 21-day content calendar
+  const today = new Date()
+  const addDays = (days) => {
+    const d = new Date(today)
+    d.setDate(d.getDate() + days)
+    return d.toISOString().slice(0, 10)
+  }
+
+  const addr = property?.address || 'Property'
+  const client = clientName || 'Client'
+  const contentSlots = [
+    { day: 0,  title: `${client}_${addr}-Just Listed Announcement`, content_type: 'just_listed',  notes: 'Day 1 — Just Listed across all platforms (IG post, story, FB, mailer)' },
+    { day: 2,  title: `${client}_${addr}-Lifestyle Walkthrough`,    content_type: 'just_listed',  notes: 'Day 3 — What it\'s like to live here' },
+    { day: 4,  title: `${client}_${addr}-Area Spotlight`,           content_type: 'neighborhood', notes: 'Day 5 — Neighborhood / area highlights' },
+    { day: 6,  title: `${client}_${addr}-Open House Promo`,         content_type: 'open_house',   notes: 'Day 7 — Promote upcoming open house' },
+    { day: 9,  title: `${client}_${addr}-Feature Highlight`,        content_type: 'just_listed',  notes: 'Day 10 — Spotlight a unique feature' },
+    { day: 13, title: `${client}_${addr}-Showings Update`,          content_type: 'just_listed',  notes: 'Day 14 — Social proof / showings update' },
+    { day: 20, title: `${client}_${addr}-Price Check / Reminder`,   content_type: 'just_listed',  notes: 'Day 21 — Still available reminder or price-position check' },
+  ]
+
+  const contentRows = contentSlots.map(slot => ({
+    title: slot.title,
+    content_date: addDays(slot.day),
+    status: 'idea',
+    content_type: slot.content_type,
+    notes: slot.notes,
+  }))
+
+  try {
+    await query(supabase.from('content_pieces').insert(contentRows))
+  } catch (e) {
+    console.error('Content calendar seeding failed:', e)
+  }
+
+  await query(supabase.from('listings').update({
+    marketing_pipeline_status: 'ready',
+    marketing_pipeline_completed_at: new Date().toISOString(),
+  }).eq('id', listingId))
+
+  return { planText, contentSlotsCount: contentSlots.length }
 }
 
 // ─── Client Avatars ─────────────────────────────────────────────────────────
@@ -365,6 +528,49 @@ export const updateBrandProfile = (value) =>
   query(supabase.from('user_settings')
     .upsert({ key: 'brand_profile', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
     .select().single())
+
+// ─── Dropdown Lists (lookup values for sources, locations, etc.) ────────────
+const DEFAULT_DROPDOWN_LISTS = {
+  lead_sources: [
+    'Open House', 'Zillow', 'Realtor.com', 'Referral', 'Sphere of Influence',
+    'Door Knocking', 'Cold Call', 'Facebook', 'Instagram', 'Google',
+    'Past Client', 'Expired Listing', 'FSBO', 'Sign Call', 'Walk-in',
+  ],
+  appointment_locations: [
+    'On-site', 'Video call', 'Office', 'Coffee shop', 'Phone call',
+  ],
+  appointment_sources: [
+    'Referral', 'Open House', 'Expired', 'FSBO', 'Past Client',
+    'Sphere of Influence', 'Online lead', 'Sign call',
+  ],
+}
+
+export const getDropdownLists = async () => {
+  const { data, error } = await supabase
+    .from('user_settings').select('value').eq('key', 'dropdown_lists').maybeSingle()
+  if (error) throw new Error(error.message)
+  const stored = data?.value ?? {}
+  // Merge defaults so new list keys appear even if user has saved value
+  const merged = { ...DEFAULT_DROPDOWN_LISTS }
+  for (const k of Object.keys(stored)) merged[k] = stored[k]
+  return merged
+}
+
+export const updateDropdownLists = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'dropdown_lists', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())
+
+export const addDropdownItem = async (listKey, item) => {
+  const v = (item ?? '').trim()
+  if (!v) return null
+  const lists = await getDropdownLists()
+  const current = Array.isArray(lists[listKey]) ? lists[listKey] : []
+  if (current.some(x => x.toLowerCase() === v.toLowerCase())) return lists
+  const next = { ...lists, [listKey]: [...current, v] }
+  await updateDropdownLists(next)
+  return next
+}
 
 // ─── Social Dashboard Config ─────────────────────────────────────────────────
 export const getSocialDashboardConfig = () =>
