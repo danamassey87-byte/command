@@ -242,9 +242,11 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
     source:       listing?.source        ?? (listing?.type === 'expired' ? 'my_expired' : 'new'),
     dom:          listing?.dom           ?? '',
     offers:       listing?.offers        ?? '',
-    seller_name:  listing?.contact_name  ?? '',
-    seller_email: listing?.contact_email ?? '',
-    seller_phone: listing?.contact_phone ?? '',
+    // Seller contact — hydrates from the joined contact row (listing.contact)
+    // that getListings() returns, with fallbacks to any legacy flat columns.
+    seller_name:  listing?.contact?.name  ?? listing?.contact_name  ?? '',
+    seller_email: listing?.contact?.email ?? listing?.contact_email ?? '',
+    seller_phone: listing?.contact?.phone ?? listing?.contact_phone ?? '',
     notes:        listing?.notes         ?? '',
     // Seller tracking
     cash_offer_requested:     listing?.cash_offer_requested ?? false,
