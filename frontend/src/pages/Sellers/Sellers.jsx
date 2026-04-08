@@ -819,24 +819,12 @@ function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
     setGenerating(true)
     setError(null)
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-content`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          type: 'listing_checklist',
-          prompt,
-          plan_type: isNew ? 'new' : 'relisting',
-        }),
+      const data = await DB.generateContent({
+        type: 'listing_checklist',
+        prompt,
+        plan_type: isNew ? 'new' : 'relisting',
       })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(data?.error || `AI generation failed (${response.status})`)
-      }
-      const tasks = data.tasks
+      const tasks = data?.tasks
       if (!Array.isArray(tasks) || tasks.length === 0) {
         throw new Error('AI returned no tasks. Try again or edit the prompt.')
       }
