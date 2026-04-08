@@ -190,6 +190,21 @@ export const restoreTask = (id)     =>
 export const hardDeleteTask = (id)  => query(supabase.from('checklist_tasks').delete().eq('id', id))
 export const bulkCreateTasks = (rows) => query(supabase.from('checklist_tasks').insert(rows).select())
 
+// ─── Listing Parties (per-listing) ───────────────────────────────────────────
+// Each listing can have many parties (co-signers, agents, TC, escrow, vendors).
+// A party row can EITHER reference a vendors row OR store a one-off contact.
+export const getPartiesForListing = (listingId) =>
+  query(supabase.from('listing_parties').select(`
+    *, vendor:vendors(id, name, company, role, email, phone, website, address_line_1, city, state, zip, preferred)
+  `).eq('listing_id', listingId).is('deleted_at', null).order('sort_order'))
+
+export const createListingParty = (d) =>
+  query(supabase.from('listing_parties').insert(d).select().single())
+export const updateListingParty = (id, d) =>
+  query(supabase.from('listing_parties').update(d).eq('id', id).select().single())
+export const deleteListingParty = (id) =>
+  query(supabase.from('listing_parties').update({ deleted_at: new Date().toISOString() }).eq('id', id))
+
 // ─── Listing Documents ───────────────────────────────────────────────────────
 export const getDocumentsForListing = (listingId) =>
   query(supabase.from('listing_documents').select('*').eq('listing_id', listingId).order('created_at', { ascending: false }))
@@ -1111,9 +1126,23 @@ export const getDailyStreaks = (limit = 30) =>
 export const upsertDailyStreak = (d) =>
   query(supabase.from('daily_streaks').upsert(d, { onConflict: 'date' }).select().single())
 
-// ─── Vendors ────────────────────────────────────────────────────────────────
-export const getVendors = () =>
-  query(supabase.from('vendors').select('*').order('role').order('name'))
+// ─── Vendors (global rolodex) ────────────────────────────────────────────────
+// Used by the Vendors page AND by the Parties picker on listing pages.
+// Supports { roleGroup, search } filter args. Soft-deleted rows are excluded.
+export const getVendors = (opts = {}) => {
+  const { roleGroup, search } = opts
+  let q = supabase.from('vendors').select('*').is('deleted_at', null)
+  if (roleGroup) q = q.eq('role_group', roleGroup)
+  if (search) {
+    const s = search.toLowerCase().trim().replace(/[%,]/g, '')
+    // Search across name, email, company, role.
+    q = q.or(`name_normalized.ilike.%${s}%,email_normalized.ilike.%${s}%,company.ilike.%${s}%,role.ilike.%${s}%`)
+  }
+  return query(q.order('preferred', { ascending: false }).order('name'))
+}
+
+export const getVendorById = (id) =>
+  query(supabase.from('vendors').select('*').eq('id', id).maybeSingle())
 
 export const createVendor = (d) =>
   query(supabase.from('vendors').insert(d).select().single())
@@ -1121,8 +1150,18 @@ export const createVendor = (d) =>
 export const updateVendor = (id, d) =>
   query(supabase.from('vendors').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
 
+// Soft delete — recoverable via Settings → Trash.
 export const deleteVendor = (id) =>
+  query(supabase.from('vendors').update({ deleted_at: new Date().toISOString() }).eq('id', id))
+
+export const restoreVendor = (id) =>
+  query(supabase.from('vendors').update({ deleted_at: null }).eq('id', id))
+
+export const hardDeleteVendor = (id) =>
   query(supabase.from('vendors').delete().eq('id', id))
+
+export const toggleVendorPreferred = (id, preferred) =>
+  query(supabase.from('vendors').update({ preferred }).eq('id', id).select().single())
 
 // ─── Vendor Assignments ─────────────────────────────────────────────────────
 export const getVendorAssignments = () =>

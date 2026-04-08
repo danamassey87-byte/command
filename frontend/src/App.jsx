@@ -28,6 +28,7 @@ import ListingPlan from './pages/ListingPlan/ListingPlan'
 import BioLinkBuilder from './pages/BioLink/BioLinkBuilder'
 import EmailBuilder from './pages/EmailBuilder/EmailBuilder'
 import IntakeForms from './pages/IntakeForms/IntakeForms'
+import PublicForm from './pages/PublicForm/PublicForm'
 import Notifications from './pages/Notifications/Notifications'
 import CalendarSchedule from './pages/Calendar/CalendarSchedule'
 import TodayShowings from './pages/Calendar/TodayShowings'
@@ -36,6 +37,7 @@ import SocialDashboard from './pages/Content/SocialDashboard'
 import AIStudio from './pages/AIStudio/AIStudio'
 import AdsManager from './pages/Ads/AdsManager'
 import AdReports from './pages/Ads/AdReports'
+import Vendors from './pages/Vendors/Vendors'
 
 // ─── Section Dashboards ────────────────────────────────────────────────────────
 import CrmDashboard from './pages/CRM/CrmDashboard'
@@ -113,6 +115,9 @@ export default function App() {
     <AuthProvider>
     <BrowserRouter>
       <Routes>
+        {/* Public client-facing form (unauthed) */}
+        <Route path="/form/:slug" element={<PublicForm />} />
+
         <Route path="/login" element={<LoginGate />} />
         <Route element={<ProtectedRoute><BrandProvider><NotesProvider><FavoritesProvider><Layout /></FavoritesProvider></NotesProvider></BrandProvider></ProtectedRoute>}>
           {/* ─── Dashboard ─── */}
@@ -166,7 +171,7 @@ export default function App() {
 
           {/* ─── Content ─── */}
           <Route path="/content"           element={<ContentDashboard />} />
-          <Route path="/content/calendar"  element={<ContentPlanner />} />
+          <Route path="/content/calendar"  element={<ContentCalendar />} />
           <Route path="/content/planning"  element={<ContentPlanner />} />
           <Route path="/content/templates" element={<ComingSoon title="Content Templates" />} />
           <Route path="/content/ai-studio" element={<AIStudio />} />
@@ -221,6 +226,9 @@ export default function App() {
           <Route path="/email/templates"   element={<ComingSoon title="Email Templates" />} />
           <Route path="/email/campaigns"   element={<ComingSoon title="Campaigns" />} />
           <Route path="/email/sent"        element={<ComingSoon title="Sent Emails" />} />
+
+          {/* ─── Vendors ─── */}
+          <Route path="/vendors"           element={<Vendors />} />
 
           {/* ─── Notifications ─── */}
           <Route path="/notifications"     element={<Notifications />} />

@@ -58,34 +58,34 @@ begin
     'address', 'city', 'state', 'zip', 'neighborhood',
     'birthday', 'anniversary', 'website'
   ];
-  fill_parts := '{}';
+  fill_parts := array[]::text[];
   foreach col in array col_list loop
     if _col_exists('contacts', col) then
-      fill_parts := fill_parts || format('%I = coalesce(c.%I, d.%I)', col, col, col);
+      fill_parts := array_append(fill_parts, format('%I = coalesce(c.%I, d.%I)', col, col, col));
     end if;
   end loop;
 
   -- areas (array) — union if column exists
   if _col_exists('contacts', 'areas') then
-    fill_parts := fill_parts || format($a$
-      areas = case
-        when c.areas is null or array_length(c.areas, 1) is null then d.areas
-        when d.areas is null then c.areas
-        else array(select distinct unnest(c.areas || d.areas))
-      end
-    $a$);
+    fill_parts := array_append(fill_parts,
+      'areas = case '
+        || 'when c.areas is null or array_length(c.areas, 1) is null then d.areas '
+        || 'when d.areas is null then c.areas '
+        || 'else array(select distinct unnest(c.areas || d.areas)) '
+      || 'end'
+    );
   end if;
 
   -- notes — concat if column exists and both have content
   if _col_exists('contacts', 'notes') then
-    fill_parts := fill_parts || $n$
-      notes = case
-        when c.notes is null or c.notes = '' then d.notes
-        when d.notes is null or d.notes = '' then c.notes
-        when c.notes = d.notes then c.notes
-        else c.notes || E'\n\n--- merged from duplicate ---\n' || d.notes
-      end
-    $n$;
+    fill_parts := array_append(fill_parts,
+      'notes = case '
+        || 'when c.notes is null or c.notes = '''' then d.notes '
+        || 'when d.notes is null or d.notes = '''' then c.notes '
+        || 'when c.notes = d.notes then c.notes '
+        || 'else c.notes || E''\n\n--- merged from duplicate ---\n'' || d.notes '
+      || 'end'
+    );
   end if;
 
   if array_length(fill_parts, 1) > 0 then

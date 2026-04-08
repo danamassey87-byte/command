@@ -77,8 +77,8 @@ const SECTIONS = {
     title: 'Content',
     items: [
       { label: 'Overview',      path: '/content',             icon: 'columns' },
-      { label: 'Calendar',      path: '/content/calendar',    icon: 'calendar' },
       { label: 'Planning',      path: '/content/planning',    icon: 'clipboard' },
+      { label: 'Calendar',      path: '/content/calendar',    icon: 'calendar' },
       { label: 'Social Media',  path: '/content/social',      icon: 'trending-up' },
       { label: 'Templates',     path: '/content/templates',   icon: 'file-text' },
       { label: 'Content Studio', path: '/content/ai-studio',   icon: 'zap' },
@@ -118,7 +118,8 @@ const SECTIONS = {
   toolkit: {
     title: 'Toolkit',
     items: [
-      { label: 'Resource Hub',       path: '/resources',           icon: 'link' },
+      { label: 'Vendors',            path: '/vendors',             icon: 'users',         group: 'Rolodex' },
+      { label: 'Resource Hub',       path: '/resources',           icon: 'link',          group: 'Resources' },
       { label: 'Email Templates',    path: '/resources/email',     icon: 'mail' },
       { label: 'SMS Templates',      path: '/resources/sms',       icon: 'message-square' },
       { label: 'Buyer Playbook',     path: '/pipeline/buyer-sop',  icon: 'clipboard',     group: 'Playbooks' },
@@ -167,7 +168,7 @@ export function getActiveSection(pathname) {
   if (pathname.startsWith('/pipeline'))    return 'deals'
   if (pathname.startsWith('/content') || pathname.startsWith('/campaigns') || pathname.startsWith('/email') || pathname.startsWith('/bio-link')) return 'content'
   if (pathname.startsWith('/pnl') || pathname.startsWith('/net-sheet') || pathname.startsWith('/market')) return 'money'
-  if (pathname.startsWith('/resources') || pathname.startsWith('/settings')) return 'toolkit'
+  if (pathname.startsWith('/resources') || pathname.startsWith('/settings') || pathname.startsWith('/vendors')) return 'toolkit'
   return 'home'
 }
 

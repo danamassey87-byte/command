@@ -92,8 +92,13 @@ export const useMileageLog       = (from, to) => useQuery(() => DB.getMileageLog
 export const useDailyTasks      = (from, to) => useQuery(() => DB.getDailyTasks(from, to), [from, to])
 export const useAllDailyTasks   = ()         => useQuery(DB.getAllDailyTasks)
 export const useDailyStreaks    = ()         => useQuery(() => DB.getDailyStreaks(30))
-export const useVendors         = ()         => useQuery(DB.getVendors)
-export const useVendorAssignments = ()       => useQuery(DB.getVendorAssignments)
+// useVendors accepts optional { roleGroup, search } — both optional.
+// Callers without args get all vendors (role/name sorted).
+export const useVendors           = (opts = {}) =>
+  useQuery(() => DB.getVendors(opts), [opts.roleGroup, opts.search])
+export const useVendorAssignments = ()          => useQuery(DB.getVendorAssignments)
+export const usePartiesForListing = (listingId) =>
+  useQuery(() => DB.getPartiesForListing(listingId), [listingId])
 
 // ─── Notes hooks ──────────────────────────────────────────────────────────────
 export const useNotes               = ()    => useQuery(DB.getNotes)

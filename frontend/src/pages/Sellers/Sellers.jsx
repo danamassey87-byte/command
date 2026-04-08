@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, CheckItem, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
+import PartiesSection from '../../components/parties/PartiesSection.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
 import { useListings, useTasksForListing, useDeletedTasksForListing, useContactTags, useNotesForContact, useDocumentsForListing } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
@@ -1794,6 +1795,9 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
           </div>
         </Card>
       )}
+
+      {/* ── Parties & Vendors (contract co-signers, agents, TC, vendors) ── */}
+      {isDbRow && <PartiesSection listingId={listing.id} />}
 
       {/* ── Deleted Items Drawer ── */}
       {isDbRow && (deletedTasks ?? []).length > 0 && (
