@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, CheckItem, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
@@ -1052,6 +1052,283 @@ function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
   )
 }
 
+// ─── Printable Plan ─────────────────────────────────────────────────────────
+// Dedicated clean layout used by both the Print button (via @media print CSS
+// that shows only this element) AND by Export PDF (html2pdf.js renders it
+// directly). Uses inline styles so html2canvas captures everything faithfully
+// and nothing is inherited from the dashboard.
+const PrintablePlan = React.forwardRef(function PrintablePlan(
+  { listing, tasks, hasTasks, plan, isNew },
+  ref
+) {
+  const items = hasTasks ? (tasks || []) : (plan || [])
+  const completed = items.filter(t => hasTasks ? t.completed : false).length
+  const total = items.length
+  const pct = total ? Math.round((completed / total) * 100) : 0
+
+  const phaseOrder = [...new Set(items.map(i => i.phase))]
+
+  const phaseLabel = {
+    prep:       'Prep',
+    launch:     'Launch',
+    postlaunch: 'Post-Launch',
+    analysis:   'Analysis',
+    refresh:    'Refresh',
+    relaunch:   'Relaunch',
+  }
+
+  const planTitle = isNew ? 'LAUNCH PLAN' : 'RELAUNCH PLAN'
+  const dateStr = new Date().toLocaleDateString('en-US', {
+    month: 'long', day: 'numeric', year: 'numeric',
+  })
+
+  // Brand palette (inline for html2canvas fidelity)
+  const C = {
+    cream:    '#faf7f0',
+    brownDk:  '#2d2416',
+    brownMd:  '#8B7355',
+    brownLt:  '#c4b598',
+    mute:     '#6b5d4c',
+    soft:     '#e5d9c0',
+    bodyBg:   '#ffffff',
+    done:     '#a89d87',
+  }
+
+  return (
+    <div
+      ref={ref}
+      className="printable-offscreen"
+      style={{
+        width: '8.5in',
+        minHeight: '11in',
+        padding: '0.55in 0.6in',
+        background: C.bodyBg,
+        color: C.brownDk,
+        fontFamily: '"Helvetica Neue", "Helvetica", Arial, sans-serif',
+        fontSize: '9.5pt',
+        lineHeight: 1.4,
+        boxSizing: 'border-box',
+        WebkitPrintColorAdjust: 'exact',
+        printColorAdjust: 'exact',
+      }}
+    >
+      {/* ── Header ── */}
+      <div
+        style={{
+          borderBottom: `2px solid ${C.brownMd}`,
+          paddingBottom: 10,
+          marginBottom: 14,
+        }}
+      >
+        <div
+          style={{
+            fontSize: '7pt',
+            letterSpacing: '0.18em',
+            color: C.brownMd,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            marginBottom: 6,
+          }}
+        >
+          Dana Massey &nbsp;·&nbsp; REAL Broker
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+          <div
+            style={{
+              fontSize: '26pt',
+              fontFamily: '"Instrument Serif", Georgia, "Times New Roman", serif',
+              fontWeight: 400,
+              color: C.brownDk,
+              lineHeight: 1,
+              letterSpacing: '0.01em',
+            }}
+          >
+            {planTitle}
+          </div>
+          <div style={{ fontSize: '8pt', color: C.mute, whiteSpace: 'nowrap' }}>
+            Generated {dateStr}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Property + progress strip ── */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 16,
+          marginBottom: 18,
+          paddingBottom: 12,
+          borderBottom: `1px dashed ${C.soft}`,
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: '15pt',
+              fontFamily: '"Instrument Serif", Georgia, "Times New Roman", serif',
+              color: C.brownDk,
+              lineHeight: 1.2,
+              marginBottom: 2,
+            }}
+          >
+            {listing.address || '—'}
+          </div>
+          <div style={{ fontSize: '8.5pt', color: C.mute }}>
+            {listing.city ? `${listing.city}, AZ ${listing.zip || ''}` : ''}
+            {listing.listPrice ? ` · ${listing.listPrice}` : ''}
+            {typeof listing.dom !== 'undefined' ? ` · ${listing.dom} DOM` : ''}
+            {listing.contact_name ? ` · ${listing.contact_name}` : ''}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div
+            style={{
+              fontSize: '20pt',
+              fontFamily: '"Instrument Serif", Georgia, serif',
+              color: C.brownMd,
+              lineHeight: 1,
+            }}
+          >
+            {pct}%
+          </div>
+          <div
+            style={{
+              fontSize: '7pt',
+              letterSpacing: '0.1em',
+              color: C.mute,
+              textTransform: 'uppercase',
+              marginTop: 2,
+            }}
+          >
+            {completed} of {total} complete
+          </div>
+        </div>
+      </div>
+
+      {/* ── Phases in a balanced 2-column layout ── */}
+      <div
+        style={{
+          columnCount: 2,
+          columnGap: '0.35in',
+          columnFill: 'balance',
+        }}
+      >
+        {phaseOrder.map(phase => {
+          const phaseItems = items.filter(i => i.phase === phase)
+          const phaseCompleted = phaseItems.filter(i => hasTasks ? i.completed : false).length
+          const label = phaseLabel[phase] || phase
+          return (
+            <div
+              key={phase}
+              style={{
+                breakInside: 'avoid',
+                pageBreakInside: 'avoid',
+                WebkitColumnBreakInside: 'avoid',
+                marginBottom: 14,
+                paddingBottom: 2,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'baseline',
+                  borderBottom: `1px solid ${C.soft}`,
+                  paddingBottom: 4,
+                  marginBottom: 6,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '7.5pt',
+                    letterSpacing: '0.14em',
+                    color: C.brownMd,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  {label}
+                </span>
+                <span
+                  style={{
+                    fontSize: '7pt',
+                    color: C.mute,
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  {phaseCompleted}/{phaseItems.length}
+                </span>
+              </div>
+              {phaseItems.map((item, i) => {
+                const done = hasTasks ? !!item.completed : false
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 7,
+                      fontSize: '8.5pt',
+                      marginBottom: 5,
+                      color: done ? C.done : C.brownDk,
+                      textDecoration: done ? 'line-through' : 'none',
+                      breakInside: 'avoid',
+                      pageBreakInside: 'avoid',
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: 10,
+                        height: 10,
+                        border: done ? 'none' : `1px solid ${C.brownMd}`,
+                        background: done ? C.brownMd : 'transparent',
+                        borderRadius: 2,
+                        marginTop: 2,
+                        flexShrink: 0,
+                        color: '#ffffff',
+                        fontSize: '7pt',
+                        lineHeight: '10px',
+                        textAlign: 'center',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {done ? '✓' : ''}
+                    </span>
+                    <span style={{ flex: 1 }}>{item.label}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* ── Footer ── */}
+      <div
+        style={{
+          position: 'absolute',
+          left: '0.6in',
+          right: '0.6in',
+          bottom: '0.4in',
+          borderTop: `1px solid ${C.soft}`,
+          paddingTop: 8,
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontSize: '7pt',
+          color: C.mute,
+          letterSpacing: '0.05em',
+        }}
+      >
+        <span>DANA MASSEY · REAL BROKER · EAST VALLEY, AZ</span>
+        <span>{listing.address || ''}</span>
+      </div>
+    </div>
+  )
+})
+
 // ─── Plan View (real tasks from DB when available) ────────────────────────────
 function PlanView({ listing, allListings, onBack, onEdit }) {
   const isNew   = listing.type === 'new'
@@ -1093,26 +1370,41 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
   }
 
   const handleExportPdf = async () => {
-    if (!printableRef.current) return
+    const node = printableRef.current
+    if (!node) return
     setExportingPdf(true)
+    // Bring the node onscreen briefly so html2canvas can measure it.
+    // It stays visually hidden by z-index / containment inside the offscreen
+    // wrapper but becomes a real laid-out element with computed dimensions.
+    const prev = {
+      left: node.style.left,
+      top: node.style.top,
+      visibility: node.style.visibility,
+    }
+    node.style.left = '0'
+    node.style.top = '0'
+    node.style.visibility = 'hidden'
     try {
       const html2pdf = (await import('html2pdf.js')).default
       const filename = `${(listing.contact_name || 'Client').replace(/[^\w-]+/g, '_')}_${(listing.address || 'Listing').replace(/[^\w-]+/g, '_')}_${isNew ? 'Launch' : 'Relaunch'}_Plan.pdf`
       await html2pdf()
         .set({
-          margin:       [0.5, 0.5, 0.5, 0.5],
+          margin:       0,
           filename,
-          image:        { type: 'jpeg', quality: 0.95 },
-          html2canvas:  { scale: 2, backgroundColor: '#ffffff', useCORS: true },
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, backgroundColor: '#ffffff', useCORS: true, windowWidth: 1100 },
           jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' },
-          pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] },
+          pagebreak:    { mode: ['css', 'legacy'] },
         })
-        .from(printableRef.current)
+        .from(node)
         .save()
     } catch (e) {
       console.error('PDF export failed:', e)
       alert('PDF export failed. Try using the Print button and "Save as PDF" from the print dialog.')
     } finally {
+      node.style.left = prev.left
+      node.style.top = prev.top
+      node.style.visibility = prev.visibility
       setExportingPdf(false)
     }
   }
@@ -1229,7 +1521,7 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
 
   return (
     <div className="sellers-plan">
-      <div className="sellers-plan__nav no-print">
+      <div className="sellers-plan__nav">
         <button className="oh-detail__back" onClick={onBack}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
             <polyline points="15 18 9 12 15 6" />
@@ -1239,20 +1531,6 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         <Button variant="ghost" size="sm" onClick={onEdit}
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
         >Edit Listing</Button>
-      </div>
-
-      <div ref={printableRef} className="sellers-plan__printable">
-      {/* Print/PDF-only header banner (hidden on screen) */}
-      <div className="sellers-plan__print-header print-only">
-        <div className="sellers-plan__print-brand">DANA MASSEY · REAL BROKER</div>
-        <div className="sellers-plan__print-type">{isNew ? 'LAUNCH PLAN' : 'RELAUNCH PLAN'}</div>
-        <div className="sellers-plan__print-meta">
-          {listing.address}{listing.city ? `, ${listing.city}` : ''} {listing.zip || ''}
-          {' · '}
-          {listing.listPrice}
-          {' · '}
-          Generated {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-        </div>
       </div>
 
       <div className="sellers-plan__header">
@@ -1289,7 +1567,7 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
 
       {/* ── Action Buttons ── */}
       {isDbRow && (
-        <div className="sellers-plan__actions no-print">
+        <div className="sellers-plan__actions">
           <Button variant="ghost" size="sm" onClick={() => setShowAIPlan(true)}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M12 2a4 4 0 014 4c0 1.95-1.4 3.58-3.25 3.93L12 22"/><path d="M8 6a4 4 0 010-8"/><circle cx="12" cy="6" r="4"/></svg>}
           >Generate Plan with AI</Button>
@@ -1491,11 +1769,9 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         </div>
       )}
 
-      </div> {/* /sellers-plan__printable */}
-
       {/* ── Documents ── */}
       {isDbRow && (
-        <div className="sellers-plan__section no-print">
+        <div className="sellers-plan__section">
           <div className="sellers-plan__section-header">
             <h3 className="sellers-plan__section-title">Documents ({(docs ?? []).length})</h3>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -1582,6 +1858,16 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
           onGenerated={refetchTasks}
         />
       )}
+
+      {/* Offscreen printable layout — used by both Print and Export PDF. */}
+      <PrintablePlan
+        ref={printableRef}
+        listing={listing}
+        tasks={dbTasks}
+        hasTasks={hasTasks}
+        plan={plan}
+        isNew={isNew}
+      />
     </div>
   )
 }
