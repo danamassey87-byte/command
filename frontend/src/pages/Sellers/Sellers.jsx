@@ -5,7 +5,7 @@ import { useListings, useTasksForListing, useContactTags, useNotesForContact, us
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
-import { emitListingContentReminder } from '../../lib/notifications.js'
+import { emit as emitNotification, emitListingContentReminder } from '../../lib/notifications.js'
 import './Sellers.css'
 
 // ─── Checklist definitions ────────────────────────────────────────────────────
@@ -819,19 +819,30 @@ function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
     setGenerating(true)
     setError(null)
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-plan`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-content`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ prompt, listing_id: selectedListing.id }),
+        body: JSON.stringify({
+          type: 'listing_checklist',
+          prompt,
+          plan_type: isNew ? 'new' : 'relisting',
+        }),
       })
-      if (!response.ok) throw new Error('AI generation failed — check edge function')
-      const data = await response.json()
-      setResult(data.tasks || data)
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.error || `AI generation failed (${response.status})`)
+      }
+      const tasks = data.tasks
+      if (!Array.isArray(tasks) || tasks.length === 0) {
+        throw new Error('AI returned no tasks. Try again or edit the prompt.')
+      }
+      setResult(tasks)
     } catch (e) {
-      setError(e.message)
+      setError(e.message || 'Failed to generate plan')
     } finally {
       setGenerating(false)
     }
@@ -1396,12 +1407,26 @@ export default function Sellers() {
       let shouldTriggerMarketing = false
 
       if (editingListing && typeof editingListing.id === 'string') {
-        const wasActive = editingListing.status === 'active'
+        const prevStatus = editingListing.status
+        const wasActive = prevStatus === 'active'
         await DB.updateListing(editingListing.id, dbRow)
         await DB.logActivity('listing_updated', `Updated listing: ${draft.address}`, { propertyId: property_id })
         savedListingId = editingListing.id
         // Trigger marketing pipeline if newly went active
         if (!wasActive && draft.status === 'active') shouldTriggerMarketing = true
+        // Notify on status change (e.g. coming_soon → active, active → pending, pending → closed)
+        if (prevStatus && prevStatus !== draft.status) {
+          const pretty = s => (s || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          emitNotification({
+            type: 'phase_change',
+            title: `${draft.address}: ${pretty(prevStatus)} → ${pretty(draft.status)}`,
+            body: `Listing status changed.${draft.list_price ? ' List price: $' + Number(draft.listPrice || 0).toLocaleString() : ''}`,
+            link: '/pipeline/board',
+            source_table: 'listings',
+            source_id: editingListing.id,
+            metadata: { from: prevStatus, to: draft.status, address: draft.address },
+          }).catch(err => console.error('notification emit failed', err))
+        }
       } else {
         const newListing = await DB.createListing(dbRow)
         const customKey = draft.type === 'new' ? 'custom_launch_tasks' : 'custom_relaunch_tasks'

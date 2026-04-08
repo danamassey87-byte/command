@@ -18,9 +18,78 @@ serve(async (req) => {
 
   try {
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
-    if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set')
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({
+          error: 'AI is not configured yet. ANTHROPIC_API_KEY is missing from Supabase Edge Function secrets.',
+          code: 'missing_api_key',
+        }),
+        { status: 503, headers: { ...CORS, 'Content-Type': 'application/json' } }
+      )
+    }
 
     const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property } = await req.json()
+
+    // Short-circuit for listing checklist: the caller supplies the full prompt
+    // (rendered from their editable template) and expects a JSON task array back.
+    if (type === 'listing_checklist') {
+      const checklistResp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 2048,
+          system: 'You are a real estate listing strategist. Respond ONLY with a valid JSON array of task objects — no prose, no markdown fences.',
+          messages: [{ role: 'user', content: prompt || '' }],
+        }),
+      })
+
+      if (!checklistResp.ok) {
+        let detail = ''
+        try {
+          const errBody = await checklistResp.json()
+          detail = errBody?.error?.message || JSON.stringify(errBody)
+        } catch {
+          detail = await checklistResp.text().catch(() => '')
+        }
+        return new Response(
+          JSON.stringify({
+            error: `Anthropic API error (${checklistResp.status}): ${detail || 'unknown'}`,
+            code: 'anthropic_api_error',
+          }),
+          { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const checklistResult = await checklistResp.json()
+      const checklistText = checklistResult.content?.[0]?.text ?? ''
+
+      let tasks: Array<{ label: string; phase: string }> = []
+      try {
+        const jsonMatch = checklistText.match(/\[[\s\S]*\]/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+          if (Array.isArray(parsed)) {
+            tasks = parsed
+              .filter((t: any) => t && typeof t.label === 'string')
+              .map((t: any) => ({
+                label: String(t.label),
+                phase: typeof t.phase === 'string' && t.phase ? t.phase : (plan_type === 'new' ? 'prep' : 'analysis'),
+              }))
+          }
+        }
+      } catch (_e) {
+        // fall through with empty tasks array
+      }
+
+      return new Response(JSON.stringify({ tasks, raw: checklistText }), {
+        headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
 
     let userMessage = ''
 
@@ -158,6 +227,11 @@ Format guidance for ${platform}: ${hints[platform] || 'platform-appropriate tone
 Output just the adapted copy, nothing else.`
     }
 
+    // Pick model + token budget by task. listing_plan is long-form strategy
+    // work — worth the Opus spend. Everything else stays on Sonnet.
+    const model = type === 'listing_plan' ? 'claude-opus-4-6' : 'claude-sonnet-4-6'
+    const maxTokens = type === 'listing_plan' ? 8192 : 1024
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -166,15 +240,47 @@ Output just the adapted copy, nothing else.`
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: type === 'listing_plan' ? 4096 : 1024,
+        model,
+        max_tokens: maxTokens,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userMessage }],
       }),
     })
 
+    // Surface Anthropic errors instead of silently returning empty text.
+    // Previously this swallowed 4xx/5xx from the API and callers would see
+    // an empty `text` field with no explanation.
+    if (!response.ok) {
+      let detail = ''
+      try {
+        const errBody = await response.json()
+        detail = errBody?.error?.message || JSON.stringify(errBody)
+      } catch {
+        detail = await response.text().catch(() => '')
+      }
+      return new Response(
+        JSON.stringify({
+          error: `Anthropic API error (${response.status}): ${detail || 'unknown'}`,
+          code: 'anthropic_api_error',
+          status: response.status,
+        }),
+        { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const result = await response.json()
     const text = result.content?.[0]?.text ?? ''
+
+    if (!text) {
+      return new Response(
+        JSON.stringify({
+          error: 'Anthropic returned an empty response. Try again.',
+          code: 'empty_response',
+          raw: result,
+        }),
+        { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // For suggest_hooks, parse JSON array
     if (type === 'suggest_hooks') {
@@ -226,9 +332,14 @@ Output just the adapted copy, nothing else.`
     })
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...CORS, 'Content-Type': 'application/json' },
-    })
+    console.error('generate-content error:', err)
+    const message = err instanceof Error ? err.message : String(err)
+    return new Response(
+      JSON.stringify({
+        error: message || 'Unknown error',
+        code: 'internal_error',
+      }),
+      { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } }
+    )
   }
 })
