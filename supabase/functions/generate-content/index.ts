@@ -28,37 +28,103 @@ serve(async (req) => {
       )
     }
 
-    const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property } = await req.json()
+    const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property, source } = await req.json()
 
-    // Short-circuit for listing checklist: the caller supplies the full prompt
-    // (rendered from their editable template) and expects a JSON task array back.
+    // Listing checklist + strategy narrative.
+    // Caller supplies the rendered prompt (with {source} etc already inlined)
+    // plus a `source` field that we use to add source-specific framing.
+    // Returns { tasks: [...], strategy: "markdown..." }
     if (type === 'listing_checklist') {
-      const checklistResp = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 2048,
-          system: 'You are a real estate listing strategist. Respond ONLY with a valid JSON array of task objects — no prose, no markdown fences.',
-          messages: [{ role: 'user', content: prompt || '' }],
-        }),
-      })
+      // Source-specific framing injected into the system prompt so Claude knows
+      // *exactly* what kind of data access Dana has for this listing.
+      const sourceContext: Record<string, string> = {
+        my_expired: 'CONTEXT: This listing previously expired with Dana as the listing agent. She HAS full history — prior showings, feedback, marketing performance, what worked and didn\'t. Reference that prior effort in the strategy. Positioning: "we know what happened, here\'s the fix."',
+        taken_over: 'CONTEXT: This listing previously expired under a DIFFERENT agent. Dana is TAKING IT OVER fresh — she does NOT have access to the prior agent\'s showings, feedback, or marketing data. Do NOT reference prior marketing efforts, showing counts, or feedback she wouldn\'t know. Positioning: "fresh eyes, fresh strategy, new team." Focus on what a new-agent-with-new-approach can offer. Be explicit that this is a clean-slate relaunch.',
+        fsbo: 'CONTEXT: This seller was previously FSBO (For Sale By Owner) and is now listing with Dana. Positioning: "professional marketing + agent network you didn\'t have before."',
+        new: 'CONTEXT: Fresh new listing — never been on the market. Standard launch strategy.',
+      }
+      const sourceKey = (typeof source === 'string' && source in sourceContext) ? source : 'new'
+      const contextLine = sourceContext[sourceKey]
+
+      const systemChecklist = `You are a real estate listing strategist for Dana Massey (REAL Broker, East Valley AZ).
+
+${contextLine}
+
+Respond ONLY with a valid JSON array of task objects in the form [{"label":"...","phase":"..."}]. No prose, no markdown fences. Tasks must match the phases named in the user prompt.`
+
+      const systemStrategy = `You are a real estate listing strategist for Dana Massey (REAL Broker, East Valley AZ). Voice: direct, warm, story-driven, no fluff, no clichés. Leads with emotion — not specs.
+
+${contextLine}
+
+Output a structured markdown strategy document with these sections:
+
+## Positioning
+1–2 paragraphs on the story angle and positioning — tailored to the source context above.
+
+## Pricing Strategy
+- Recommended approach (don't invent specific comps; use the price and DOM given)
+- Psychology / rounding / positioning vs competition
+
+## Target Buyer
+Who is this property for? Write it as a persona.
+
+## Messaging & Talking Points
+- 5–7 bullets of specific, on-voice messaging Dana can reuse in captions, emails, and showings.
+
+## Marketing Channels
+Prioritized list of channels + what to post on each.
+
+## Seller Talking Points
+How Dana should frame the relaunch / launch / takeover to the seller. Be honest and direct.
+
+Be specific and reusable — this text will be copy-pasted into social captions, emails, and client docs. No filler.`
+
+      const callClaude = (system: string, userContent: string, maxTokens: number) =>
+        fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-6',
+            max_tokens: maxTokens,
+            system,
+            messages: [{ role: 'user', content: userContent }],
+          }),
+        })
+
+      // The user prompt from the frontend tells Claude to return a JSON task
+      // array. For the strategy call, append an override so Claude ignores
+      // those JSON instructions and produces markdown instead.
+      const strategyUserPrompt = `${prompt || ''}
+
+---
+STRATEGY MODE — IMPORTANT
+Ignore ANY instructions above that ask for JSON, task lists, or checklist items. Those were for a different call.
+
+Your job right now is to produce the markdown strategy document described in the system prompt. Output nothing but the markdown. Do not wrap in code fences. Do not return JSON. Start directly with a "## Positioning" heading.`
+
+      // Fire both calls in parallel — tasks + narrative strategy.
+      const [checklistResp, strategyResp] = await Promise.all([
+        callClaude(systemChecklist, prompt || '', 2048),
+        callClaude(systemStrategy,  strategyUserPrompt, 3072),
+      ])
+
+      const parseAnthropicError = async (r: Response) => {
+        try {
+          const errBody = await r.json()
+          return errBody?.error?.message || JSON.stringify(errBody)
+        } catch {
+          return await r.text().catch(() => '')
+        }
+      }
 
       if (!checklistResp.ok) {
-        let detail = ''
-        try {
-          const errBody = await checklistResp.json()
-          detail = errBody?.error?.message || JSON.stringify(errBody)
-        } catch {
-          detail = await checklistResp.text().catch(() => '')
-        }
         return new Response(
           JSON.stringify({
-            error: `Anthropic API error (${checklistResp.status}): ${detail || 'unknown'}`,
+            error: `Anthropic API error (${checklistResp.status}): ${await parseAnthropicError(checklistResp) || 'unknown'}`,
             code: 'anthropic_api_error',
           }),
           { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
@@ -86,9 +152,19 @@ serve(async (req) => {
         // fall through with empty tasks array
       }
 
-      return new Response(JSON.stringify({ tasks, raw: checklistText }), {
-        headers: { ...CORS, 'Content-Type': 'application/json' },
-      })
+      // Strategy is best-effort — if it fails we still return the tasks.
+      let strategy = ''
+      if (strategyResp.ok) {
+        try {
+          const sr = await strategyResp.json()
+          strategy = sr.content?.[0]?.text ?? ''
+        } catch { /* ignore */ }
+      }
+
+      return new Response(
+        JSON.stringify({ tasks, strategy, raw: checklistText }),
+        { headers: { ...CORS, 'Content-Type': 'application/json' } }
+      )
     }
 
     let userMessage = ''

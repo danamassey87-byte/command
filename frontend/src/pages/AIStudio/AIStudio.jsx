@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Button, Textarea, EmptyState, Select, SlidePanel } from '../../components/ui/index.jsx'
+import { useSearchParams } from 'react-router-dom'
+import { Button, Textarea, EmptyState, SlidePanel } from '../../components/ui/index.jsx'
 import { PropertyPicker } from '../../components/ui/PropertyPicker.jsx'
-import supabase from '../../lib/supabase.js'
+import supabase, { getListingById } from '../../lib/supabase.js'
 import './AIStudio.css'
 
 /* ─── Design type presets for real estate marketing ─── */
@@ -126,10 +127,48 @@ export default function AIStudio() {
   const [clientName, setClientName] = useState('')
   const [customPrompt, setCustomPrompt] = useState('')
   const [freshFormats, setFreshFormats] = useState([])
-  const [generating, setGenerating] = useState(false)
   const [results, setResults] = useState([])
   const [error, setError] = useState(null)
   const [savedDesigns, setSavedDesigns] = useState([])
+
+  // Listing context (for Send-to-Content flow from Sellers page).
+  // When ?listing=<id> is present, we load the listing and expose its strategy
+  // so the user can one-click "Use Listing Strategy" instead of starting blank.
+  const [searchParams] = useSearchParams()
+  const listingParam = searchParams.get('listing')
+  const [linkedListing, setLinkedListing] = useState(null)
+  const [strategyApplied, setStrategyApplied] = useState(false)
+
+  useEffect(() => {
+    if (!listingParam) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const row = await getListingById(listingParam)
+        if (cancelled || !row) return
+        setLinkedListing(row)
+        // Prefill property + client when arriving from a listing
+        if (row.property) {
+          setProperty({
+            id: row.property.id,
+            address: row.property.address,
+            city: row.property.city,
+            zip: row.property.zip,
+            price: row.list_price || row.property.price,
+            bedrooms: row.property.bedrooms,
+            bathrooms: row.property.bathrooms,
+            sqft: row.property.sqft,
+            year_built: row.property.year_built,
+            pool: row.property.pool,
+          })
+        }
+        if (row.contact?.name) setClientName(row.contact.name)
+      } catch (e) {
+        console.error('Failed to load linked listing:', e)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [listingParam])
 
   // Manage templates panel
   const [manageOpen, setManageOpen] = useState(false)
@@ -161,43 +200,21 @@ export default function AIStudio() {
     setAddForm({ label: '', editUrl: '', category: '', format: 'Carousel' })
   }
 
-  /* ─── Generate fresh designs ─── */
+  /* ─── Generate fresh designs ───
+   * NOTE: Canva's Connect API does not yet expose an AI-design-generation
+   * endpoint, so this flow is intentionally stubbed as "Coming Soon".
+   * When Canva ships the endpoint (or we switch to a different provider),
+   * restore the supabase.functions.invoke('canva-generate', ...) call.
+   */
   const handleGenerate = useCallback(async () => {
     if (freshFormats.length === 0) {
       setError('Select at least one format to generate')
       return
     }
-    setGenerating(true)
     setError(null)
     setResults([])
-
-    const prompt = buildPrompt(selectedType, property, clientName, customPrompt)
-
-    try {
-      const { data, error: fnErr } = await supabase.functions.invoke('canva-generate', {
-        body: {
-          prompt,
-          design_types: freshFormats,
-          brand_kit_id: null,
-          property: property ? {
-            address: property.address,
-            city: property.city,
-            price: property.price,
-            beds: property.bedrooms,
-            baths: property.bathrooms,
-            sqft: property.sqft,
-          } : null,
-        },
-      })
-      if (fnErr) throw fnErr
-      setResults(data?.results ?? [])
-      setStep('results')
-    } catch (e) {
-      setError(e.message || 'Failed to generate designs. Check your Canva API connection.')
-    } finally {
-      setGenerating(false)
-    }
-  }, [selectedType, property, clientName, customPrompt, freshFormats])
+    setStep('results')
+  }, [freshFormats])
 
   const handleSave = useCallback(async (result, candidateId) => {
     try {
@@ -420,7 +437,51 @@ export default function AIStudio() {
                 ))}
               </div>
             </div>
-            <Textarea label="Additional Instructions (optional)" id="custom-prompt" placeholder="e.g. Use a warm sunset background, highlight the pool..." value={customPrompt} onChange={e => setCustomPrompt(e.target.value)} rows={3} />
+            {linkedListing?.strategy && (
+              <div className="ai-studio__strategy-choice" style={{
+                background: 'var(--cream, #faf7f0)',
+                border: '1px solid var(--color-border-light, #e5e0d0)',
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 12,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                  <div>
+                    <p style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--brown-dark, #2d2416)', margin: 0 }}>
+                      Listing strategy available
+                    </p>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', margin: '2px 0 0 0' }}>
+                      {strategyApplied
+                        ? 'Strategy added to additional instructions below — edit freely.'
+                        : 'Use the AI-generated strategy for this listing, or start with a blank prompt.'}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <Button
+                      variant={strategyApplied ? 'ghost' : 'primary'}
+                      size="sm"
+                      onClick={() => {
+                        setCustomPrompt(`Use the following listing strategy as creative direction. Pull tone, positioning, and talking points from it — do not repeat it verbatim.\n\n---\n${linkedListing.strategy}\n---`)
+                        setStrategyApplied(true)
+                      }}
+                    >
+                      Use Listing Strategy
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setCustomPrompt('')
+                        setStrategyApplied(false)
+                      }}
+                    >
+                      Start Fresh
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+            <Textarea label="Additional Instructions (optional)" id="custom-prompt" placeholder="e.g. Use a warm sunset background, highlight the pool..." value={customPrompt} onChange={e => { setCustomPrompt(e.target.value); if (strategyApplied) setStrategyApplied(false) }} rows={3} />
             <div className="ai-studio__preview-prompt">
               <span className="field__label">Prompt Preview</span>
               <p className="ai-studio__prompt-text">{buildPrompt(selectedType, property, clientName, customPrompt)}</p>
@@ -430,27 +491,23 @@ export default function AIStudio() {
             )}
             <div className="ai-studio__actions">
               <Button variant="ghost" onClick={() => setStep('method')}>Back</Button>
-              <Button onClick={handleGenerate} disabled={generating || freshFormats.length === 0}>
-                {generating ? 'Generating...' : `Generate ${freshFormats.length} Design${freshFormats.length !== 1 ? 's' : ''}`}
+              <Button onClick={handleGenerate} disabled={freshFormats.length === 0}>
+                {`Generate ${freshFormats.length} Design${freshFormats.length !== 1 ? 's' : ''}`}
               </Button>
             </div>
           </div>
         </div>
       )}
 
-      {generating && (
-        <div className="ai-studio__generating">
-          <div className="ai-studio__spinner" />
-          <p>Creating your designs with Canva...</p>
-          <p className="ai-studio__gen-sub">This typically takes 15–30 seconds per format</p>
-        </div>
-      )}
-
       {/* ═══════ STEP 4: Results ═══════ */}
-      {step === 'results' && !generating && (
+      {step === 'results' && (
         <div className="ai-studio__results">
           {results.length === 0 ? (
-            <EmptyState title="No Results" description="No design candidates were returned. Try adjusting your prompt." action={<Button onClick={() => setStep('customize')}>Try Again</Button>} />
+            <EmptyState
+              title="Generate Fresh — Coming Soon"
+              description="AI-generated Canva designs will land here once Canva ships their generative design API. In the meantime, pick a branded template from the template library — it's the fastest way to produce on-brand marketing."
+              action={<Button onClick={() => { setStep('method'); setMethod('template') }}>Use a Template Instead</Button>}
+            />
           ) : (
             results.map((result, ri) => (
               <div key={ri} className="ai-studio__result-group">

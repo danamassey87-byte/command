@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import './ui.css'
 
 /* ─── Button ─── */
@@ -108,9 +108,28 @@ export function TabBar({ tabs, active, onChange }) {
 }
 
 /* ─── Checkbox Item ─── */
-export function CheckItem({ label, checked, onChange, note }) {
+// Optional onEdit / onDelete props add hover-reveal pencil + trash buttons.
+// When onEdit is provided, double-clicking the label or clicking the pencil
+// enters inline edit mode.
+export function CheckItem({ label, checked, onChange, note, onEdit, onDelete }) {
+  const [editing, setEditing] = useState(false)
+  const [draftLabel, setDraftLabel] = useState(label)
+  const inputRef = useRef(null)
+
+  useEffect(() => { setDraftLabel(label) }, [label])
+  useEffect(() => { if (editing && inputRef.current) inputRef.current.focus() }, [editing])
+
+  const commitEdit = () => {
+    const next = draftLabel.trim()
+    if (next && next !== label && onEdit) onEdit(next)
+    setEditing(false)
+  }
+  const cancelEdit = () => { setDraftLabel(label); setEditing(false) }
+
+  const hasActions = !!(onEdit || onDelete)
+
   return (
-    <label className={`check-item ${checked ? 'check-item--done' : ''}`}>
+    <label className={`check-item ${checked ? 'check-item--done' : ''} ${hasActions ? 'check-item--has-actions' : ''}`}>
       <input
         type="checkbox"
         className="check-item__input"
@@ -124,8 +143,61 @@ export function CheckItem({ label, checked, onChange, note }) {
           </svg>
         )}
       </span>
-      <span className="check-item__label">{label}</span>
-      {note && <span className="check-item__note">{note}</span>}
+      {editing ? (
+        <input
+          ref={inputRef}
+          className="check-item__edit-input"
+          type="text"
+          value={draftLabel}
+          onChange={e => setDraftLabel(e.target.value)}
+          onBlur={commitEdit}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
+            if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
+          }}
+          onClick={e => { e.preventDefault(); e.stopPropagation() }}
+        />
+      ) : (
+        <span
+          className="check-item__label"
+          onDoubleClick={e => { if (onEdit) { e.preventDefault(); setEditing(true) } }}
+        >
+          {label}
+        </span>
+      )}
+      {note && !editing && <span className="check-item__note">{note}</span>}
+      {hasActions && !editing && (
+        <span className="check-item__actions" onClick={e => e.preventDefault()}>
+          {onEdit && (
+            <button
+              type="button"
+              className="check-item__action-btn"
+              title="Edit"
+              onClick={e => { e.preventDefault(); e.stopPropagation(); setEditing(true) }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="12" height="12">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              className="check-item__action-btn check-item__action-btn--danger"
+              title="Delete"
+              onClick={e => { e.preventDefault(); e.stopPropagation(); onDelete() }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="12" height="12">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                <path d="M10 11v6M14 11v6" />
+                <path d="M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2" />
+              </svg>
+            </button>
+          )}
+        </span>
+      )}
     </label>
   )
 }

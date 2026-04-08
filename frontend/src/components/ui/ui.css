@@ -247,6 +247,50 @@
 .check-item__label { font-size: 0.85rem; flex: 1; color: var(--brown-dark); }
 .check-item__note { font-size: 0.72rem; color: var(--color-text-muted); margin-left: auto; white-space: nowrap; }
 
+/* Inline edit + hover actions for checklist items (seller plan) */
+.check-item__edit-input {
+  flex: 1;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--brown-dark);
+  background: var(--white);
+  border: 1px solid var(--brown-mid);
+  border-radius: 4px;
+  padding: 3px 6px;
+  outline: none;
+}
+.check-item__edit-input:focus { border-color: var(--brown-dark); }
+
+.check-item__actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  margin-left: auto;
+}
+.check-item--has-actions:hover .check-item__actions { opacity: 1; }
+
+.check-item__action-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  padding: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.check-item__action-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--brown-dark);
+}
+.check-item__action-btn--danger:hover {
+  background: rgba(200, 60, 60, 0.12);
+  color: var(--color-danger, #c83c3c);
+}
+
 /* ─── Empty State ─── */
 .empty-state {
   display: flex; flex-direction: column; align-items: center; justify-content: center;

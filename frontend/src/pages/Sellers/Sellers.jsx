@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, CheckItem, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
-import { useListings, useTasksForListing, useContactTags, useNotesForContact, useDocumentsForListing } from '../../lib/hooks.js'
+import { useListings, useTasksForListing, useDeletedTasksForListing, useContactTags, useNotesForContact, useDocumentsForListing } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
@@ -135,6 +136,9 @@ function mapListing(row) {
     listDate:     row.list_date  ?? '',
     status:       row.status     ?? 'active',
     type:         row.type       ?? 'new',
+    source:       row.source     ?? (row.type === 'expired' ? 'my_expired' : 'new'),
+    strategy:     row.strategy   ?? '',
+    strategy_updated_at: row.strategy_updated_at ?? null,
     dom:          row.dom        ?? 0,
     offers:       row.offers_count ?? 0,
     notes:        row.notes      ?? '',
@@ -234,6 +238,7 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
     listDate:     listing?.listDate      ?? '',
     type:         listing?.type          ?? 'new',
     status:       listing?.status        ?? 'lead',
+    source:       listing?.source        ?? (listing?.type === 'expired' ? 'my_expired' : 'new'),
     dom:          listing?.dom           ?? '',
     offers:       listing?.offers        ?? '',
     seller_name:  listing?.contact_name  ?? '',
@@ -316,6 +321,20 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
           <Select label="Status" value={draft.status} onChange={e => set('status', e.target.value)}>
             {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s === 'lead' ? 'Lead (Not Signed)' : s}</option>)}
           </Select>
+        </div>
+        <div className="panel-row">
+          <Select label="Source" value={draft.source} onChange={e => set('source', e.target.value)}>
+            <option value="new">Fresh new listing</option>
+            <option value="my_expired">My prior expired listing</option>
+            <option value="taken_over">Taken over from another agent</option>
+            <option value="fsbo">Was FSBO (now my listing)</option>
+          </Select>
+          <div style={{ flex: 1, fontSize: '0.7rem', color: 'var(--color-text-muted)', alignSelf: 'flex-end', paddingBottom: 8 }}>
+            {draft.source === 'taken_over' && 'No access to prior agent\'s data — AI will position as fresh start.'}
+            {draft.source === 'my_expired' && 'AI will reference prior showings & feedback history.'}
+            {draft.source === 'fsbo' && 'AI will position as "professional marketing + agent network".'}
+            {draft.source === 'new' && 'Standard launch plan.'}
+          </div>
         </div>
         <div className="panel-row">
           <Input label="DOM" type="number" min="0" value={draft.dom} onChange={e => set('dom', e.target.value)} placeholder="0" />
@@ -815,6 +834,9 @@ function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
     setManuallyEdited(false)
   }
 
+  // Track the generated strategy markdown so we can save it alongside tasks.
+  const [generatedStrategy, setGeneratedStrategy] = useState('')
+
   const handleGenerate = async () => {
     setGenerating(true)
     setError(null)
@@ -823,12 +845,14 @@ function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
         type: 'listing_checklist',
         prompt,
         plan_type: isNew ? 'new' : 'relisting',
+        source: selectedListing.source || (isNew ? 'new' : 'my_expired'),
       })
       const tasks = data?.tasks
       if (!Array.isArray(tasks) || tasks.length === 0) {
         throw new Error('AI returned no tasks. Try again or edit the prompt.')
       }
       setResult(tasks)
+      setGeneratedStrategy(data?.strategy || '')
     } catch (e) {
       setError(e.message || 'Failed to generate plan')
     } finally {
@@ -841,7 +865,7 @@ function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
     setGenerating(true)
     try {
       const existing = await DB.getTasksForListing(selectedListing.id)
-      for (const t of existing) await DB.deleteTask(t.id)
+      for (const t of existing) await DB.hardDeleteTask(t.id)
 
       const taskRows = result.map((step, i) => ({
         listing_id: selectedListing.id,
@@ -851,6 +875,18 @@ function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
         completed: false,
       }))
       await DB.bulkCreateTasks(taskRows)
+
+      // Persist the narrative strategy on the listing itself so it can be
+      // reused in content, exports, and printable views.
+      if (generatedStrategy) {
+        try {
+          await DB.updateListing(selectedListing.id, {
+            strategy: generatedStrategy,
+            strategy_updated_at: new Date().toISOString(),
+          })
+        } catch (e) { /* non-fatal — tasks are the main deliverable */ }
+      }
+
       await DB.logActivity('plan_generated', `AI generated ${isNew ? 'launch' : 'relaunch'} plan for ${selectedListing.address}`)
       onGenerated()
       onClose()
@@ -985,6 +1021,16 @@ function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
                   </div>
                 ))}
               </div>
+              {generatedStrategy && (
+                <div style={{ marginTop: 12, padding: 10, background: 'var(--cream)', borderRadius: 'var(--radius-md)', borderLeft: '3px solid var(--brown-mid)' }}>
+                  <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--brown-dark)', margin: '0 0 4px 0' }}>
+                    Strategy Narrative (saved to listing for reuse)
+                  </p>
+                  <pre style={{ fontSize: '0.7rem', lineHeight: 1.5, color: 'var(--color-text)', whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0, maxHeight: 160, overflow: 'auto' }}>
+                    {generatedStrategy.slice(0, 500)}{generatedStrategy.length > 500 ? '…' : ''}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1018,6 +1064,7 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
 
   // Try to load real checklist tasks when it's a DB listing
   const { data: dbTasks, refetch: refetchTasks } = useTasksForListing(isDbRow ? listing.id : null)
+  const { data: deletedTasks, refetch: refetchDeletedTasks } = useDeletedTasksForListing(isDbRow ? listing.id : null)
   const contactId = listing.contact_id ?? listing.contact?.id
   const { data: linkedNotes, refetch: refetchNotes } = useNotesForContact(contactId)
   const { openNote, createAndOpen } = useNotesContext()
@@ -1031,6 +1078,44 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
   // Modals
   const [showAddTask, setShowAddTask] = useState(false)
   const [showAIPlan, setShowAIPlan] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)
+  const [showStrategy, setShowStrategy] = useState(false)
+  const [copiedStrategy, setCopiedStrategy] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
+  const navigate = useNavigate()
+
+  // Ref on the printable region (plan + strategy) for window.print and PDF export.
+  const printableRef = useRef(null)
+
+  const handlePrint = () => {
+    // CSS (@media print in Sellers.css) hides nav/buttons so the plan prints clean.
+    window.print()
+  }
+
+  const handleExportPdf = async () => {
+    if (!printableRef.current) return
+    setExportingPdf(true)
+    try {
+      const html2pdf = (await import('html2pdf.js')).default
+      const filename = `${(listing.contact_name || 'Client').replace(/[^\w-]+/g, '_')}_${(listing.address || 'Listing').replace(/[^\w-]+/g, '_')}_${isNew ? 'Launch' : 'Relaunch'}_Plan.pdf`
+      await html2pdf()
+        .set({
+          margin:       [0.5, 0.5, 0.5, 0.5],
+          filename,
+          image:        { type: 'jpeg', quality: 0.95 },
+          html2canvas:  { scale: 2, backgroundColor: '#ffffff', useCORS: true },
+          jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' },
+          pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] },
+        })
+        .from(printableRef.current)
+        .save()
+    } catch (e) {
+      console.error('PDF export failed:', e)
+      alert('PDF export failed. Try using the Print button and "Save as PDF" from the print dialog.')
+    } finally {
+      setExportingPdf(false)
+    }
+  }
 
   // Fallback to listing.checklist for mock data
   const [localChecks, setLocalChecks] = useState(listing.checklist ?? {})
@@ -1067,6 +1152,44 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
       const updated = { ...localChecks, [i]: !localChecks[i] }
       setLocalChecks(updated)
     }
+  }
+
+  // Inline edit: update a task's label.
+  const editTaskLabel = async (taskId, nextLabel) => {
+    try {
+      await DB.updateTask(taskId, { label: nextLabel })
+      refetchTasks()
+    } catch (e) { console.error('Edit task failed:', e) }
+  }
+
+  // Soft-delete a task (recoverable via the trash drawer).
+  const softDeleteTask = async (task) => {
+    if (!confirm(`Delete "${task.label}"?\n\nYou can restore it from the deleted items drawer.`)) return
+    try {
+      await DB.deleteTask(task.id)
+      await DB.logActivity('task_deleted', `Deleted: ${task.label}`)
+      refetchTasks()
+      refetchDeletedTasks()
+    } catch (e) { console.error('Delete task failed:', e) }
+  }
+
+  // Restore a soft-deleted task.
+  const restoreTask = async (task) => {
+    try {
+      await DB.restoreTask(task.id)
+      await DB.logActivity('task_restored', `Restored: ${task.label}`)
+      refetchTasks()
+      refetchDeletedTasks()
+    } catch (e) { console.error('Restore task failed:', e) }
+  }
+
+  // Permanently delete a soft-deleted task.
+  const purgeTask = async (task) => {
+    if (!confirm(`Permanently delete "${task.label}"?\n\nThis cannot be undone.`)) return
+    try {
+      await DB.hardDeleteTask(task.id)
+      refetchDeletedTasks()
+    } catch (e) { console.error('Purge task failed:', e) }
   }
 
   const checks = hasTasks
@@ -1106,7 +1229,7 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
 
   return (
     <div className="sellers-plan">
-      <div className="sellers-plan__nav">
+      <div className="sellers-plan__nav no-print">
         <button className="oh-detail__back" onClick={onBack}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
             <polyline points="15 18 9 12 15 6" />
@@ -1116,6 +1239,20 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         <Button variant="ghost" size="sm" onClick={onEdit}
           icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
         >Edit Listing</Button>
+      </div>
+
+      <div ref={printableRef} className="sellers-plan__printable">
+      {/* Print/PDF-only header banner (hidden on screen) */}
+      <div className="sellers-plan__print-header print-only">
+        <div className="sellers-plan__print-brand">DANA MASSEY · REAL BROKER</div>
+        <div className="sellers-plan__print-type">{isNew ? 'LAUNCH PLAN' : 'RELAUNCH PLAN'}</div>
+        <div className="sellers-plan__print-meta">
+          {listing.address}{listing.city ? `, ${listing.city}` : ''} {listing.zip || ''}
+          {' · '}
+          {listing.listPrice}
+          {' · '}
+          Generated {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+        </div>
       </div>
 
       <div className="sellers-plan__header">
@@ -1152,13 +1289,19 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
 
       {/* ── Action Buttons ── */}
       {isDbRow && (
-        <div className="sellers-plan__actions">
+        <div className="sellers-plan__actions no-print">
           <Button variant="ghost" size="sm" onClick={() => setShowAIPlan(true)}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M12 2a4 4 0 014 4c0 1.95-1.4 3.58-3.25 3.93L12 22"/><path d="M8 6a4 4 0 010-8"/><circle cx="12" cy="6" r="4"/></svg>}
           >Generate Plan with AI</Button>
           <Button variant="ghost" size="sm" onClick={() => setShowAddTask(true)}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}
           >Add Checklist Item</Button>
+          <Button variant="ghost" size="sm" onClick={handlePrint}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>}
+          >Print</Button>
+          <Button variant="ghost" size="sm" onClick={handleExportPdf} disabled={exportingPdf}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>}
+          >{exportingPdf ? 'Generating…' : 'Export PDF'}</Button>
         </div>
       )}
 
@@ -1178,6 +1321,7 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
               </div>
               {phaseItems.map(step => {
                 const completedAt = getCompletedAt(step.i)
+                const isDbTask = hasTasks && dbTasks[step.i]
                 return (
                   <CheckItem
                     key={step.i}
@@ -1185,6 +1329,8 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
                     checked={!!checks[step.i]}
                     onChange={() => toggle(step.i)}
                     note={completedAt ? new Date(completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : undefined}
+                    onEdit={isDbTask ? (nextLabel) => editTaskLabel(dbTasks[step.i].id, nextLabel) : undefined}
+                    onDelete={isDbTask ? () => softDeleteTask(dbTasks[step.i]) : undefined}
                   />
                 )
               })}
@@ -1193,9 +1339,163 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         })}
       </div>
 
+      {/* ── Strategy Narrative (reusable for content) ── */}
+      {isDbRow && listing.strategy && (
+        <Card className="sellers-plan__strategy" style={{ marginTop: 16, padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div>
+              <h3 className="sellers-plan__section-title" style={{ margin: 0 }}>Listing Strategy</h3>
+              {listing.strategy_updated_at && (
+                <p style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', margin: '2px 0 0 0' }}>
+                  Generated {new Date(listing.strategy_updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(listing.strategy)
+                    setCopiedStrategy(true)
+                    setTimeout(() => setCopiedStrategy(false), 2000)
+                  } catch (e) { console.error(e) }
+                }}
+                icon={
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                  </svg>
+                }
+              >
+                {copiedStrategy ? 'Copied!' : 'Copy'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(`/content/ai-studio?listing=${listing.id}`)}
+                icon={
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13">
+                    <path d="M22 2L11 13" />
+                    <path d="M22 2l-7 20-4-9-9-4 20-7z" />
+                  </svg>
+                }
+              >
+                Send to Content
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setShowStrategy(v => !v)}>
+                {showStrategy ? 'Collapse' : 'Expand'}
+              </Button>
+            </div>
+          </div>
+          <div
+            className="sellers-plan__strategy-body"
+            style={{
+              fontSize: '0.82rem',
+              lineHeight: 1.6,
+              color: 'var(--brown-dark)',
+              whiteSpace: 'pre-wrap',
+              maxHeight: showStrategy ? 'none' : 200,
+              overflow: showStrategy ? 'visible' : 'hidden',
+              position: 'relative',
+            }}
+          >
+            {listing.strategy}
+            {!showStrategy && (
+              <div style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: 40,
+                background: 'linear-gradient(to bottom, transparent, var(--white))',
+                pointerEvents: 'none',
+              }} />
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Deleted Items Drawer ── */}
+      {isDbRow && (deletedTasks ?? []).length > 0 && (
+        <div className="sellers-plan__deleted" style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            onClick={() => setShowDeleted(v => !v)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--color-text-muted)',
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              padding: '4px 0',
+            }}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="12" height="12">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+            </svg>
+            {showDeleted ? 'Hide' : 'Show'} deleted items ({(deletedTasks ?? []).length})
+          </button>
+          {showDeleted && (
+            <Card className="sellers-plan__deleted-card" style={{ marginTop: 6, padding: 12, background: 'rgba(0,0,0,0.02)' }}>
+              {(deletedTasks ?? []).map(task => (
+                <div
+                  key={task.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '6px 4px',
+                    borderBottom: '1px dashed var(--color-border-light)',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', textDecoration: 'line-through', margin: 0 }}>
+                      {task.label}
+                    </p>
+                    <p style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                      {phaseLabels[task.phase]?.label ?? task.phase}
+                      {task.deleted_at && ` · deleted ${new Date(task.deleted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <Button variant="ghost" size="sm" onClick={() => restoreTask(task)}>Restore</Button>
+                    <button
+                      type="button"
+                      onClick={() => purgeTask(task)}
+                      title="Permanently delete"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--color-text-muted)',
+                        cursor: 'pointer',
+                        padding: 4,
+                        borderRadius: 4,
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </Card>
+          )}
+        </div>
+      )}
+
+      </div> {/* /sellers-plan__printable */}
+
       {/* ── Documents ── */}
       {isDbRow && (
-        <div className="sellers-plan__section">
+        <div className="sellers-plan__section no-print">
           <div className="sellers-plan__section-header">
             <h3 className="sellers-plan__section-title">Documents ({(docs ?? []).length})</h3>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -1369,6 +1669,7 @@ export default function Sellers() {
         contact_id,
         type:        draft.type,
         status:      draft.status,
+        source:      draft.source,
         list_price:  draft.listPrice ? Number(draft.listPrice) : null,
         list_date:   draft.listDate || null,
         dom:         draft.dom ? Number(draft.dom) : null,

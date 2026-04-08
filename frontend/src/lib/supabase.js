@@ -129,6 +129,11 @@ export const getListings = () =>
     *, contact:contacts(id,name,email,phone), property:properties(*)
   `).is('deleted_at', null).is('archived_at', null).order('created_at', { ascending: false }))
 
+export const getListingById = (id) =>
+  query(supabase.from('listings').select(`
+    *, contact:contacts(id,name,email,phone), property:properties(*)
+  `).eq('id', id).maybeSingle())
+
 export const createListing  = (d)      => query(supabase.from('listings').insert(d).select().single())
 export const updateListing  = async (id, d) => {
   const { updateWithAudit } = await import('./safeguards')
@@ -161,12 +166,28 @@ export const deleteListingAppointment = async (id) => {
 }
 
 // ─── Checklist Tasks ─────────────────────────────────────────────────────────
+// Active tasks only — soft-deleted rows are hidden from the main listing view
+// but recoverable via getDeletedTasksForListing + restoreTask.
 export const getTasksForListing = (listingId) =>
-  query(supabase.from('checklist_tasks').select('*').eq('listing_id', listingId).order('sort_order'))
+  query(supabase.from('checklist_tasks').select('*')
+    .eq('listing_id', listingId)
+    .is('deleted_at', null)
+    .order('sort_order'))
+
+export const getDeletedTasksForListing = (listingId) =>
+  query(supabase.from('checklist_tasks').select('*')
+    .eq('listing_id', listingId)
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false }))
 
 export const createTask  = (d)      => query(supabase.from('checklist_tasks').insert(d).select().single())
 export const updateTask  = (id, d)  => query(supabase.from('checklist_tasks').update(d).eq('id', id).select().single())
-export const deleteTask  = (id)     => query(supabase.from('checklist_tasks').delete().eq('id', id))
+// Soft delete — sets deleted_at so the task can be restored later.
+export const deleteTask  = (id)     =>
+  query(supabase.from('checklist_tasks').update({ deleted_at: new Date().toISOString() }).eq('id', id))
+export const restoreTask = (id)     =>
+  query(supabase.from('checklist_tasks').update({ deleted_at: null }).eq('id', id))
+export const hardDeleteTask = (id)  => query(supabase.from('checklist_tasks').delete().eq('id', id))
 export const bulkCreateTasks = (rows) => query(supabase.from('checklist_tasks').insert(rows).select())
 
 // ─── Listing Documents ───────────────────────────────────────────────────────
@@ -546,7 +567,25 @@ export const updateGoalTargets = (value) =>
 // ─── AI Content Generation ────────────────────────────────────────────────────
 export async function generateContent(payload) {
   const { data, error } = await supabase.functions.invoke('generate-content', { body: payload })
-  if (error) throw new Error(error.message)
+  if (error) {
+    // supabase.functions.invoke wraps non-2xx responses in a FunctionsHttpError.
+    // The real structured body (with our `code` + `error` fields from the
+    // edge function) lives on error.context (a Response). Unwrap it so
+    // callers get a useful message like "AI is not configured yet" instead
+    // of the opaque "Edge Function returned a non-2xx status code".
+    let friendly = error.message
+    let code = null
+    try {
+      if (error.context && typeof error.context.json === 'function') {
+        const body = await error.context.json()
+        if (body?.error) friendly = body.error
+        if (body?.code) code = body.code
+      }
+    } catch { /* body wasn't JSON — fall back to error.message */ }
+    const err = new Error(friendly)
+    err.code = code
+    throw err
+  }
   return data
 }
 
