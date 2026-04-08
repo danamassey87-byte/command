@@ -1082,6 +1082,16 @@ const PrintablePlan = React.forwardRef(function PrintablePlan(
     month: 'long', day: 'numeric', year: 'numeric',
   })
 
+  // Source context label — tells the reader whether this is Dana's prior
+  // expired, a takeover from another agent, or a brand new listing.
+  const sourceLabels = {
+    new:        { label: 'New Listing',                      detail: 'Fresh to market' },
+    my_expired: { label: 'Relaunching Prior Listing',         detail: 'Previously listed by Dana' },
+    taken_over: { label: 'Takeover from Previous Agent',      detail: 'Fresh strategy, new team' },
+    fsbo:       { label: 'FSBO Conversion',                   detail: 'Previously For Sale By Owner' },
+  }
+  const sourceMeta = sourceLabels[listing.source] || (isNew ? sourceLabels.new : sourceLabels.my_expired)
+
   // Brand palette (inline for html2canvas fidelity)
   const C = {
     cream:    '#faf7f0',
@@ -1132,18 +1142,37 @@ const PrintablePlan = React.forwardRef(function PrintablePlan(
         >
           Dana Massey &nbsp;·&nbsp; REAL Broker
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
-          <div
-            style={{
-              fontSize: '26pt',
-              fontFamily: '"Instrument Serif", Georgia, "Times New Roman", serif',
-              fontWeight: 400,
-              color: C.brownDk,
-              lineHeight: 1,
-              letterSpacing: '0.01em',
-            }}
-          >
-            {planTitle}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+            <div
+              style={{
+                fontSize: '26pt',
+                fontFamily: '"Instrument Serif", Georgia, "Times New Roman", serif',
+                fontWeight: 400,
+                color: C.brownDk,
+                lineHeight: 1,
+                letterSpacing: '0.01em',
+              }}
+            >
+              {planTitle}
+            </div>
+            <div
+              style={{
+                display: 'inline-block',
+                padding: '3px 9px',
+                background: C.cream,
+                border: `1px solid ${C.soft}`,
+                borderRadius: 999,
+                fontSize: '7pt',
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: C.brownMd,
+                fontWeight: 700,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {sourceMeta.label}
+            </div>
           </div>
           <div style={{ fontSize: '8pt', color: C.mute, whiteSpace: 'nowrap' }}>
             Generated {dateStr}
@@ -1180,6 +1209,16 @@ const PrintablePlan = React.forwardRef(function PrintablePlan(
             {listing.listPrice ? ` · ${listing.listPrice}` : ''}
             {typeof listing.dom !== 'undefined' ? ` · ${listing.dom} DOM` : ''}
             {listing.contact_name ? ` · ${listing.contact_name}` : ''}
+          </div>
+          <div
+            style={{
+              fontSize: '7.5pt',
+              color: C.brownMd,
+              fontStyle: 'italic',
+              marginTop: 3,
+            }}
+          >
+            {sourceMeta.detail}
           </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
