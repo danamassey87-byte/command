@@ -3,24 +3,14 @@ import { Card, Button, Badge, Input, Select, Textarea, TabBar, SlidePanel, Empty
 import { useContacts } from '../../lib/hooks'
 import { useBrandSignature } from '../../lib/BrandContext'
 import { blocksToHtml, getEmailTemplates, CAMPAIGN_EMAIL_TEMPLATES } from '../../lib/emailHtml'
+import * as campaignsApi from '../../lib/campaigns'
 import './SmartCampaigns.css'
-
-// ─── localStorage Keys ──────────────────────────────────────────────────────
-const CAMPAIGNS_KEY   = 'sc_campaigns'
-const ENROLLMENTS_KEY = 'sc_enrollments'
-const HISTORY_KEY     = 'sc_history'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 const uid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2,9)}`
 const now = () => new Date().toISOString()
 const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
 const fmtDateTime = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—'
-
-function loadJSON(key, fallback = []) {
-  try { return JSON.parse(localStorage.getItem(key)) ?? fallback }
-  catch { return fallback }
-}
-function saveJSON(key, val) { localStorage.setItem(key, JSON.stringify(val)) }
 
 // ─── Starter Campaign Templates ──────────────────────────────────────────────
 const STARTER_CAMPAIGNS = [
@@ -173,9 +163,11 @@ export default function SmartCampaigns() {
   }, [sig])
 
   /* ─── State ─── */
-  const [campaigns, setCampaigns]       = useState(() => loadJSON(CAMPAIGNS_KEY, []))
-  const [enrollments, setEnrollments]   = useState(() => loadJSON(ENROLLMENTS_KEY, []))
-  const [history, setHistory]           = useState(() => loadJSON(HISTORY_KEY, []))
+  const [campaigns, setCampaigns]       = useState([])
+  const [enrollments, setEnrollments]   = useState([])
+  const [history, setHistory]           = useState([])
+  const [loading, setLoading]           = useState(true)
+  const [loadError, setLoadError]       = useState(null)
   const [mainTab, setMainTab]           = useState('campaigns')
   const [editing, setEditing]           = useState(null)          // campaign being edited / created
   const [enrollPanel, setEnrollPanel]   = useState(null)          // campaign id for enrollment panel
@@ -183,162 +175,173 @@ export default function SmartCampaigns() {
   const [contactSearch, setContactSearch] = useState('')
   const [enrollFilter, setEnrollFilter] = useState('all')
 
-  /* ─── Persist ─── */
-  useEffect(() => saveJSON(CAMPAIGNS_KEY, campaigns), [campaigns])
-  useEffect(() => saveJSON(ENROLLMENTS_KEY, enrollments), [enrollments])
-  useEffect(() => saveJSON(HISTORY_KEY, history), [history])
+  /* ─── Initial load from Supabase (with one-time localStorage migration) ─── */
+  const reload = useCallback(async () => {
+    try {
+      const [cs, es, hs, sh] = await Promise.all([
+        campaignsApi.listCampaigns(),
+        campaignsApi.listEnrollments(),
+        campaignsApi.listAuditLog({ limit: 200 }),
+        campaignsApi.listAllStepHistory(),
+      ])
+      // Group step_history rows by enrollment_id so stats / detail views can use them
+      const historyByEnrollment = new Map()
+      for (const row of sh) {
+        if (!historyByEnrollment.has(row.enrollment_id)) historyByEnrollment.set(row.enrollment_id, [])
+        historyByEnrollment.get(row.enrollment_id).push(row)
+      }
+      const byCampaign = new Map(cs.map(c => [c.id, c]))
+      // Decorate enrollments with campaign_name + step_history. Contact fields are
+      // looked up at render-time via the contactBy helper (so they reflect contact edits live).
+      const decorated = es.map(e => {
+        const c = byCampaign.get(e.campaign_id)
+        return {
+          ...e,
+          campaign_name: c?.name ?? '',
+          step_history: historyByEnrollment.get(e.id) ?? [],
+        }
+      })
+      setCampaigns(cs)
+      setEnrollments(decorated)
+      setHistory(hs)
+    } catch (err) {
+      console.error('[SmartCampaigns] load failed:', err)
+      setLoadError(err.message)
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        // One-time: move any existing localStorage data into Supabase
+        const result = await campaignsApi.migrateLocalStorageIfNeeded()
+        if (result.migrated) {
+          console.log(`[SmartCampaigns] migrated ${result.campaigns} campaigns and ${result.enrollments} enrollments from localStorage`)
+        }
+        if (!cancelled) {
+          await reload()
+          setLoading(false)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setLoadError(err.message)
+          setLoading(false)
+        }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [reload])
 
   /* ─── Templates (read-only starters) ─── */
   const templates = STARTER_CAMPAIGNS
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Campaign CRUD
+  // Campaign CRUD (all persist to Supabase)
   // ═══════════════════════════════════════════════════════════════════════════
-  const saveCampaign = useCallback((c) => {
-    setCampaigns(prev => {
-      const idx = prev.findIndex(x => x.id === c.id)
-      if (idx >= 0) { const next = [...prev]; next[idx] = c; return next }
-      return [...prev, c]
-    })
-    setEditing(null)
-  }, [])
-
-  const deleteCampaign = useCallback((id) => {
-    setCampaigns(prev => prev.filter(c => c.id !== id))
-    setEnrollments(prev => prev.filter(e => e.campaign_id !== id))
-  }, [])
-
-  const duplicateCampaign = useCallback((source) => {
-    const newC = {
-      ...source,
-      id: uid(),
-      name: source.name + ' (Copy)',
-      status: 'draft',
-      created_at: now(),
-      steps: source.steps.map(s => ({ ...s, id: uid() })),
+  const saveCampaign = useCallback(async (c) => {
+    try {
+      await campaignsApi.saveCampaign(c)
+      await reload()
+      setEditing(null)
+    } catch (err) {
+      alert('Failed to save campaign: ' + err.message)
     }
-    setCampaigns(prev => [...prev, newC])
-  }, [])
+  }, [reload])
+
+  const deleteCampaign = useCallback(async (id) => {
+    try {
+      await campaignsApi.deleteCampaign(id)
+      await reload()
+    } catch (err) {
+      alert('Failed to delete campaign: ' + err.message)
+    }
+  }, [reload])
+
+  const duplicateCampaign = useCallback(async (source) => {
+    try {
+      await campaignsApi.duplicateCampaign(source.id)
+      await reload()
+    } catch (err) {
+      alert('Failed to duplicate campaign: ' + err.message)
+    }
+  }, [reload])
 
   const startNewFromTemplate = useCallback((tpl) => {
     setEditing({
-      ...tpl,
-      id: uid(),
+      // No id → createCampaign on save
+      name: tpl.name,
+      description: tpl.description,
+      type: tpl.type,
       status: 'draft',
-      created_at: now(),
-      steps: tpl.steps.map(s => ({ ...s, id: uid() })),
+      send_via_domain: 'primary',
+      steps: tpl.steps.map(s => ({
+        type: s.type,
+        delay_days: s.delay_days,
+        delay_label: s.delay_label,
+        subject: s.subject,
+        body: s.body,
+      })),
     })
   }, [])
 
   const startBlank = useCallback(() => {
     setEditing({
-      id: uid(),
       name: '',
       description: '',
       type: 'custom',
       status: 'draft',
-      created_at: now(),
+      send_via_domain: 'primary',
       steps: [],
     })
   }, [])
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Enrollment Actions
+  // Enrollment Actions (all persist to Supabase)
   // ═══════════════════════════════════════════════════════════════════════════
-  const enrollContact = useCallback((campaignId, contact) => {
-    const campaign = campaigns.find(c => c.id === campaignId)
-    if (!campaign) return
-    // Don't double-enroll
-    const existing = enrollments.find(e => e.campaign_id === campaignId && e.contact_id === contact.id && e.status === 'active')
-    if (existing) return
-
-    const enrollment = {
-      id: uid(),
-      campaign_id: campaignId,
-      campaign_name: campaign.name,
-      contact_id: contact.id,
-      contact_name: contact.name,
-      contact_email: contact.email,
-      contact_phone: contact.phone,
-      status: 'active',
-      current_step: 0,
-      enrolled_at: now(),
-      next_send_at: now(),
-      step_history: [],
-      paused_at: null,
-      completed_at: null,
-      stopped_at: null,
+  const enrollContact = useCallback(async (campaignId, contact) => {
+    try {
+      await campaignsApi.enrollContact(campaignId, contact.id)
+      await reload()
+    } catch (err) {
+      alert('Failed to enroll contact: ' + err.message)
     }
-    setEnrollments(prev => [...prev, enrollment])
-    addHistory(enrollment.id, campaignId, contact.id, contact.name, campaign.name, 'enrolled', 'Contact enrolled in campaign')
-  }, [campaigns, enrollments])
+  }, [reload])
 
-  const pauseEnrollment = useCallback((id) => {
-    setEnrollments(prev => prev.map(e =>
-      e.id === id ? { ...e, status: 'paused', paused_at: now() } : e
-    ))
-    const e = enrollments.find(x => x.id === id)
-    if (e) addHistory(id, e.campaign_id, e.contact_id, e.contact_name, e.campaign_name, 'paused', 'Campaign paused')
-  }, [enrollments])
+  const pauseEnrollment = useCallback(async (id) => {
+    try { await campaignsApi.pauseEnrollment(id); await reload() }
+    catch (err) { alert('Failed to pause: ' + err.message) }
+  }, [reload])
 
-  const resumeEnrollment = useCallback((id) => {
-    setEnrollments(prev => prev.map(e =>
-      e.id === id ? { ...e, status: 'active', paused_at: null } : e
-    ))
-    const e = enrollments.find(x => x.id === id)
-    if (e) addHistory(id, e.campaign_id, e.contact_id, e.contact_name, e.campaign_name, 'resumed', 'Campaign resumed')
-  }, [enrollments])
+  const resumeEnrollment = useCallback(async (id) => {
+    try { await campaignsApi.resumeEnrollment(id); await reload() }
+    catch (err) { alert('Failed to resume: ' + err.message) }
+  }, [reload])
 
-  const stopEnrollment = useCallback((id) => {
-    setEnrollments(prev => prev.map(e =>
-      e.id === id ? { ...e, status: 'stopped', stopped_at: now() } : e
-    ))
-    const e = enrollments.find(x => x.id === id)
-    if (e) addHistory(id, e.campaign_id, e.contact_id, e.contact_name, e.campaign_name, 'stopped', 'Campaign stopped')
-  }, [enrollments])
+  const stopEnrollment = useCallback(async (id) => {
+    try { await campaignsApi.stopEnrollment(id); await reload() }
+    catch (err) { alert('Failed to stop: ' + err.message) }
+  }, [reload])
 
-  const markStepSent = useCallback((enrollmentId, stepIndex) => {
-    setEnrollments(prev => prev.map(e => {
-      if (e.id !== enrollmentId) return e
-      const campaign = campaigns.find(c => c.id === e.campaign_id)
-      const step = campaign?.steps?.[stepIndex]
-      const newHistory = [...(e.step_history ?? []), {
-        step_index: stepIndex,
-        step_type: step?.type ?? 'email',
-        subject: step?.subject ?? '',
-        sent_at: now(),
-      }]
-      const nextStep = stepIndex + 1
-      const isComplete = nextStep >= (campaign?.steps?.length ?? 0)
-      const nextDelay = campaign?.steps?.[nextStep]?.delay_days ?? 0
-      const nextDate = new Date()
-      nextDate.setDate(nextDate.getDate() + nextDelay)
-
-      return {
-        ...e,
-        current_step: isComplete ? stepIndex : nextStep,
-        step_history: newHistory,
-        status: isComplete ? 'completed' : e.status,
-        completed_at: isComplete ? now() : null,
-        next_send_at: isComplete ? null : nextDate.toISOString(),
-      }
-    }))
-    const e = enrollments.find(x => x.id === enrollmentId)
-    const campaign = campaigns.find(c => c.id === e?.campaign_id)
-    const step = campaign?.steps?.[stepIndex]
-    if (e) addHistory(enrollmentId, e.campaign_id, e.contact_id, e.contact_name, e.campaign_name, 'step_sent', `${step?.type === 'sms' ? 'SMS' : 'Email'} sent: ${step?.subject || '(SMS)'}`)
-  }, [campaigns, enrollments])
+  const markStepSent = useCallback(async (enrollmentId, stepIndex) => {
+    try {
+      await campaignsApi.markStepSent(enrollmentId, stepIndex, 'manual')
+      await reload()
+    } catch (err) {
+      alert('Failed to mark step sent: ' + err.message)
+    }
+  }, [reload])
 
   const buildVars = useCallback((enrollment) => {
     const contact = allContacts.find(c => c.id === enrollment.contact_id) ?? {}
-    const firstName = (contact.name || enrollment.contact_name || '').split(' ')[0]
+    const firstName = (contact.name || '').split(' ')[0]
     const agentName = sig.full_name || ''
     return {
       first_name: firstName,
       last_name: (contact.name || '').split(' ').slice(1).join(' '),
-      full_name: contact.name || enrollment.contact_name || '',
-      email: contact.email || enrollment.contact_email || '',
-      phone: contact.phone || enrollment.contact_phone || '',
+      full_name: contact.name || '',
+      email: contact.email || '',
+      phone: contact.phone || '',
       agent_name: agentName,
       agent_first_name: agentName.split(' ')[0] || '',
       brokerage: sig.brokerage || '',
@@ -350,8 +353,8 @@ export default function SmartCampaigns() {
 
   const openGmail = useCallback((enrollment, step) => {
     const contact = allContacts.find(c => c.id === enrollment.contact_id) ?? {}
-    const email = contact.email || enrollment.contact_email || ''
-    const firstName = (contact.name || enrollment.contact_name || '').split(' ')[0]
+    const email = contact.email || ''
+    const firstName = (contact.name || '').split(' ')[0]
     let subject = resolveAgentVars((step.subject || '').replace(/\{first_name\}/g, firstName).replace(/\{full_name\}/g, contact.name || ''))
     let body = resolveAgentVars((step.body || '').replace(/\{first_name\}/g, firstName).replace(/\{full_name\}/g, contact.name || ''))
     window.open(`mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
@@ -389,19 +392,15 @@ export default function SmartCampaigns() {
     })
   }, [buildVars, sig])
 
-  function addHistory(enrollmentId, campaignId, contactId, contactName, campaignName, action, detail) {
-    setHistory(prev => [{
-      id: uid(),
-      enrollment_id: enrollmentId,
-      campaign_id: campaignId,
-      contact_id: contactId,
-      contact_name: contactName,
-      campaign_name: campaignName,
-      action,
-      detail,
-      timestamp: now(),
-    }, ...prev])
-  }
+  // Helper: get display name / email / phone for a contact_id
+  const contactBy = useMemo(() => {
+    const m = new Map()
+    for (const c of allContacts) m.set(c.id, c)
+    return m
+  }, [allContacts])
+  const contactName  = useCallback((id) => contactBy.get(id)?.name  || '(Unknown)', [contactBy])
+  const contactEmail = useCallback((id) => contactBy.get(id)?.email || '', [contactBy])
+  const contactPhone = useCallback((id) => contactBy.get(id)?.phone || '', [contactBy])
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Stats
@@ -458,6 +457,20 @@ export default function SmartCampaigns() {
   // ═══════════════════════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════════════════════
+  if (loading) {
+    return <div className="sc" style={{ padding: 40, textAlign: 'center', color: '#888' }}>Loading campaigns…</div>
+  }
+  if (loadError) {
+    return (
+      <div className="sc" style={{ padding: 40 }}>
+        <EmptyState
+          title="Couldn't load campaigns"
+          description={loadError}
+          action={<Button onClick={reload}>Retry</Button>}
+        />
+      </div>
+    )
+  }
   return (
     <div className="sc">
       {/* ─── Hero Stats ─── */}
@@ -579,7 +592,7 @@ export default function SmartCampaigns() {
                       {new Date(enrollment.next_send_at) < new Date(new Date().setHours(0,0,0)) ? 'OVERDUE' : 'Due Today'}
                     </Badge>
                   </div>
-                  <h4 className="sc-queue-card__contact">{enrollment.contact_name}</h4>
+                  <h4 className="sc-queue-card__contact">{contactName(enrollment.contact_id)}</h4>
                   <p className="sc-queue-card__campaign">{campaign?.name ?? 'Unknown'} — Step {(enrollment.current_step ?? 0) + 1} of {campaign?.steps?.length ?? '?'}</p>
                   {step?.subject && <p className="sc-queue-card__subject">Subject: {step.subject}</p>}
                   <div className="sc-queue-card__preview">{resolveAgentVars(step?.body)?.slice(0, 200)}...</div>
@@ -595,8 +608,8 @@ export default function SmartCampaigns() {
                     )}
                     {step?.type === 'sms' && (
                       <Button size="sm" variant="ghost" onClick={() => {
-                        const phone = enrollment.contact_phone || ''
-                        const firstName = (enrollment.contact_name || '').split(' ')[0]
+                        const phone = contactPhone(enrollment.contact_id)
+                        const firstName = (contactName(enrollment.contact_id) || '').split(' ')[0]
                         const body = resolveAgentVars((step.body || '').replace(/\{first_name\}/g, firstName))
                         window.open(`sms:${phone}?body=${encodeURIComponent(body)}`, '_blank')
                       }}>Open SMS</Button>
@@ -637,7 +650,7 @@ export default function SmartCampaigns() {
                 return (
                   <div key={e.id} className="sc-enrollment-row" onClick={() => setDetailPanel(e.id)}>
                     <div className="sc-enrollment-row__left">
-                      <div className="sc-enrollment-row__name">{e.contact_name}</div>
+                      <div className="sc-enrollment-row__name">{contactName(e.contact_id)}</div>
                       <div className="sc-enrollment-row__campaign">{e.campaign_name}</div>
                     </div>
                     <div className="sc-enrollment-row__progress">
@@ -687,7 +700,7 @@ export default function SmartCampaigns() {
                     <span className="sc-history-row__detail">{h.detail}</span>
                     <span className="sc-history-row__campaign">{h.campaign_name}</span>
                   </div>
-                  <span className="sc-history-row__time">{fmtDateTime(h.timestamp)}</span>
+                  <span className="sc-history-row__time">{fmtDateTime(h.created_at)}</span>
                 </div>
               ))}
             </div>
@@ -817,6 +830,7 @@ export default function SmartCampaigns() {
           onOpenGmail={(enrollment, step) => openGmail(enrollment, step)}
           onCopyFormatted={(enrollment, step) => copyFormattedEmail(enrollment, step)}
           allEnrollments={enrollments}
+          contactName={contactName}
         />}
       </SlidePanel>
     </div>
@@ -887,6 +901,19 @@ function CampaignEditor({ campaign, onSave, onCancel }) {
           <option value="active">Active</option>
           <option value="paused">Paused</option>
         </Select>
+        <Select
+          label="Send From"
+          value={form.send_via_domain || 'primary'}
+          onChange={e => updateField('send_via_domain', e.target.value)}
+        >
+          <option value="primary">dana@danamassey.com — warm / personal</option>
+          <option value="subdomain">dana@mail.danamassey.com — cold / bulk (protects primary)</option>
+        </Select>
+        <p style={{ fontSize: 12, color: '#888', marginTop: -4 }}>
+          Use the primary domain for warm contacts (buyers, sellers, past clients).
+          Use the subdomain for cold outreach (FSBO, expired, circle) so spam
+          complaints can't hurt your real inbox.
+        </p>
       </div>
 
       <div className="sc-editor__steps-header">
@@ -968,16 +995,17 @@ function CampaignEditor({ campaign, onSave, onCancel }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Enrollment Detail Sub-Component
 // ═══════════════════════════════════════════════════════════════════════════════
-function EnrollmentDetail({ enrollment, campaign, history, onPause, onResume, onStop, onMarkSent, onOpenGmail, onCopyFormatted, allEnrollments }) {
+function EnrollmentDetail({ enrollment, campaign, history, onPause, onResume, onStop, onMarkSent, onOpenGmail, onCopyFormatted, allEnrollments, contactName }) {
   if (!enrollment) return null
 
   const steps = campaign?.steps ?? []
   const contactEnrollments = allEnrollments.filter(e => e.contact_id === enrollment.contact_id)
+  const displayName = contactName ? contactName(enrollment.contact_id) : '(Unknown)'
 
   return (
     <div className="sc-detail">
       <div className="sc-detail__header">
-        <h3>{enrollment.contact_name}</h3>
+        <h3>{displayName}</h3>
         <Badge variant={
           enrollment.status === 'active' ? 'success' :
           enrollment.status === 'paused' ? 'warning' :
@@ -1035,7 +1063,7 @@ function EnrollmentDetail({ enrollment, campaign, history, onPause, onResume, on
       {/* All campaigns this contact has been in */}
       {contactEnrollments.length > 1 && (
         <>
-          <h4 className="sc-detail__section-title">All Campaigns for {enrollment.contact_name.split(' ')[0]}</h4>
+          <h4 className="sc-detail__section-title">All Campaigns for {displayName.split(' ')[0]}</h4>
           <div className="sc-detail__all-campaigns">
             {contactEnrollments.map(e => (
               <div key={e.id} className="sc-detail__campaign-row">
@@ -1061,7 +1089,7 @@ function EnrollmentDetail({ enrollment, campaign, history, onPause, onResume, on
             <div key={h.id} className="sc-detail__log-row">
               <span className="sc-detail__log-action">{h.action}</span>
               <span className="sc-detail__log-detail">{h.detail}</span>
-              <span className="sc-detail__log-time">{fmtDateTime(h.timestamp)}</span>
+              <span className="sc-detail__log-time">{fmtDateTime(h.created_at)}</span>
             </div>
           ))
         )}

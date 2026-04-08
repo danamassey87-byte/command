@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { StatCard, Badge } from '../../components/ui/index.jsx'
+import * as campaignsApi from '../../lib/campaigns'
 import './CampaignsDashboard.css'
 
 function DashCard({ title, children, className = '' }) {
@@ -12,28 +13,61 @@ function DashCard({ title, children, className = '' }) {
   )
 }
 
-function loadLS(key, fallback = []) {
-  try { return JSON.parse(localStorage.getItem(key)) ?? fallback } catch { return fallback }
-}
+const fmtDateTime = (iso) => iso ? new Date(iso).toLocaleString('en-US', {
+  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+}) : ''
 
 export default function CampaignsDashboard() {
-  const [campaigns] = useState(() => loadLS('campaigns'))
-  const [enrollments] = useState(() => loadLS('enrollments'))
-  const [history] = useState(() => loadLS('campaign_history'))
+  const [campaigns, setCampaigns] = useState([])
+  const [enrollments, setEnrollments] = useState([])
+  const [history, setHistory] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const active = campaigns.filter(c => c.status === 'active')
-  const paused = campaigns.filter(c => c.status === 'paused')
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [cs, es, hs] = await Promise.all([
+          campaignsApi.listCampaigns(),
+          campaignsApi.listEnrollments(),
+          campaignsApi.listAuditLog({ limit: 10 }),
+        ])
+        if (cancelled) return
+        setCampaigns(cs)
+        setEnrollments(es)
+        setHistory(hs)
+      } catch (err) {
+        console.error('[CampaignsDashboard] load failed:', err)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const active    = campaigns.filter(c => c.status === 'active')
+  const paused    = campaigns.filter(c => c.status === 'paused')
   const completed = campaigns.filter(c => c.status === 'completed')
 
-  const activeEnrollments = enrollments.filter(e => e.status === 'active')
+  const activeEnrollments    = enrollments.filter(e => e.status === 'active')
   const completedEnrollments = enrollments.filter(e => e.status === 'completed')
 
-  // Messages due today
-  const today = new Date().toISOString().split('T')[0]
-  const dueToday = enrollments.filter(e => e.status === 'active' && e.next_send_date === today)
+  // Messages due today: active enrollments with next_send_at <= end of today
+  const endOfToday = new Date()
+  endOfToday.setHours(23, 59, 59, 999)
+  const dueToday = enrollments.filter(e =>
+    e.status === 'active' &&
+    e.next_send_at &&
+    new Date(e.next_send_at) <= endOfToday
+  )
 
-  // Recent history
-  const recentHistory = (history ?? []).slice(0, 6)
+  const recentHistory = history.slice(0, 6)
+
+  if (loading) {
+    return <div className="section-dash camp-dash" style={{ padding: 40, textAlign: 'center', color: '#888' }}>
+      Loading campaigns…
+    </div>
+  }
 
   return (
     <div className="section-dash camp-dash">
@@ -66,9 +100,9 @@ export default function CampaignsDashboard() {
         <DashCard title="Send Queue">
           {dueToday.length > 0 ? (
             <div className="camp-queue">
-              {dueToday.slice(0, 5).map((e, i) => (
-                <div key={i} className="camp-queue-row">
-                  <span className="camp-queue-row__name">{e.contact_name ?? 'Contact'}</span>
+              {dueToday.slice(0, 5).map((e) => (
+                <div key={e.id} className="camp-queue-row">
+                  <span className="camp-queue-row__name">Enrollment {e.id.slice(0, 8)}</span>
                   <Badge variant="warning" size="sm">Due Today</Badge>
                 </div>
               ))}
@@ -102,10 +136,10 @@ export default function CampaignsDashboard() {
         <DashCard title="Recent Activity">
           {recentHistory.length > 0 ? (
             <div className="camp-history">
-              {recentHistory.map((h, i) => (
-                <div key={i} className="camp-history-row">
-                  <span className="camp-history-row__text">{h.description ?? h.action ?? 'Activity'}</span>
-                  <span className="camp-history-row__date">{h.date ?? ''}</span>
+              {recentHistory.map((h) => (
+                <div key={h.id} className="camp-history-row">
+                  <span className="camp-history-row__text">{h.detail ?? h.action ?? 'Activity'}</span>
+                  <span className="camp-history-row__date">{fmtDateTime(h.created_at)}</span>
                 </div>
               ))}
             </div>
