@@ -12,6 +12,7 @@ import DailyTracker from './pages/DailyTracker/DailyTracker'
 import ListingAppts from './pages/ListingAppts/ListingAppts'
 import Buyers from './pages/Buyers/Buyers'
 import Sellers from './pages/Sellers/Sellers'
+import SellerClients from './pages/Sellers/SellerClients'
 import Investors from './pages/Investors/Investors'
 import LeadGen from './pages/LeadGen/LeadGen'
 import BuyerShowings from './pages/BuyerShowings/BuyerShowings'
@@ -142,6 +143,7 @@ export default function App() {
           {/* ─── CRM ─── */}
           <Route path="/crm"              element={<CrmDashboard />} />
           <Route path="/crm/buyers"       element={<Buyers />} />
+          <Route path="/crm/seller-clients" element={<SellerClients />} />
           <Route path="/crm/sellers"      element={<Sellers />} />
           <Route path="/crm/showings"         element={<BuyerShowings />} />
           <Route path="/crm/seller-showings"  element={<SellerShowings />} />

@@ -2217,17 +2217,25 @@ export default function Sellers() {
     return agr && agr.days <= 14
   })
 
-  const filtered = listings.filter(l => {
+  // Listings page is now "Signed Listings only" — unsigned leads live on the
+  // Sellers page (People > Sellers > Sellers). A listing counts as "signed" if
+  // listing_agreement_signed is true OR if the status has advanced past 'lead'.
+  const signedListings = listings.filter(l =>
+    l.listing_agreement_signed === true || (l.status && l.status !== 'lead')
+  )
+
+  const filtered = signedListings.filter(l => {
     if (filter === 'all') return true
-    if (filter === 'lead') return l.status === 'lead'
     if (filter === 'new' || filter === 'expired') return l.type === filter
     return l.status === filter
   })
   const counts = {
-    all:     listings.length,
-    lead:    listings.filter(l => l.status === 'lead').length,
-    new:     listings.filter(l => l.type === 'new').length,
-    expired: listings.filter(l => l.type === 'expired').length,
+    all:     signedListings.length,
+    active:  signedListings.filter(l => l.status === 'active').length,
+    pending: signedListings.filter(l => l.status === 'pending').length,
+    closed:  signedListings.filter(l => l.status === 'closed').length,
+    new:     signedListings.filter(l => l.type === 'new').length,
+    expired: signedListings.filter(l => l.type === 'expired').length,
   }
 
   const columns = [
@@ -2335,10 +2343,11 @@ export default function Sellers() {
 
       <TabBar
         tabs={[
-          { label: 'All', value: 'all', count: counts.all },
-          { label: 'Leads', value: 'lead', count: counts.lead },
-          { label: 'New', value: 'new', count: counts.new },
-          { label: 'Expired', value: 'expired', count: counts.expired },
+          { label: 'All',      value: 'all',     count: counts.all },
+          { label: 'Active',   value: 'active',  count: counts.active },
+          { label: 'Pending',  value: 'pending', count: counts.pending },
+          { label: 'Closed',   value: 'closed',  count: counts.closed },
+          { label: 'Expired',  value: 'expired', count: counts.expired },
         ]}
         active={filter}
         onChange={setFilter}
