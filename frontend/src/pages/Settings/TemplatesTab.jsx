@@ -9,8 +9,100 @@ const CATEGORIES = [
   { key: 'pipeline',   label: 'Pipeline Emails' },
   { key: 'buyer_sop',  label: 'Buyer Workflow' },
   { key: 'seller_sop', label: 'Seller Workflow' },
+  { key: 'ai_plans',   label: 'AI Plan Prompts' },
   { key: 'scripts',    label: 'My Scripts' },
 ]
+
+// ─── AI Plan prompt templates (used by Sellers → Generate Plan with AI) ─────
+// These mirror the defaults in Sellers.jsx but are editable here so Dana can
+// manage all four scenarios (new / my expired / takeover / FSBO) in one place.
+const AI_PLAN_STORAGE_PREFIX = 'ai_plan_template_v2_'
+const AI_PLAN_SCENARIOS = [
+  {
+    key: 'new',
+    label: 'New Listing',
+    desc: 'Fresh listing, never been on the market.',
+    default: `Generate a complete launch plan for this new listing:
+
+Client: {clientName}
+Property: {address}
+City/Zip: {city}, AZ {zip}
+Price: {price}
+DOM: {dom}
+Status: {status}
+
+Create a step-by-step checklist organized by phase.
+Phases: "prep" (listing preparation), "launch" (MLS & go-live), "postlaunch" (promotion & follow-up)
+
+For each item, return JSON: [{"label": "...", "phase": "..."}]
+Focus on actionable, specific tasks. Include 12-18 items total.`,
+  },
+  {
+    key: 'my_expired',
+    label: 'Relaunch — My Prior Expired',
+    desc: 'I had this listing before — I have full history on showings, feedback, and what worked/didn\'t.',
+    default: `Generate a relaunch plan for a previously-expired listing that I (Dana) had the first time around.
+
+Client: {clientName}
+Property: {address}
+City/Zip: {city}, AZ {zip}
+Price: {price}
+DOM: {dom}
+Status: {status}
+
+Context: I have full history on this listing — prior showings, buyer feedback, marketing performance. Reference what worked and what didn't. Positioning: "we learned, here's the fix."
+
+Create a step-by-step checklist organized by phase.
+Phases: "analysis" (review prior data & adjust strategy), "refresh" (property + presentation improvements), "relaunch" (re-activation & promotion)
+
+For each item, return JSON: [{"label": "...", "phase": "..."}]
+Focus on actionable, specific tasks that leverage prior data. Include 12-18 items total.`,
+  },
+  {
+    key: 'taken_over',
+    label: 'Relaunch — Takeover from Another Agent',
+    desc: 'Listing expired under a different agent. I do NOT have access to prior showing/feedback data.',
+    default: `Generate a relaunch plan for a listing I'm TAKING OVER from a previous agent.
+
+Client: {clientName}
+Property: {address}
+City/Zip: {city}, AZ {zip}
+Price: {price}
+DOM: {dom}
+Status: {status}
+
+Context: This listing expired under a different agent. I do NOT have access to prior showings, buyer feedback, or marketing data. Start from a clean slate — do NOT reference any prior agent effort I wouldn't actually know about. Positioning: "fresh eyes, new team, new strategy."
+
+Create a step-by-step checklist organized by phase.
+Phases: "analysis" (fresh market review & competitive audit), "refresh" (property + presentation from scratch), "relaunch" (new-team reintroduction & promotion)
+
+For each item, return JSON: [{"label": "...", "phase": "..."}]
+Focus on actionable tasks a new-agent-with-new-approach would do. Include 12-18 items total.`,
+  },
+  {
+    key: 'fsbo',
+    label: 'FSBO Conversion',
+    desc: 'Seller tried it themselves first and is now listing with me.',
+    default: `Generate a launch plan for a seller who was previously FSBO (For Sale By Owner) and is now listing with me.
+
+Client: {clientName}
+Property: {address}
+City/Zip: {city}, AZ {zip}
+Price: {price}
+DOM: {dom}
+Status: {status}
+
+Context: Seller tried it themselves first. Positioning: "professional marketing + agent network you didn't have before." Acknowledge their effort, then show what agent representation unlocks.
+
+Create a step-by-step checklist organized by phase.
+Phases: "prep" (re-presenting the property professionally), "launch" (MLS + wide syndication), "postlaunch" (agent-network outreach & promotion)
+
+For each item, return JSON: [{"label": "...", "phase": "..."}]
+Focus on actionable, specific tasks. Include 12-18 items total.`,
+  },
+]
+
+const AI_PLAN_MERGE_TAGS = ['{clientName}', '{address}', '{city}', '{zip}', '{price}', '{dom}', '{status}', '{type}']
 
 const SCRIPT_TYPES = [
   { value: 'call_script',    label: 'Call Script' },
@@ -227,8 +319,13 @@ export default function TemplatesTab() {
         </div>
       )}
 
+      {/* ── AI Plan Prompts (four scenarios, localStorage-backed) ── */}
+      {category === 'ai_plans' && (
+        <AIPlanPromptsEditor search={search} />
+      )}
+
       {/* ── Template list ── */}
-      {category !== 'scripts' && filtered.map(t => (
+      {category !== 'scripts' && category !== 'ai_plans' && filtered.map(t => (
         <div key={t.key} className={`tpl-card${editing === t.key ? ' tpl-card--editing' : ''}`}>
           {editing === t.key ? (
             <div className="tpl-edit-form">
@@ -321,9 +418,137 @@ export default function TemplatesTab() {
       ))}
 
       {/* ── Empty search state ── */}
-      {category !== 'scripts' && filtered.length === 0 && search && (
+      {category !== 'scripts' && category !== 'ai_plans' && filtered.length === 0 && search && (
         <p className="tpl-empty__desc" style={{ textAlign: 'center', padding: 24 }}>No templates match "{search}"</p>
       )}
     </div>
+  )
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// AI Plan Prompts editor — manages the four localStorage-backed scenario
+// templates used by Sellers → Generate Plan with AI. Editing any scenario
+// here also updates the inline editor in the Sellers modal (same storage).
+// ═════════════════════════════════════════════════════════════════════════════
+function AIPlanPromptsEditor({ search }) {
+  const [editingKey, setEditingKey] = useState(null)
+  const [draftBody, setDraftBody] = useState('')
+  const [savedTick, setSavedTick] = useState(null)
+  const [versionTick, setVersionTick] = useState(0) // force re-read after save
+
+  const getSaved = (key) => {
+    const stored = localStorage.getItem(AI_PLAN_STORAGE_PREFIX + key)
+    return stored ?? AI_PLAN_SCENARIOS.find(s => s.key === key).default
+  }
+
+  const startEdit = (scenario) => {
+    setEditingKey(scenario.key)
+    setDraftBody(getSaved(scenario.key))
+  }
+  const cancelEdit = () => {
+    setEditingKey(null)
+    setDraftBody('')
+  }
+  const saveEdit = (scenario) => {
+    localStorage.setItem(AI_PLAN_STORAGE_PREFIX + scenario.key, draftBody)
+    setEditingKey(null)
+    setDraftBody('')
+    setSavedTick(scenario.key)
+    setVersionTick(v => v + 1)
+    setTimeout(() => setSavedTick(null), 1600)
+  }
+  const resetToDefault = (scenario) => {
+    if (!confirm(`Reset "${scenario.label}" to the default prompt?\n\nYour customizations will be lost.`)) return
+    localStorage.removeItem(AI_PLAN_STORAGE_PREFIX + scenario.key)
+    if (editingKey === scenario.key) setDraftBody(scenario.default)
+    setVersionTick(v => v + 1)
+  }
+  const insertTag = (tag) => {
+    setDraftBody(prev => prev + tag)
+  }
+
+  const q = (search || '').toLowerCase().trim()
+  const visible = AI_PLAN_SCENARIOS.filter(s =>
+    !q || s.label.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q)
+  )
+
+  return (
+    <>
+      <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: 8 }}>
+        Each scenario has its own prompt. When you click <strong>Generate Plan with AI</strong> on a listing, the prompt for that listing's <strong>Source</strong> is used. Edits here apply to every future generation for that scenario.
+      </p>
+      {visible.map(scenario => {
+        const stored = localStorage.getItem(AI_PLAN_STORAGE_PREFIX + scenario.key)
+        const modified = stored !== null && stored !== scenario.default
+        // versionTick is read to force re-render when we mutate localStorage.
+        void versionTick
+        return (
+          <div key={scenario.key} className={`tpl-card${editingKey === scenario.key ? ' tpl-card--editing' : ''}`}>
+            {editingKey === scenario.key ? (
+              <div className="tpl-edit-form">
+                <div className="tpl-card__title-row" style={{ marginBottom: 4 }}>
+                  <span className="tpl-card__name">{scenario.label}</span>
+                </div>
+                <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginBottom: 8 }}>{scenario.desc}</p>
+                <Textarea
+                  label="Prompt"
+                  value={draftBody}
+                  onChange={e => setDraftBody(e.target.value)}
+                  rows={16}
+                />
+                <div className="tpl-merge-tags">
+                  <span className="tpl-merge-label">Variables:</span>
+                  {AI_PLAN_MERGE_TAGS.map(tag => (
+                    <span key={tag} className="tpl-merge-chip" onClick={() => insertTag(tag)}>{tag}</span>
+                  ))}
+                </div>
+                <div className="tpl-edit-actions">
+                  <Button size="sm" onClick={() => saveEdit(scenario)}>Save Changes</Button>
+                  <Button size="sm" variant="ghost" onClick={cancelEdit}>Cancel</Button>
+                  {modified && (
+                    <Button size="sm" variant="ghost" onClick={() => resetToDefault(scenario)}>Reset to Default</Button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="tpl-card__header">
+                  <div className="tpl-card__title-row">
+                    <span className="tpl-card__name">{scenario.label}</span>
+                    <span className="tpl-type-badge">AI Prompt</span>
+                    {modified && <span className="tpl-modified-badge">Modified</span>}
+                    {savedTick === scenario.key && <span className="tpl-modified-badge" style={{ background: '#d6ebd6', color: '#2d5c2d' }}>Saved</span>}
+                  </div>
+                  <div className="tpl-card__actions">
+                    <Button size="sm" variant="ghost" onClick={() => startEdit(scenario)}>Edit</Button>
+                    {modified && (
+                      <Button size="sm" variant="ghost" onClick={() => resetToDefault(scenario)}>Reset</Button>
+                    )}
+                  </div>
+                </div>
+                <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginBottom: 6 }}>{scenario.desc}</p>
+                <pre
+                  style={{
+                    fontSize: '0.72rem',
+                    color: 'var(--color-text-muted)',
+                    whiteSpace: 'pre-wrap',
+                    fontFamily: 'inherit',
+                    margin: 0,
+                    maxHeight: 120,
+                    overflow: 'hidden',
+                    position: 'relative',
+                  }}
+                >
+                  {getSaved(scenario.key).slice(0, 300)}{getSaved(scenario.key).length > 300 ? '…' : ''}
+                </pre>
+              </>
+            )}
+          </div>
+        )
+      })}
+      {visible.length === 0 && (
+        <p className="tpl-empty__desc" style={{ textAlign: 'center', padding: 24 }}>No scenarios match "{search}"</p>
+      )}
+    </>
   )
 }

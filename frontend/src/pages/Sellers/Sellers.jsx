@@ -725,7 +725,11 @@ function AddTaskModal({ listing, onClose, onAdded }) {
 }
 
 // ─── AI Plan Generator Modal ─────────────────────────────────────────────────
-const DEFAULT_LAUNCH_TEMPLATE = `Generate a complete launch plan for this listing:
+// Prompt templates are keyed by listing SOURCE so Dana can tune each scenario
+// independently. All four are editable in Settings → Templates or inline from
+// the Generate Plan modal.
+const DEFAULT_TEMPLATES = {
+  new: `Generate a complete launch plan for this new listing:
 
 Client: {clientName}
 Property: {address}
@@ -735,12 +739,12 @@ DOM: {dom}
 Status: {status}
 
 Create a step-by-step checklist organized by phase.
-Phases: "prep" (listing preparation), "mls" (MLS & syndication), "marketing" (promotion & outreach)
+Phases: "prep" (listing preparation), "launch" (MLS & go-live), "postlaunch" (promotion & follow-up)
 
 For each item, return JSON: [{"label": "...", "phase": "..."}]
-Focus on actionable, specific tasks. Include 12-18 items total.`
+Focus on actionable, specific tasks. Include 12-18 items total.`,
 
-const DEFAULT_RELAUNCH_TEMPLATE = `Generate a complete relaunch plan for this expired/stale listing:
+  my_expired: `Generate a relaunch plan for a previously-expired listing that I (Dana) had the first time around.
 
 Client: {clientName}
 Property: {address}
@@ -749,24 +753,68 @@ Price: {price}
 DOM: {dom}
 Status: {status}
 
-This listing needs a fresh strategy. Create a step-by-step checklist organized by phase.
-Phases: "analysis" (market review & strategy), "refresh" (property improvements), "relaunch" (re-activation & promotion)
+Context: I have full history on this listing — prior showings, buyer feedback, marketing performance. Reference what worked and what didn't. Positioning: "we learned, here's the fix."
+
+Create a step-by-step checklist organized by phase.
+Phases: "analysis" (review prior data & adjust strategy), "refresh" (property + presentation improvements), "relaunch" (re-activation & promotion)
 
 For each item, return JSON: [{"label": "...", "phase": "..."}]
-Focus on actionable, specific tasks. Include 12-18 items total.`
+Focus on actionable, specific tasks that leverage prior data. Include 12-18 items total.`,
 
-const TEMPLATE_STORAGE_KEY_LAUNCH   = 'ai_plan_template_launch'
-const TEMPLATE_STORAGE_KEY_RELAUNCH = 'ai_plan_template_relaunch'
+  taken_over: `Generate a relaunch plan for a listing I'm TAKING OVER from a previous agent.
 
-function getSavedTemplate(type) {
-  const key = type === 'new' ? TEMPLATE_STORAGE_KEY_LAUNCH : TEMPLATE_STORAGE_KEY_RELAUNCH
-  const saved = localStorage.getItem(key)
-  return saved || (type === 'new' ? DEFAULT_LAUNCH_TEMPLATE : DEFAULT_RELAUNCH_TEMPLATE)
+Client: {clientName}
+Property: {address}
+City/Zip: {city}, AZ {zip}
+Price: {price}
+DOM: {dom}
+Status: {status}
+
+Context: This listing expired under a different agent. I do NOT have access to prior showings, buyer feedback, or marketing data. Start from a clean slate — do NOT reference any prior agent effort I wouldn't actually know about. Positioning: "fresh eyes, new team, new strategy."
+
+Create a step-by-step checklist organized by phase.
+Phases: "analysis" (fresh market review & competitive audit), "refresh" (property + presentation from scratch), "relaunch" (new-team reintroduction & promotion)
+
+For each item, return JSON: [{"label": "...", "phase": "..."}]
+Focus on actionable tasks a new-agent-with-new-approach would do. Include 12-18 items total.`,
+
+  fsbo: `Generate a launch plan for a seller who was previously FSBO (For Sale By Owner) and is now listing with me.
+
+Client: {clientName}
+Property: {address}
+City/Zip: {city}, AZ {zip}
+Price: {price}
+DOM: {dom}
+Status: {status}
+
+Context: Seller tried it themselves first. Positioning: "professional marketing + agent network you didn't have before." Acknowledge their effort, then show what agent representation unlocks.
+
+Create a step-by-step checklist organized by phase.
+Phases: "prep" (re-presenting the property professionally), "launch" (MLS + wide syndication), "postlaunch" (agent-network outreach & promotion)
+
+For each item, return JSON: [{"label": "...", "phase": "..."}]
+Focus on actionable, specific tasks. Include 12-18 items total.`,
 }
 
-function saveTemplate(type, template) {
-  const key = type === 'new' ? TEMPLATE_STORAGE_KEY_LAUNCH : TEMPLATE_STORAGE_KEY_RELAUNCH
-  localStorage.setItem(key, template)
+const TEMPLATE_STORAGE_PREFIX = 'ai_plan_template_v2_'
+
+function getSavedTemplate(source) {
+  const key = source && DEFAULT_TEMPLATES[source] ? source : 'new'
+  const saved = localStorage.getItem(TEMPLATE_STORAGE_PREFIX + key)
+  return saved || DEFAULT_TEMPLATES[key]
+}
+
+function saveTemplate(source, template) {
+  const key = source && DEFAULT_TEMPLATES[source] ? source : 'new'
+  localStorage.setItem(TEMPLATE_STORAGE_PREFIX + key, template)
+}
+
+// Friendly label for each source used in the template editor + modal heading.
+const SOURCE_TEMPLATE_LABEL = {
+  new:        'New Listing',
+  my_expired: 'Relaunch — My Prior Expired',
+  taken_over: 'Relaunch — Taken Over from Another Agent',
+  fsbo:       'FSBO Conversion',
 }
 
 function resolveTemplate(template, vars) {
@@ -788,9 +836,13 @@ function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
   const [selectedListingId, setSelectedListingId] = useState(listing.id)
   const selectedListing = (allListings ?? []).find(l => l.id === selectedListingId) ?? listing
 
-  // Template editing
+  // Effective source — falls back for old rows without the column set.
+  const effectiveSource = selectedListing.source || (selectedListing.type === 'expired' ? 'my_expired' : 'new')
+
+  // Template editing — keyed to the selected listing's source so there's a
+  // separate prompt per scenario (new / my_expired / taken_over / fsbo).
   const [editingTemplate, setEditingTemplate] = useState(false)
-  const [template, setTemplate] = useState(getSavedTemplate(listing.type))
+  const [template, setTemplate] = useState(() => getSavedTemplate(effectiveSource))
   const [templateDraft, setTemplateDraft] = useState(template)
 
   // Resolved prompt
@@ -827,8 +879,17 @@ function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
     }
   }, [selectedListingId, template])
 
+  // When the selected listing's source changes (e.g. user picks a different
+  // listing in the dropdown), reload the correct per-source template.
+  useEffect(() => {
+    const next = getSavedTemplate(effectiveSource)
+    setTemplate(next)
+    setTemplateDraft(next)
+    setManuallyEdited(false)
+  }, [effectiveSource])
+
   const handleSaveTemplate = () => {
-    saveTemplate(listing.type, templateDraft)
+    saveTemplate(effectiveSource, templateDraft)
     setTemplate(templateDraft)
     setEditingTemplate(false)
     setManuallyEdited(false)
@@ -903,14 +964,14 @@ function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
       <div className="plan-modal__overlay" onClick={() => setEditingTemplate(false)}>
         <div className="plan-modal plan-modal--wide" onClick={e => e.stopPropagation()}>
           <div className="plan-modal__header">
-            <h3>Edit {isNew ? 'Launch' : 'Relaunch'} Prompt Template</h3>
+            <h3>Edit Prompt Template — {SOURCE_TEMPLATE_LABEL[effectiveSource] || 'New Listing'}</h3>
             <button className="plan-modal__close" onClick={() => setEditingTemplate(false)}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
           <div className="plan-modal__body">
             <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: 4 }}>
-              This template is used for all future <strong>{isNew ? 'launch' : 'relaunch'}</strong> plan generations. Use these variables and they will auto-fill:
+              This template is used for all future <strong>{SOURCE_TEMPLATE_LABEL[effectiveSource] || 'New Listing'}</strong> plan generations. Other scenarios (new, my expired, taken over, FSBO) each have their own separate template — change the listing's Source to edit a different one. Variables that auto-fill:
             </p>
             <div className="plan-modal__var-chips">
               {['{clientName}', '{address}', '{city}', '{zip}', '{price}', '{dom}', '{status}', '{type}'].map(v => (
@@ -989,7 +1050,7 @@ function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
           {/* ── Prompt ── */}
           <div className="plan-modal__prompt-header">
             <span className="plan-modal__label" style={{ marginBottom: 0 }}>
-              {isNew ? 'Launch' : 'Relaunch'} Prompt
+              Prompt — {SOURCE_TEMPLATE_LABEL[effectiveSource] || 'New Listing'}
             </span>
             <button className="plan-modal__template-btn" onClick={() => { setTemplateDraft(template); setEditingTemplate(true) }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.32 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -2171,6 +2232,21 @@ export default function Sellers() {
           <AddressLink address={v} city={row.city} className="lead-address">{v}</AddressLink>
           <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{row.city}, AZ {row.zip}</p>
         </div>
+      ),
+    },
+    {
+      key: 'contact_name', label: 'Client',
+      render: (v, row) => (
+        v
+          ? (
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: '0.82rem', color: 'var(--brown-dark)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</p>
+              {row.contact_phone && (
+                <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', margin: 0 }}>{row.contact_phone}</p>
+              )}
+            </div>
+          )
+          : <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>—</span>
       ),
     },
     { key: 'listPrice', label: 'List Price' },
