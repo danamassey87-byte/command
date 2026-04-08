@@ -1,9 +1,11 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { Card, Button, Badge, Input, Select, Textarea, TabBar, SlidePanel, EmptyState, SectionHeader } from '../../components/ui'
-import { useContacts } from '../../lib/hooks'
+import { useContacts, useContactsWithTags, useTags } from '../../lib/hooks'
 import { useBrandSignature } from '../../lib/BrandContext'
 import { blocksToHtml, getEmailTemplates, CAMPAIGN_EMAIL_TEMPLATES } from '../../lib/emailHtml'
 import * as campaignsApi from '../../lib/campaigns'
+import EnrollModal from './EnrollModal'
+import TriggerPicker from './TriggerPicker'
 import './SmartCampaigns.css'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -101,8 +103,10 @@ const STARTER_CAMPAIGNS = [
 
 // ─── Step Type Config ───────────────────────────────────────────────────────
 const STEP_TYPES = {
-  email: { label: 'Email', icon: '✉', color: '#4A90D9' },
-  sms:   { label: 'SMS',   icon: '💬', color: '#38A169' },
+  email:        { label: 'Email',         icon: '✉',  color: '#4A90D9' },
+  sms:          { label: 'SMS',           icon: '💬', color: '#38A169' },
+  task:         { label: 'Task',          icon: '✓',  color: '#c8a05a' },
+  manual_email: { label: 'Manual Email',  icon: '✎',  color: '#8a7a9b' },
 }
 
 const CAMPAIGN_TYPES = [
@@ -146,7 +150,11 @@ const TEMPLATE_VARS = [
 export default function SmartCampaigns() {
   /* ─── Data ─── */
   const { data: contacts } = useContacts()
+  const { data: contactsWithTags } = useContactsWithTags()
+  const { data: tags } = useTags()
   const allContacts = contacts ?? []
+  const allContactsWithTags = contactsWithTags ?? []
+  const allTags = tags ?? []
   const sig = useBrandSignature()
 
   /* ─── Agent profile variable resolver ─── */
@@ -172,7 +180,6 @@ export default function SmartCampaigns() {
   const [editing, setEditing]           = useState(null)          // campaign being edited / created
   const [enrollPanel, setEnrollPanel]   = useState(null)          // campaign id for enrollment panel
   const [detailPanel, setDetailPanel]   = useState(null)          // enrollment id for detail view
-  const [contactSearch, setContactSearch] = useState('')
   const [enrollFilter, setEnrollFilter] = useState('all')
 
   /* ─── Initial load from Supabase (with one-time localStorage migration) ─── */
@@ -299,14 +306,8 @@ export default function SmartCampaigns() {
   // ═══════════════════════════════════════════════════════════════════════════
   // Enrollment Actions (all persist to Supabase)
   // ═══════════════════════════════════════════════════════════════════════════
-  const enrollContact = useCallback(async (campaignId, contact) => {
-    try {
-      await campaignsApi.enrollContact(campaignId, contact.id)
-      await reload()
-    } catch (err) {
-      alert('Failed to enroll contact: ' + err.message)
-    }
-  }, [reload])
+  // Note: single-contact enroll was removed in favor of the EnrollModal,
+  // which uses enrollContacts() for tag/segment/multi-select bulk enrollment.
 
   const pauseEnrollment = useCallback(async (id) => {
     try { await campaignsApi.pauseEnrollment(id); await reload() }
@@ -582,28 +583,56 @@ export default function SmartCampaigns() {
             <EmptyState title="Queue is clear!" description="No messages are due today. Check back tomorrow." />
           ) : (
             <div className="sc-queue-list">
-              {dueTasks.map(({ enrollment, campaign, step }) => (
-                <Card key={enrollment.id} className="sc-queue-card">
+              {dueTasks.map(({ enrollment, campaign, step }) => {
+                const isTask = step?.type === 'task'
+                const isManual = step?.type === 'manual_email'
+                const completeLabel = isTask ? 'Mark Complete' : 'Mark Sent'
+                return (
+                <Card key={enrollment.id} className="sc-queue-card" data-step-type={step?.type}>
                   <div className="sc-queue-card__top">
                     <div className="sc-queue-card__type" data-type={step?.type}>
                       {STEP_TYPES[step?.type]?.icon ?? '?'} {STEP_TYPES[step?.type]?.label ?? step?.type}
                     </div>
-                    <Badge variant={new Date(enrollment.next_send_at) < new Date() ? 'danger' : 'warning'}>
-                      {new Date(enrollment.next_send_at) < new Date(new Date().setHours(0,0,0)) ? 'OVERDUE' : 'Due Today'}
-                    </Badge>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {isManual && <Badge variant="warning" size="sm">Needs Approval</Badge>}
+                      <Badge variant={new Date(enrollment.next_send_at) < new Date() ? 'danger' : 'warning'}>
+                        {new Date(enrollment.next_send_at) < new Date(new Date().setHours(0,0,0)) ? 'OVERDUE' : 'Due Today'}
+                      </Badge>
+                    </div>
                   </div>
                   <h4 className="sc-queue-card__contact">{contactName(enrollment.contact_id)}</h4>
                   <p className="sc-queue-card__campaign">{campaign?.name ?? 'Unknown'} — Step {(enrollment.current_step ?? 0) + 1} of {campaign?.steps?.length ?? '?'}</p>
-                  {step?.subject && <p className="sc-queue-card__subject">Subject: {step.subject}</p>}
-                  <div className="sc-queue-card__preview">{resolveAgentVars(step?.body)?.slice(0, 200)}...</div>
-                  {step?.email_blocks?.length > 0 && (
-                    <EmailPreviewInline blocks={step.email_blocks} settings={step.email_settings} vars={buildVars(enrollment)} body={step.body} sig={sig} />
+
+                  {isTask ? (
+                    <>
+                      {step?.task_title && <h5 className="sc-queue-card__subject">{step.task_title}</h5>}
+                      {step?.task_notes && <div className="sc-queue-card__preview">{step.task_notes}</div>}
+                      {step?.task_link && (
+                        <a
+                          href={step.task_link}
+                          target={step.task_link.startsWith('http') ? '_blank' : undefined}
+                          rel="noopener noreferrer"
+                          className="sc-queue-card__link"
+                        >
+                          Open link →
+                        </a>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {step?.subject && <p className="sc-queue-card__subject">Subject: {step.subject}</p>}
+                      <div className="sc-queue-card__preview">{resolveAgentVars(step?.body)?.slice(0, 200)}...</div>
+                      {step?.email_blocks?.length > 0 && (
+                        <EmailPreviewInline blocks={step.email_blocks} settings={step.email_settings} vars={buildVars(enrollment)} body={step.body} sig={sig} />
+                      )}
+                    </>
                   )}
+
                   <div className="sc-queue-card__actions">
-                    {step?.type === 'email' && step?.email_blocks?.length > 0 && (
+                    {(step?.type === 'email' || step?.type === 'manual_email') && step?.email_blocks?.length > 0 && (
                       <Button size="sm" variant="accent" onClick={() => copyFormattedEmail(enrollment, step)}>Copy Formatted</Button>
                     )}
-                    {step?.type === 'email' && (
+                    {(step?.type === 'email' || step?.type === 'manual_email') && (
                       <Button size="sm" variant="ghost" onClick={() => openGmail(enrollment, step)}>Open in Gmail</Button>
                     )}
                     {step?.type === 'sms' && (
@@ -614,11 +643,17 @@ export default function SmartCampaigns() {
                         window.open(`sms:${phone}?body=${encodeURIComponent(body)}`, '_blank')
                       }}>Open SMS</Button>
                     )}
-                    <Button size="sm" onClick={() => markStepSent(enrollment.id, enrollment.current_step)}>Mark Sent</Button>
+                    <Button
+                      size="sm"
+                      variant={isManual ? 'primary' : undefined}
+                      onClick={() => markStepSent(enrollment.id, enrollment.current_step)}
+                    >
+                      {isManual ? 'Approve & Mark Sent' : completeLabel}
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={() => pauseEnrollment(enrollment.id)}>Pause</Button>
                   </div>
                 </Card>
-              ))}
+              )})}
             </div>
           )}
         </div>
@@ -753,64 +788,28 @@ export default function SmartCampaigns() {
         title={editing?.id && campaigns.find(c => c.id === editing.id) ? 'Edit Campaign' : 'New Campaign'}
         width={640}
       >
-        {editing && <CampaignEditor campaign={editing} onSave={saveCampaign} onCancel={() => setEditing(null)} />}
-      </SlidePanel>
-
-      {/* ═══ ENROLL PANEL ═══ */}
-      <SlidePanel
-        open={!!enrollPanel}
-        onClose={() => { setEnrollPanel(null); setContactSearch('') }}
-        title="Enroll Contacts"
-        subtitle={campaigns.find(c => c.id === enrollPanel)?.name}
-        width={480}
-      >
-        {enrollPanel && (
-          <div className="sc-enroll-panel">
-            <Input
-              placeholder="Search contacts..."
-              value={contactSearch}
-              onChange={e => setContactSearch(e.target.value)}
-            />
-            <div className="sc-enroll-list">
-              {allContacts
-                .filter(c => {
-                  if (!contactSearch) return true
-                  const q = contactSearch.toLowerCase()
-                  return (c.name || '').toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q) || (c.phone || '').includes(q)
-                })
-                .map(c => {
-                  const alreadyEnrolled = enrollments.some(e => e.campaign_id === enrollPanel && e.contact_id === c.id && e.status === 'active')
-                  const pastEnrollments = enrollments.filter(e => e.contact_id === c.id)
-                  return (
-                    <div key={c.id} className={`sc-enroll-contact ${alreadyEnrolled ? 'sc-enroll-contact--enrolled' : ''}`}>
-                      <div className="sc-enroll-contact__info">
-                        <div className="sc-enroll-contact__name">{c.name}</div>
-                        <div className="sc-enroll-contact__detail">{c.email} {c.phone ? `· ${c.phone}` : ''}</div>
-                        {pastEnrollments.length > 0 && (
-                          <div className="sc-enroll-contact__campaigns">
-                            {pastEnrollments.map(e => (
-                              <span key={e.id} className="sc-enroll-contact__campaign-tag" data-status={e.status}>
-                                {e.campaign_name} ({e.status})
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <Button
-                        size="sm"
-                        variant={alreadyEnrolled ? 'ghost' : 'primary'}
-                        disabled={alreadyEnrolled}
-                        onClick={() => enrollContact(enrollPanel, c)}
-                      >
-                        {alreadyEnrolled ? 'Enrolled' : 'Enroll'}
-                      </Button>
-                    </div>
-                  )
-                })}
-            </div>
-          </div>
+        {editing && (
+          <CampaignEditor
+            campaign={editing}
+            onSave={saveCampaign}
+            onCancel={() => setEditing(null)}
+            tags={allTags}
+            campaigns={campaigns}
+          />
         )}
       </SlidePanel>
+
+      {/* ═══ ENROLL MODAL (tabbed: By Tag / By Segment / Pick Contacts) ═══ */}
+      <EnrollModal
+        open={!!enrollPanel}
+        onClose={() => setEnrollPanel(null)}
+        campaign={campaigns.find(c => c.id === enrollPanel) || null}
+        contacts={allContacts}
+        contactsWithTags={allContactsWithTags}
+        tags={allTags}
+        existingEnrollments={enrollments}
+        onEnrolled={() => { reload() }}
+      />
 
       {/* ═══ ENROLLMENT DETAIL PANEL ═══ */}
       <SlidePanel
@@ -840,7 +839,7 @@ export default function SmartCampaigns() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // Campaign Editor Sub-Component
 // ═══════════════════════════════════════════════════════════════════════════════
-function CampaignEditor({ campaign, onSave, onCancel }) {
+function CampaignEditor({ campaign, onSave, onCancel, tags = [], campaigns = [] }) {
   const [form, setForm] = useState({ ...campaign })
   const [expandedStep, setExpandedStep] = useState(null)
 
@@ -849,15 +848,24 @@ function CampaignEditor({ campaign, onSave, onCancel }) {
   const addStep = (type = 'email') => {
     const steps = [...(form.steps || [])]
     const order = steps.length + 1
-    steps.push({
+    const base = {
       id: uid(),
       order,
       type,
       delay_days: order === 1 ? 0 : 3,
       delay_label: order === 1 ? 'Immediately' : '3 days later',
-      subject: type === 'email' ? '' : undefined,
-      body: '',
-    })
+    }
+    if (type === 'email') {
+      steps.push({ ...base, subject: '', body: '' })
+    } else if (type === 'manual_email') {
+      steps.push({ ...base, subject: '', body: '', requires_approval: true })
+    } else if (type === 'sms') {
+      steps.push({ ...base, body: '' })
+    } else if (type === 'task') {
+      steps.push({ ...base, task_title: '', task_notes: '', task_link: '' })
+    } else {
+      steps.push({ ...base, body: '' })
+    }
     setForm(prev => ({ ...prev, steps }))
     setExpandedStep(steps.length - 1)
   }
@@ -916,11 +924,20 @@ function CampaignEditor({ campaign, onSave, onCancel }) {
         </p>
       </div>
 
+      {/* ─── Triggers section (only meaningful for saved campaigns) ─── */}
+      <TriggerPicker
+        campaignId={form.id}
+        tags={tags}
+        campaigns={campaigns.filter(c => c.id !== form.id)}
+      />
+
       <div className="sc-editor__steps-header">
         <h4>Steps ({form.steps?.length ?? 0})</h4>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <Button size="sm" onClick={() => addStep('email')}>+ Email</Button>
           <Button size="sm" variant="ghost" onClick={() => addStep('sms')}>+ SMS</Button>
+          <Button size="sm" variant="ghost" onClick={() => addStep('manual_email')}>+ Manual Email</Button>
+          <Button size="sm" variant="ghost" onClick={() => addStep('task')}>+ Task</Button>
         </div>
       </div>
 
@@ -933,7 +950,10 @@ function CampaignEditor({ campaign, onSave, onCancel }) {
               <div className="sc-step-card__summary">
                 <span className="sc-step-card__type-label">{STEP_TYPES[step.type]?.label}</span>
                 <span className="sc-step-card__delay">{step.delay_label || `${step.delay_days}d`}</span>
-                {step.subject && <span className="sc-step-card__subject-preview">{step.subject}</span>}
+                {step.type === 'task'
+                  ? step.task_title && <span className="sc-step-card__subject-preview">{step.task_title}</span>
+                  : step.subject && <span className="sc-step-card__subject-preview">{step.subject}</span>
+                }
               </div>
               <div className="sc-step-card__controls">
                 <button onClick={e => { e.stopPropagation(); moveStep(idx, -1) }} disabled={idx === 0} title="Move up">↑</button>
@@ -944,35 +964,100 @@ function CampaignEditor({ campaign, onSave, onCancel }) {
             {expandedStep === idx && (
               <div className="sc-step-card__body">
                 <div className="sc-step-card__row">
-                  <Select label="Type" value={step.type} onChange={e => updateStep(idx, { type: e.target.value, subject: e.target.value === 'sms' ? undefined : (step.subject || '') })}>
-                    <option value="email">Email</option>
+                  <Select label="Type" value={step.type} onChange={e => updateStep(idx, { type: e.target.value })}>
+                    <option value="email">Email (auto-send)</option>
+                    <option value="manual_email">Manual Email (requires approval)</option>
                     <option value="sms">SMS</option>
+                    <option value="task">Task (reminder only)</option>
                   </Select>
                   <Select label="Send After" value={step.delay_days} onChange={e => updateStep(idx, { delay_days: Number(e.target.value) })}>
                     {DELAY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </Select>
                 </div>
-                {step.type === 'email' && (
-                  <Input label="Subject Line" value={step.subject || ''} onChange={e => updateStep(idx, { subject: e.target.value })} placeholder="e.g., Welcome! Let's get started" />
-                )}
-                <Textarea label={step.type === 'sms' ? 'Message' : 'Email Body'} value={step.body || ''} onChange={e => updateStep(idx, { body: e.target.value })} rows={step.type === 'sms' ? 3 : 8} placeholder={step.type === 'sms' ? 'Keep SMS under 160 characters for best delivery' : 'Write your email content here...'} />
 
-                {step.type === 'email' && (
-                  <EmailTemplatePicker
-                    currentTemplate={step.email_blocks ? { blocks: step.email_blocks, settings: step.email_settings } : null}
-                    onSelect={(tpl) => updateStep(idx, { email_blocks: tpl.blocks, email_settings: tpl.settings })}
-                    onClear={() => updateStep(idx, { email_blocks: null, email_settings: null })}
+                {/* ─── Task step editor ──────────────────────────────── */}
+                {step.type === 'task' && (
+                  <>
+                    <Input
+                      label="Task Title"
+                      value={step.task_title || ''}
+                      onChange={e => updateStep(idx, { task_title: e.target.value })}
+                      placeholder="e.g., Call to follow up on showing"
+                    />
+                    <Textarea
+                      label="Task Notes"
+                      value={step.task_notes || ''}
+                      onChange={e => updateStep(idx, { task_notes: e.target.value })}
+                      rows={3}
+                      placeholder="What needs to be done, and why?"
+                    />
+                    <Input
+                      label="Link (optional)"
+                      value={step.task_link || ''}
+                      onChange={e => updateStep(idx, { task_link: e.target.value })}
+                      placeholder="https://... or /crm/buyers"
+                    />
+                    <p style={{ fontSize: 12, color: '#888', margin: '4px 0 0' }}>
+                      Task steps don't send anything — they appear in your Send Queue
+                      as a todo when the step becomes due.
+                    </p>
+                  </>
+                )}
+
+                {/* ─── Email + Manual Email editor ───────────────────── */}
+                {(step.type === 'email' || step.type === 'manual_email') && (
+                  <>
+                    {step.type === 'manual_email' && (
+                      <div className="sc-step-card__badge-row">
+                        <Badge variant="warning" size="sm">Requires Approval</Badge>
+                        <span style={{ fontSize: 12, color: '#888' }}>
+                          Will never auto-send. Shows in Send Queue for you to review.
+                        </span>
+                      </div>
+                    )}
+                    <Input
+                      label="Subject Line"
+                      value={step.subject || ''}
+                      onChange={e => updateStep(idx, { subject: e.target.value })}
+                      placeholder="e.g., Welcome! Let's get started"
+                    />
+                    <Textarea
+                      label="Email Body"
+                      value={step.body || ''}
+                      onChange={e => updateStep(idx, { body: e.target.value })}
+                      rows={8}
+                      placeholder="Write your email content here..."
+                    />
+                    <EmailTemplatePicker
+                      currentTemplate={step.email_blocks ? { blocks: step.email_blocks, settings: step.email_settings } : null}
+                      onSelect={(tpl) => updateStep(idx, { email_blocks: tpl.blocks, email_settings: tpl.settings })}
+                      onClear={() => updateStep(idx, { email_blocks: null, email_settings: null })}
+                    />
+                  </>
+                )}
+
+                {/* ─── SMS editor ────────────────────────────────────── */}
+                {step.type === 'sms' && (
+                  <Textarea
+                    label="Message"
+                    value={step.body || ''}
+                    onChange={e => updateStep(idx, { body: e.target.value })}
+                    rows={3}
+                    placeholder="Keep SMS under 160 characters for best delivery"
                   />
                 )}
-                <div className="sc-step-card__vars">
-                  <span className="sc-step-card__vars-label">Variables:</span>
-                  {TEMPLATE_VARS.map(v => (
-                    <button key={v} className="sc-var-tag" onClick={() => {
-                      const field = step.type === 'sms' || !step.subject ? 'body' : 'body'
-                      updateStep(idx, { [field]: (step[field] || '') + ` ${v}` })
-                    }}>{v}</button>
-                  ))}
-                </div>
+
+                {/* ─── Variable insert chips (not shown for task) ────── */}
+                {step.type !== 'task' && (
+                  <div className="sc-step-card__vars">
+                    <span className="sc-step-card__vars-label">Variables:</span>
+                    {TEMPLATE_VARS.map(v => (
+                      <button key={v} className="sc-var-tag" onClick={() => {
+                        updateStep(idx, { body: (step.body || '') + ` ${v}` })
+                      }}>{v}</button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

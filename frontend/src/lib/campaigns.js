@@ -142,6 +142,97 @@ export async function listEnrollments() {
   )
 }
 
+/**
+ * Bulk enroll many contacts into a campaign. Idempotent and suppression-aware.
+ * Returns { enrolled: [...rows], skipped: [{ contact_id, reason }] }.
+ *
+ * Skip reasons:
+ *   - 'already_active'   — already has an active enrollment in this campaign
+ *   - 'suppressed'       — email is in email_suppressions
+ *   - 'no_contact'       — contact_id does not exist / is soft-deleted
+ */
+export async function enrollContacts(campaignId, contactIds) {
+  if (!campaignId) throw new Error('enrollContacts requires campaignId')
+  const ids = Array.from(new Set((contactIds || []).filter(Boolean)))
+  if (!ids.length) return { enrolled: [], skipped: [] }
+
+  // Load contacts (only live rows) so we can read email for suppression check
+  const contacts = await run(
+    supabase.from('contacts')
+      .select('id, name, email, deleted_at, archived_at')
+      .in('id', ids)
+  )
+  const liveById = new Map(
+    contacts
+      .filter(c => !c.deleted_at && !c.archived_at)
+      .map(c => [c.id, c])
+  )
+
+  // Existing active enrollments for this campaign
+  const existing = await run(
+    supabase.from('campaign_enrollments')
+      .select('contact_id')
+      .eq('campaign_id', campaignId)
+      .eq('status', 'active')
+      .in('contact_id', ids)
+  )
+  const alreadyActive = new Set(existing.map(r => r.contact_id))
+
+  // Suppression check (by email)
+  const emails = [...liveById.values()].map(c => (c.email || '').toLowerCase().trim()).filter(Boolean)
+  const suppressedSet = new Set()
+  if (emails.length) {
+    const sup = await run(
+      supabase.from('email_suppressions').select('email').in('email', emails)
+    )
+    for (const s of sup) suppressedSet.add((s.email || '').toLowerCase().trim())
+  }
+
+  const skipped = []
+  const toInsert = []
+  for (const id of ids) {
+    const c = liveById.get(id)
+    if (!c) { skipped.push({ contact_id: id, reason: 'no_contact' }); continue }
+    if (alreadyActive.has(id)) { skipped.push({ contact_id: id, reason: 'already_active' }); continue }
+    const email = (c.email || '').toLowerCase().trim()
+    if (email && suppressedSet.has(email)) { skipped.push({ contact_id: id, reason: 'suppressed' }); continue }
+    toInsert.push({
+      campaign_id: campaignId,
+      contact_id: id,
+      status: 'active',
+      current_step: 0,
+      next_send_at: new Date().toISOString(),
+      enrolled_at: new Date().toISOString(),
+    })
+  }
+
+  let enrolled = []
+  if (toInsert.length) {
+    enrolled = await run(
+      supabase.from('campaign_enrollments').insert(toInsert).select()
+    )
+    // Audit log rows (fire-and-forget — don't block on errors)
+    const campaign = await run(
+      supabase.from('campaigns').select('name').eq('id', campaignId).maybeSingle()
+    )
+    const auditRows = enrolled.map(e => ({
+      enrollment_id: e.id,
+      campaign_id: campaignId,
+      contact_id: e.contact_id,
+      contact_name: liveById.get(e.contact_id)?.name || '',
+      campaign_name: campaign?.name || '',
+      action: 'enrolled',
+      detail: 'Bulk enrolled in campaign',
+    }))
+    if (auditRows.length) {
+      try { await run(supabase.from('campaign_audit_log').insert(auditRows)) }
+      catch (err) { console.warn('[enrollContacts] audit log failed:', err.message) }
+    }
+  }
+
+  return { enrolled, skipped }
+}
+
 /** Enroll a contact into a campaign. Idempotent — no double active enrollment. */
 export async function enrollContact(campaignId, contactId) {
   // Check for existing active enrollment
@@ -318,6 +409,64 @@ export async function listAllStepHistory() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Campaign Triggers (auto-enrollment on events)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** List every trigger attached to a campaign. */
+export async function listTriggersForCampaign(campaignId) {
+  return run(
+    supabase.from('campaign_triggers')
+      .select('*')
+      .eq('campaign_id', campaignId)
+      .order('created_at', { ascending: true })
+  )
+}
+
+/** List all triggers across all campaigns. */
+export async function listAllTriggers() {
+  return run(
+    supabase.from('campaign_triggers').select('*').order('created_at', { ascending: false })
+  )
+}
+
+/** Create a new trigger. config is an arbitrary JSONB (tag_id, type_to, etc.). */
+export async function createTrigger({ campaign_id, trigger_type, config = {}, enabled = true }) {
+  return run(
+    supabase.from('campaign_triggers')
+      .insert({ campaign_id, trigger_type, config, enabled })
+      .select().single()
+  )
+}
+
+/** Update an existing trigger's config or enabled state. */
+export async function updateTrigger(id, updates) {
+  return run(
+    supabase.from('campaign_triggers')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id).select().single()
+  )
+}
+
+/** Remove a trigger. */
+export async function deleteTrigger(id) {
+  return run(supabase.from('campaign_triggers').delete().eq('id', id))
+}
+
+/** List the most recent trigger events (for the activity panel). */
+export async function listRecentTriggerEvents({ limit = 50, campaignId = null } = {}) {
+  let q = supabase.from('campaign_trigger_events')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (campaignId) {
+    // Events don't carry campaign_id directly — filter via resulting_enrollments join.
+    // Since we store resulting_enrollments as uuid[], Postgres can check containment
+    // but requires a different shape. For now, return all and let the UI filter.
+  }
+  return run(q)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Email suppressions
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -383,6 +532,11 @@ function stepClientToRow(s, campaignId, order) {
     body: s.body ?? null,
     email_blocks: s.email_blocks ?? null,
     email_settings: s.email_settings ?? null,
+    // B2: new step types
+    requires_approval: !!s.requires_approval,
+    task_title: s.task_title ?? null,
+    task_notes: s.task_notes ?? null,
+    task_link: s.task_link ?? null,
   }
 }
 
@@ -397,6 +551,11 @@ function stepRowToClient(r) {
     body: r.body,
     email_blocks: r.email_blocks,
     email_settings: r.email_settings,
+    // B2
+    requires_approval: !!r.requires_approval,
+    task_title: r.task_title ?? null,
+    task_notes: r.task_notes ?? null,
+    task_link: r.task_link ?? null,
   }
 }
 
