@@ -39,29 +39,69 @@ export const deleteContact = async (id) => {
 export const getProperties  = ()      => query(supabase.from('properties').select('*')
   .is('deleted_at', null).is('archived_at', null).order('address'))
 
-/** Find existing property by normalized address (using DB column) or create new.
- *  Also short-circuits on MLS-id match. Returns the property id. */
-export async function ensureProperty({ address, city = null, zip = null, mls_id = null, price = null, dom = null, expired_date = null }) {
-  if (!address?.trim()) throw new Error('Address is required')
+/** Find existing property by google_place_id (preferred), MLS id, or normalized address.
+ *  Creates a new row if no match. Returns the property id.
+ *
+ *  Accepts a `place` object from AddressAutocomplete (placeToProperty output) OR the
+ *  legacy {address, city, zip} shape for manual entry / Airtable migration.
+ */
+export async function ensureProperty({
+  google_place_id = null,
+  formatted_address = null,
+  latitude = null,
+  longitude = null,
+  address,
+  city = null,
+  zip = null,
+  state = 'AZ',
+  neighborhood = null,
+  county = null,
+  mls_id = null,
+  price = null,
+  dom = null,
+  expired_date = null,
+}) {
+  if (!google_place_id && !address?.trim()) {
+    throw new Error('Either google_place_id or address is required')
+  }
 
-  // 1. MLS-id exact match (#7)
+  // 1. Google place_id exact match — preferred canonical key
+  if (google_place_id) {
+    const { data: byPlace } = await supabase.from('properties').select('id')
+      .eq('google_place_id', google_place_id).is('deleted_at', null).limit(1)
+    if (byPlace?.length > 0) return byPlace[0].id
+  }
+
+  // 2. MLS-id exact match
   if (mls_id?.trim()) {
     const { data: byMls } = await supabase.from('properties').select('id')
       .eq('mls_id', mls_id.trim()).is('deleted_at', null).limit(1)
     if (byMls?.length > 0) return byMls[0].id
   }
 
-  // 2. Normalized-address match (#8) — relies on the generated column
-  const norm = address.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-  let normQ = supabase.from('properties').select('id')
-    .eq('normalized_address', norm).is('deleted_at', null).limit(1)
-  if (zip) normQ = normQ.eq('zip', zip)
-  const { data: byNorm } = await normQ
-  if (byNorm?.length > 0) return byNorm[0].id
+  // 3. Normalized-address match (fallback for legacy rows without place_id)
+  if (address?.trim()) {
+    const norm = address.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+    let normQ = supabase.from('properties').select('id')
+      .eq('normalized_address', norm).is('deleted_at', null).limit(1)
+    if (zip) normQ = normQ.eq('zip', zip)
+    const { data: byNorm } = await normQ
+    if (byNorm?.length > 0) return byNorm[0].id
+  }
 
-  // 3. Create
+  // 4. Create — store every Google field we have so future dedupe is easy
   const result = await createProperty({
-    address: address.trim(), city, state: 'AZ', zip, mls_id,
+    google_place_id,
+    formatted_address,
+    latitude,
+    longitude,
+    address: address?.trim() || formatted_address || '',
+    city,
+    state,
+    zip,
+    neighborhood,
+    county,
+    mls_id,
     price: price ? Number(price) : null,
     dom: dom ? Number(dom) : null,
     expired_date,
@@ -307,7 +347,13 @@ export const deleteContentPillar = (id) =>
 // ─── Content Pieces ───────────────────────────────────────────────────────────
 export const getContentPieces = (fromDate, toDate) =>
   query(supabase.from('content_pieces')
-    .select('*, platform_posts:content_platform_posts(*)')
+    .select(`
+      *,
+      platform_posts:content_platform_posts(*),
+      listing:listings(id, property:properties(id,address,city)),
+      property:properties(id,address,city),
+      open_house:open_houses(id,date,start_time,end_time,property:properties(id,address))
+    `)
     .gte('content_date', fromDate)
     .lte('content_date', toDate)
     .order('content_date'))
@@ -320,6 +366,148 @@ export const deleteContentPiece = (id) =>
 export const upsertContentPlatformPost = (d) =>
   query(supabase.from('content_platform_posts')
     .upsert(d, { onConflict: 'content_id,platform' }).select().single())
+
+/** Update per-post stats (views, reach, likes, etc.) */
+export const updateContentPostStats = (id, stats) =>
+  query(supabase.from('content_platform_posts').update({
+    ...stats,
+    stats_updated_at: new Date().toISOString(),
+  }).eq('id', id).select().single())
+
+// ─── Auto-sync social stats (Apify) ──────────────────────────────────────────
+/** Invokes the fetch-social-stats edge function for one platform.
+ *  Returns { ok, platform, profile, posts } or throws. */
+export async function fetchSocialStatsFromApify({ platform, handle, apifyKey, limit = 30 }) {
+  const { data, error } = await supabase.functions.invoke('fetch-social-stats', {
+    body: { platform, handle, apify_key: apifyKey, limit },
+  })
+  if (error) throw new Error(error.message)
+  if (!data?.ok) throw new Error(data?.error || 'Unknown sync error')
+  return data
+}
+
+/** Given scraped posts, attempt to match them to existing content_platform_posts
+ *  rows by post_url and update stats. Returns number of matches updated. */
+export async function applyScrapedPostStats(platform, scrapedPosts) {
+  if (!scrapedPosts?.length) return 0
+
+  // Fetch existing platform posts for this platform with a non-null post_url
+  const { data: existing, error } = await supabase
+    .from('content_platform_posts')
+    .select('id, content_id, post_url')
+    .eq('platform', platform)
+    .not('post_url', 'is', null)
+  if (error) throw error
+
+  const byUrl = new Map()
+  for (const row of existing ?? []) {
+    if (row.post_url) byUrl.set(normalizePostUrl(row.post_url), row)
+  }
+
+  let matched = 0
+  for (const sp of scrapedPosts) {
+    if (!sp.post_url) continue
+    const key = normalizePostUrl(sp.post_url)
+    const row = byUrl.get(key)
+    if (!row) continue
+    await updateContentPostStats(row.id, {
+      views:       sp.views       || 0,
+      reach:       sp.reach       || 0,
+      impressions: sp.impressions || 0,
+      likes:       sp.likes       || 0,
+      comments:    sp.comments    || 0,
+      shares:      sp.shares      || 0,
+      saves:       sp.saves       || 0,
+      clicks:      0,
+      stats_source: 'apify',
+    })
+    matched++
+  }
+  return matched
+}
+
+function normalizePostUrl(url) {
+  try {
+    const u = new URL(url)
+    // Strip trailing slashes, query string, fragment
+    return (u.origin + u.pathname).replace(/\/$/, '').toLowerCase()
+  } catch {
+    return String(url || '').trim().toLowerCase()
+  }
+}
+
+/** Upsert a weekly social_metrics row from a scraped profile + post list. */
+export async function upsertSocialMetricsFromScrape(platform, profile, posts, source = 'apify') {
+  const sunday = getLastSunday()
+  const agg = {
+    likes:    0, comments: 0, shares: 0, saves: 0,
+    reach:    0, impressions: 0,
+  }
+  for (const p of posts ?? []) {
+    agg.likes    += p.likes    || 0
+    agg.comments += p.comments || 0
+    agg.shares   += p.shares   || 0
+    agg.saves    += p.saves    || 0
+    agg.reach    += p.reach    || 0
+    agg.impressions += p.impressions || 0
+  }
+  const topPosts = (posts ?? [])
+    .slice()
+    .sort((a, b) => (b.likes + b.comments) - (a.likes + a.comments))
+    .slice(0, 5)
+    .map(p => ({
+      type:     p.type,
+      caption:  (p.caption || '').slice(0, 280),
+      likes:    p.likes,
+      comments: p.comments,
+      shares:   p.shares,
+      saves:    p.saves,
+      views:    p.views,
+      post_url: p.post_url,
+    }))
+
+  const row = {
+    platform,
+    week_of:         sunday,
+    followers:       profile?.followers || 0,
+    followers_change: 0,
+    reach:           agg.reach,
+    impressions:     agg.impressions,
+    likes:           agg.likes,
+    comments:        agg.comments,
+    shares:          agg.shares,
+    saves:           agg.saves,
+    posts_count:     posts?.length || 0,
+    top_posts:       topPosts,
+    extra:           { profile },
+    source,
+    updated_at:      new Date().toISOString(),
+  }
+
+  return query(supabase.from('social_metrics')
+    .upsert(row, { onConflict: 'platform,week_of' }).select().single())
+}
+
+function getLastSunday() {
+  const d = new Date()
+  d.setDate(d.getDate() - d.getDay())
+  d.setHours(0, 0, 0, 0)
+  return d.toISOString().slice(0, 10)
+}
+
+/** Full one-shot sync: fetch → match posts → upsert weekly metrics.
+ *  Returns { platform, matched, posts_count, profile }. */
+export async function syncSocialPlatform({ platform, handle, apifyKey }) {
+  const data = await fetchSocialStatsFromApify({ platform, handle, apifyKey })
+  const matched = await applyScrapedPostStats(platform, data.posts)
+  await upsertSocialMetricsFromScrape(platform, data.profile, data.posts)
+  return {
+    platform,
+    matched,
+    posts_count: data.posts?.length || 0,
+    profile: data.profile,
+  }
+}
 
 // ─── Auto Stats for Daily Tracker ────────────────────────────────────────────
 export async function getAutoStatsForDate(date) {
