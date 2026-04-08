@@ -104,58 +104,78 @@ end;
 $$ language plpgsql;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- Trigger: contact_tags INSERT → tag_added
+-- Trigger: contact_tags INSERT / DELETE → tag_added / tag_removed
+-- (Conditional on the table existing — skip silently if contact_tags hasn't
+--  been created yet in this project.)
 -- ═══════════════════════════════════════════════════════════════════════════
-create or replace function trg_contact_tags_added() returns trigger as $$
+do $$
 begin
-  perform emit_trigger_event(
-    'tag_added',
-    new.contact_id,
-    'contact_tags',
-    new.contact_id,  -- contact_tags has composite key, use contact_id as source_id
-    jsonb_build_object('tag_id', new.tag_id)
-  );
-  return new;
-end;
-$$ language plpgsql;
+  if exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'contact_tags'
+  ) then
+    -- INSERT → tag_added
+    execute $f$
+      create or replace function trg_contact_tags_added() returns trigger as $body$
+      begin
+        perform emit_trigger_event(
+          'tag_added',
+          new.contact_id,
+          'contact_tags',
+          new.contact_id,
+          jsonb_build_object('tag_id', new.tag_id)
+        );
+        return new;
+      end;
+      $body$ language plpgsql;
+    $f$;
+    execute 'drop trigger if exists trg_contact_tags_ins on contact_tags';
+    execute 'create trigger trg_contact_tags_ins
+      after insert on contact_tags
+      for each row execute function trg_contact_tags_added()';
 
-drop trigger if exists trg_contact_tags_ins on contact_tags;
-create trigger trg_contact_tags_ins
-  after insert on contact_tags
-  for each row execute function trg_contact_tags_added();
-
--- ═══════════════════════════════════════════════════════════════════════════
--- Trigger: contact_tags DELETE → tag_removed
--- ═══════════════════════════════════════════════════════════════════════════
-create or replace function trg_contact_tags_removed() returns trigger as $$
-begin
-  perform emit_trigger_event(
-    'tag_removed',
-    old.contact_id,
-    'contact_tags',
-    old.contact_id,
-    jsonb_build_object('tag_id', old.tag_id)
-  );
-  return old;
-end;
-$$ language plpgsql;
-
-drop trigger if exists trg_contact_tags_del on contact_tags;
-create trigger trg_contact_tags_del
-  after delete on contact_tags
-  for each row execute function trg_contact_tags_removed();
+    -- DELETE → tag_removed
+    execute $f$
+      create or replace function trg_contact_tags_removed() returns trigger as $body$
+      begin
+        perform emit_trigger_event(
+          'tag_removed',
+          old.contact_id,
+          'contact_tags',
+          old.contact_id,
+          jsonb_build_object('tag_id', old.tag_id)
+        );
+        return old;
+      end;
+      $body$ language plpgsql;
+    $f$;
+    execute 'drop trigger if exists trg_contact_tags_del on contact_tags';
+    execute 'create trigger trg_contact_tags_del
+      after delete on contact_tags
+      for each row execute function trg_contact_tags_removed()';
+  else
+    raise notice 'contact_tags table not found — tag_added / tag_removed triggers skipped';
+  end if;
+end $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Trigger: contacts INSERT → contact_created
+-- Uses to_jsonb(new) for defensive field access in case columns vary.
 -- ═══════════════════════════════════════════════════════════════════════════
 create or replace function trg_contacts_created() returns trigger as $$
+declare
+  row_data jsonb;
 begin
+  row_data := to_jsonb(new);
   perform emit_trigger_event(
     'contact_created',
     new.id,
     'contacts',
     new.id,
-    jsonb_build_object('type', new.type, 'source', coalesce(new.source, ''))
+    jsonb_build_object(
+      'type',   coalesce(row_data->>'type', ''),
+      'source', coalesce(row_data->>'source', '')
+    )
   );
   return new;
 end;
@@ -167,29 +187,42 @@ create trigger trg_contacts_created
   for each row execute function trg_contacts_created();
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- Trigger: contacts UPDATE → type_changed / status_changed / bba_signed
+-- Trigger: contacts UPDATE → type_changed / bba_signed
+-- Uses to_jsonb(new)/to_jsonb(old) so missing columns don't break the function.
 -- ═══════════════════════════════════════════════════════════════════════════
 create or replace function trg_contacts_updated() returns trigger as $$
+declare
+  old_data jsonb;
+  new_data jsonb;
+  old_type text;
+  new_type text;
+  old_bba  boolean;
+  new_bba  boolean;
 begin
-  -- type change
-  if new.type is distinct from old.type then
+  old_data := to_jsonb(old);
+  new_data := to_jsonb(new);
+
+  old_type := old_data->>'type';
+  new_type := new_data->>'type';
+  if new_type is distinct from old_type then
     perform emit_trigger_event(
       'contact_type_changed',
       new.id,
       'contacts',
       new.id,
-      jsonb_build_object('from', coalesce(old.type, ''), 'to', coalesce(new.type, ''))
+      jsonb_build_object('from', coalesce(old_type, ''), 'to', coalesce(new_type, ''))
     );
   end if;
 
-  -- BBA just got signed (false → true)
-  if coalesce(new.bba_signed, false) = true and coalesce(old.bba_signed, false) = false then
+  old_bba := (old_data->>'bba_signed')::boolean;
+  new_bba := (new_data->>'bba_signed')::boolean;
+  if coalesce(new_bba, false) = true and coalesce(old_bba, false) = false then
     perform emit_trigger_event(
       'bba_signed',
       new.id,
       'contacts',
       new.id,
-      jsonb_build_object('expiry_date', new.bba_expiry_date)
+      jsonb_build_object('expiry_date', new_data->>'bba_expiry_date')
     );
   end if;
 
@@ -204,15 +237,29 @@ create trigger trg_contacts_updated
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Trigger: listings UPDATE → lifecycle events
+-- Defensive: uses to_jsonb() to tolerate missing columns.
 -- ═══════════════════════════════════════════════════════════════════════════
 create or replace function trg_listings_updated() returns trigger as $$
+declare
+  old_data jsonb;
+  new_data jsonb;
+  old_agreement boolean;
+  new_agreement boolean;
+  old_status text;
+  new_status text;
+  listing_contact uuid;
 begin
+  old_data := to_jsonb(old);
+  new_data := to_jsonb(new);
+  listing_contact := (new_data->>'contact_id')::uuid;
+
   -- Listing agreement signed
-  if coalesce(new.listing_agreement_signed, false) = true
-     and coalesce(old.listing_agreement_signed, false) = false then
+  old_agreement := (old_data->>'listing_agreement_signed')::boolean;
+  new_agreement := (new_data->>'listing_agreement_signed')::boolean;
+  if coalesce(new_agreement, false) = true and coalesce(old_agreement, false) = false then
     perform emit_trigger_event(
       'listing_agreement_signed',
-      new.contact_id,
+      listing_contact,
       'listings',
       new.id,
       jsonb_build_object('listing_id', new.id)
@@ -220,39 +267,17 @@ begin
   end if;
 
   -- Status changes
-  if new.status is distinct from old.status then
-    if new.status = 'active' then
-      perform emit_trigger_event(
-        'listing_active',
-        new.contact_id,
-        'listings',
-        new.id,
-        jsonb_build_object('listing_id', new.id)
-      );
-    elsif new.status = 'pending' then
-      perform emit_trigger_event(
-        'listing_under_contract',
-        new.contact_id,
-        'listings',
-        new.id,
-        jsonb_build_object('listing_id', new.id)
-      );
-    elsif new.status = 'closed' then
-      perform emit_trigger_event(
-        'listing_closed',
-        new.contact_id,
-        'listings',
-        new.id,
-        jsonb_build_object('listing_id', new.id)
-      );
-    elsif new.status = 'expired' then
-      perform emit_trigger_event(
-        'listing_expired',
-        new.contact_id,
-        'listings',
-        new.id,
-        jsonb_build_object('listing_id', new.id)
-      );
+  old_status := old_data->>'status';
+  new_status := new_data->>'status';
+  if new_status is distinct from old_status then
+    if new_status = 'active' then
+      perform emit_trigger_event('listing_active', listing_contact, 'listings', new.id, jsonb_build_object('listing_id', new.id));
+    elsif new_status = 'pending' then
+      perform emit_trigger_event('listing_under_contract', listing_contact, 'listings', new.id, jsonb_build_object('listing_id', new.id));
+    elsif new_status = 'closed' then
+      perform emit_trigger_event('listing_closed', listing_contact, 'listings', new.id, jsonb_build_object('listing_id', new.id));
+    elsif new_status = 'expired' then
+      perform emit_trigger_event('listing_expired', listing_contact, 'listings', new.id, jsonb_build_object('listing_id', new.id));
     end if;
   end if;
 
@@ -260,10 +285,19 @@ begin
 end;
 $$ language plpgsql;
 
-drop trigger if exists trg_listings_updated on listings;
-create trigger trg_listings_updated
-  after update on listings
-  for each row execute function trg_listings_updated();
+-- Only attach if listings table has a contact_id column
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'listings' and column_name = 'contact_id'
+  ) then
+    execute 'drop trigger if exists trg_listings_updated on listings';
+    execute 'create trigger trg_listings_updated after update on listings for each row execute function trg_listings_updated()';
+  else
+    raise notice 'listings.contact_id not found — trg_listings_updated skipped';
+  end if;
+end $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Trigger: listing_appointments INSERT / UPDATE → booked / completed
