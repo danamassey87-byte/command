@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from 'react'
 import { Button, Badge, SectionHeader, Card, Input, Select, Textarea, SlidePanel, EmptyState } from '../../components/ui/index.jsx'
 import { useVendors } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
-import { ROLE_GROUPS, ROLES, ROLE_BY_KEY, roleLabel, roleGroupFor } from '../../lib/vendorRoles.js'
+import { VENDOR_ROLE_GROUPS as ROLE_GROUPS, VENDOR_ROLES as ROLES, ROLE_BY_KEY, roleLabel, roleGroupFor } from '../../lib/vendorRoles.js'
 import './Vendors.css'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
