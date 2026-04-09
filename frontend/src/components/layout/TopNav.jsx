@@ -27,7 +27,7 @@ const NAV_ICONS = {
 const DEFAULT_NAV_ITEMS = [
   { id: 'home',     label: 'Home',     icon: NAV_ICONS.home,     path: '/',            activePaths: ['/', '/dashboard', '/goals', '/calendar', '/tasks'] },
   { id: 'prospect', label: 'Prospect', icon: NAV_ICONS.prospect, path: '/prospecting', activePaths: ['/prospecting', '/open-houses'] },
-  { id: 'people',   label: 'People',   icon: NAV_ICONS.people,   path: '/crm',         activePaths: ['/crm'] },
+  { id: 'people',   label: 'People',   icon: NAV_ICONS.people,   path: '/crm',         activePaths: ['/crm', '/vendors'] },
   { id: 'deals',    label: 'Deals',    icon: NAV_ICONS.deals,    path: '/pipeline',    activePaths: ['/pipeline'] },
   { id: 'content',  label: 'Content',  icon: NAV_ICONS.content,  path: '/content',     activePaths: ['/content', '/campaigns', '/email', '/bio-link'] },
   { id: 'money',    label: 'Money',    icon: NAV_ICONS.money,    path: '/pnl',         activePaths: ['/pnl', '/net-sheet', '/market'] },

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { SectionHeader, Card, TabBar, Button, SlidePanel, Input, InfoTip } from '../../components/ui/index.jsx'
 import { useWeeklyStats, useGoalTargets } from '../../lib/hooks.js'
 import { createWeeklyStats, updateWeeklyStats, updateGoalTargets } from '../../lib/supabase.js'
+import KpiHeatmap from './KpiHeatmap.jsx'
 import './Goals.css'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -636,6 +637,15 @@ export default function Goals() {
       )}
 
       <HeroKPIs stats={stats} weekNum={weekNum} fields={effectiveFields} />
+
+      <KpiHeatmap
+        stats={stats}
+        fields={effectiveFields}
+        weekNum={weekNum}
+        weeks={WEEKS}
+        groups={GROUPS}
+        plannedWeeks={PLANNED_WEEKS}
+      />
 
       <ScoreboardCard stats={stats} weekNum={weekNum} fields={effectiveFields} />
 

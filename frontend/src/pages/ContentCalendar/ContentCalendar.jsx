@@ -1,24 +1,12 @@
 import { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import * as DB from '../../lib/supabase'
-import { useContentPillars, useContentPieces, useContentSettings, useClientAvatars } from '../../lib/hooks'
-import { Button, SlidePanel, Input, Select, Textarea, InfoTip } from '../../components/ui'
+import {
+  useContentPieces, useContentPillars, useOpenHouses, useListings, useProperties,
+} from '../../lib/hooks'
+import { SlidePanel, Input, Select } from '../../components/ui'
+import { ChannelIcon, channelMeta, CHANNEL_META } from './channelIcons'
 import './ContentCalendar.css'
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-const PLATFORMS = [
-  { key: 'instagram', label: 'Instagram',  icon: '📷', hint: 'Caption up to 2,200 chars. Use emojis & hashtags.' },
-  { key: 'facebook',  label: 'Facebook',   icon: '👥', hint: 'Conversational tone. Great for longer stories.' },
-  { key: 'tiktok',    label: 'TikTok',     icon: '🎵', hint: 'Hook first sentence. Short, punchy, trending sounds.' },
-  { key: 'youtube',   label: 'YouTube',    icon: '▶️', hint: 'Script or description for Shorts / long-form video.' },
-  { key: 'linkedin',  label: 'LinkedIn',   icon: '💼', hint: 'Professional tone. Great for market insights.' },
-  { key: 'email',     label: 'Email',      icon: '📧', hint: 'Subject line + body. Personal and direct.' },
-  { key: 'twitter',   label: 'Twitter/X',  icon: '🐦', hint: 'Under 280 chars per tweet. Thread-friendly.' },
-  { key: 'stories',   label: 'Stories',    icon: '📱', hint: 'IG/FB Stories — short, visual, 24-hour content.' },
-  { key: 'blog',      label: 'Blog',       icon: '✍️', hint: 'Long-form SEO content. 800-1,500 words with keywords.' },
-  { key: 'gmb',       label: 'GMB',        icon: '📍', hint: 'Google My Business post. Short, local, with a CTA.' },
-]
-
-const STATUSES = ['idea', 'draft', 'scheduled', 'published']
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 function getWeekStart(date) {
@@ -28,41 +16,83 @@ function getWeekStart(date) {
   d.setHours(0, 0, 0, 0)
   return d
 }
-function addDays(date, n) {
-  const d = new Date(date)
-  d.setDate(d.getDate() + n)
-  return d
-}
-function toISO(date) { return date.toISOString().slice(0, 10) }
-function fmtDay(date) { return date.toLocaleDateString('en-US', { weekday: 'short' }) }
+function addDays(date, n) { const d = new Date(date); d.setDate(d.getDate() + n); return d }
+function toISO(date)      { return date.toISOString().slice(0, 10) }
+function fmtDay(date)     { return date.toLocaleDateString('en-US', { weekday: 'short' }) }
+function fmtLong(date)    { return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }
 function fmtMonthYear(date) { return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ContentCalendar() {
-  const [tab, setTab]             = useState('calendar')
+  const [tab, setTab]             = useState('calendar') // 'calendar' | 'stats'
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
-  const [panelOpen, setPanelOpen] = useState(false)
-  const [panelPiece, setPanelPiece] = useState(null)  // existing piece or null for new
-  const [panelDate, setPanelDate]   = useState(null)  // pre-fill date for new
-  const [saving, setSaving]         = useState(false)
+  const [rangeMode, setRangeMode] = useState('week')     // 'week' | 'month' (stats tab)
+  const [selected, setSelected]   = useState(null)       // selected content piece
+  const [dragOverDay, setDragOverDay] = useState(null)
+  const [syncing, setSyncing]     = useState(false)
+  const [syncResult, setSyncResult] = useState(null)     // { matched, created_at, platforms }
 
+  // Range boundaries
   const weekEnd = addDays(weekStart, 6)
-  const { data: pieces,   refetch: refetchPieces   } = useContentPieces(toISO(weekStart), toISO(weekEnd))
-  const { data: pillars,  refetch: refetchPillars  } = useContentPillars()
-  const { data: settings, refetch: refetchSettings } = useContentSettings()
-  const { data: avatars,  refetch: refetchAvatars  } = useClientAvatars()
+  const statsStart = useMemo(() => {
+    if (rangeMode === 'week') return weekStart
+    const d = new Date(weekStart); d.setDate(1); d.setHours(0,0,0,0)
+    return d
+  }, [weekStart, rangeMode])
+  const statsEnd = useMemo(() => {
+    if (rangeMode === 'week') return weekEnd
+    const d = new Date(statsStart); d.setMonth(d.getMonth() + 1); d.setDate(0)
+    return d
+  }, [statsStart, rangeMode, weekEnd])
 
-  const activePlatforms = useMemo(() =>
-    settings?.value?.active_platforms ?? ['instagram', 'facebook'],
-    [settings]
-  )
-  const businessBrainUrl = settings?.value?.business_brain_url ?? ''
+  const fetchFrom = tab === 'stats' ? toISO(statsStart) : toISO(weekStart)
+  const fetchTo   = tab === 'stats' ? toISO(statsEnd)   : toISO(weekEnd)
+
+  const { data: pieces,     refetch: refetchPieces } = useContentPieces(fetchFrom, fetchTo)
+  const { data: pillars }                            = useContentPillars()
+  const { data: openHouses }                         = useOpenHouses()
+  const { data: listings }                           = useListings()
+  const { data: properties }                         = useProperties()
 
   const pillarMap = useMemo(() => {
     const m = {}
     for (const p of (pillars ?? [])) m[p.id] = p
     return m
   }, [pillars])
+
+  // Filter open houses into the week grid (always based on visible week, not stats range)
+  const weekStartISO = toISO(weekStart)
+  const weekEndISO   = toISO(weekEnd)
+  const openHousesThisWeek = useMemo(() => {
+    if (!openHouses) return {}
+    const m = {}
+    for (const oh of openHouses) {
+      if (!oh.date) continue
+      if (oh.date < weekStartISO || oh.date > weekEndISO) continue
+      if (!m[oh.date]) m[oh.date] = []
+      m[oh.date].push(oh)
+    }
+    return m
+  }, [openHouses, weekStartISO, weekEndISO])
+
+  // Group content pieces by date (week grid uses only the 7-day window)
+  const piecesByDate = useMemo(() => {
+    const m = {}
+    const source = (pieces ?? []).filter(p => p.content_date >= weekStartISO && p.content_date <= weekEndISO)
+    for (const p of source) {
+      if (!m[p.content_date]) m[p.content_date] = []
+      m[p.content_date].push(p)
+    }
+    for (const k of Object.keys(m)) {
+      m[k].sort((a, b) => {
+        const aListing = a.listing_id ? 0 : 1
+        const bListing = b.listing_id ? 0 : 1
+        if (aListing !== bListing) return aListing - bListing
+        return (a.channel || '').localeCompare(b.channel || '')
+      })
+    }
+    return m
+  }, [pieces, weekStartISO, weekEndISO])
 
   const weekDays = useMemo(() =>
     Array.from({ length: 7 }, (_, i) => {
@@ -71,150 +101,267 @@ export default function ContentCalendar() {
     }), [weekStart]
   )
 
-  const piecesByDate = useMemo(() => {
-    const m = {}
-    for (const p of (pieces ?? [])) {
-      if (!m[p.content_date]) m[p.content_date] = []
-      m[p.content_date].push(p)
-    }
-    return m
-  }, [pieces])
+  const totalPieces = Object.values(piecesByDate).flat().length
+  const totalOH     = Object.values(openHousesThisWeek).flat().length
 
-  function openNew(date) {
-    setPanelPiece(null)
-    setPanelDate(date ?? toISO(new Date()))
-    setPanelOpen(true)
+  // ─── Drag and drop ──────────────────────────────────────────────────────────
+  function handleDragStart(e, piece) {
+    e.dataTransfer.setData('text/plain', piece.id)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+  function handleDragOverDay(e, iso) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (dragOverDay !== iso) setDragOverDay(iso)
+  }
+  function handleDragLeaveDay(iso) {
+    if (dragOverDay === iso) setDragOverDay(null)
+  }
+  async function handleDropDay(e, iso) {
+    e.preventDefault()
+    setDragOverDay(null)
+    const id = e.dataTransfer.getData('text/plain')
+    if (!id) return
+    const piece = (pieces ?? []).find(p => p.id === id)
+    if (!piece || piece.content_date === iso) return
+    await DB.updateContentPiece(id, { content_date: iso })
+    await refetchPieces()
   }
 
-  function openPiece(piece) {
-    setPanelPiece(piece)
-    setPanelDate(null)
-    setPanelOpen(true)
+  // ─── Mutation helpers passed to detail panel ────────────────────────────────
+  async function handleUpdatePiece(patch) {
+    if (!selected) return
+    const updated = await DB.updateContentPiece(selected.id, patch)
+    await refetchPieces()
+    setSelected(s => ({ ...s, ...updated, ...patch }))
   }
 
-  function closePanel() {
-    setPanelOpen(false)
-    setPanelPiece(null)
-    setPanelDate(null)
-  }
-
-  async function handleSavePiece(draft, platformDrafts) {
-    setSaving(true)
+  async function handleSyncNow() {
+    setSyncing(true)
+    setSyncResult(null)
     try {
-      let piece
-      if (draft.id) {
-        piece = await DB.updateContentPiece(draft.id, {
-          title: draft.title, pillar_id: draft.pillar_id || null,
-          content_date: draft.content_date, status: draft.status,
-          body_text: draft.body_text, notes: draft.notes,
-        })
-      } else {
-        piece = await DB.createContentPiece({
-          title: draft.title, pillar_id: draft.pillar_id || null,
-          content_date: draft.content_date, status: draft.status || 'idea',
-          body_text: draft.body_text, notes: draft.notes,
-        })
+      const config = await DB.getSocialDashboardConfig().catch(() => null)
+      const cfg = config?.value || {}
+      const apifyKey = cfg.apify_key
+      const platformCfg = cfg.platform_config || {}
+
+      if (!apifyKey) {
+        throw new Error('No Apify key configured. Add one in Content → Social Media → Manage.')
       }
-      for (const [platform, adapted_text] of Object.entries(platformDrafts)) {
-        if (adapted_text.trim()) {
-          await DB.upsertContentPlatformPost({ content_id: piece.id, platform, adapted_text })
+
+      const enabled = Object.entries(platformCfg).filter(([, v]) =>
+        v?.enabled && v?.connection === 'apify' && v?.handle
+      )
+      if (enabled.length === 0) {
+        throw new Error('No platforms enabled for Apify sync. Enable Instagram or Facebook in Social Dashboard → Manage.')
+      }
+
+      const results = []
+      for (const [platform, pc] of enabled) {
+        if (platform !== 'instagram' && platform !== 'facebook') continue
+        try {
+          const r = await DB.syncSocialPlatform({ platform, handle: pc.handle, apifyKey })
+          results.push(r)
+        } catch (e) {
+          results.push({ platform, error: e.message })
         }
       }
+      setSyncResult({
+        at: new Date(),
+        platforms: results,
+        totalMatched: results.reduce((s, r) => s + (r.matched || 0), 0),
+      })
       await refetchPieces()
-      closePanel()
     } catch (e) {
-      alert(e.message)
+      setSyncResult({ at: new Date(), error: e.message })
     } finally {
-      setSaving(false)
+      setSyncing(false)
     }
   }
 
-  async function handleDeletePiece(id) {
-    if (!confirm('Delete this content piece?')) return
-    await DB.deleteContentPiece(id)
+  async function handleSavePlatformStats(platform, stats) {
+    if (!selected) return
+    // find or create platform_post row
+    let row = (selected.platform_posts ?? []).find(pp => pp.platform === platform)
+    if (!row) {
+      row = await DB.upsertContentPlatformPost({ content_id: selected.id, platform })
+    }
+    await DB.updateContentPostStats(row.id, stats)
     await refetchPieces()
-    closePanel()
+    setSelected(s => {
+      if (!s) return s
+      const others = (s.platform_posts ?? []).filter(pp => pp.platform !== platform)
+      return { ...s, platform_posts: [...others, { ...row, ...stats }] }
+    })
   }
 
   return (
     <div className="cc-page">
-      {/* Header */}
       <div className="cc-page-header">
         <div>
           <h1>Content Calendar</h1>
-          <p className="cc-page-sub">Plan, write, and repurpose content across every platform</p>
+          <p className="cc-page-sub">
+            Every post, open house, and listing campaign in one tracked place.
+          </p>
         </div>
         <div className="cc-page-actions">
-          {businessBrainUrl && (
-            <a href={businessBrainUrl} target="_blank" rel="noreferrer" className="cc-brain-btn">
-              📄 Business Brain
-            </a>
-          )}
-          <Button onClick={() => openNew(toISO(new Date()))}>+ New Post</Button>
+          <Link to="/content/planning" className="cc-brain-btn">Planning</Link>
+          <Link to="/content/ai-studio" className="cc-brain-btn">Content Studio</Link>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="cc-tabs">
-        {['calendar', 'pillars', 'avatars', 'settings'].map(t => (
-          <button
-            key={t}
-            className={`cc-tab${tab === t ? ' cc-tab--active' : ''}`}
-            onClick={() => setTab(t)}
-          >
-            {t.charAt(0).toUpperCase() + t.slice(1)}
-          </button>
-        ))}
+        <button
+          className={`cc-tab${tab === 'calendar' ? ' cc-tab--active' : ''}`}
+          onClick={() => setTab('calendar')}
+        >
+          Calendar
+        </button>
+        <button
+          className={`cc-tab${tab === 'stats' ? ' cc-tab--active' : ''}`}
+          onClick={() => setTab('stats')}
+        >
+          Stats
+        </button>
       </div>
 
       {tab === 'calendar' && (
-        <CalendarTab
-          weekDays={weekDays}
-          weekStart={weekStart}
-          piecesByDate={piecesByDate}
+        <>
+          <div className="cc-week-nav">
+            <button className="cc-nav-btn" onClick={() => setWeekStart(d => addDays(d, -7))}>‹</button>
+            <span className="cc-week-label">
+              {fmtMonthYear(weekStart)} — {fmtLong(weekStart)} to {fmtLong(weekEnd)}
+            </span>
+            <button className="cc-nav-btn cc-nav-today" onClick={() => setWeekStart(getWeekStart(new Date()))}>
+              Today
+            </button>
+            <button className="cc-nav-btn" onClick={() => setWeekStart(d => addDays(d, 7))}>›</button>
+            <span className="cc-week-count">
+              {totalPieces} post{totalPieces !== 1 ? 's' : ''}
+              {totalOH > 0 && ` · ${totalOH} open house${totalOH !== 1 ? 's' : ''}`}
+            </span>
+          </div>
+
+          {/* 7-column week grid */}
+          <div className="cc-week-grid">
+            {weekDays.map(({ date, iso }) => {
+              const dayPieces = piecesByDate[iso] ?? []
+              const dayOH     = openHousesThisWeek[iso] ?? []
+              const isToday   = iso === toISO(new Date())
+              const isDragOver = dragOverDay === iso
+              return (
+                <div
+                  key={iso}
+                  className={`cc-day${isToday ? ' cc-day--today' : ''}${isDragOver ? ' cc-day--drag-over' : ''}`}
+                  onDragOver={(e) => handleDragOverDay(e, iso)}
+                  onDragLeave={() => handleDragLeaveDay(iso)}
+                  onDrop={(e) => handleDropDay(e, iso)}
+                >
+                  <div className="cc-day-head">
+                    <div className="cc-day-label">
+                      <span className="cc-day-name">{fmtDay(date)}</span>
+                      <span className={`cc-day-num${isToday ? ' cc-day-num--today' : ''}`}>
+                        {date.getDate()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="cc-day-body">
+                    {dayOH.map(oh => (
+                      <div key={oh.id} className="cc-oh-card">
+                        <div className="cc-oh-card-head">Open House</div>
+                        <div className="cc-oh-card-addr">
+                          {oh.property?.address || 'Property'}
+                        </div>
+                        {(oh.start_time || oh.end_time) && (
+                          <div className="cc-oh-card-time">
+                            {oh.start_time} {oh.end_time && `– ${oh.end_time}`}
+                          </div>
+                        )}
+                        <Link to="/open-houses" className="cc-oh-card-link">Manage →</Link>
+                      </div>
+                    ))}
+
+                    {dayPieces.map(p => {
+                      const pillar = pillarMap[p.pillar_id]
+                      const isListing = !!p.listing_id
+                      return (
+                        <button
+                          key={p.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, p)}
+                          className={`cc-piece-pill${isListing ? ' cc-piece-pill--listing' : ''}`}
+                          style={{ borderLeftColor: pillar?.color ?? (isListing ? 'var(--brown-mid)' : 'var(--color-muted)') }}
+                          onClick={() => setSelected(p)}
+                          title={p.notes || p.title}
+                        >
+                          <span className="cc-pill-icon">
+                            <ChannelIcon channel={p.channel} size={14} />
+                          </span>
+                          <span className="cc-pill-title">{p.title}</span>
+                          <span className={`cc-pill-dot cc-pill-dot--${p.status}`} />
+                        </button>
+                      )
+                    })}
+
+                    {dayPieces.length === 0 && dayOH.length === 0 && (
+                      <div className="cc-day-empty-state">Drop content here</div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="cc-legends">
+            <div className="cc-status-legend">
+              {['idea', 'draft', 'scheduled', 'published'].map(s => (
+                <span key={s} className="cc-legend-item">
+                  <span className={`cc-pill-dot cc-pill-dot--${s}`} /> {s}
+                </span>
+              ))}
+            </div>
+            <div className="cc-dnd-hint">Drag posts between days to reschedule</div>
+          </div>
+        </>
+      )}
+
+      {tab === 'stats' && (
+        <StatsView
+          pieces={pieces ?? []}
+          pillars={pillars ?? []}
           pillarMap={pillarMap}
-          activePlatforms={activePlatforms}
-          onPrev={() => setWeekStart(d => addDays(d, -7))}
-          onNext={() => setWeekStart(d => addDays(d, 7))}
-          onToday={() => setWeekStart(getWeekStart(new Date()))}
-          onAdd={openNew}
-          onOpen={openPiece}
+          openHouses={openHouses ?? []}
+          listings={listings ?? []}
+          rangeMode={rangeMode}
+          setRangeMode={setRangeMode}
+          statsStart={statsStart}
+          statsEnd={statsEnd}
+          setWeekStart={setWeekStart}
+          weekStart={weekStart}
+          onSync={handleSyncNow}
+          syncing={syncing}
+          syncResult={syncResult}
         />
       )}
 
-      {tab === 'pillars' && (
-        <PillarsTab pillars={pillars ?? []} reload={refetchPillars} />
-      )}
-
-      {tab === 'avatars' && (
-        <AvatarsTab avatars={avatars ?? []} reload={refetchAvatars} />
-      )}
-
-      {tab === 'settings' && (
-        <SettingsTab
-          settings={settings}
-          activePlatforms={activePlatforms}
-          businessBrainUrl={businessBrainUrl}
-          reload={refetchSettings}
-        />
-      )}
-
-      {/* Content Piece Panel */}
+      {/* Detail panel */}
       <SlidePanel
-        open={panelOpen}
-        onClose={closePanel}
-        title={panelPiece ? 'Edit Content' : 'New Content'}
-        width={520}
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        title={selected ? 'Post Details' : ''}
+        width={560}
       >
-        {panelOpen && (
-          <PieceForm
-            piece={panelPiece}
-            defaultDate={panelDate}
+        {selected && (
+          <PieceDetail
+            piece={selected}
             pillars={pillars ?? []}
-            activePlatforms={activePlatforms}
-            saving={saving}
-            onSave={handleSavePiece}
-            onDelete={panelPiece ? () => handleDeletePiece(panelPiece.id) : null}
+            listings={listings ?? []}
+            properties={properties ?? []}
+            openHouses={openHouses ?? []}
+            onUpdate={handleUpdatePiece}
+            onSaveStats={handleSavePlatformStats}
           />
         )}
       </SlidePanel>
@@ -222,844 +369,503 @@ export default function ContentCalendar() {
   )
 }
 
-// ─── Calendar Tab ─────────────────────────────────────────────────────────────
-function CalendarTab({ weekDays, weekStart, piecesByDate, pillarMap, activePlatforms, onPrev, onNext, onToday, onAdd, onOpen }) {
-  const today = toISO(new Date())
-  const totalPieces = Object.values(piecesByDate).flat().length
+// ─── Piece Detail Panel ──────────────────────────────────────────────────────
+function PieceDetail({ piece, pillars, listings, properties, openHouses, onUpdate, onSaveStats }) {
+  const ch = channelMeta(piece.channel)
+  const [copied, setCopied] = useState(null)
+
+  function copy(text, key) {
+    if (!text) return
+    navigator.clipboard.writeText(text)
+    setCopied(key)
+    setTimeout(() => setCopied(null), 1500)
+  }
+
+  const channels = Object.keys(CHANNEL_META)
+  const platformPosts = piece.platform_posts ?? []
 
   return (
-    <div className="cc-calendar">
-      {/* Week nav */}
-      <div className="cc-week-nav">
-        <button className="cc-nav-btn" onClick={onPrev}>‹</button>
-        <span className="cc-week-label">{fmtMonthYear(weekStart)}</span>
-        <button className="cc-nav-btn cc-nav-today" onClick={onToday}>Today</button>
-        <button className="cc-nav-btn" onClick={onNext}>›</button>
-        {totalPieces > 0 && (
-          <span className="cc-week-count">{totalPieces} piece{totalPieces !== 1 ? 's' : ''} this week</span>
-        )}
-      </div>
-
-      {/* 7-col grid */}
-      <div className="cc-week-grid">
-        {weekDays.map(({ date, iso }) => {
-          const dayPieces = piecesByDate[iso] ?? []
-          const isToday = iso === today
-          return (
-            <div key={iso} className={`cc-day${isToday ? ' cc-day--today' : ''}`}>
-              <div className="cc-day-head">
-                <div className="cc-day-label">
-                  <span className="cc-day-name">{fmtDay(date)}</span>
-                  <span className={`cc-day-num${isToday ? ' cc-day-num--today' : ''}`}>{date.getDate()}</span>
-                </div>
-                <button className="cc-add-btn" onClick={() => onAdd(iso)} title="Add post">+</button>
-              </div>
-              <div className="cc-day-body">
-                {dayPieces.map(p => {
-                  const pillar = pillarMap[p.pillar_id]
-                  return (
-                    <button
-                      key={p.id}
-                      className="cc-piece-pill"
-                      style={{ borderLeftColor: pillar?.color ?? 'var(--color-muted)' }}
-                      onClick={() => onOpen(p)}
-                    >
-                      <span className="cc-pill-title">{p.title}</span>
-                      <span className={`cc-pill-dot cc-pill-dot--${p.status}`} />
-                    </button>
-                  )
-                })}
-                {dayPieces.length === 0 && (
-                  <button className="cc-day-empty" onClick={() => onAdd(iso)}>+ post</button>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Status legend + platforms */}
-      <div className="cc-legends">
-        <div className="cc-status-legend">
-          {['idea','draft','scheduled','published'].map(s => (
-            <span key={s} className="cc-legend-item">
-              <span className={`cc-pill-dot cc-pill-dot--${s}`} /> {s}
-            </span>
-          ))}
-        </div>
-        {activePlatforms.length > 0 && (
-          <div className="cc-platform-legend">
-            <span className="cc-legend-label">Platforms:</span>
-            {activePlatforms.map(pk => {
-              const pl = PLATFORMS.find(x => x.key === pk)
-              return pl ? <span key={pk} className="cc-legend-platform">{pl.icon} {pl.label}</span> : null
-            })}
+    <div className="cc-detail">
+      <div className="cc-detail-head">
+        <div className="cc-detail-channel">
+          <span className="cc-detail-icon">
+            <ChannelIcon channel={piece.channel} size={28} />
+          </span>
+          <div>
+            <div className="cc-detail-channel-label">{ch.label}</div>
+            <div className="cc-detail-date">{piece.content_date}</div>
           </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Piece Form (inside SlidePanel) ──────────────────────────────────────────
-function PieceForm({ piece, defaultDate, pillars, activePlatforms, saving, onSave, onDelete }) {
-  const [draft, setDraft] = useState({
-    id:           piece?.id           ?? null,
-    title:        piece?.title        ?? '',
-    pillar_id:    piece?.pillar_id    ?? '',
-    content_date: piece?.content_date ?? defaultDate ?? toISO(new Date()),
-    status:       piece?.status       ?? 'idea',
-    body_text:    piece?.body_text    ?? '',
-    notes:        piece?.notes        ?? '',
-  })
-
-  const [platTexts, setPlatTexts] = useState(() => {
-    const m = {}
-    for (const pp of (piece?.platform_posts ?? [])) {
-      m[pp.platform] = pp.adapted_text ?? ''
-    }
-    return m
-  })
-
-  const [openPlat, setOpenPlat]   = useState(null)
-  const [aiPrompt, setAiPrompt]   = useState('')
-  const [aiLoading, setAiLoading] = useState(false)
-  const [repurposing, setRepurposing] = useState(false)
-  const [adaptingPlat, setAdaptingPlat] = useState(null)
-
-  function set(k, v) { setDraft(d => ({ ...d, [k]: v })) }
-
-  // Generate main copy from short prompt
-  async function handleGenerate() {
-    if (!aiPrompt.trim()) return
-    const pillar = pillars.find(p => p.id === draft.pillar_id)
-    setAiLoading(true)
-    try {
-      const { text } = await DB.generateContent({
-        type: 'write',
-        pillar: pillar?.name ?? '',
-        prompt: aiPrompt,
-      })
-      set('body_text', text)
-      if (!draft.title.trim()) set('title', aiPrompt)
-    } catch (e) {
-      alert('Claude error: ' + e.message)
-    } finally {
-      setAiLoading(false)
-    }
-  }
-
-  // Repurpose main copy across all active platforms at once
-  async function handleRepurposeAll() {
-    if (!draft.body_text.trim()) return
-    setRepurposing(true)
-    try {
-      const { platforms } = await DB.generateContent({
-        type: 'repurpose',
-        body_text: draft.body_text,
-        active_platforms: activePlatforms,
-      })
-      setPlatTexts(prev => ({ ...prev, ...platforms }))
-    } catch (e) {
-      alert('Claude error: ' + e.message)
-    } finally {
-      setRepurposing(false)
-    }
-  }
-
-  // Adapt main copy for one platform
-  async function handleAdaptOne(pk) {
-    if (!draft.body_text.trim()) return
-    setAdaptingPlat(pk)
-    try {
-      const { text } = await DB.generateContent({
-        type: 'adapt',
-        platform: pk,
-        body_text: draft.body_text,
-      })
-      setPlatTexts(prev => ({ ...prev, [pk]: text }))
-    } catch (e) {
-      alert('Claude error: ' + e.message)
-    } finally {
-      setAdaptingPlat(null)
-    }
-  }
-
-  function handleSubmit(e) {
-    e.preventDefault()
-    if (!draft.title.trim()) return
-    onSave(draft, platTexts)
-  }
-
-  return (
-    <form className="cc-form" onSubmit={handleSubmit}>
-      {/* AI Write section */}
-      <div className="cc-ai-box">
-        <div className="cc-ai-label">✦ Write with Claude <InfoTip text="Describe what you want to write and Claude will draft it in your voice as a Gilbert/East Valley agent. You can edit it after. Use 'Repurpose for All Platforms' to adapt the body copy for every platform at once." position="bottom" /></div>
-        <div className="cc-ai-row">
-          <input
-            className="cc-ai-input"
-            value={aiPrompt}
-            onChange={e => setAiPrompt(e.target.value)}
-            placeholder="e.g. Why now is a great time to sell in Gilbert…"
-            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleGenerate())}
-          />
-          <button
-            type="button"
-            className="cc-ai-btn"
-            onClick={handleGenerate}
-            disabled={aiLoading || !aiPrompt.trim()}
-          >
-            {aiLoading ? '…' : 'Generate'}
-          </button>
         </div>
+        <span className={`cc-pill-dot cc-pill-dot--${piece.status}`} />
       </div>
 
-      {/* Title */}
-      <div className="cc-form-field">
-        <label className="cc-label">Title *</label>
-        <Input
-          value={draft.title}
-          onChange={e => set('title', e.target.value)}
-          placeholder="Post title or topic idea"
-          required
-        />
-      </div>
+      <h3 className="cc-detail-title">{piece.title}</h3>
 
-      {/* Date + Status */}
-      <div className="cc-form-row">
-        <div className="cc-form-field">
-          <label className="cc-label">Date</label>
-          <Input type="date" value={draft.content_date} onChange={e => set('content_date', e.target.value)} />
+      {/* Tracking selectors ───────────────────────────────────────────────── */}
+      <div className="cc-detail-grid">
+        <div>
+          <div className="cc-detail-label">Pillar</div>
+          <Select value={piece.pillar_id || ''} onChange={(e) => onUpdate({ pillar_id: e.target.value || null })}>
+            <option value="">— None —</option>
+            {pillars.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </Select>
         </div>
-        <div className="cc-form-field">
-          <label className="cc-label">Status</label>
-          <Select value={draft.status} onChange={e => set('status', e.target.value)}>
-            {STATUSES.map(s => (
-              <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+        <div>
+          <div className="cc-detail-label">Channel</div>
+          <Select value={piece.channel || ''} onChange={(e) => onUpdate({ channel: e.target.value || null })}>
+            <option value="">— None —</option>
+            {channels.map(k => (
+              <option key={k} value={k}>{CHANNEL_META[k].label}</option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <div className="cc-detail-label">Client Listing</div>
+          <Select value={piece.listing_id || ''} onChange={(e) => onUpdate({ listing_id: e.target.value || null })}>
+            <option value="">— None —</option>
+            {listings.map(l => (
+              <option key={l.id} value={l.id}>{l.property?.address || '(no address)'}</option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <div className="cc-detail-label">Property</div>
+          <Select value={piece.property_id || ''} onChange={(e) => onUpdate({ property_id: e.target.value || null })}>
+            <option value="">— None —</option>
+            {properties.map(p => (
+              <option key={p.id} value={p.id}>{p.address}</option>
+            ))}
+          </Select>
+        </div>
+        <div className="cc-detail-grid-full">
+          <div className="cc-detail-label">Open House</div>
+          <Select value={piece.open_house_id || ''} onChange={(e) => onUpdate({ open_house_id: e.target.value || null })}>
+            <option value="">— None —</option>
+            {openHouses.map(oh => (
+              <option key={oh.id} value={oh.id}>
+                {oh.date} · {oh.property?.address || 'Property'}
+              </option>
             ))}
           </Select>
         </div>
       </div>
 
-      {/* Pillar */}
-      <div className="cc-form-field">
-        <label className="cc-label">Content Pillar</label>
-        <Select value={draft.pillar_id} onChange={e => set('pillar_id', e.target.value)}>
-          <option value="">— No Pillar —</option>
-          {pillars.map(p => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </Select>
-      </div>
-
-      {/* Main copy */}
-      <div className="cc-form-field">
-        <div className="cc-label-row">
-          <label className="cc-label">Main Copy</label>
-          {draft.body_text.trim() && activePlatforms.length > 0 && (
-            <button
-              type="button"
-              className="cc-repurpose-btn"
-              onClick={handleRepurposeAll}
-              disabled={repurposing}
-            >
-              {repurposing ? '✦ Repurposing…' : '✦ Repurpose for all platforms'}
-            </button>
-          )}
-        </div>
-        <Textarea
-          value={draft.body_text}
-          onChange={e => set('body_text', e.target.value)}
-          placeholder="Write your core message here — or generate it with Claude above"
-          rows={5}
-        />
-      </div>
-
-      {/* Notes */}
-      <div className="cc-form-field">
-        <label className="cc-label">Notes / Hashtags</label>
-        <Textarea
-          value={draft.notes}
-          onChange={e => set('notes', e.target.value)}
-          placeholder="Hashtags, visual ideas, links, CTA..."
-          rows={2}
-        />
-      </div>
-
-      {/* Platform adaptations */}
-      {activePlatforms.length > 0 && (
-        <div className="cc-adapt-section">
-          <div className="cc-adapt-header">Platform Adaptations <InfoTip text="Each platform gets its own version of your content, adapted for tone and character limits. Write them manually, use 'Adapt' on each one, or hit 'Repurpose All Platforms' above to fill them all at once with Claude." position="left" /></div>
-          <p className="cc-adapt-hint">Repurpose your main copy for each active platform.</p>
-          {activePlatforms.map(pk => {
-            const pl = PLATFORMS.find(x => x.key === pk)
-            if (!pl) return null
-            const isOpen = openPlat === pk
-            const text   = platTexts[pk] ?? ''
-            const isAdapting = adaptingPlat === pk
-            return (
-              <div key={pk} className={`cc-plat-row${isOpen ? ' cc-plat-row--open' : ''}`}>
-                <button
-                  type="button"
-                  className="cc-plat-toggle"
-                  onClick={() => setOpenPlat(isOpen ? null : pk)}
-                >
-                  <span className="cc-plat-name">{pl.icon} {pl.label}</span>
-                  <span className="cc-plat-preview">
-                    {text ? text.slice(0, 45) + (text.length > 45 ? '…' : '') : 'tap to write adaptation'}
-                  </span>
-                  <span className="cc-plat-chevron">{isOpen ? '▲' : '▼'}</span>
-                </button>
-                {isOpen && (
-                  <div className="cc-plat-body">
-                    <div className="cc-plat-top">
-                      <p className="cc-plat-hint">{pl.hint}</p>
-                      {draft.body_text.trim() && (
-                        <button
-                          type="button"
-                          className="cc-adapt-one-btn"
-                          onClick={() => handleAdaptOne(pk)}
-                          disabled={isAdapting}
-                        >
-                          {isAdapting ? '✦ Writing…' : '✦ Adapt with Claude'}
-                        </button>
-                      )}
-                    </div>
-                    <Textarea
-                      value={text}
-                      onChange={e => setPlatTexts(d => ({ ...d, [pk]: e.target.value }))}
-                      placeholder={`${pl.label} copy…`}
-                      rows={4}
-                    />
-                  </div>
-                )}
-              </div>
-            )
-          })}
+      {piece.notes && (
+        <div className="cc-detail-notes">
+          <div className="cc-detail-label">Direction</div>
+          <p>{piece.notes}</p>
         </div>
       )}
 
-      {/* Actions */}
-      <div className="cc-form-actions">
-        {onDelete && (
-          <button type="button" className="cc-del-btn" onClick={onDelete}>Delete</button>
-        )}
-        <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
-      </div>
-    </form>
-  )
-}
-
-// ─── Pillars Tab (with topics) ────────────────────────────────────────────────
-function PillarsTab({ pillars, reload }) {
-  const [panelOpen, setPanelOpen] = useState(false)
-  const [editing, setEditing]     = useState(null)
-  const [draft, setDraft]         = useState({ name: '', description: '', color: '#b79782', topics: [] })
-  const [saving, setSaving]       = useState(false)
-  const [topicInput, setTopicInput] = useState('')
-
-  function openNew() {
-    setEditing(null)
-    setDraft({ name: '', description: '', color: '#b79782', topics: [] })
-    setTopicInput('')
-    setPanelOpen(true)
-  }
-
-  function openEdit(p) {
-    setEditing(p)
-    setDraft({ name: p.name, description: p.description ?? '', color: p.color, topics: p.topics ?? [] })
-    setTopicInput('')
-    setPanelOpen(true)
-  }
-
-  function addTopic() {
-    const t = topicInput.trim()
-    if (!t || draft.topics.includes(t)) return
-    setDraft(d => ({ ...d, topics: [...d.topics, t] }))
-    setTopicInput('')
-  }
-
-  function removeTopic(i) {
-    setDraft(d => ({ ...d, topics: d.topics.filter((_, idx) => idx !== i) }))
-  }
-
-  async function handleSave(e) {
-    e.preventDefault()
-    if (!draft.name.trim()) return
-    setSaving(true)
-    try {
-      if (editing) {
-        await DB.updateContentPillar(editing.id, draft)
-      } else {
-        await DB.createContentPillar({ ...draft, sort_order: pillars.length })
-      }
-      await reload()
-      setPanelOpen(false)
-    } catch (err) {
-      alert(err.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleDelete(id) {
-    if (!confirm('Delete this pillar? Existing content pieces will become unassigned.')) return
-    await DB.deleteContentPillar(id)
-    await reload()
-    setPanelOpen(false)
-  }
-
-  return (
-    <div className="cc-pillars">
-      <div className="cc-pillars-topbar">
-        <p className="cc-pillars-sub">Content pillars are the backbone of your feed. These recurring themes create familiarity and trust while keeping you consistent.</p>
-        <Button onClick={openNew}>+ Add Pillar</Button>
-      </div>
-
-      <div className="cc-pillars-grid">
-        {pillars.map(p => {
-          const topics = p.topics ?? []
-          return (
-            <div key={p.id} className="cc-pillar-card" style={{ borderLeftColor: p.color }}>
-              <div className="cc-pillar-swatch" style={{ background: p.color }} />
-              <div className="cc-pillar-body">
-                <div className="cc-pillar-name">{p.name}</div>
-                {p.description && <div className="cc-pillar-desc">{p.description}</div>}
-                {topics.length > 0 && (
-                  <div className="cc-pillar-topics">
-                    {topics.map((t, i) => (
-                      <span key={i} className="cc-pillar-topic" style={{ borderColor: p.color + '44' }}>{t}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <button className="cc-pillar-edit-btn" onClick={() => openEdit(p)}>Edit</button>
-            </div>
-          )
-        })}
-      </div>
-
-      <SlidePanel
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        title={editing ? 'Edit Pillar' : 'New Pillar'}
-      >
-        <form className="cc-form" onSubmit={handleSave}>
-          <div className="cc-form-field">
-            <label className="cc-label">Name *</label>
-            <Input
-              value={draft.name}
-              onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
-              placeholder="e.g. Authority, Lifestyle, Local, Personal"
-              required
-            />
+      {piece.body_text && (
+        <div className="cc-detail-body">
+          <div className="cc-detail-label">
+            Caption
+            <button className="cc-copy-btn" onClick={() => copy(piece.body_text, 'body')}>
+              {copied === 'body' ? '✓ Copied' : 'Copy'}
+            </button>
           </div>
-          <div className="cc-form-field">
-            <label className="cc-label">Description</label>
-            <Textarea
-              value={draft.description}
-              onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
-              placeholder="What kind of content belongs here?"
-              rows={2}
-            />
-          </div>
-          <div className="cc-form-field">
-            <label className="cc-label">Color</label>
-            <div className="cc-color-row">
-              <input
-                type="color"
-                value={draft.color}
-                onChange={e => setDraft(d => ({ ...d, color: e.target.value }))}
-                className="cc-color-input"
-              />
-              <span className="cc-color-preview" style={{ background: draft.color }} />
-              <span className="cc-color-hex">{draft.color}</span>
-            </div>
-          </div>
-
-          {/* Topics */}
-          <div className="cc-form-field">
-            <label className="cc-label">Topics ({draft.topics.length})</label>
-            <p className="cc-field-hint">Add 5-10 recurring content ideas for this pillar.</p>
-            <div className="cc-topic-input-row">
-              <input
-                className="cc-topic-input"
-                value={topicInput}
-                onChange={e => setTopicInput(e.target.value)}
-                placeholder="e.g. Market updates"
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTopic() } }}
-              />
-              <button type="button" className="cc-topic-add-btn" onClick={addTopic}>+</button>
-            </div>
-            {draft.topics.length > 0 && (
-              <div className="cc-topic-list">
-                {draft.topics.map((t, i) => (
-                  <span key={i} className="cc-topic-chip">
-                    {t}
-                    <button type="button" className="cc-topic-remove" onClick={() => removeTopic(i)}>&times;</button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="cc-form-actions">
-            {editing && (
-              <button type="button" className="cc-del-btn" onClick={() => handleDelete(editing.id)}>Delete</button>
-            )}
-            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save Pillar'}</Button>
-          </div>
-        </form>
-      </SlidePanel>
-    </div>
-  )
-}
-
-// ─── Client Avatars Tab ──────────────────────────────────────────────────────
-const AVATAR_AGE_RANGES     = ['18-25', '26-34', '35-44', '45-54', '55-64', '65+']
-const AVATAR_INCOME_RANGES  = ['Under $50K', '$50K-$75K', '$75K-$100K', '$100K-$150K', '$150K-$250K', '$250K+']
-const AVATAR_FAMILY_STATUS  = ['Single', 'Couple (no kids)', 'Young Family', 'Growing Family', 'Empty Nesters', 'Retirees']
-const AVATAR_PROP_TYPES     = ['Single Family', 'Townhome', 'Condo', 'Multi-Family', 'Land/Lot', 'New Build']
-const BUYER_MOTIVATIONS     = ['First-Time Buyer', 'Upgrading', 'Downsizing', 'Relocating', 'Investing', 'Second Home']
-const SELLER_MOTIVATIONS    = ['Upgrading', 'Downsizing', 'Relocating', 'Divorce', 'Estate/Probate', 'Investment Sale', 'Retirement']
-const ONLINE_PLATFORMS      = ['Instagram', 'Facebook', 'TikTok', 'YouTube', 'LinkedIn', 'Zillow', 'Realtor.com', 'Nextdoor', 'Google', 'Email']
-
-function AvatarsTab({ avatars, reload }) {
-  const [panelOpen, setPanelOpen] = useState(false)
-  const [editing, setEditing]     = useState(null)
-  const [saving, setSaving]       = useState(false)
-  const [draft, setDraft]         = useState({})
-
-  const buyerAvatars  = avatars.filter(a => a.type === 'buyer')
-  const sellerAvatars = avatars.filter(a => a.type === 'seller')
-
-  function openNew(type) {
-    setEditing(null)
-    setDraft({
-      type, name: '', age_range: '', income_range: '', family_status: '',
-      motivation: '', property_type: '', price_range_min: '', price_range_max: '',
-      locations: [], pain_points: '', online_platforms: [], content_resonates: '', notes: '',
-    })
-    setPanelOpen(true)
-  }
-
-  function openEdit(a) {
-    setEditing(a)
-    setDraft({
-      type:              a.type,
-      name:              a.name ?? '',
-      age_range:         a.age_range ?? '',
-      income_range:      a.income_range ?? '',
-      family_status:     a.family_status ?? '',
-      motivation:        a.motivation ?? '',
-      property_type:     a.property_type ?? '',
-      price_range_min:   a.price_range_min ?? '',
-      price_range_max:   a.price_range_max ?? '',
-      locations:         a.locations ?? [],
-      pain_points:       a.pain_points ?? '',
-      online_platforms:  a.online_platforms ?? [],
-      content_resonates: a.content_resonates ?? '',
-      notes:             a.notes ?? '',
-    })
-    setPanelOpen(true)
-  }
-
-  function set(k, v) { setDraft(d => ({ ...d, [k]: v })) }
-
-  function togglePlatform(p) {
-    setDraft(d => ({
-      ...d,
-      online_platforms: d.online_platforms.includes(p)
-        ? d.online_platforms.filter(x => x !== p)
-        : [...d.online_platforms, p],
-    }))
-  }
-
-  async function handleSave(e) {
-    e.preventDefault()
-    if (!draft.name.trim()) return
-    setSaving(true)
-    try {
-      const payload = {
-        ...draft,
-        price_range_min: draft.price_range_min ? Number(draft.price_range_min) : null,
-        price_range_max: draft.price_range_max ? Number(draft.price_range_max) : null,
-        locations: typeof draft.locations === 'string'
-          ? draft.locations.split(',').map(s => s.trim()).filter(Boolean)
-          : draft.locations,
-      }
-      if (editing) {
-        await DB.updateClientAvatar(editing.id, payload)
-      } else {
-        await DB.createClientAvatar(payload)
-      }
-      await reload()
-      setPanelOpen(false)
-    } catch (err) {
-      alert(err.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleDelete() {
-    if (!editing || !confirm('Delete this avatar?')) return
-    await DB.deleteClientAvatar(editing.id)
-    await reload()
-    setPanelOpen(false)
-  }
-
-  const motivations = draft.type === 'seller' ? SELLER_MOTIVATIONS : BUYER_MOTIVATIONS
-
-  function AvatarCard({ a }) {
-    return (
-      <div className="avatar-card" onClick={() => openEdit(a)}>
-        <div className="avatar-card__header">
-          <div className="avatar-card__icon">{a.type === 'buyer' ? '🏠' : '📋'}</div>
-          <div>
-            <div className="avatar-card__name">{a.name}</div>
-            <div className="avatar-card__meta">
-              {[a.age_range, a.family_status, a.motivation].filter(Boolean).join(' · ') || 'Click to edit'}
-            </div>
-          </div>
+          <pre className="cc-detail-text">{piece.body_text}</pre>
         </div>
-        {a.property_type && <span className="avatar-card__tag">{a.property_type}</span>}
-        {(a.price_range_min || a.price_range_max) && (
-          <span className="avatar-card__tag">
-            {a.price_range_min ? `$${Number(a.price_range_min).toLocaleString()}` : '?'}
-            {' – '}
-            {a.price_range_max ? `$${Number(a.price_range_max).toLocaleString()}` : '?'}
-          </span>
+      )}
+
+      {/* Per-platform adapted text + stats ───────────────────────────────── */}
+      <div className="cc-detail-platforms">
+        <div className="cc-detail-label">Platform versions &amp; stats</div>
+        {platformPosts.length === 0 && (
+          <div className="cc-detail-empty">No platform versions yet. Use Planning or Content Studio to adapt this post.</div>
         )}
-        {(a.online_platforms ?? []).length > 0 && (
-          <div className="avatar-card__platforms">
-            {a.online_platforms.map(p => <span key={p} className="avatar-card__plat">{p}</span>)}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <div className="cc-avatars">
-      <p className="cc-pillars-sub">Define your ideal client profiles to guide content strategy and messaging. Who are you creating content for?</p>
-
-      {/* Buyer Avatars */}
-      <div className="avatar-section">
-        <div className="avatar-section__header">
-          <h3 className="avatar-section__title">Buyer Avatars</h3>
-          <Button onClick={() => openNew('buyer')}>+ Add Buyer Avatar</Button>
-        </div>
-        {buyerAvatars.length === 0 ? (
-          <p className="avatar-empty">No buyer avatars yet. Add one to define your ideal buyer client.</p>
-        ) : (
-          <div className="avatar-grid">
-            {buyerAvatars.map(a => <AvatarCard key={a.id} a={a} />)}
-          </div>
-        )}
-      </div>
-
-      {/* Seller Avatars */}
-      <div className="avatar-section">
-        <div className="avatar-section__header">
-          <h3 className="avatar-section__title">Seller Avatars</h3>
-          <Button onClick={() => openNew('seller')}>+ Add Seller Avatar</Button>
-        </div>
-        {sellerAvatars.length === 0 ? (
-          <p className="avatar-empty">No seller avatars yet. Add one to define your ideal seller client.</p>
-        ) : (
-          <div className="avatar-grid">
-            {sellerAvatars.map(a => <AvatarCard key={a.id} a={a} />)}
-          </div>
-        )}
-      </div>
-
-      {/* Edit Panel */}
-      <SlidePanel
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        title={editing ? `Edit ${draft.type === 'buyer' ? 'Buyer' : 'Seller'} Avatar` : `New ${draft.type === 'buyer' ? 'Buyer' : 'Seller'} Avatar`}
-        width={480}
-      >
-        <form className="cc-form" onSubmit={handleSave}>
-          <div className="cc-form-field">
-            <label className="cc-label">Avatar Name *</label>
-            <Input value={draft.name} onChange={e => set('name', e.target.value)} placeholder="e.g. First-Time Millennial Buyer" required />
-          </div>
-
-          <div className="cc-form-row">
-            <div className="cc-form-field">
-              <label className="cc-label">Age Range</label>
-              <Select value={draft.age_range} onChange={e => set('age_range', e.target.value)}>
-                <option value="">—</option>
-                {AVATAR_AGE_RANGES.map(o => <option key={o}>{o}</option>)}
-              </Select>
-            </div>
-            <div className="cc-form-field">
-              <label className="cc-label">Household Income</label>
-              <Select value={draft.income_range} onChange={e => set('income_range', e.target.value)}>
-                <option value="">—</option>
-                {AVATAR_INCOME_RANGES.map(o => <option key={o}>{o}</option>)}
-              </Select>
-            </div>
-          </div>
-
-          <div className="cc-form-row">
-            <div className="cc-form-field">
-              <label className="cc-label">Family Status</label>
-              <Select value={draft.family_status} onChange={e => set('family_status', e.target.value)}>
-                <option value="">—</option>
-                {AVATAR_FAMILY_STATUS.map(o => <option key={o}>{o}</option>)}
-              </Select>
-            </div>
-            <div className="cc-form-field">
-              <label className="cc-label">Motivation</label>
-              <Select value={draft.motivation} onChange={e => set('motivation', e.target.value)}>
-                <option value="">—</option>
-                {motivations.map(o => <option key={o}>{o}</option>)}
-              </Select>
-            </div>
-          </div>
-
-          <div className="cc-form-row">
-            <div className="cc-form-field">
-              <label className="cc-label">Property Type</label>
-              <Select value={draft.property_type} onChange={e => set('property_type', e.target.value)}>
-                <option value="">—</option>
-                {AVATAR_PROP_TYPES.map(o => <option key={o}>{o}</option>)}
-              </Select>
-            </div>
-          </div>
-
-          <div className="cc-form-row">
-            <div className="cc-form-field">
-              <label className="cc-label">Price Min ($)</label>
-              <Input type="number" value={draft.price_range_min} onChange={e => set('price_range_min', e.target.value)} placeholder="350000" />
-            </div>
-            <div className="cc-form-field">
-              <label className="cc-label">Price Max ($)</label>
-              <Input type="number" value={draft.price_range_max} onChange={e => set('price_range_max', e.target.value)} placeholder="550000" />
-            </div>
-          </div>
-
-          <div className="cc-form-field">
-            <label className="cc-label">Target Locations (comma-separated)</label>
-            <Input
-              value={Array.isArray(draft.locations) ? draft.locations.join(', ') : draft.locations}
-              onChange={e => set('locations', e.target.value)}
-              placeholder="Gilbert, Chandler, Mesa, Queen Creek"
-            />
-          </div>
-
-          <div className="cc-form-field">
-            <label className="cc-label">Where They Hang Out Online</label>
-            <div className="cc-platform-checks">
-              {ONLINE_PLATFORMS.map(p => (
-                <label key={p} className="cc-plat-check">
-                  <input type="checkbox" checked={(draft.online_platforms ?? []).includes(p)} onChange={() => togglePlatform(p)} />
-                  <span>{p}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="cc-form-field">
-            <label className="cc-label">Pain Points</label>
-            <Textarea value={draft.pain_points} onChange={e => set('pain_points', e.target.value)} placeholder="What keeps them up at night? What frustrates them about real estate?" rows={3} />
-          </div>
-
-          <div className="cc-form-field">
-            <label className="cc-label">Content That Resonates</label>
-            <Textarea value={draft.content_resonates} onChange={e => set('content_resonates', e.target.value)} placeholder="What kind of posts, topics, or formats get their attention?" rows={3} />
-          </div>
-
-          <div className="cc-form-field">
-            <label className="cc-label">Notes</label>
-            <Textarea value={draft.notes} onChange={e => set('notes', e.target.value)} placeholder="Additional notes about this avatar..." rows={2} />
-          </div>
-
-          <div className="cc-form-actions">
-            {editing && <button type="button" className="cc-del-btn" onClick={handleDelete}>Delete</button>}
-            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save Avatar'}</Button>
-          </div>
-        </form>
-      </SlidePanel>
-    </div>
-  )
-}
-
-// ─── Settings Tab ─────────────────────────────────────────────────────────────
-function SettingsTab({ settings, activePlatforms, businessBrainUrl, reload }) {
-  const [url, setPlatformsUrl]   = useState(businessBrainUrl)
-  const [platforms, setPlatforms] = useState(activePlatforms)
-  const [saving, setSaving]       = useState(false)
-
-  function toggle(key) {
-    setPlatforms(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
-  }
-
-  async function handleSave(e) {
-    e.preventDefault()
-    setSaving(true)
-    try {
-      await DB.updateContentSettings({ business_brain_url: url, active_platforms: platforms })
-      await reload()
-    } catch (err) {
-      alert(err.message)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="cc-settings">
-      <form className="cc-form" onSubmit={handleSave}>
-
-        {/* Business Brain */}
-        <div className="cc-form-field">
-          <label className="cc-label">Business Brain / Brand Doc URL</label>
-          <p className="cc-field-hint">
-            Your Google Doc, Notion page, or any URL with your brand voice, scripts, and content strategy.
-            This link appears on every page of your content calendar for quick access.
-          </p>
-          <Input
-            value={url}
-            onChange={e => setPlatformsUrl(e.target.value)}
-            placeholder="https://docs.google.com/..."
-            type="url"
+        {platformPosts.map(pp => (
+          <PlatformStatsRow
+            key={pp.id || pp.platform}
+            post={pp}
+            copied={copied}
+            onCopy={copy}
+            onSaveStats={(stats) => onSaveStats(pp.platform, stats)}
           />
-          {url && (
-            <a href={url} target="_blank" rel="noreferrer" className="cc-open-link">
-              Open Document →
+        ))}
+      </div>
+
+      {/* Action links ─────────────────────────────────────────────────────── */}
+      <div className="cc-detail-actions">
+        <div className="cc-detail-label">Post it</div>
+        <div className="cc-detail-action-grid">
+          {ch.postUrl && (
+            <a href={ch.postUrl} target="_blank" rel="noreferrer" className="cc-action-btn cc-action-btn--primary">
+              <ChannelIcon channel={piece.channel} size={14} /> Open {ch.label}
             </a>
           )}
+          {ch.internal && (
+            <Link to={ch.internal} className="cc-action-btn cc-action-btn--primary">
+              <ChannelIcon channel={piece.channel} size={14} /> Open {ch.label}
+            </Link>
+          )}
+          <Link to="/content/ai-studio" className="cc-action-btn">Content Studio</Link>
+          <a href="https://www.canva.com/" target="_blank" rel="noreferrer" className="cc-action-btn">Canva</a>
+          <Link to="/content/planning" className="cc-action-btn">Edit in Planning</Link>
         </div>
+      </div>
 
-        {/* Active Platforms */}
-        <div className="cc-form-field">
-          <label className="cc-label">Active Platforms</label>
-          <p className="cc-field-hint">
-            Select the platforms you post to. Each platform gets its own adaptation section in every content piece.
-          </p>
-          <div className="cc-platform-checks">
-            {PLATFORMS.map(p => (
-              <label key={p.key} className="cc-plat-check">
-                <input
-                  type="checkbox"
-                  checked={platforms.includes(p.key)}
-                  onChange={() => toggle(p.key)}
+      {/* Status quick toggles ─────────────────────────────────────────────── */}
+      <div className="cc-detail-status">
+        <div className="cc-detail-label">Mark as</div>
+        <div className="cc-detail-status-row">
+          {['idea', 'draft', 'scheduled', 'published'].map(s => (
+            <button
+              key={s}
+              className={`cc-status-btn${piece.status === s ? ' cc-status-btn--active' : ''}`}
+              onClick={() => onUpdate({ status: s })}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Per-platform stats row ──────────────────────────────────────────────────
+function PlatformStatsRow({ post, copied, onCopy, onSaveStats }) {
+  const meta = channelMeta(post.platform)
+  const [expanded, setExpanded] = useState(false)
+  const [postUrl, setPostUrl] = useState(post.post_url || '')
+  const [stats, setStats] = useState({
+    views:       post.views       || 0,
+    reach:       post.reach       || 0,
+    impressions: post.impressions || 0,
+    likes:       post.likes       || 0,
+    comments:    post.comments    || 0,
+    shares:      post.shares      || 0,
+    saves:       post.saves       || 0,
+    clicks:      post.clicks      || 0,
+  })
+  const [saving, setSaving] = useState(false)
+
+  function set(k, v) {
+    setStats(s => ({ ...s, [k]: Number(v) || 0 }))
+  }
+
+  async function save() {
+    setSaving(true)
+    try {
+      const patch = { ...stats }
+      if (postUrl !== (post.post_url || '')) patch.post_url = postUrl || null
+      await onSaveStats(patch)
+    }
+    finally { setSaving(false) }
+  }
+
+  const totalEng = stats.likes + stats.comments + stats.shares + stats.saves
+  const isAutoSynced = post.stats_source === 'apify'
+  const lastSynced = post.stats_updated_at
+    ? new Date(post.stats_updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null
+
+  return (
+    <div className="cc-detail-platform">
+      <button className="cc-detail-platform-head" onClick={() => setExpanded(v => !v)}>
+        <span className="cc-detail-platform-name">
+          <ChannelIcon channel={post.platform} size={14} /> {meta.label}
+          {isAutoSynced && <span className="cc-sync-badge" title={`Auto-synced ${lastSynced}`}>auto</span>}
+        </span>
+        <span className="cc-detail-platform-summary">
+          {stats.views > 0 && <span>{stats.views.toLocaleString()} views</span>}
+          {totalEng > 0 && <span>{totalEng.toLocaleString()} eng</span>}
+          <span className="cc-detail-platform-expand">{expanded ? '−' : '+'}</span>
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="cc-detail-platform-body">
+          {post.adapted_text && (
+            <>
+              <div className="cc-detail-label">
+                Caption
+                <button className="cc-copy-btn" onClick={() => onCopy(post.adapted_text, post.platform)}>
+                  {copied === post.platform ? '✓ Copied' : 'Copy'}
+                </button>
+              </div>
+              <pre className="cc-detail-text">{post.adapted_text}</pre>
+            </>
+          )}
+
+          <div className="cc-detail-label">
+            Post URL
+            <span className="cc-detail-label-hint">required for auto-sync</span>
+          </div>
+          <Input
+            type="url"
+            placeholder="https://www.instagram.com/p/..."
+            value={postUrl}
+            onChange={(e) => setPostUrl(e.target.value)}
+          />
+
+          <div className="cc-detail-label">
+            Stats
+            {isAutoSynced && <span className="cc-detail-label-hint">last synced {lastSynced}</span>}
+          </div>
+          <div className="cc-stats-grid">
+            {[
+              ['views', 'Views'],
+              ['reach', 'Reach'],
+              ['impressions', 'Impr.'],
+              ['likes', 'Likes'],
+              ['comments', 'Comments'],
+              ['shares', 'Shares'],
+              ['saves', 'Saves'],
+              ['clicks', 'Clicks'],
+            ].map(([k, label]) => (
+              <label key={k} className="cc-stat-field">
+                <span>{label}</span>
+                <Input
+                  type="number"
+                  min="0"
+                  value={stats[k]}
+                  onChange={(e) => set(k, e.target.value)}
                 />
-                <span>{p.icon} {p.label}</span>
               </label>
             ))}
           </div>
+          <button className="cc-action-btn cc-action-btn--primary" onClick={save} disabled={saving}>
+            {saving ? 'Saving…' : 'Save stats'}
+          </button>
         </div>
+      )}
+    </div>
+  )
+}
 
-        <div className="cc-form-actions">
-          <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save Settings'}</Button>
+// ─── Stats View ──────────────────────────────────────────────────────────────
+function StatsView({ pieces, pillarMap, listings, rangeMode, setRangeMode, statsStart, statsEnd, setWeekStart, weekStart, onSync, syncing, syncResult }) {
+  // Aggregates across the selected range
+  const agg = useMemo(() => {
+    const byPillar  = {}  // pillar_id -> { count, views, reach, likes, comments, shares, saves, clicks }
+    const byChannel = {}
+    const byListing = {}
+    const byProperty = {}
+    const byOH      = {}
+    let totals = { count: 0, views: 0, reach: 0, impressions: 0, likes: 0, comments: 0, shares: 0, saves: 0, clicks: 0 }
+
+    function bucket(map, key) {
+      if (!map[key]) map[key] = { count: 0, views: 0, reach: 0, impressions: 0, likes: 0, comments: 0, shares: 0, saves: 0, clicks: 0 }
+      return map[key]
+    }
+
+    for (const p of pieces) {
+      totals.count++
+      // Sum platform stats
+      const sum = { views: 0, reach: 0, impressions: 0, likes: 0, comments: 0, shares: 0, saves: 0, clicks: 0 }
+      for (const pp of (p.platform_posts ?? [])) {
+        sum.views       += pp.views       || 0
+        sum.reach       += pp.reach       || 0
+        sum.impressions += pp.impressions || 0
+        sum.likes       += pp.likes       || 0
+        sum.comments    += pp.comments    || 0
+        sum.shares      += pp.shares      || 0
+        sum.saves       += pp.saves       || 0
+        sum.clicks      += pp.clicks      || 0
+      }
+      for (const k of Object.keys(sum)) totals[k] += sum[k]
+
+      const pKey = p.pillar_id || 'none'
+      const pb = bucket(byPillar, pKey); pb.count++
+      for (const k of Object.keys(sum)) pb[k] += sum[k]
+
+      const cKey = p.channel || 'none'
+      const cb = bucket(byChannel, cKey); cb.count++
+      for (const k of Object.keys(sum)) cb[k] += sum[k]
+
+      if (p.listing_id) {
+        const lb = bucket(byListing, p.listing_id); lb.count++
+        for (const k of Object.keys(sum)) lb[k] += sum[k]
+      }
+      if (p.property_id) {
+        const pb2 = bucket(byProperty, p.property_id); pb2.count++
+        for (const k of Object.keys(sum)) pb2[k] += sum[k]
+      }
+      if (p.open_house_id) {
+        const oh = bucket(byOH, p.open_house_id); oh.count++
+        for (const k of Object.keys(sum)) oh[k] += sum[k]
+      }
+    }
+    return { totals, byPillar, byChannel, byListing, byProperty, byOH }
+  }, [pieces])
+
+  const listingMap = useMemo(() => {
+    const m = {}
+    for (const l of listings) m[l.id] = l
+    return m
+  }, [listings])
+
+  const shiftRange = (dir) => {
+    if (rangeMode === 'week') {
+      setWeekStart(d => addDays(d, dir * 7))
+    } else {
+      const d = new Date(weekStart)
+      d.setMonth(d.getMonth() + dir)
+      setWeekStart(getWeekStart(d))
+    }
+  }
+
+  return (
+    <div className="cc-stats">
+      <div className="cc-stats-header">
+        <div className="cc-stats-range-switch">
+          <button
+            className={`cc-tab${rangeMode === 'week' ? ' cc-tab--active' : ''}`}
+            onClick={() => setRangeMode('week')}
+          >
+            Week
+          </button>
+          <button
+            className={`cc-tab${rangeMode === 'month' ? ' cc-tab--active' : ''}`}
+            onClick={() => setRangeMode('month')}
+          >
+            Month
+          </button>
         </div>
-      </form>
+        <div className="cc-week-nav">
+          <button className="cc-nav-btn" onClick={() => shiftRange(-1)}>‹</button>
+          <span className="cc-week-label">
+            {fmtLong(statsStart)} – {fmtLong(statsEnd)}
+          </span>
+          <button className="cc-nav-btn" onClick={() => shiftRange(1)}>›</button>
+        </div>
+        <button
+          className="cc-action-btn cc-action-btn--primary cc-sync-btn"
+          onClick={onSync}
+          disabled={syncing}
+        >
+          {syncing ? 'Syncing…' : 'Sync now'}
+        </button>
+      </div>
+
+      {syncResult && (
+        <div className={`cc-sync-result${syncResult.error ? ' cc-sync-result--error' : ''}`}>
+          {syncResult.error && <span>Sync failed: {syncResult.error}</span>}
+          {!syncResult.error && (
+            <>
+              <strong>Synced {syncResult.at.toLocaleTimeString()}</strong>
+              <span>· {syncResult.totalMatched} post{syncResult.totalMatched !== 1 ? 's' : ''} matched</span>
+              {(syncResult.platforms || []).map((r) => (
+                <span key={r.platform}>
+                  · {r.platform}: {r.error ? `error — ${r.error}` : `${r.posts_count || 0} scraped, ${r.matched || 0} matched`}
+                </span>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Totals */}
+      <div className="cc-stats-totals">
+        <StatCard label="Posts created" value={agg.totals.count} accent />
+        <StatCard label="Views"         value={agg.totals.views} />
+        <StatCard label="Reach"         value={agg.totals.reach} />
+        <StatCard label="Impressions"   value={agg.totals.impressions} />
+        <StatCard label="Likes"         value={agg.totals.likes} />
+        <StatCard label="Comments"      value={agg.totals.comments} />
+        <StatCard label="Shares"        value={agg.totals.shares} />
+        <StatCard label="Saves"         value={agg.totals.saves} />
+      </div>
+
+      {/* By pillar */}
+      <StatsGroup title="By content pillar">
+        {Object.entries(agg.byPillar)
+          .sort((a, b) => b[1].count - a[1].count)
+          .map(([k, v]) => {
+            const pillar = pillarMap[k]
+            return (
+              <StatRow
+                key={k}
+                label={pillar?.name || 'Unassigned'}
+                color={pillar?.color}
+                data={v}
+              />
+            )
+          })}
+      </StatsGroup>
+
+      {/* By channel */}
+      <StatsGroup title="By channel">
+        {Object.entries(agg.byChannel)
+          .sort((a, b) => b[1].count - a[1].count)
+          .map(([k, v]) => (
+            <StatRow
+              key={k}
+              label={CHANNEL_META[k]?.label || k}
+              icon={k !== 'none' ? <ChannelIcon channel={k} size={14} /> : null}
+              data={v}
+            />
+          ))}
+      </StatsGroup>
+
+      {/* By client listing */}
+      {Object.keys(agg.byListing).length > 0 && (
+        <StatsGroup title="By client listing">
+          {Object.entries(agg.byListing)
+            .sort((a, b) => b[1].count - a[1].count)
+            .map(([k, v]) => {
+              const l = listingMap[k]
+              return (
+                <StatRow
+                  key={k}
+                  label={l?.property?.address || 'Listing'}
+                  data={v}
+                />
+              )
+            })}
+        </StatsGroup>
+      )}
+
+      {/* By open house */}
+      {Object.keys(agg.byOH).length > 0 && (
+        <StatsGroup title="By open house">
+          {Object.entries(agg.byOH)
+            .sort((a, b) => b[1].count - a[1].count)
+            .map(([k, v]) => (
+              <StatRow key={k} label={`Open House ${k.slice(0, 8)}`} data={v} />
+            ))}
+        </StatsGroup>
+      )}
+    </div>
+  )
+}
+
+function StatCard({ label, value, accent }) {
+  return (
+    <div className={`cc-stat-card${accent ? ' cc-stat-card--accent' : ''}`}>
+      <div className="cc-stat-value">{(value || 0).toLocaleString()}</div>
+      <div className="cc-stat-label">{label}</div>
+    </div>
+  )
+}
+
+function StatsGroup({ title, children }) {
+  return (
+    <div className="cc-stats-group">
+      <h3 className="cc-stats-group-title">{title}</h3>
+      <div className="cc-stats-rows">{children}</div>
+    </div>
+  )
+}
+
+function StatRow({ label, color, icon, data }) {
+  return (
+    <div className="cc-stat-row">
+      <div className="cc-stat-row-label">
+        {color && <span className="cc-stat-row-dot" style={{ background: color }} />}
+        {icon && <span className="cc-stat-row-icon">{icon}</span>}
+        <span>{label}</span>
+      </div>
+      <div className="cc-stat-row-metrics">
+        <span><b>{data.count}</b> posts</span>
+        <span>{(data.views || 0).toLocaleString()} views</span>
+        <span>{(data.likes + data.comments + data.shares + data.saves).toLocaleString()} eng</span>
+      </div>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { SlidePanel, Button, Input, Textarea } from '../ui'
 import {
   createContact, createListingAppointment, ensureProperty, logActivity,
 } from '../../lib/supabase'
+import { emit as emitNotification } from '../../lib/notifications'
 import {
   findContactByPhone, findContactByEmail,
   findScheduleConflicts, findActiveAppointmentsForContact,
@@ -166,6 +167,15 @@ export default function QuickAddListingAppt({ open, onClose }) {
         `Listing appt: ${form.clientName} @ ${form.address}`,
         { contactId, propertyId, metadata: { appointment_id: appt.id } }
       )
+      emitNotification({
+        type: 'appointment_booked',
+        title: `Listing appt: ${form.clientName}`,
+        body: `${form.address} · ${new Date(form.when).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}${form.location ? ' · ' + form.location : ''}`,
+        link: '/dashboard/appts',
+        source_table: 'listing_appointments',
+        source_id: appt.id,
+        metadata: { contact_id: contactId, property_id: propertyId, location: form.location || null },
+      }).catch(err => console.error('notification emit failed', err))
 
       onClose?.()
     } catch (e) {

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   listActive, unreadCount, markRead, markAllRead,
-  keep, dismiss, snooze, typeMeta,
+  keep, dismiss, snooze, typeMeta, runStaleSweepIfDue,
 } from '../../lib/notifications'
 import './NotificationsBell.css'
 
@@ -39,9 +39,10 @@ export default function NotificationsBell() {
     finally   { setLoading(false) }
   }, [])
 
-  // Poll unread count
+  // Poll unread count + run daily stale sweep on first mount
   useEffect(() => {
     refreshCount()
+    runStaleSweepIfDue().then(n => { if (n > 0) refreshCount() }).catch(() => {})
     const t = setInterval(refreshCount, POLL_MS)
     return () => clearInterval(t)
   }, [refreshCount])

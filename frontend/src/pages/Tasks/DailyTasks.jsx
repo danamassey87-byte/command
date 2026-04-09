@@ -31,12 +31,6 @@ const PRIORITIES = [
   { value: 'low',    label: 'Low',    color: 'var(--color-success)', icon: '\u{1F7E2}' },
 ]
 
-const VENDOR_ROLES = [
-  'Inspector', 'Lender', 'Title/Escrow', 'Appraiser', 'Contractor',
-  'Photographer', 'Stager', 'Handyman', 'Cleaner', 'Pest Control',
-  'Roofer', 'Plumber', 'Electrician', 'HVAC', 'Landscaper', 'Other',
-]
-
 const CALENDAR_HOURS = Array.from({ length: 14 }, (_, i) => i + 6) // 6am to 7pm
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -77,8 +71,8 @@ export default function DailyTasks() {
   // Data
   const { data: allTasks, loading: loadingTasks, refetch: refetchTasks } = useAllDailyTasks()
   const { data: streaks, refetch: refetchStreaks } = useDailyStreaks()
-  const { data: vendors, loading: loadingVendors, refetch: refetchVendors } = useVendors()
-  const { data: assignments, refetch: refetchAssignments } = useVendorAssignments()
+  const { data: vendors } = useVendors()
+  const { data: assignments } = useVendorAssignments()
   const { data: transactions } = useTransactions()
   const { data: contacts } = useContacts()
   const { data: showingSessions } = useShowingSessions()
@@ -88,12 +82,9 @@ export default function DailyTasks() {
   // UI State
   const [view, setView] = useState('today')         // today | upcoming | completed | vendors
   const [panelOpen, setPanelOpen] = useState(false)
-  const [panelMode, setPanelMode] = useState('task') // task | vendor | assignment
   const [editItem, setEditItem] = useState(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [draggedTask, setDraggedTask] = useState(null)
-  const [vendorPrintOpen, setVendorPrintOpen] = useState(false)
-  const [vendorPrintSelection, setVendorPrintSelection] = useState({})
   const [rolledOver, setRolledOver] = useState(false)
 
   // Task form
@@ -107,30 +98,9 @@ export default function DailyTasks() {
   const [fSourceLink, setFSourceLink] = useState('')
   const [fIsRecurring, setFIsRecurring] = useState(false)
   const [fRecurDay, setFRecurDay] = useState(1)
-  const [fVendorId, setFVendorId] = useState('')
+  const [fVendorIds, setFVendorIds] = useState([])
   const [fDealId, setFDealId] = useState('')
   const [fContactId, setFContactId] = useState('')
-
-  // Vendor form
-  const [vName, setVName] = useState('')
-  const [vCompany, setVCompany] = useState('')
-  const [vRole, setVRole] = useState('Inspector')
-  const [vPhone, setVPhone] = useState('')
-  const [vEmail, setVEmail] = useState('')
-  const [vWebsite, setVWebsite] = useState('')
-  const [vNotes, setVNotes] = useState('')
-  const [vRating, setVRating] = useState(5)
-
-  // Assignment form
-  const [aVendorId, setAVendorId] = useState('')
-  const [aDealId, setADealId] = useState('')
-  const [aPropertyAddress, setAPropertyAddress] = useState('')
-  const [aServiceType, setAServiceType] = useState('inspection')
-  const [aDate, setADate] = useState('')
-  const [aTime, setATime] = useState('')
-  const [aCost, setACost] = useState('')
-  const [aNotes, setANotes] = useState('')
-  const [aStatus, setAStatus] = useState('pending')
 
   const tasks = allTasks ?? []
   const vList = vendors ?? []
@@ -283,10 +253,10 @@ export default function DailyTasks() {
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
   const openNewTask = () => {
-    setEditItem(null); setPanelMode('task')
+    setEditItem(null)
     setFTitle(''); setFDesc(''); setFNotes(''); setFCategory('general'); setFPriority('normal')
     setFDueDate(TODAY); setFDueTime(''); setFSourceLink(''); setFIsRecurring(false); setFRecurDay(1)
-    setFVendorId(''); setFDealId(''); setFContactId('')
+    setFVendorIds([]); setFDealId(''); setFContactId('')
     setPanelOpen(true)
   }
 
@@ -295,14 +265,22 @@ export default function DailyTasks() {
       if (task.source_link) navigate(task.source_link)
       return
     }
-    setEditItem(task); setPanelMode('task')
+    setEditItem(task)
     setFTitle(task.title); setFDesc(task.description || ''); setFNotes(task.notes || '')
     setFCategory(task.category || 'general'); setFPriority(task.priority || 'normal')
     setFDueDate(task.due_date || ''); setFDueTime(task.due_time || '')
     setFSourceLink(task.source_link || ''); setFIsRecurring(task.is_recurring || false)
-    setFRecurDay(task.recur_day ?? 1); setFVendorId(task.vendor_id || '')
+    setFRecurDay(task.recur_day ?? 1)
+    // Support legacy single vendor_id + new vendor_ids[] column
+    const ids = Array.isArray(task.vendor_ids) ? task.vendor_ids
+      : (task.vendor_id ? [task.vendor_id] : [])
+    setFVendorIds(ids)
     setFDealId(task.deal_id || ''); setFContactId(task.contact_id || '')
     setPanelOpen(true)
+  }
+
+  const toggleVendorId = (id) => {
+    setFVendorIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
   const saveTask = async () => {
@@ -318,7 +296,7 @@ export default function DailyTasks() {
       source_link: fSourceLink.trim() || null,
       is_recurring: fIsRecurring,
       recur_day: fIsRecurring ? Number(fRecurDay) : null,
-      vendor_id: fVendorId || null,
+      vendor_ids: fVendorIds,
       deal_id: fDealId || null,
       contact_id: fContactId || null,
     }
@@ -370,78 +348,6 @@ export default function DailyTasks() {
     } catch (e) { console.error(e) }
   }
 
-  // ─── Vendor handlers ──────────────────────────────────────────────────────
-  const openNewVendor = () => {
-    setEditItem(null); setPanelMode('vendor')
-    setVName(''); setVCompany(''); setVRole('Inspector'); setVPhone('')
-    setVEmail(''); setVWebsite(''); setVNotes(''); setVRating(5)
-    setPanelOpen(true)
-  }
-
-  const openEditVendor = (v) => {
-    setEditItem(v); setPanelMode('vendor')
-    setVName(v.name); setVCompany(v.company || ''); setVRole(v.role || 'Inspector')
-    setVPhone(v.phone || ''); setVEmail(v.email || ''); setVWebsite(v.website || '')
-    setVNotes(v.notes || ''); setVRating(v.rating || 5)
-    setPanelOpen(true)
-  }
-
-  const saveVendor = async () => {
-    if (!vName.trim()) return
-    const data = {
-      name: vName.trim(), company: vCompany.trim() || null,
-      role: vRole.toLowerCase(), phone: vPhone.trim() || null,
-      email: vEmail.trim() || null, website: vWebsite.trim() || null,
-      notes: vNotes.trim() || null, rating: Number(vRating) || 5,
-    }
-    try {
-      if (editItem?.id) await DB.updateVendor(editItem.id, data)
-      else await DB.createVendor(data)
-      refetchVendors(); setPanelOpen(false)
-    } catch (e) { console.error(e) }
-  }
-
-  const deleteVendor = async (id) => {
-    try { await DB.deleteVendor(id); refetchVendors(); setPanelOpen(false) } catch (e) { console.error(e) }
-  }
-
-  // ─── Assignment handlers ─────────────────────────────────────────────────
-  const openNewAssignment = (vendorId = '') => {
-    setEditItem(null); setPanelMode('assignment')
-    setAVendorId(vendorId); setADealId(''); setAPropertyAddress(''); setAServiceType('inspection')
-    setADate(''); setATime(''); setACost(''); setANotes(''); setAStatus('pending')
-    setPanelOpen(true)
-  }
-
-  const saveAssignment = async () => {
-    if (!aVendorId) return
-    const data = {
-      vendor_id: aVendorId, deal_id: aDealId || null,
-      property_address: aPropertyAddress.trim() || null,
-      service_type: aServiceType, scheduled_date: aDate || null,
-      scheduled_time: aTime || null, cost: aCost ? Number(aCost) : null,
-      notes: aNotes.trim() || null, status: aStatus,
-    }
-    try {
-      if (editItem?.id) await DB.updateVendorAssignment(editItem.id, data)
-      else {
-        await DB.createVendorAssignment(data)
-        // Auto-create a task for this assignment if it has a date
-        if (aDate) {
-          await DB.createDailyTask({
-            title: `${aServiceType}: ${vList.find(v => v.id === aVendorId)?.name ?? 'Vendor'} @ ${aPropertyAddress || 'TBD'}`,
-            category: 'vendor', priority: 'high',
-            due_date: aDate, due_time: aTime || null,
-            source_type: 'vendor', vendor_id: aVendorId,
-            deal_id: aDealId || null,
-          })
-          refetchTasks()
-        }
-      }
-      refetchAssignments(); setPanelOpen(false)
-    } catch (e) { console.error(e) }
-  }
-
   // ─── Calendar drag & drop ─────────────────────────────────────────────────
   const handleDragStart = (e, task) => {
     if (task.external) return
@@ -460,48 +366,6 @@ export default function DailyTasks() {
       refetchTasks()
     } catch (err) { console.error(err) }
     setDraggedTask(null)
-  }
-
-  // ─── Vendor PDF Print ─────────────────────────────────────────────────────
-  const printVendors = () => {
-    const selected = vList.filter(v => vendorPrintSelection[v.id])
-    if (!selected.length) return
-    const win = window.open('', '_blank')
-    const roleGroups = {}
-    selected.forEach(v => {
-      const r = v.role || 'Other'
-      if (!roleGroups[r]) roleGroups[r] = []
-      roleGroups[r].push(v)
-    })
-    win.document.write(`<html><head><title>Preferred Vendors</title>
-      <style>
-        body { font-family: -apple-system, sans-serif; padding: 32px; color: #2c1810; }
-        h1 { font-size: 1.4rem; border-bottom: 2px solid #2c1810; padding-bottom: 8px; }
-        h2 { font-size: 1rem; margin-top: 24px; color: #5a4a3a; text-transform: capitalize; }
-        .vendor { padding: 8px 0; border-bottom: 1px solid #eee; display: flex; gap: 16px; }
-        .vendor-name { font-weight: 700; min-width: 180px; }
-        .vendor-co { color: #888; min-width: 150px; }
-        .vendor-phone { min-width: 130px; }
-        .vendor-email { color: #5a87b4; }
-        .stars { color: #c9962e; }
-        @media print { body { padding: 16px; } }
-      </style>
-    </head><body>
-      <h1>Preferred Vendors</h1>
-      <p style="color:#888;font-size:0.8rem;">Generated ${new Date().toLocaleDateString()}</p>
-      ${Object.entries(roleGroups).map(([role, vendors]) => `
-        <h2>${role}</h2>
-        ${vendors.map(v => `<div class="vendor">
-          <span class="vendor-name">${v.name}</span>
-          <span class="vendor-co">${v.company || ''}</span>
-          <span class="vendor-phone">${v.phone || ''}</span>
-          <span class="vendor-email">${v.email || ''}</span>
-          <span class="stars">${'\u2605'.repeat(v.rating || 0)}</span>
-        </div>`).join('')}
-      `).join('')}
-    </body></html>`)
-    win.document.close()
-    setTimeout(() => win.print(), 300)
   }
 
   // ─── Render helpers ───────────────────────────────────────────────────────
@@ -558,16 +422,47 @@ export default function DailyTasks() {
     )
   }
 
-  // ─── View: Vendors ────────────────────────────────────────────────────────
-  const vendorsByRole = useMemo(() => {
-    const map = {}
-    vList.forEach(v => {
-      const r = v.role || 'other'
-      if (!map[r]) map[r] = []
-      map[r].push(v)
+  // ─── View: Vendors — tasks linked to one or more vendors, grouped ─────────
+  const vendorMap = useMemo(
+    () => Object.fromEntries(vList.map(v => [v.id, v])),
+    [vList]
+  )
+
+  // Pull vendor_ids off a task, tolerating legacy single vendor_id rows.
+  const taskVendorIds = (t) => {
+    if (Array.isArray(t.vendor_ids) && t.vendor_ids.length) return t.vendor_ids
+    if (t.vendor_id) return [t.vendor_id]
+    return []
+  }
+
+  const tasksByVendor = useMemo(() => {
+    const buckets = {}     // vendorId -> [tasks]
+    const unlinked = []    // tasks whose vendor no longer exists
+    tasks.forEach(t => {
+      const ids = taskVendorIds(t)
+      if (!ids.length) return
+      ids.forEach(id => {
+        if (!vendorMap[id]) { unlinked.push(t); return }
+        if (!buckets[id]) buckets[id] = []
+        buckets[id].push(t)
+      })
     })
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b))
-  }, [vList])
+    // Sort: pending first, then by due_date asc, priority
+    const sortTasks = arr => arr.sort((a, b) => {
+      const aDone = a.status === 'completed' ? 1 : 0
+      const bDone = b.status === 'completed' ? 1 : 0
+      if (aDone !== bDone) return aDone - bDone
+      const dd = (a.due_date ?? '').localeCompare(b.due_date ?? '')
+      if (dd) return dd
+      return priSort(a.priority) - priSort(b.priority)
+    })
+    Object.values(buckets).forEach(sortTasks)
+    // Sort vendors alphabetically
+    const entries = Object.entries(buckets).sort(
+      ([a], [b]) => (vendorMap[a]?.name ?? '').localeCompare(vendorMap[b]?.name ?? '')
+    )
+    return { entries, unlinked }
+  }, [tasks, vendorMap])
 
   if (loadingTasks) return <div className="dt-loading">Loading tasks...</div>
 
@@ -697,64 +592,34 @@ export default function DailyTasks() {
           </div>
         )}
 
-        {/* ─── Vendors View ─── */}
+        {/* ─── Vendors View — tasks associated with vendors ─── */}
         {view === 'vendors' && (
-          <div className="dt-vendors">
+          <div className="dt-list">
             <div className="dt-vendors__actions">
-              <Button variant="primary" size="sm" icon="+" onClick={openNewVendor}>Add Vendor</Button>
-              <Button variant="ghost" size="sm" onClick={() => openNewAssignment()}>Assign to Deal</Button>
-              <Button variant="ghost" size="sm" onClick={() => {
-                const sel = {}; vList.forEach(v => { sel[v.id] = true }); setVendorPrintSelection(sel); setVendorPrintOpen(true)
-              }}>Print PDF</Button>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/vendors')}>Manage Vendors</Button>
+              <Button variant="primary" size="sm" icon="+" onClick={openNewTask}>New Task</Button>
             </div>
 
-            {vendorsByRole.length === 0 ? (
-              <EmptyState title="No vendors yet" description="Add your preferred vendors — inspectors, lenders, contractors, etc." action={<Button variant="primary" size="sm" onClick={openNewVendor}>Add Vendor</Button>} />
+            {tasksByVendor.entries.length === 0 ? (
+              <EmptyState
+                title="No vendor tasks"
+                description="Tasks linked to a vendor (e.g. “Follow up with inspector”) will appear here. Create a task and link one or more vendors to it."
+                action={<Button variant="primary" size="sm" onClick={openNewTask}>New Task</Button>}
+              />
             ) : (
-              vendorsByRole.map(([role, vendors]) => (
-                <div key={role} className="dt-vendor-group">
-                  <h3 className="dt-vendor-group__title">{role}</h3>
-                  <div className="dt-vendor-group__list">
-                    {vendors.map(v => (
-                      <div key={v.id} className="dt-vendor-card" onClick={() => openEditVendor(v)}>
-                        <div className="dt-vendor-card__top">
-                          <span className="dt-vendor-card__name">{v.name}</span>
-                          <span className="dt-vendor-card__stars">{'\u2605'.repeat(v.rating || 0)}{'\u2606'.repeat(5 - (v.rating || 0))}</span>
-                        </div>
-                        {v.company && <span className="dt-vendor-card__co">{v.company}</span>}
-                        <div className="dt-vendor-card__contact">
-                          {v.phone && <a href={`tel:${v.phone}`} onClick={e => e.stopPropagation()} className="dt-vendor-card__link">{v.phone}</a>}
-                          {v.email && <a href={`mailto:${v.email}`} onClick={e => e.stopPropagation()} className="dt-vendor-card__link">{v.email}</a>}
-                        </div>
-                        <div className="dt-vendor-card__actions">
-                          <Button variant="ghost" size="sm" onClick={e => { e.stopPropagation(); openNewAssignment(v.id) }}>Assign to Deal</Button>
-                        </div>
-                      </div>
-                    ))}
+              tasksByVendor.entries.map(([vendorId, vTasks]) => {
+                const v = vendorMap[vendorId]
+                return (
+                  <div key={vendorId} className="dt-section">
+                    <h3 className="dt-section__title">
+                      {v?.name ?? 'Vendor'}
+                      {v?.role && <span className="heat-row__goal"> &middot; {v.role}</span>}
+                      <span className="heat-row__goal"> &middot; {vTasks.filter(t => t.status !== 'completed').length} open</span>
+                    </h3>
+                    {vTasks.map(t => <TaskRow key={`${vendorId}_${t.id}`} task={t} showDate />)}
                   </div>
-                </div>
-              ))
-            )}
-
-            {/* Assignments list */}
-            {aList.length > 0 && (
-              <div className="dt-assignments">
-                <h3 className="dt-section__title">Vendor Assignments</h3>
-                {aList.map(a => (
-                  <div key={a.id} className="dt-assignment-row">
-                    <div className="dt-assignment-row__left">
-                      <span className="dt-assignment-row__type">{a.service_type}</span>
-                      <span className="dt-assignment-row__vendor">{a.vendor?.name ?? 'Unknown'}</span>
-                      {a.property_address && <span className="dt-assignment-row__addr">{a.property_address}</span>}
-                    </div>
-                    <div className="dt-assignment-row__right">
-                      {a.scheduled_date && <span className="dt-assignment-row__date">{fmtDate(a.scheduled_date)}</span>}
-                      {a.scheduled_time && <span className="dt-assignment-row__time">{fmtTime(a.scheduled_time)}</span>}
-                      <Badge variant={a.status === 'completed' ? 'success' : a.status === 'confirmed' ? 'info' : 'warning'} size="sm">{a.status}</Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                )
+              })
             )}
           </div>
         )}
@@ -815,44 +680,9 @@ export default function DailyTasks() {
         </div>
       )}
 
-      {/* ─── Vendor Print Modal ─── */}
-      {vendorPrintOpen && (
-        <>
-          <div className="dt-modal-backdrop" onClick={() => setVendorPrintOpen(false)} />
-          <div className="dt-modal">
-            <h3 className="dt-modal__title">Select Vendors to Print</h3>
-            <div className="dt-modal__list">
-              <label className="dt-modal__check-all">
-                <input type="checkbox"
-                  checked={vList.length > 0 && vList.every(v => vendorPrintSelection[v.id])}
-                  onChange={e => {
-                    const sel = {}
-                    if (e.target.checked) vList.forEach(v => { sel[v.id] = true })
-                    setVendorPrintSelection(sel)
-                  }}
-                />
-                <span>Select All</span>
-              </label>
-              {vList.map(v => (
-                <label key={v.id} className="dt-modal__check-item">
-                  <input type="checkbox" checked={!!vendorPrintSelection[v.id]}
-                    onChange={e => setVendorPrintSelection(p => ({ ...p, [v.id]: e.target.checked }))}
-                  />
-                  <span>{v.name} — <em>{v.role}</em></span>
-                </label>
-              ))}
-            </div>
-            <div className="dt-modal__actions">
-              <Button variant="primary" size="sm" onClick={printVendors}>Print / Save PDF</Button>
-              <Button variant="ghost" size="sm" onClick={() => setVendorPrintOpen(false)}>Cancel</Button>
-            </div>
-          </div>
-        </>
-      )}
-
       {/* ─── Task Panel ─── */}
       <SlidePanel
-        open={panelOpen && panelMode === 'task'}
+        open={panelOpen}
         onClose={() => setPanelOpen(false)}
         title={editItem ? 'Edit Task' : 'New Task'}
         subtitle={editItem?.rolled_from ? `Rolled over from ${fmtDate(editItem.rolled_from)}` : null}
@@ -903,84 +733,40 @@ export default function DailyTasks() {
             </Select>
           </div>
 
-          <Select label="Link to Vendor" id="dt-vendor" value={fVendorId} onChange={e => setFVendorId(e.target.value)}>
-            <option value="">— None —</option>
-            {vList.map(v => <option key={v.id} value={v.id}>{v.name} ({v.role})</option>)}
-          </Select>
+          {/* Link to Vendors (multi-select) */}
+          <div className="dt-form__field">
+            <label className="dt-form__label">Link to Vendors</label>
+            {vList.length === 0 ? (
+              <p className="dt-form__hint">
+                No vendors yet. <a href="/vendors" onClick={e => { e.preventDefault(); navigate('/vendors') }}>Add some on the Vendors page</a>.
+              </p>
+            ) : (
+              <div className="dt-vendor-picker">
+                {vList.map(v => {
+                  const checked = fVendorIds.includes(v.id)
+                  return (
+                    <label key={v.id} className={`dt-vendor-chip ${checked ? 'dt-vendor-chip--on' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleVendorId(v.id)}
+                      />
+                      <span className="dt-vendor-chip__name">{v.name}</span>
+                      {v.role && <span className="dt-vendor-chip__role">{v.role}</span>}
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+            {fVendorIds.length > 0 && (
+              <p className="dt-form__hint">{fVendorIds.length} vendor{fVendorIds.length > 1 ? 's' : ''} linked</p>
+            )}
+          </div>
 
           <div className="dt-form__actions">
             <Button variant="primary" onClick={saveTask}>{editItem ? 'Update Task' : 'Add Task'}</Button>
             {editItem && <Button variant="danger" onClick={() => deleteTask(editItem.id)}>Delete</Button>}
           </div>
-        </div>
-      </SlidePanel>
-
-      {/* ─── Vendor Panel ─── */}
-      <SlidePanel
-        open={panelOpen && panelMode === 'vendor'}
-        onClose={() => setPanelOpen(false)}
-        title={editItem ? 'Edit Vendor' : 'New Vendor'}
-        width={440}
-      >
-        <div className="dt-form">
-          <Input label="Name" id="v-name" value={vName} onChange={e => setVName(e.target.value)} placeholder="John Smith" />
-          <Input label="Company" id="v-co" value={vCompany} onChange={e => setVCompany(e.target.value)} placeholder="ABC Inspections" />
-          <Select label="Role" id="v-role" value={vRole} onChange={e => setVRole(e.target.value)}>
-            {VENDOR_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-          </Select>
-          <div className="dt-form__row">
-            <Input label="Phone" id="v-phone" type="tel" value={vPhone} onChange={e => setVPhone(e.target.value)} />
-            <Input label="Email" id="v-email" type="email" value={vEmail} onChange={e => setVEmail(e.target.value)} />
-          </div>
-          <Input label="Website" id="v-web" value={vWebsite} onChange={e => setVWebsite(e.target.value)} placeholder="https://..." />
-          <Select label="Rating" id="v-rating" value={vRating} onChange={e => setVRating(Number(e.target.value))}>
-            {[5,4,3,2,1].map(n => <option key={n} value={n}>{'\u2605'.repeat(n)} ({n})</option>)}
-          </Select>
-          <Textarea label="Notes" id="v-notes" value={vNotes} onChange={e => setVNotes(e.target.value)} rows={2} />
-          <div className="dt-form__actions">
-            <Button variant="primary" onClick={saveVendor}>{editItem ? 'Update Vendor' : 'Add Vendor'}</Button>
-            {editItem && <Button variant="danger" onClick={() => deleteVendor(editItem.id)}>Delete</Button>}
-          </div>
-        </div>
-      </SlidePanel>
-
-      {/* ─── Assignment Panel ─── */}
-      <SlidePanel
-        open={panelOpen && panelMode === 'assignment'}
-        onClose={() => setPanelOpen(false)}
-        title="Assign Vendor to Deal"
-        width={440}
-      >
-        <div className="dt-form">
-          <Select label="Vendor" id="a-vendor" value={aVendorId} onChange={e => setAVendorId(e.target.value)}>
-            <option value="">— Select Vendor —</option>
-            {vList.map(v => <option key={v.id} value={v.id}>{v.name} ({v.role})</option>)}
-          </Select>
-          <Select label="Deal" id="a-deal" value={aDealId} onChange={e => setADealId(e.target.value)}>
-            <option value="">— Select Deal —</option>
-            {tList.map(t => <option key={t.id} value={t.id}>{t.contact?.name ?? 'Deal'} — {t.property?.address ?? ''}</option>)}
-          </Select>
-          <Input label="Property Address" id="a-addr" value={aPropertyAddress} onChange={e => setAPropertyAddress(e.target.value)} placeholder="123 Main St" />
-          <Select label="Service Type" id="a-type" value={aServiceType} onChange={e => setAServiceType(e.target.value)}>
-            {['inspection','appraisal','photos','staging','repair','pest','roof','plumbing','electrical','hvac','cleaning','other'].map(s =>
-              <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-            )}
-          </Select>
-          <div className="dt-form__row">
-            <Input label="Date" id="a-date" type="date" value={aDate} onChange={e => setADate(e.target.value)} />
-            <Input label="Time" id="a-time" type="time" value={aTime} onChange={e => setATime(e.target.value)} />
-          </div>
-          <Input label="Cost ($)" id="a-cost" type="number" value={aCost} onChange={e => setACost(e.target.value)} placeholder="0.00" />
-          <Select label="Status" id="a-status" value={aStatus} onChange={e => setAStatus(e.target.value)}>
-            {['pending','confirmed','completed','cancelled'].map(s =>
-              <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-            )}
-          </Select>
-          <Textarea label="Notes" id="a-notes" value={aNotes} onChange={e => setANotes(e.target.value)} rows={2} />
-          <div className="dt-form__actions">
-            <Button variant="primary" onClick={saveAssignment}>{editItem ? 'Update' : 'Assign Vendor'}</Button>
-          </div>
-          <p className="dt-form__hint">This will also auto-create a task on the scheduled date.</p>
         </div>
       </SlidePanel>
     </div>

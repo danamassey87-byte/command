@@ -63,6 +63,7 @@ const SECTIONS = {
       { label: 'Listing Plan',     path: '/crm/listing-plan',    icon: 'zap' },
       { label: 'Intake Forms',     path: '/crm/intake-forms',    icon: 'clipboard',     group: 'Tools' },
       { label: 'Contact Database', path: '/crm/database',        icon: 'database' },
+      { label: 'Vendors',          path: '/vendors',             icon: 'users',         group: 'Vendors' },
     ],
   },
   deals: {
@@ -119,7 +120,6 @@ const SECTIONS = {
   toolkit: {
     title: 'Toolkit',
     items: [
-      { label: 'Vendors',            path: '/vendors',             icon: 'users',         group: 'Rolodex' },
       { label: 'Resource Hub',       path: '/resources',           icon: 'link',          group: 'Resources' },
       { label: 'Email Templates',    path: '/resources/email',     icon: 'mail' },
       { label: 'SMS Templates',      path: '/resources/sms',       icon: 'message-square' },
@@ -163,13 +163,13 @@ const ICONS = {
 export function getActiveSection(pathname) {
   if (pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/goals') || pathname.startsWith('/calendar') || pathname.startsWith('/tasks')) return 'home'
   if (pathname.startsWith('/prospecting') || pathname.startsWith('/open-houses')) return 'prospect'
-  if (pathname.startsWith('/crm'))         return 'people'
+  if (pathname.startsWith('/crm') || pathname.startsWith('/vendors')) return 'people'
   // SOP/playbook routes live under toolkit, not deals
   if (pathname === '/pipeline/buyer-sop' || pathname === '/pipeline/seller-sop') return 'toolkit'
   if (pathname.startsWith('/pipeline'))    return 'deals'
   if (pathname.startsWith('/content') || pathname.startsWith('/campaigns') || pathname.startsWith('/email') || pathname.startsWith('/bio-link')) return 'content'
   if (pathname.startsWith('/pnl') || pathname.startsWith('/net-sheet') || pathname.startsWith('/market')) return 'money'
-  if (pathname.startsWith('/resources') || pathname.startsWith('/settings') || pathname.startsWith('/vendors')) return 'toolkit'
+  if (pathname.startsWith('/resources') || pathname.startsWith('/settings')) return 'toolkit'
   return 'home'
 }
 

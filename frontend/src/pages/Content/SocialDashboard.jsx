@@ -767,6 +767,8 @@ export default function SocialDashboard() {
   const [metrics, setMetrics] = useState([])
   const [historyMap, setHistoryMap] = useState({})
   const [configLoading, setConfigLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState(null)
 
   const loadConfig = useCallback(async () => {
     try {
@@ -856,6 +858,39 @@ export default function SocialDashboard() {
     await loadMetrics()
   }
 
+  async function handleSyncNow() {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const apifyKey = config?.apify_key
+      if (!apifyKey) throw new Error('Add an Apify API key in Manage Channels first.')
+
+      const enabled = Object.entries(config?.platform_config || {})
+        .filter(([k, v]) => v?.enabled && v?.connection === 'apify' && v?.handle && (k === 'instagram' || k === 'facebook'))
+
+      if (enabled.length === 0) {
+        throw new Error('Enable Instagram or Facebook with Apify connection in Manage Channels.')
+      }
+
+      const results = []
+      for (const [platform, pc] of enabled) {
+        try {
+          const r = await DB.syncSocialPlatform({ platform, handle: pc.handle, apifyKey })
+          results.push(`${platform}: ${r.posts_count} posts, ${r.matched} matched`)
+        } catch (e) {
+          results.push(`${platform}: error — ${e.message}`)
+        }
+      }
+      setSyncMsg(results.join(' · '))
+      await loadMetrics()
+    } catch (e) {
+      setSyncMsg('Error: ' + e.message)
+    } finally {
+      setSyncing(false)
+      setTimeout(() => setSyncMsg(null), 8000)
+    }
+  }
+
   const socialPlatforms = enabledPlatforms.filter(k => PLATFORM_MAP[k]?.group === 'social')
   const reviewPlatforms = enabledPlatforms.filter(k => PLATFORM_MAP[k]?.group === 'reviews')
   const webPlatforms = enabledPlatforms.filter(k => PLATFORM_MAP[k]?.group === 'web')
@@ -879,11 +914,22 @@ export default function SocialDashboard() {
         title="Social Media Dashboard"
         subtitle="Performance metrics across all your connected channels"
         actions={
-          <Button variant="secondary" onClick={() => setManagerOpen(true)}>
-            Manage Channels
-          </Button>
+          <>
+            <Button onClick={handleSyncNow} disabled={syncing}>
+              {syncing ? 'Syncing…' : 'Sync now'}
+            </Button>
+            <Button variant="secondary" onClick={() => setManagerOpen(true)}>
+              Manage Channels
+            </Button>
+          </>
         }
       />
+
+      {syncMsg && (
+        <div className={`sd-sync-msg${syncMsg.startsWith('Error') ? ' sd-sync-msg--error' : ''}`}>
+          {syncMsg}
+        </div>
+      )}
 
       {latestWeek && (
         <div className="sd-last-updated">

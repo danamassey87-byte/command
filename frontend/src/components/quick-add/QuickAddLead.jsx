@@ -3,6 +3,7 @@ import { SlidePanel, Button, Input, Textarea } from '../ui'
 import {
   createContact, updateContact, createListingAppointment, logActivity, ensureProperty,
 } from '../../lib/supabase'
+import { emit as emitNotification } from '../../lib/notifications'
 import {
   findContactByPhone, findContactByEmail,
   findScheduleConflicts, findActiveAppointmentsForContact,
@@ -150,6 +151,16 @@ export default function QuickAddLead({ open, onClose }) {
           `New ${form.lead_intent} lead: ${created.name}`,
           { contactId }
         )
+        // Notify the bell — a new lead just landed
+        emitNotification({
+          type: 'lead_created',
+          title: `New ${form.lead_intent} lead: ${created.name}`,
+          body: [form.source && `Source: ${form.source}`, form.phone || form.email].filter(Boolean).join(' · ') || null,
+          link: form.lead_intent === 'seller' ? '/crm/sellers' : '/crm/buyers',
+          source_table: 'contacts',
+          source_id: contactId,
+          metadata: { lead_intent: form.lead_intent, source: form.source || null },
+        }).catch(err => console.error('notification emit failed', err))
       }
 
       // 2. Optional: convert immediately to a listing appointment
@@ -174,6 +185,15 @@ export default function QuickAddLead({ open, onClose }) {
           `Listing appt from lead: ${form.name} @ ${form.propertyAddress}`,
           { contactId, propertyId, metadata: { appointment_id: appt.id } }
         )
+        emitNotification({
+          type: 'appointment_booked',
+          title: `Listing appt scheduled: ${form.name}`,
+          body: `${form.propertyAddress} · ${new Date(form.apptWhen).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`,
+          link: '/dashboard/appts',
+          source_table: 'listing_appointments',
+          source_id: appt.id,
+          metadata: { contact_id: contactId, property_id: propertyId },
+        }).catch(err => console.error('notification emit failed', err))
       }
 
       onClose?.()

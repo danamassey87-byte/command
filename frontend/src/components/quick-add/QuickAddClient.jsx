@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { SlidePanel, Button, Input, Textarea } from '../ui'
 import { createContact, updateContact, logActivity } from '../../lib/supabase'
+import { emit as emitNotification } from '../../lib/notifications'
 import { findContactByPhone, findContactByEmail } from '../../lib/safeguards'
 import {
   validateContactFields, validatePhone, validateEmail, newRequestId,
@@ -103,6 +104,15 @@ export default function QuickAddClient({ open, onClose }) {
       await logActivity('contact_created', `New ${form.type} client: ${created.name}`, {
         contactId: created.id,
       })
+      emitNotification({
+        type: 'lead_created',
+        title: `New ${form.type} client: ${created.name}`,
+        body: [form.phone, form.email].filter(Boolean).join(' · ') || null,
+        link: form.type === 'seller' ? '/crm/sellers' : '/crm/buyers',
+        source_table: 'contacts',
+        source_id: created.id,
+        metadata: { client_type: form.type },
+      }).catch(err => console.error('notification emit failed', err))
       onClose?.(created)
     } catch (e) {
       if (e.message?.includes('client_request_id') || e.message?.includes('duplicate key')) {

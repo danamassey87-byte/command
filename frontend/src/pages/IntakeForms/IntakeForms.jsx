@@ -1,6 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
 import { Button, Badge, SectionHeader, Card, Input, Select, Textarea } from '../../components/ui/index.jsx'
 import { BrandColorPicker, BorderRadiusControl, FontPicker } from '../../components/ui/StyleControls'
+import {
+  publishForm as publishFormToSupabase,
+  unpublishForm as unpublishFormFromSupabase,
+  buildSlug,
+  publicFormUrl,
+  fetchAllSubmissions,
+} from '../../lib/publicForms'
 import './IntakeForms.css'
 
 // ─── Storage ───
@@ -10,7 +17,21 @@ const RESPONSES_KEY = 'intake_responses'
 function loadForms() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [] } catch { return [] }
 }
-function saveForms(forms) { localStorage.setItem(STORAGE_KEY, JSON.stringify(forms)) }
+function saveForms(forms) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(forms))
+    return true
+  } catch (err) {
+    // QuotaExceededError — usually triggered by large uploaded logos as data URLs
+    const isQuota = err?.name === 'QuotaExceededError' || err?.code === 22
+    alert(
+      isQuota
+        ? 'Storage full — your uploaded logo may be too large. Try a smaller image (under 500 KB), or use a REAL preset instead.'
+        : `Could not save form: ${err?.message || 'unknown error'}`
+    )
+    return false
+  }
+}
 function loadResponses() {
   try { return JSON.parse(localStorage.getItem(RESPONSES_KEY)) || [] } catch { return [] }
 }
@@ -159,6 +180,11 @@ function createDefaultForm(formType) {
     name: meta.name,
     description: meta.description,
     fields: getFieldsForType(formType).map(f => ({ ...f })),
+    logo: {
+      url: '',
+      position: 'top-center', // top-left | top-center | top-right
+      size: 80, // px height
+    },
     style: {
       bgColor: BRAND.white,
       accentColor: BRAND.dark,
@@ -288,6 +314,7 @@ function FormFiller({ form, response, onSave, onBack, onDelete }) {
 
         {/* Form fields */}
         <div className="if-filler__form">
+          <FormLogoHeader logo={form.logo} />
           {sections.map(sec => {
             const fields = enabledFields.filter(f => f.section === sec)
             return (
@@ -379,6 +406,7 @@ function FormPreview({ form }) {
 
   return (
     <div className="if-preview" style={{ background: s.bgColor, fontFamily: s.fontFamily, color: s.textColor, borderRadius: s.borderRadius }}>
+      <FormLogoHeader logo={form.logo} />
       <div className="if-preview__header" style={{ borderBottomColor: s.accentColor + '22' }}>
         <h3 className="if-preview__title" style={{ color: s.accentColor }}>{form.name}</h3>
         <p className="if-preview__desc">{form.description}</p>
@@ -427,6 +455,132 @@ function FormPreview({ form }) {
         Submit
       </button>
       <p className="if-preview__required-note">* Required fields</p>
+    </div>
+  )
+}
+
+// ─── Logo Editor ───
+const LOGO_PRESETS = [
+  { id: 'real-black', label: 'REAL (Black)', url: '/assets/branding/real-logo-black.png' },
+  { id: 'real-white', label: 'REAL (White)', url: '/assets/branding/real-logo-white.png' },
+]
+
+function LogoEditor({ logo, onChange }) {
+  const fileRef = useRef(null)
+  const l = logo || { url: '', position: 'top-center', size: 80 }
+
+  const handleFile = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Logo must be under 2 MB. Please use a smaller image.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => onChange({ ...l, url: reader.result })
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <div className="if-logo-editor">
+      <label className="if-logo-editor__label">Form Logo</label>
+
+      {l.url ? (
+        <div className="if-logo-editor__preview-row">
+          <div className="if-logo-editor__preview">
+            <img src={l.url} alt="Logo" style={{ height: l.size, maxWidth: 240, objectFit: 'contain' }} />
+          </div>
+          <div className="if-logo-editor__actions">
+            <Button size="sm" variant="secondary" onClick={() => fileRef.current?.click()}>Replace</Button>
+            <Button size="sm" variant="ghost" onClick={() => onChange({ ...l, url: '' })}>Remove</Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <button
+            type="button"
+            className="if-logo-editor__upload"
+            onClick={() => fileRef.current?.click()}
+          >
+            <span>📷 Upload Logo</span>
+            <span className="if-logo-editor__hint">PNG, JPG, or SVG · Max 2 MB</span>
+          </button>
+          <div className="if-logo-editor__presets">
+            <span className="if-logo-editor__sublabel">Or use a brand preset</span>
+            <div className="if-logo-editor__preset-row">
+              {LOGO_PRESETS.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className="if-logo-editor__preset-btn"
+                  onClick={() => onChange({ ...l, url: p.url })}
+                >
+                  <img src={p.url} alt={p.label} />
+                  <span>{p.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png,image/jpeg,image/svg+xml,image/webp"
+        style={{ display: 'none' }}
+        onChange={handleFile}
+      />
+
+      {l.url && (
+        <>
+          <div className="if-logo-editor__field">
+            <label className="if-logo-editor__sublabel">Position</label>
+            <div className="if-logo-editor__positions">
+              {[
+                { value: 'top-left', label: 'Left' },
+                { value: 'top-center', label: 'Center' },
+                { value: 'top-right', label: 'Right' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`if-logo-editor__pos-btn ${l.position === opt.value ? 'if-logo-editor__pos-btn--active' : ''}`}
+                  onClick={() => onChange({ ...l, position: opt.value })}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="if-logo-editor__field">
+            <label className="if-logo-editor__sublabel">Size ({l.size}px)</label>
+            <input
+              type="range"
+              min={40}
+              max={160}
+              step={4}
+              value={l.size}
+              onChange={e => onChange({ ...l, size: Number(e.target.value) })}
+              className="if-logo-editor__slider"
+            />
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Form Logo Header (shared render) ───
+function FormLogoHeader({ logo }) {
+  if (!logo?.url) return null
+  const justify = logo.position === 'top-left' ? 'flex-start'
+    : logo.position === 'top-right' ? 'flex-end'
+    : 'center'
+  return (
+    <div style={{ display: 'flex', justifyContent: justify, padding: '16px 0 8px' }}>
+      <img src={logo.url} alt="Logo" style={{ height: logo.size || 80, maxWidth: '60%', objectFit: 'contain' }} />
     </div>
   )
 }
@@ -502,16 +656,62 @@ function StyleEditor({ style, onChange }) {
 function FormBuilder({ form, onSave, onBack }) {
   const [draft, setDraft] = useState({ ...form })
   const [activeTab, setActiveTab] = useState('fields')
+  const [publishing, setPublishing] = useState(false)
+  const [copyHint, setCopyHint] = useState('')
+
+  const isPublished = !!draft.publishedSlug
+  const publicUrl = isPublished ? publicFormUrl(draft.publishedSlug) : ''
 
   const handleSave = () => {
     onSave({ ...draft, updatedAt: new Date().toISOString() })
   }
 
-  const handleCopyLink = () => {
-    const slug = draft.type + '-intake-' + draft.id.slice(0, 8)
-    const url = `${window.location.origin}/form/${slug}`
-    navigator.clipboard.writeText(url)
-    alert('Link copied! (Note: public form hosting coming soon)')
+  const handlePublish = async () => {
+    setPublishing(true)
+    try {
+      const { slug } = await publishFormToSupabase(draft)
+      const updated = {
+        ...draft,
+        publishedSlug: slug,
+        publishedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      setDraft(updated)
+      onSave(updated)
+      setCopyHint('Published! Link is live.')
+      setTimeout(() => setCopyHint(''), 2500)
+    } catch (err) {
+      alert(`Could not publish: ${err.message}`)
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  const handleUnpublish = async () => {
+    if (!confirm('Unpublish this form? The shareable link will stop working.')) return
+    setPublishing(true)
+    try {
+      await unpublishFormFromSupabase(draft.publishedSlug)
+      const updated = { ...draft, publishedSlug: null, publishedAt: null, updatedAt: new Date().toISOString() }
+      setDraft(updated)
+      onSave(updated)
+      setCopyHint('Unpublished.')
+      setTimeout(() => setCopyHint(''), 2500)
+    } catch (err) {
+      alert(`Could not unpublish: ${err.message}`)
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(publicUrl)
+      setCopyHint('Link copied!')
+      setTimeout(() => setCopyHint(''), 2000)
+    } catch {
+      alert(publicUrl)
+    }
   }
 
   return (
@@ -519,10 +719,32 @@ function FormBuilder({ form, onSave, onBack }) {
       <div className="if-builder__header">
         <button className="if-builder__back" onClick={onBack}>← Back to Forms</button>
         <div className="if-builder__header-right">
-          <Button size="sm" variant="secondary" onClick={handleCopyLink}>Copy Link</Button>
+          {copyHint && <span className="if-builder__copy-hint">{copyHint}</span>}
+          {isPublished ? (
+            <>
+              <Button size="sm" variant="secondary" onClick={handleCopyLink}>Copy Link</Button>
+              <Button size="sm" variant="ghost" onClick={handleUnpublish} disabled={publishing}>Unpublish</Button>
+              <Button size="sm" variant="secondary" onClick={handlePublish} disabled={publishing}>
+                {publishing ? 'Updating…' : 'Re-publish'}
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="secondary" onClick={handlePublish} disabled={publishing}>
+              {publishing ? 'Publishing…' : '🌐 Publish'}
+            </Button>
+          )}
           <Button size="sm" variant="primary" onClick={handleSave}>Save Form</Button>
         </div>
       </div>
+
+      {isPublished && (
+        <div className="if-builder__published-bar">
+          <span className="if-builder__published-dot">●</span>
+          <span className="if-builder__published-label">Live at</span>
+          <a className="if-builder__published-url" href={publicUrl} target="_blank" rel="noreferrer">{publicUrl}</a>
+          <span className="if-builder__published-hint">Re-publish after changes to push updates.</span>
+        </div>
+      )}
 
       <div className="if-builder__workspace">
         <div className="if-builder__editor">
@@ -557,6 +779,10 @@ function FormBuilder({ form, onSave, onBack }) {
               <Input label="Form Name" value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} />
               <Textarea label="Description / Intro Text" rows={3} value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} />
               <Textarea label="Thank-You Message" rows={3} value={draft.thankYouMessage} onChange={e => setDraft({ ...draft, thankYouMessage: e.target.value })} />
+              <LogoEditor
+                logo={draft.logo}
+                onChange={logo => setDraft({ ...draft, logo })}
+              />
             </div>
           )}
         </div>
@@ -580,6 +806,7 @@ function FormBuilder({ form, onSave, onBack }) {
 export default function IntakeForms() {
   const [forms, setForms] = useState(loadForms)
   const [responses, setResponses] = useState(loadResponses)
+  const [remoteSubmissions, setRemoteSubmissions] = useState([])
   const [mode, setMode] = useState(null) // null | { type: 'fill', form, response? } | { type: 'build', form }
 
   // Auto-create default forms if none exist
@@ -592,6 +819,28 @@ export default function IntakeForms() {
       setForms(defaults)
       saveForms(defaults)
     }
+  }, [])
+
+  // Pull client submissions from Supabase (for any form Dana has published)
+  useEffect(() => {
+    let cancelled = false
+    fetchAllSubmissions()
+      .then(rows => {
+        if (cancelled) return
+        // Convert Supabase rows into the same shape as local responses
+        const mapped = rows.map(r => ({
+          id: 'remote-' + r.id,
+          formSlug: r.form_slug,
+          clientName: r.client_name || '',
+          data: r.data || {},
+          createdAt: r.created_at,
+          updatedAt: r.created_at,
+          source: 'remote',
+        }))
+        setRemoteSubmissions(mapped)
+      })
+      .catch(() => { /* silent — Supabase unreachable just hides remote submissions */ })
+    return () => { cancelled = true }
   }, [])
 
   // Ensure seller + contact forms always exist
@@ -670,7 +919,26 @@ export default function IntakeForms() {
   }
 
   // ─── Main view ───
-  const getFormResponses = (formType) => responses.filter(r => r.formType === formType)
+  // Resolve which local form a remote submission belongs to via its slug
+  const formBySlug = (slug) => forms.find(f => buildSlug(f) === slug)
+  const remoteForLocalForm = (form) => remoteSubmissions.filter(r => formBySlug(r.formSlug)?.id === form.id)
+
+  // Build a unified, sorted list of responses (local + remote)
+  const unifiedResponses = (() => {
+    const local = responses.map(r => ({ ...r, source: r.source || 'local' }))
+    // Tag remote with formId/formType so the existing card renderer keeps working
+    const remote = remoteSubmissions.map(r => {
+      const form = formBySlug(r.formSlug)
+      return form
+        ? { ...r, formId: form.id, formType: form.type }
+        : null
+    }).filter(Boolean)
+    return [...remote, ...local].sort((a, b) =>
+      new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+    )
+  })()
+
+  const getFormResponses = (formType) => unifiedResponses.filter(r => r.formType === formType)
 
   return (
     <div className="if-page">
@@ -688,11 +956,20 @@ export default function IntakeForms() {
               <span className="if-template-card__icon">🏠</span>
               <div>
                 <h3 className="if-template-card__name">{sellerForm.name}</h3>
-                <p className="if-template-card__desc">{sellerForm.fields.filter(f => f.enabled).length} fields · {getFormResponses('seller').length} saved responses</p>
+                <p className="if-template-card__desc">
+                  {sellerForm.fields.filter(f => f.enabled).length} fields · {getFormResponses('seller').length} responses
+                  {sellerForm.logo?.url && <span className="if-template-card__logo-flag"> · 🖼️ logo</span>}
+                  {sellerForm.publishedSlug && <span className="if-template-card__live-flag"> · ● live link</span>}
+                </p>
               </div>
             </div>
             <Badge variant="warning" size="sm">SELLER</Badge>
           </div>
+          {sellerForm.logo?.url && (
+            <div className="if-template-card__logo-preview">
+              <img src={sellerForm.logo.url} alt="Form logo" />
+            </div>
+          )}
           <p className="if-template-card__subtitle">{sellerForm.description}</p>
           <div className="if-template-card__actions">
             <Button variant="primary" size="sm" onClick={() => setMode({ type: 'fill', form: sellerForm })}>
@@ -711,11 +988,20 @@ export default function IntakeForms() {
               <span className="if-template-card__icon">👋</span>
               <div>
                 <h3 className="if-template-card__name">{contactForm.name}</h3>
-                <p className="if-template-card__desc">{contactForm.fields.filter(f => f.enabled).length} fields · {getFormResponses('contact').length} saved responses</p>
+                <p className="if-template-card__desc">
+                  {contactForm.fields.filter(f => f.enabled).length} fields · {getFormResponses('contact').length} responses
+                  {contactForm.logo?.url && <span className="if-template-card__logo-flag"> · 🖼️ logo</span>}
+                  {contactForm.publishedSlug && <span className="if-template-card__live-flag"> · ● live link</span>}
+                </p>
               </div>
             </div>
             <Badge variant="success" size="sm">CONTACT</Badge>
           </div>
+          {contactForm.logo?.url && (
+            <div className="if-template-card__logo-preview">
+              <img src={contactForm.logo.url} alt="Form logo" />
+            </div>
+          )}
           <p className="if-template-card__subtitle">{contactForm.description}</p>
           <div className="if-template-card__actions">
             <Button variant="primary" size="sm" onClick={() => setMode({ type: 'fill', form: contactForm })}>
@@ -735,11 +1021,20 @@ export default function IntakeForms() {
                 <span className="if-template-card__icon">🔑</span>
                 <div>
                   <h3 className="if-template-card__name">{bf.name}</h3>
-                  <p className="if-template-card__desc">{bf.fields.filter(f => f.enabled).length} fields · {getFormResponses('buyer').length} saved responses</p>
+                  <p className="if-template-card__desc">
+                    {bf.fields.filter(f => f.enabled).length} fields · {getFormResponses('buyer').length} responses
+                    {bf.logo?.url && <span className="if-template-card__logo-flag"> · 🖼️ logo</span>}
+                    {bf.publishedSlug && <span className="if-template-card__live-flag"> · ● live link</span>}
+                  </p>
                 </div>
               </div>
               <Badge variant="info" size="sm">BUYER</Badge>
             </div>
+            {bf.logo?.url && (
+              <div className="if-template-card__logo-preview">
+                <img src={bf.logo.url} alt="Form logo" />
+              </div>
+            )}
             <p className="if-template-card__subtitle">{bf.description}</p>
             <div className="if-template-card__actions">
               <Button variant="primary" size="sm" onClick={() => setMode({ type: 'fill', form: bf })}>
@@ -775,25 +1070,27 @@ export default function IntakeForms() {
         )}
       </div>
 
-      {/* ── Saved Responses ── */}
-      {responses.length > 0 && (
+      {/* ── Saved Responses (local + remote client submissions) ── */}
+      {unifiedResponses.length > 0 && (
         <div className="if-responses">
           <h3 className="if-responses__title">Saved Responses</h3>
           <div className="if-responses__list">
-            {responses.map(r => {
+            {unifiedResponses.map(r => {
               const form = forms.find(f => f.id === r.formId) || forms.find(f => f.type === r.formType)
               if (!form) return null
               const filledCount = Object.values(r.data).filter(v => v && String(v).trim()).length
               const meta = FORM_DESCRIPTIONS[r.formType] || FORM_DESCRIPTIONS.buyer
+              const isRemote = r.source === 'remote'
               return (
                 <div
                   key={r.id}
-                  className="if-response-card"
+                  className={`if-response-card ${isRemote ? 'if-response-card--remote' : ''}`}
                   onClick={() => setMode({ type: 'fill', form, response: r })}
                 >
                   <div className="if-response-card__top">
                     <Badge variant={meta.badgeVariant} size="sm">{meta.badge}</Badge>
-                    <span className="if-response-card__date">{new Date(r.updatedAt).toLocaleDateString()}</span>
+                    {isRemote && <Badge variant="info" size="sm">📥 FROM CLIENT</Badge>}
+                    <span className="if-response-card__date">{new Date(r.updatedAt || r.createdAt).toLocaleDateString()}</span>
                   </div>
                   <h4 className="if-response-card__name">{r.clientName || 'Unnamed Client'}</h4>
                   <p className="if-response-card__meta">{filledCount} fields filled · {form.name}</p>
