@@ -174,12 +174,34 @@ function getFieldsForType(type) {
 }
 
 // ─── Default form configs ───
-function createDefaultForm(formType) {
+// ── Usage options for forms ──
+// Where in the app a form is meant to be used. Drives the "Use for" picker on
+// the create-form dialog and the badges shown on form cards.
+export const FORM_USAGES = [
+  { key: 'buyer_intake',  label: 'Buyer Intake',         icon: '🔑', description: 'Collected during buyer consultation' },
+  { key: 'seller_intake', label: 'Seller / Listing Intake', icon: '🏠', description: 'Collected during listing appointment' },
+  { key: 'lead_capture',  label: 'Lead Capture',         icon: '👋', description: 'Get in touch / contact form' },
+  { key: 'link_in_bio',   label: 'Link in Bio',          icon: '🔗', description: 'Public lead form shared from social' },
+  { key: 'open_house',    label: 'Open House Sign-In',   icon: '📋', description: 'Visitor sign-in at an open house' },
+  { key: 'feedback',      label: 'Post-Showing Feedback',icon: '💬', description: 'Sent after a buyer showing' },
+  { key: 'testimonial',   label: 'Testimonial Request',  icon: '⭐', description: 'Post-close testimonial collection' },
+  { key: 'custom',        label: 'Custom',               icon: '✨', description: 'Anything else' },
+]
+
+export const USAGE_BY_KEY = Object.fromEntries(FORM_USAGES.map(u => [u.key, u]))
+
+function createDefaultForm(formType, { usage, customName } = {}) {
   const meta = FORM_DESCRIPTIONS[formType] || FORM_DESCRIPTIONS.buyer
+  // Default usage inferred from type; can be overridden
+  const defaultUsage = formType === 'seller' ? 'seller_intake'
+    : formType === 'buyer' ? 'buyer_intake'
+    : formType === 'contact' ? 'lead_capture'
+    : 'custom'
   return {
     id: crypto.randomUUID(),
     type: formType,
-    name: meta.name,
+    usage: usage || defaultUsage,
+    name: customName || meta.name,
     description: meta.description,
     fields: getFieldsForType(formType).map(f => ({ ...f })),
     logo: {
@@ -818,6 +840,7 @@ export default function IntakeForms() {
   const [responses, setResponses] = useState(loadResponses)
   const [remoteSubmissions, setRemoteSubmissions] = useState([])
   const [mode, setMode] = useState(null) // null | { type: 'fill', form, response? } | { type: 'build', form }
+  const [showNewForm, setShowNewForm] = useState(false)
 
   // Auto-create default forms if none exist
   useEffect(() => {
@@ -864,6 +887,28 @@ export default function IntakeForms() {
     setForms(updated)
     saveForms(updated)
     return form
+  }
+
+  // Create a custom form from the New Form dialog. `startFrom` is one of:
+  //   'blank' | 'seller' | 'buyer' | 'contact'
+  // The usage tag is saved on the form regardless.
+  const createCustomForm = ({ name, usage, startFrom }) => {
+    const baseType = startFrom === 'blank'
+      ? (usage === 'seller_intake' ? 'seller' : usage === 'buyer_intake' ? 'buyer' : 'contact')
+      : startFrom
+    const form = createDefaultForm(baseType, { usage, customName: name || undefined })
+    if (startFrom === 'blank') {
+      // Clear all fields except the basic contact identifiers
+      form.fields = form.fields.filter(f =>
+        ['full_name', 'name', 'email', 'phone'].includes(f.id)
+      ).map(f => ({ ...f, enabled: true }))
+    }
+    const updated = [form, ...forms]
+    setForms(updated)
+    saveForms(updated)
+    setShowNewForm(false)
+    // Jump straight into the builder so Dana can add fields
+    setMode({ type: 'build', form })
   }
 
   const saveForm = (updated) => {
@@ -950,12 +995,25 @@ export default function IntakeForms() {
 
   const getFormResponses = (formType) => unifiedResponses.filter(r => r.formType === formType)
 
+  // Custom forms (anything not a default seller/contact/buyer triplet)
+  const customForms = forms.filter(f =>
+    f.type !== 'seller' && f.type !== 'contact' && f.type !== 'buyer'
+  )
+
   return (
     <div className="if-page">
       <SectionHeader
         title="Intake Forms"
         subtitle="Fill out forms during client calls — or customize templates to match your brand"
+        actions={<Button size="sm" onClick={() => setShowNewForm(true)}>+ New Form</Button>}
       />
+
+      {showNewForm && (
+        <NewFormDialog
+          onCreate={createCustomForm}
+          onClose={() => setShowNewForm(false)}
+        />
+      )}
 
       {/* ── Form Templates ── */}
       <div className="if-templates">
@@ -1110,6 +1168,166 @@ export default function IntakeForms() {
           </div>
         </div>
       )}
+
+      {/* ─── Custom Forms (ones Dana created from scratch) ─── */}
+      {customForms.length > 0 && (
+        <div className="if-section">
+          <h3 className="if-section-title">Custom Forms</h3>
+          <div className="if-templates">
+            {customForms.map(cf => (
+              <div key={cf.id} className="if-template-card">
+                <div className="if-template-card__header">
+                  <div className="if-template-card__title-row">
+                    <span className="if-template-card__icon">{USAGE_BY_KEY[cf.usage]?.icon || '📄'}</span>
+                    <div>
+                      <h3 className="if-template-card__name">{cf.name}</h3>
+                      <p className="if-template-card__desc">
+                        {cf.fields.filter(f => f.enabled).length} fields
+                        {cf.publishedSlug && <span className="if-template-card__live-flag"> · ● live link</span>}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="default" size="sm">{USAGE_BY_KEY[cf.usage]?.label?.toUpperCase() || 'CUSTOM'}</Badge>
+                </div>
+                <p className="if-template-card__subtitle">{cf.description || USAGE_BY_KEY[cf.usage]?.description}</p>
+                <div className="if-template-card__actions">
+                  <Button variant="primary" size="sm" onClick={() => setMode({ type: 'fill', form: cf })}>Fill Out New</Button>
+                  <Button variant="secondary" size="sm" onClick={() => setMode({ type: 'build', form: cf })}>Customize</Button>
+                  <Button variant="ghost" size="sm" onClick={() => duplicateForm(cf)}>Duplicate</Button>
+                  <Button variant="ghost" size="sm" onClick={() => deleteForm(cf.id)}>Delete</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Submissions Inbox (remote submissions + merged contact links) ─── */}
+      <SubmissionsInbox submissions={remoteSubmissions} forms={forms} />
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════
+//  NewFormDialog — modal for creating a custom form
+// ═══════════════════════════════════════════════════
+function NewFormDialog({ onCreate, onClose }) {
+  const [name, setName] = useState('')
+  const [usage, setUsage] = useState('lead_capture')
+  const [startFrom, setStartFrom] = useState('contact')
+
+  return (
+    <div className="if-dialog-overlay" onClick={onClose}>
+      <div className="if-dialog" onClick={e => e.stopPropagation()}>
+        <button className="if-dialog__close" onClick={onClose} aria-label="Close">×</button>
+        <h2 className="if-dialog__title">New Form</h2>
+        <p className="if-dialog__sub">Name it, pick where it's used, and optionally start from an existing template.</p>
+
+        <div className="if-dialog__field">
+          <label>Form Name</label>
+          <Input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="e.g. Open House Sign-In, FSBO Follow-Up, Past Client Survey"
+            autoFocus
+          />
+        </div>
+
+        <div className="if-dialog__field">
+          <label>Use for</label>
+          <div className="if-dialog__usage-grid">
+            {FORM_USAGES.map(u => (
+              <button
+                key={u.key}
+                type="button"
+                className={`if-dialog__usage ${usage === u.key ? 'if-dialog__usage--selected' : ''}`}
+                onClick={() => setUsage(u.key)}
+              >
+                <span className="if-dialog__usage-icon">{u.icon}</span>
+                <span className="if-dialog__usage-label">{u.label}</span>
+                <span className="if-dialog__usage-desc">{u.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="if-dialog__field">
+          <label>Start from</label>
+          <Select value={startFrom} onChange={e => setStartFrom(e.target.value)}>
+            <option value="blank">Blank (just name/email/phone)</option>
+            <option value="contact">Get In Touch template</option>
+            <option value="buyer">Buyer Intake template</option>
+            <option value="seller">Seller Intake template</option>
+          </Select>
+        </div>
+
+        <div className="if-dialog__footer">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" disabled={!name.trim()} onClick={() => onCreate({ name: name.trim(), usage, startFrom })}>
+            Create & Edit
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════
+//  SubmissionsInbox — shows incoming submissions + which contact they merged into
+// ═══════════════════════════════════════════════════
+function SubmissionsInbox({ submissions, forms }) {
+  if (!submissions || submissions.length === 0) {
+    return (
+      <div className="if-section">
+        <h3 className="if-section-title">Recent Submissions</h3>
+        <div className="if-empty-inbox">
+          <p>No public submissions yet. When a client fills out a published form, it shows up here and auto-merges into their contact file.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const formBySlug = (slug) => forms.find(f => buildSlug(f) === slug)
+
+  return (
+    <div className="if-section">
+      <h3 className="if-section-title">Recent Submissions ({submissions.length})</h3>
+      <p className="if-section-sub">Every public form submission auto-merges into your Contacts. Click a contact link to open their file.</p>
+
+      <div className="if-inbox">
+        {submissions.slice(0, 25).map(sub => {
+          const form = formBySlug(sub.formSlug || sub.form_slug)
+          const merged = sub.merged_contact || null
+          const when = new Date(sub.createdAt || sub.created_at).toLocaleString('en-US', {
+            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+          })
+          return (
+            <div key={sub.id} className="if-inbox__row">
+              <div className="if-inbox__main">
+                <div className="if-inbox__name">
+                  {sub.clientName || sub.client_name || 'Unnamed'}
+                </div>
+                <div className="if-inbox__meta">
+                  {form?.name || sub.formSlug || sub.form_slug} · {when}
+                </div>
+              </div>
+              <div className="if-inbox__merge">
+                {merged ? (
+                  <a
+                    href={merged.type === 'seller' || merged.type === 'both' ? '/crm/seller-clients' : '/crm/buyers'}
+                    className="if-inbox__merge-link"
+                  >
+                    → {merged.name}
+                    {merged.type && <span className="if-inbox__merge-type"> ({merged.type})</span>}
+                  </a>
+                ) : (
+                  <span className="if-inbox__merge-pending">not yet merged</span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

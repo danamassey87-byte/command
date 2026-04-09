@@ -76,9 +76,21 @@ export async function submitPublicForm({ formId, slug, clientName, data }) {
 export async function fetchAllSubmissions() {
   const { data, error } = await supabase
     .from('public_form_submissions')
-    .select('id, form_id, form_slug, client_name, data, created_at')
+    .select(`
+      id, form_id, form_slug, client_name, data, created_at,
+      merged_contact_id, merged_at,
+      merged_contact:contacts!merged_contact_id(id, name, email, phone, type)
+    `)
     .order('created_at', { ascending: false })
-  if (error) throw new Error(error.message)
+  if (error) {
+    // If merged_contact_id column doesn't exist yet, fall back to basic shape
+    const { data: basic, error: basicErr } = await supabase
+      .from('public_form_submissions')
+      .select('id, form_id, form_slug, client_name, data, created_at')
+      .order('created_at', { ascending: false })
+    if (basicErr) throw new Error(basicErr.message)
+    return basic || []
+  }
   return data || []
 }
 
