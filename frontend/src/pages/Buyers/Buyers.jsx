@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
 import { TagPicker, TagBadge } from '../../components/ui/TagPicker.jsx'
+import RelatedPeopleSection, { cleanRelatedPeople } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { useBuyers, useShowingSessionsForContact, useContactTags, useNotesForContact } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
@@ -69,6 +70,7 @@ function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
     bba_signed_date:     buyer?.bba_signed_date ?? '',
     bba_expiration_date: buyer?.bba_expiration_date ?? '',
     notes:               buyer?.notes ?? '',
+    related_people:      Array.isArray(buyer?.related_people) ? buyer.related_people : [],
   })
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
 
@@ -89,6 +91,7 @@ function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
       bba_expiration_date: draft.bba_signed && draft.bba_expiration_date ? draft.bba_expiration_date : null,
       notes:               draft.notes.trim() || null,
       type:                draft.type,
+      related_people:      cleanRelatedPeople(draft.related_people),
     })
   }
 
@@ -143,6 +146,12 @@ function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
           </div>
         )}
       </div>
+
+      <hr className="panel-divider" />
+      <RelatedPeopleSection
+        value={draft.related_people}
+        onChange={v => set('related_people', v)}
+      />
 
       <hr className="panel-divider" />
       <Textarea label="Notes" rows={3} value={draft.notes} onChange={e => set('notes', e.target.value)} placeholder="Key requirements, timeline, financing notes…" />

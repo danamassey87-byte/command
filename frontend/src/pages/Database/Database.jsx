@@ -1,7 +1,9 @@
 import { useState, useMemo, useCallback } from 'react'
 import { SectionHeader, Badge, Card, SlidePanel, Input, Select, Textarea, EmptyState, TabBar } from '../../components/ui/index.jsx'
 import { TagPicker, TagBadge, TagManager } from '../../components/ui/TagPicker.jsx'
+import RelatedPeopleSection, { cleanRelatedPeople } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { useContactsWithTags, useTags } from '../../lib/hooks.js'
+import { useNavigate } from 'react-router-dom'
 import * as DB from '../../lib/supabase.js'
 import './Database.css'
 
@@ -29,8 +31,20 @@ export default function Database() {
   const [tagMode, setTagMode] = useState('any') // 'any' or 'all'
   const [showManager, setShowManager] = useState(false)
   const [selected, setSelected] = useState(null) // contact being edited
+  const [dualRolePicker, setDualRolePicker] = useState(null) // contact triggered by dual-role click
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState('database') // 'database' | 'tags'
+  const navigate = useNavigate()
+
+  // Click handler that intercepts dual-role contacts (type='both') and shows
+  // a picker first. Single-role contacts go straight to the edit panel.
+  const openContact = (c) => {
+    if (c.type === 'both') {
+      setDualRolePicker(c)
+    } else {
+      setSelected(c)
+    }
+  }
 
   const tags = allTags ?? []
   const rows = contacts ?? []
@@ -238,7 +252,7 @@ export default function Database() {
                   </thead>
                   <tbody>
                     {filtered.map(c => (
-                      <tr key={c.id} className="db-table__row" onClick={() => setSelected(c)}>
+                      <tr key={c.id} className="db-table__row" onClick={() => openContact(c)}>
                         <td className="db-table__name">{c.name || '—'}</td>
                         <td className="db-table__contact">
                           {c.email && <span className="db-table__email">{c.email}</span>}
@@ -265,6 +279,45 @@ export default function Database() {
                 </table>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Dual-Role Picker (contact is both buyer + seller) ─── */}
+      {dualRolePicker && (
+        <div className="db-dual-overlay" onClick={() => setDualRolePicker(null)}>
+          <div className="db-dual-modal" onClick={e => e.stopPropagation()}>
+            <button className="db-dual-modal__close" onClick={() => setDualRolePicker(null)}>×</button>
+            <h3 className="db-dual-modal__title">{dualRolePicker.name}</h3>
+            <p className="db-dual-modal__sub">
+              This client is both buying and selling. Which transaction do you want to open?
+            </p>
+            <div className="db-dual-modal__choices">
+              <button
+                className="db-dual-choice db-dual-choice--buyer"
+                onClick={() => { navigate('/crm/buyers'); setDualRolePicker(null) }}
+              >
+                <span className="db-dual-choice__icon">🏠</span>
+                <span className="db-dual-choice__label">Buyer Side</span>
+                <span className="db-dual-choice__detail">Open in Buyers</span>
+              </button>
+              <button
+                className="db-dual-choice db-dual-choice--seller"
+                onClick={() => { navigate('/crm/seller-clients'); setDualRolePicker(null) }}
+              >
+                <span className="db-dual-choice__icon">🏷️</span>
+                <span className="db-dual-choice__label">Seller Side</span>
+                <span className="db-dual-choice__detail">Open in Sellers</span>
+              </button>
+              <button
+                className="db-dual-choice db-dual-choice--detail"
+                onClick={() => { setSelected(dualRolePicker); setDualRolePicker(null) }}
+              >
+                <span className="db-dual-choice__icon">✎</span>
+                <span className="db-dual-choice__label">Edit Contact</span>
+                <span className="db-dual-choice__detail">Just edit profile</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -307,6 +360,7 @@ function ContactDetail({ contact, onSave, onTagsChange, saving }) {
     stage: contact.stage ?? '',
     source: contact.source ?? '',
     notes: contact.notes ?? '',
+    related_people: Array.isArray(contact.related_people) ? contact.related_people : [],
   })
   const [contactTags, setContactTags] = useState(contact.tags ?? [])
 
@@ -345,6 +399,13 @@ function ContactDetail({ contact, onSave, onTagsChange, saving }) {
         <Textarea label="Notes" value={draft.notes} onChange={e => set('notes', e.target.value)} rows={3} />
       </div>
 
+      <div className="contact-detail__section">
+        <RelatedPeopleSection
+          value={draft.related_people}
+          onChange={v => set('related_people', v)}
+        />
+      </div>
+
       <button
         className="db-save-btn"
         disabled={saving || !draft.name.trim()}
@@ -356,6 +417,7 @@ function ContactDetail({ contact, onSave, onTagsChange, saving }) {
           stage: draft.stage || null,
           source: draft.source || null,
           notes: draft.notes || null,
+          related_people: cleanRelatedPeople(draft.related_people),
         })}
       >
         {saving ? 'Saving...' : 'Save Changes'}

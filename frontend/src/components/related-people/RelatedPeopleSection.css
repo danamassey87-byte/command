@@ -1,0 +1,140 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   RelatedPeopleSection — reusable related people editor
+   ═══════════════════════════════════════════════════════════════════════════ */
+.rp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 0;
+}
+
+.rp-section__header h4 {
+  margin: 0 0 2px;
+  font-size: 14px;
+  color: var(--brown-dark, #524136);
+}
+
+.rp-section__subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: #888;
+  line-height: 1.4;
+}
+
+.rp-section__empty {
+  font-size: 12px;
+  color: #888;
+  margin: 4px 0;
+  font-style: italic;
+}
+
+.rp-row {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(182, 151, 130, 0.3);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.5);
+  position: relative;
+}
+
+.rp-row__number {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--brown-dark, #524136);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 18px;
+}
+
+.rp-row__grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  min-width: 0;
+}
+
+.rp-row__full {
+  grid-column: 1 / -1;
+}
+
+.rp-row__remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(180, 68, 68, 0.1);
+  color: #b44;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rp-row__remove:hover {
+  background: rgba(180, 68, 68, 0.2);
+}
+
+.rp-section--compact .rp-row__grid {
+  grid-template-columns: 1fr;
+}
+
+/* ── Public form version (simpler, no section header, matches pf- styles) ── */
+.pf-related-people {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pf-related-people__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e0d9cf;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.6);
+  position: relative;
+}
+.pf-related-people__row-full {
+  grid-column: 1 / -1;
+}
+.pf-related-people__remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(180, 68, 68, 0.12);
+  color: #b44;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pf-related-people__add {
+  padding: 10px 16px;
+  border: 1.5px dashed #ccc;
+  border-radius: 10px;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  align-self: flex-start;
+}
+.pf-related-people__add:hover {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: #999;
+}

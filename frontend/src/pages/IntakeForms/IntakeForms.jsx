@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Button, Badge, SectionHeader, Card, Input, Select, Textarea } from '../../components/ui/index.jsx'
 import { BrandColorPicker, BorderRadiusControl, FontPicker } from '../../components/ui/StyleControls'
+import RelatedPeopleSection from '../../components/related-people/RelatedPeopleSection.jsx'
 import {
   publishForm as publishFormToSupabase,
   unpublishForm as unpublishFormFromSupabase,
@@ -52,7 +53,7 @@ const CONTACT_FIELDS = [
   { id: 'full_name',        label: 'Full Name',                                     type: 'text',     section: 'Contact',    required: false, enabled: true },
   { id: 'email',            label: 'Email Address',                                  type: 'email',    section: 'Contact',    required: true,  enabled: true },
   { id: 'phone',            label: 'Phone Number',                                   type: 'tel',      section: 'Contact',    required: true,  enabled: true },
-  { id: 'joint_transaction',label: 'Is there anyone else joining you on your real estate transaction?', type: 'radio', section: 'About You', required: false, enabled: true, options: ['Yes', 'No'] },
+  { id: 'related_people',   label: 'Anyone else joining you on this transaction? (spouse, co-buyer, parent, trustee, etc.)', type: 'related_people', section: 'About You', required: false, enabled: true },
   { id: 'buy_or_sell',      label: 'Are you thinking of Buying or Selling?',         type: 'radio',    section: 'About You',  required: false, enabled: true, options: ['Buyer', 'Seller'] },
   { id: 'timeline',         label: 'How soon will you be ready to begin?',           type: 'radio',    section: 'About You',  required: false, enabled: true, options: ['Ready', '60-90 Days', '3-6 Months', '6 Months-1 Year', 'Not ready > 1 Year'] },
   { id: 'has_agent',        label: 'Are you working with an Agent?',                 type: 'radio',    section: 'About You',  required: false, enabled: true, options: ['Yes', 'No'] },
@@ -64,7 +65,7 @@ const CONTACT_FIELDS = [
 /* ── Seller / Listing Intake ── */
 const SELLER_FIELDS = [
   // Contact & Communication
-  { id: 'all_parties',      label: 'Full names, email addresses and phone numbers of all parties you\'d like included in on communication from listing to close', type: 'textarea', section: 'Contact & Communication', required: false, enabled: true },
+  { id: 'related_people',   label: 'Other parties on the transaction (spouse, co-seller, trustee, attorney, etc.)', type: 'related_people', section: 'Contact & Communication', required: false, enabled: true },
   { id: 'ten_experience',   label: 'Anything you\'d like us to know about how we can make this a 10/10 experience?', type: 'textarea', section: 'Contact & Communication', required: false, enabled: true },
   { id: 'preferred_comm',   label: 'Preferred method of communication',              type: 'radio',    section: 'Contact & Communication', required: false, enabled: true, options: ['Email', 'Text/Call'] },
   { id: 'feedback_direct',  label: 'Do you want feedback sent to you directly?',     type: 'radio',    section: 'Contact & Communication', required: false, enabled: true, options: ['Yes', 'No'] },
@@ -112,6 +113,7 @@ const BUYER_FIELDS = [
   { id: 'phone',          label: 'Phone Number',             type: 'tel',      section: 'Contact Info',         required: true,  enabled: true },
   { id: 'preferred_contact', label: 'Preferred Contact Method', type: 'select', section: 'Contact Info',        required: false, enabled: true, options: ['Call', 'Text', 'Email'] },
   { id: 'best_time',      label: 'Best Time to Reach You',   type: 'select',   section: 'Contact Info',         required: false, enabled: true, options: ['Morning', 'Afternoon', 'Evening', 'Any time'] },
+  { id: 'related_people', label: 'Other people on the transaction (spouse, co-buyer, parent, etc.)', type: 'related_people', section: 'Contact Info', required: false, enabled: true },
   { id: 'timeline',       label: 'When Do You Want to Buy?',     type: 'select',   section: 'Timeline',         required: true,  enabled: true, options: ['ASAP', '1–3 months', '3–6 months', '6–12 months', 'Just exploring'] },
   { id: 'currently_renting', label: 'Currently Renting or Own?', type: 'select',   section: 'Timeline',         required: false, enabled: true, options: ['Renting', 'Own — need to sell first', 'Own — keeping current home', 'Living with family/friends'] },
   { id: 'lease_end',      label: 'Lease End Date (if renting)',  type: 'date',     section: 'Timeline',         required: false, enabled: true },
@@ -332,7 +334,15 @@ function FormFiller({ form, response, onSave, onBack, onDelete }) {
                         {f.required && <span className="if-filler__req">*</span>}
                       </label>
 
-                      {f.type === 'radio' ? (
+                      {f.type === 'related_people' ? (
+                        <RelatedPeopleSection
+                          value={Array.isArray(data[f.id]) ? data[f.id] : []}
+                          onChange={v => setField(f.id, v)}
+                          title=""
+                          subtitle=""
+                          compact
+                        />
+                      ) : f.type === 'radio' ? (
                         <div className="if-filler__radio-group">
                           {(f.options || []).map(opt => (
                             <label key={opt} className={`if-filler__radio-option ${data[f.id] === opt ? 'if-filler__radio-option--selected' : ''}`}>

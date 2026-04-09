@@ -1,7 +1,81 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { fetchPublicForm, submitPublicForm } from '../../lib/publicForms'
+import { CONTACT_RELATIONSHIP_ROLES } from '../../lib/vendorRoles'
 import './PublicForm.css'
+
+const uid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+
+// ─── Related-people sub-renderer ─────────────────────────────────────────────
+function RelatedPeopleField({ value, onChange, accentColor }) {
+  const list = Array.isArray(value) ? value : []
+  const add = () => onChange([...(list || []), { id: uid(), first_name: '', last_name: '', phone: '', email: '', relationship: '' }])
+  const update = (id, patch) => onChange(list.map(p => p.id === id ? { ...p, ...patch } : p))
+  const remove = (id) => onChange(list.filter(p => p.id !== id))
+
+  return (
+    <div className="pf-related-people">
+      {list.map((p, idx) => (
+        <div key={p.id} className="pf-related-people__row">
+          <button
+            type="button"
+            className="pf-related-people__remove"
+            onClick={() => remove(p.id)}
+            aria-label="Remove"
+          >
+            ×
+          </button>
+          <input
+            className="pf-input"
+            placeholder="First name *"
+            value={p.first_name || ''}
+            onChange={e => update(p.id, { first_name: e.target.value })}
+          />
+          <input
+            className="pf-input"
+            placeholder="Last name *"
+            value={p.last_name || ''}
+            onChange={e => update(p.id, { last_name: e.target.value })}
+          />
+          <input
+            className="pf-input"
+            type="tel"
+            placeholder="Phone *"
+            value={p.phone || ''}
+            onChange={e => update(p.id, { phone: e.target.value })}
+          />
+          <input
+            className="pf-input"
+            type="email"
+            placeholder="Email (optional)"
+            value={p.email || ''}
+            onChange={e => update(p.id, { email: e.target.value })}
+          />
+          <div className="pf-related-people__row-full">
+            <select
+              className="pf-input"
+              value={p.relationship || ''}
+              onChange={e => update(p.id, { relationship: e.target.value })}
+            >
+              <option value="">— how are they connected? —</option>
+              {CONTACT_RELATIONSHIP_ROLES.map(r => (
+                <option key={r.key} value={r.key}>{r.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="pf-related-people__add"
+        onClick={add}
+        style={{ borderColor: accentColor + '55', color: accentColor }}
+      >
+        + Add Person
+      </button>
+    </div>
+  )
+}
 
 // ─── Logo header (mirrors IntakeForms FormLogoHeader) ────────────────────────
 function FormLogoHeader({ logo }) {
@@ -19,6 +93,10 @@ function FormLogoHeader({ logo }) {
 // ─── Field renderer ──────────────────────────────────────────────────────────
 function Field({ field, value, onChange, accentColor }) {
   const f = field
+
+  if (f.type === 'related_people') {
+    return <RelatedPeopleField value={value} onChange={onChange} accentColor={accentColor} />
+  }
 
   if (f.type === 'radio') {
     return (
@@ -119,10 +197,28 @@ export default function PublicForm() {
     const enabledFields = (record.form_json.fields || []).filter(f => f.enabled)
     const missing = enabledFields
       .filter(f => f.required)
-      .filter(f => !data[f.id] || !String(data[f.id]).trim())
+      .filter(f => {
+        const v = data[f.id]
+        if (f.type === 'related_people') {
+          return !Array.isArray(v) || v.length === 0
+        }
+        return !v || !String(v).trim()
+      })
     if (missing.length) {
       alert(`Please fill in: ${missing.map(f => f.label).join(', ')}`)
       return
+    }
+
+    // Validate inner fields of related_people rows
+    for (const f of enabledFields.filter(f => f.type === 'related_people')) {
+      const rows = Array.isArray(data[f.id]) ? data[f.id] : []
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i]
+        if (!r.first_name?.trim() || !r.last_name?.trim() || !r.phone?.trim() || !r.relationship) {
+          alert(`${f.label} — Person ${i + 1}: first name, last name, phone, and relationship are all required.`)
+          return
+        }
+      }
     }
 
     setSubmitting(true)

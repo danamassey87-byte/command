@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, CheckItem, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
 import PartiesSection from '../../components/parties/PartiesSection.jsx'
+import RelatedPeopleSection, { cleanRelatedPeople } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
 import { useListings, useTasksForListing, useDeletedTasksForListing, useContactTags, useNotesForContact, useDocumentsForListing } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
@@ -333,6 +334,7 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
     seller_name:  listing?.contact?.name  ?? listing?.contact_name  ?? '',
     seller_email: listing?.contact?.email ?? listing?.contact_email ?? '',
     seller_phone: listing?.contact?.phone ?? listing?.contact_phone ?? '',
+    related_people: Array.isArray(listing?.related_people) ? listing.related_people : [],
     notes:        listing?.notes         ?? '',
     // Seller tracking
     cash_offer_requested:     listing?.cash_offer_requested ?? false,
@@ -559,6 +561,12 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
           <Input label="Phone" value={draft.seller_phone} onChange={e => set('seller_phone', e.target.value)} placeholder="(480) 555-0000" />
           <Input label="Email" value={draft.seller_email} onChange={e => set('seller_email', e.target.value)} placeholder="email@example.com" />
         </div>
+        <RelatedPeopleSection
+          value={draft.related_people}
+          onChange={v => set('related_people', v)}
+          title="Other Parties on This Transaction"
+          subtitle="Co-seller, spouse, trustee, attorney, etc. — anyone else on the contract."
+        />
       </div>
 
       <hr className="panel-divider" />
@@ -2168,6 +2176,7 @@ export default function Sellers() {
         agreement_expires_date:   draft.agreement_expires_date || null,
         pre_inspection_done:      draft.pre_inspection_done,
         home_warranty_offered:    draft.home_warranty_offered,
+        related_people:           cleanRelatedPeople(draft.related_people),
       }
 
       let savedListingId = null
