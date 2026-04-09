@@ -52,7 +52,39 @@ const phaseLabels = {
   relaunch: { label: 'Relaunch',    color: '#6a9e72' },
 }
 
-const STATUS_OPTIONS = ['lead', 'active', 'pending', 'closed', 'expired', 'relaunching']
+// Status vocabulary matches ARMLS / generic MLS states so you can mark a listing's
+// real MLS status and have it reflected everywhere.
+//
+//   lead        — pre-sign, no paperwork (pipeline only — lives on Sellers page)
+//   signed      — agreement signed but NOT yet entered in the MLS (graduates to
+//                 Listings page but doesn't imply an MLS record yet)
+//   coming_soon — actually entered in the MLS as Coming Soon
+//   active      — MLS Active
+//   pending     — MLS Pending (under contract, no contingencies)
+//   contingent  — MLS Active Contingent / Pending-Contingent
+//   closed      — MLS Closed / Sold
+//   withdrawn   — MLS Withdrawn (temporarily off, agreement still active)
+//   cancelled   — MLS Cancelled
+//   expired     — MLS Expired
+//   relaunching — internal — between campaigns
+const STATUS_OPTIONS = [
+  { value: 'lead',        label: 'Lead (Not Signed)' },
+  { value: 'signed',      label: 'Signed (Not in MLS yet)' },
+  { value: 'coming_soon', label: 'Coming Soon (MLS)' },
+  { value: 'active',      label: 'Active (MLS)' },
+  { value: 'pending',     label: 'Pending (MLS)' },
+  { value: 'contingent',  label: 'Contingent (MLS)' },
+  { value: 'closed',      label: 'Closed (MLS)' },
+  { value: 'withdrawn',   label: 'Withdrawn (MLS)' },
+  { value: 'cancelled',   label: 'Cancelled (MLS)' },
+  { value: 'expired',     label: 'Expired (MLS)' },
+  { value: 'relaunching', label: 'Relaunching' },
+]
+// Lookup for label + legacy value handling elsewhere in the file.
+const STATUS_LABEL = Object.fromEntries(STATUS_OPTIONS.map(o => [o.value, o.label]))
+// MLS-style statuses (vs. pre-sign / internal). Used to decide whether a listing
+// represents a real MLS record you should be able to edit the MLS status on.
+const MLS_STATUSES = ['coming_soon', 'active', 'pending', 'contingent', 'closed', 'withdrawn', 'cancelled', 'expired']
 const TYPE_OPTIONS   = ['new', 'expired']
 
 const CASH_OFFER_STATUSES = [
@@ -102,7 +134,61 @@ const CONDITION_OPTIONS = [
 ]
 
 const statusVariant = {
-  lead: 'default', active: 'success', relaunching: 'warning', expired: 'danger', pending: 'info', closed: 'default',
+  lead: 'default',
+  signed: 'warning',      // signed but not yet in MLS — treat as a loud "get it live!" state
+  coming_soon: 'info',
+  active: 'success',
+  pending: 'info',
+  contingent: 'info',
+  closed: 'default',
+  withdrawn: 'warning',
+  cancelled: 'danger',
+  expired: 'danger',
+  relaunching: 'warning',
+}
+
+// ─── Inline MLS Status Picker ─────────────────────────────────────────────────
+// Shows the current status as a Badge, and on click reveals a native <select>
+// so Dana can change the MLS state of any listing without opening the edit form.
+// Stops click propagation so it doesn't trigger the row's onRowClick handler.
+function InlineStatusPicker({ value, variant, onChange }) {
+  const [editing, setEditing] = useState(false)
+  if (editing) {
+    return (
+      <select
+        autoFocus
+        value={value || ''}
+        onClick={e => e.stopPropagation()}
+        onBlur={() => setEditing(false)}
+        onChange={e => {
+          e.stopPropagation()
+          const next = e.target.value
+          setEditing(false)
+          onChange(next)
+        }}
+        style={{
+          padding: '3px 6px', fontSize: '0.78rem', fontWeight: 600,
+          border: '1px solid var(--color-border, #e5dfd7)', borderRadius: 6,
+          background: '#fff', color: 'var(--brown-dark, #342922)', cursor: 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        {STATUS_OPTIONS.map(s => (
+          <option key={s.value} value={s.value}>{s.label}</option>
+        ))}
+      </select>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); setEditing(true) }}
+      title="Click to change MLS status"
+      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+    >
+      <Badge variant={variant}>{STATUS_LABEL[value] ?? value}</Badge>
+    </button>
+  )
 }
 
 // ─── Agreement expiration helpers ─────────────────────────────────────────────
@@ -322,7 +408,7 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
             {TYPE_OPTIONS.map(t => <option key={t} value={t}>{t === 'new' ? 'New Listing' : 'Expired'}</option>)}
           </Select>
           <Select label="Status" value={draft.status} onChange={e => set('status', e.target.value)}>
-            {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s === 'lead' ? 'Lead (Not Signed)' : s}</option>)}
+            {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </Select>
         </div>
         <div className="panel-row">
@@ -2267,7 +2353,25 @@ export default function Sellers() {
     { key: 'type', label: 'Type', render: v => <Badge variant={v === 'new' ? 'success' : 'warning'} size="sm">{v === 'new' ? 'New' : 'Expired'}</Badge> },
     { key: 'dom', label: 'DOM', render: v => `${v}d` },
     { key: 'offers', label: 'Offers', render: v => v > 0 ? <Badge variant="success" size="sm">{v}</Badge> : '—' },
-    { key: 'status', label: 'Status', render: v => <Badge variant={statusVariant[v]}>{v === 'lead' ? 'Lead' : v}</Badge> },
+    {
+      key: 'status', label: 'MLS Status',
+      render: (v, row) => (
+        <InlineStatusPicker
+          value={v}
+          variant={statusVariant[v]}
+          onChange={async next => {
+            if (!next || next === v) return
+            try {
+              await DB.updateListing(row.id, { status: next })
+              refetch()
+            } catch (err) {
+              console.error('Failed to update listing status:', err)
+              alert('Could not update status: ' + (err?.message || err))
+            }
+          }}
+        />
+      ),
+    },
     {
       key: 'agreement_expires_date', label: 'Agreement',
       render: (v, row) => {

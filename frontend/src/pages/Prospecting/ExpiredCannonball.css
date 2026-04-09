@@ -208,6 +208,87 @@
 .ec-row__name { font-weight: 500; color: var(--brown-dark); white-space: nowrap; }
 .ec-row__addr { font-size: 0.78rem; color: var(--brown-dark); }
 .ec-row__mls { font-size: 0.72rem; color: var(--color-text-muted); font-family: monospace; }
+.ec-mls-link { color: var(--accent, #b8663a); text-decoration: none; font-family: monospace; border-bottom: 1px dashed currentColor; }
+.ec-mls-link:hover { color: var(--brown-dark, #342922); }
+.ec-help-btn:hover { color: var(--brown-dark, #342922) !important; }
+
+/* Status pill (new model) — colors come from inline styles driven by STATUS_META */
+.ec-status-pill-wrap { display: inline-block; }
+.ec-status-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 9px; border-radius: 999px;
+  font-size: 0.68rem; font-weight: 600; letter-spacing: 0.01em;
+  border: 1px solid transparent; cursor: pointer;
+  white-space: nowrap;
+  transition: filter 0.12s;
+}
+.ec-status-pill:hover { filter: brightness(0.96); }
+.ec-status-dot-mini { display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
+.ec-status-menu-item:hover { filter: brightness(0.96); }
+
+/* Row tint by status */
+.ec-row--cannonball { background: rgba(125,60,152,0.035); }
+.ec-row--appt_scheduled { background: rgba(34,139,34,0.035); }
+.ec-row--relisted { background: rgba(230,126,34,0.04); opacity: 0.78; }
+
+/* Detail panel "New/Standard" tag swatch */
+.ec-detail__tag--new { border-color: #8b7a68; color: #8b7a68; }
+.ec-detail__tag--new.ec-detail__tag--active { background: rgba(139,122,104,0.14); }
+
+/* Secondary filter bar (date range + outcome sub-filter) */
+.ec-secondary-filters {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 10px 14px; margin-bottom: 12px;
+  background: var(--cream, #faf7f2);
+  border: 1px solid var(--color-border, #e5dfd7);
+  border-radius: 10px;
+}
+.ec-date-range { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ec-date-range__label { font-size: 0.72rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.ec-date-range__dash { color: var(--color-text-muted); font-size: 0.85rem; }
+.ec-date-input {
+  padding: 5px 8px; border: 1px solid var(--color-border, #e5dfd7);
+  border-radius: 6px; font-size: 0.78rem; font-family: inherit;
+  background: #fff; color: var(--brown-dark, #342922);
+}
+.ec-date-range__clear {
+  background: none; border: none; color: var(--color-text-muted);
+  font-size: 1.2rem; line-height: 1; cursor: pointer; padding: 0 4px;
+}
+.ec-date-range__clear:hover { color: var(--brown-dark, #342922); }
+.ec-date-presets { display: flex; gap: 4px; margin-left: 6px; }
+.ec-date-preset {
+  padding: 4px 8px; font-size: 0.68rem; font-weight: 600;
+  background: #fff; border: 1px solid var(--color-border, #e5dfd7);
+  border-radius: 999px; color: var(--brown-dark, #342922); cursor: pointer;
+}
+.ec-date-preset:hover { background: var(--accent-light, #f0e8dc); }
+.ec-date-preset--select {
+  padding: 4px 22px 4px 10px; min-width: 90px; appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--brown-dark, #342922) 50%),
+                    linear-gradient(135deg, var(--brown-dark, #342922) 50%, transparent 50%);
+  background-position: calc(100% - 11px) 55%, calc(100% - 7px) 55%;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+
+/* Won / Lost / Pending outcome filter buttons */
+.ec-outcome-filter { display: flex; gap: 6px; margin-left: auto; }
+.ec-outcome-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; font-size: 0.74rem; font-weight: 600;
+  background: #fff; border: 1px solid var(--color-border, #e5dfd7);
+  border-radius: 999px; color: var(--brown-dark, #342922); cursor: pointer;
+}
+.ec-outcome-btn__count {
+  display: inline-block; padding: 0 6px; font-size: 0.66rem;
+  background: rgba(0,0,0,0.06); border-radius: 999px; font-weight: 700;
+}
+.ec-outcome-btn:hover { background: var(--cream, #faf7f2); }
+.ec-outcome-btn--pending.ec-outcome-btn--active { background: rgba(200,160,90,0.18); border-color: #c8a05a; color: #8a6b22; }
+.ec-outcome-btn--won.ec-outcome-btn--active     { background: rgba(34,139,34,0.14); border-color: #228b22; color: #1f6b1f; }
+.ec-outcome-btn--lost.ec-outcome-btn--active    { background: rgba(200,60,60,0.14); border-color: #c83c3c; color: #a72e2e; }
+.ec-outcome-btn--all.ec-outcome-btn--active     { background: #342922; color: #fff; border-color: #342922; }
 
 .ec-muted { color: var(--color-text-muted); font-size: 0.72rem; }
 .ec-empty { text-align: center; padding: 40px !important; color: var(--color-text-muted); font-size: 0.85rem; }

@@ -1,17 +1,59 @@
 import { useState, useMemo, useCallback } from 'react'
 import { Button, Badge, SectionHeader, TabBar, SlidePanel, Input, Textarea } from '../../components/ui/index.jsx'
+import * as DB from '../../lib/supabase.js'
+import { emitExpiredApptFollowup, resolveExpiredApptFollowup } from '../../lib/notifications.js'
 import INITIAL_DATA from './expiredData.js'
 import './ExpiredCannonball.css'
 
+// ─── Status Model ────────────────────────────────────────────────────────────
+// A contact has exactly one status at a time:
+//   new            — default, no special treatment; runs standard L1/L2/L3 letter sequence
+//   cannonball     — hand-picked high-priority target; gets the premium cannonball letter
+//                    sequence (different / better letters) BEFORE or instead of L1/L2/L3
+//   appt_scheduled — listing appointment booked / actively converting — pushed to Sellers,
+//                    kept on the expired page in its own tab so conversions can be tracked
+//   relisted       — property is back on the market; archived to the Relisted tab
+const STATUS_META = {
+  new:            { label: 'New',                color: '#8b7a68', bg: 'rgba(139,122,104,0.12)' },
+  cannonball:     { label: 'Cannonball (VIP)',   color: '#7d3c98', bg: 'rgba(125,60,152,0.12)' },
+  appt_scheduled: { label: 'Listing Appt Set',   color: '#228b22', bg: 'rgba(34,139,34,0.12)' },
+  relisted:       { label: 'Relisted',           color: '#e67e22', bg: 'rgba(230,126,34,0.12)' },
+}
+
+// Migrate legacy `tag` values ('green'|'purple'|'relisted') onto the new `status` field.
+function migrateStatus(c) {
+  if (c.status) return c
+  if (c.tag === 'green')    return { ...c, status: 'appt_scheduled', tag: '' }
+  if (c.tag === 'purple')   return { ...c, status: 'cannonball',     tag: '' }
+  if (c.tag === 'relisted') return { ...c, status: 'relisted',       tag: '' }
+  return { ...c, status: 'new', tag: '' }
+}
+
 const LS_KEY = 'expired_cannonball_data'
 const SCRIPTS_KEY = 'expired_cannonball_scripts'
+const MLS_URL_KEY = 'expired_cannonball_mls_url'
+// Flexmls search-by-MLS pattern (works once you're logged into ARMLS Flexmls in the same browser).
+// Override via the "MLS Link" button if your MLS uses a different URL scheme.
+const DEFAULT_MLS_URL = 'https://armls.flexmls.com/cgi-bin/mainmenu.cgi?cmd=url+search/x_search.html&srchtype=8&mlsnum={mls}'
+
+function buildMlsUrl(mls) {
+  if (!mls) return ''
+  const template = localStorage.getItem(MLS_URL_KEY) || DEFAULT_MLS_URL
+  return template.replace(/\{mls\}/g, encodeURIComponent(mls))
+}
 
 // ─── Canva Letter Templates ─────────────────────────────────────────────────
+// Standard expired letter sequence (L1/L2/L3) goes to all new contacts.
+// Cannonball letters (CB1/CB2) are the premium handwritten-style sequence sent to
+// hand-picked high-priority homes — BEFORE (or instead of) the standard sequence.
+// Swap these Canva URLs out as new templates are designed.
 const LETTER_LINKS = {
   l1: 'https://canva.link/og51v330nxcpmw0',
   l2: 'https://canva.link/d26zrhaoynb2u25',
   l3: 'https://canva.link/45c06yt714dwau7',
   l1_6mo: 'https://canva.link/0d0kq7ekrbk7fb3',
+  cb1: 'https://canva.link/og51v330nxcpmw0', // TODO: replace with cannonball letter 1 template
+  cb2: 'https://canva.link/d26zrhaoynb2u25', // TODO: replace with cannonball letter 2 template
 }
 
 // ─── Cannonball Process Steps ────────────────────────────────────────────────
@@ -152,6 +194,13 @@ function fmtDate(str) {
   return new Date(str + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+function fmtPrice(p) {
+  if (p === null || p === undefined || p === '') return ''
+  const n = Number(String(p).replace(/[^0-9.]/g, ''))
+  if (!n || Number.isNaN(n)) return ''
+  return '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 })
+}
+
 function fmtPhone(p) {
   if (!p) return ''
   const d = p.replace(/\D/g, '')
@@ -179,18 +228,66 @@ function fillScript(template, contact) {
     .replace(/\{email\}/g, contact.email || '')
 }
 
+// ─── Status Pill (table cell) ────────────────────────────────────────────────
+// Click to open a dropdown menu of every status. Module-level so its internal
+// open/close state survives re-renders of the parent page.
+function StatusPill({ status, onSelect }) {
+  const [open, setOpen] = useState(false)
+  const meta = STATUS_META[status] || STATUS_META.new
+  return (
+    <div className="ec-status-pill-wrap" style={{ position: 'relative' }}>
+      <button
+        type="button"
+        className={`ec-status-pill ec-status-pill--${status}`}
+        onClick={() => setOpen(o => !o)}
+        style={{ background: meta.bg, color: meta.color, borderColor: meta.color }}
+        title="Click to change status"
+      >
+        <span className="ec-status-dot-mini" style={{ background: meta.color }} />
+        {meta.label}
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 2 }}><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setOpen(false)} />
+          <div className="ec-status-menu" style={{ position: 'absolute', top: '100%', left: 0, zIndex: 11, marginTop: 4, background: '#fff', border: '1px solid var(--color-border, #e5dfd7)', borderRadius: 8, boxShadow: '0 4px 16px rgba(52,41,34,0.12)', padding: 4, minWidth: 170 }}>
+            {Object.entries(STATUS_META).map(([key, m]) => (
+              <button
+                key={key}
+                type="button"
+                className="ec-status-menu-item"
+                onClick={() => { setOpen(false); onSelect(key) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 10px',
+                  background: status === key ? m.bg : 'transparent', color: m.color,
+                  border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600,
+                  textAlign: 'left',
+                }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: m.color }} />
+                {m.label}
+                {status === key && <span style={{ marginLeft: 'auto', fontSize: '0.7rem' }}>✓</span>}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Load / Save ─────────────────────────────────────────────────────────────
 function loadData() {
   try {
     const raw = localStorage.getItem(LS_KEY)
     if (raw) {
       const saved = JSON.parse(raw)
-      if (saved.length) return saved
+      if (saved.length) return saved.map(migrateStatus)
     }
   } catch {}
-  return INITIAL_DATA.map(c => ({
+  return INITIAL_DATA.map(c => migrateStatus({
     ...c,
-    tag: '',
+    status: 'new',
     cbMailDate: '',
     followUpDate: '',
     followUpDone: false,
@@ -234,6 +331,106 @@ export default function ExpiredCannonball() {
   const [showLabelModal, setShowLabelModal] = useState(false)
   const [labelSelections, setLabelSelections] = useState({}) // { [id]: 'property' | 'mailing' | false }
   const [labelSelectAll, setLabelSelectAll] = useState(false)
+  const [showStatusHelp, setShowStatusHelp] = useState(false)
+  const [mlsUrlTemplate, setMlsUrlTemplate] = useState(() => localStorage.getItem(MLS_URL_KEY) || DEFAULT_MLS_URL)
+  const [apptModal, setApptModal] = useState(null) // { contact } — confirmation before pushing to Sellers
+  const [apptSaving, setApptSaving] = useState(false)
+  const [apptError, setApptError] = useState(null)
+  const [apptDateInput, setApptDateInput] = useState('') // actual appointment date (yyyy-mm-dd)
+
+  // Won / Lost outcome modals (live on contacts already in appt_scheduled status)
+  const [wonModal, setWonModal] = useState(null)   // { contact }
+  const [lostModal, setLostModal] = useState(null) // { contact }
+  const [outcomeSaving, setOutcomeSaving] = useState(false)
+  const [outcomeError, setOutcomeError] = useState(null)
+  const [wonForm, setWonForm] = useState({
+    signedDate: '',
+    expiresDate: '',
+    listPrice: '',
+    commissionRate: '',
+    notes: '',
+  })
+  const [lostReason, setLostReason] = useState('')
+
+  // Filters on top of the tab filters: outcome (for appt_scheduled tab) + date range.
+  const [outcomeFilter, setOutcomeFilter] = useState('all') // all|pending|won|lost
+  const [dateRange, setDateRange] = useState({ start: '', end: '' })
+
+  // Apply a preset date range. `preset` shapes:
+  //   { kind: 'days', days: 30 }  — last N days up to today
+  //   { kind: 'ytd' }             — Jan 1 of current year → today
+  //   { kind: 'quarter', spec: 'Q1-2025' | 'FY-2024' }
+  const applyDatePreset = useCallback((preset) => {
+    const fmt = (d) => d.toISOString().split('T')[0]
+    const today = new Date()
+    if (preset.kind === 'days') {
+      const start = new Date(); start.setDate(start.getDate() - preset.days)
+      setDateRange({ start: fmt(start), end: fmt(today) })
+      return
+    }
+    if (preset.kind === 'ytd') {
+      const start = new Date(today.getFullYear(), 0, 1)
+      setDateRange({ start: fmt(start), end: fmt(today) })
+      return
+    }
+    if (preset.kind === 'quarter') {
+      const match = /^(Q[1-4]|FY)-(\d{4})$/.exec(preset.spec || '')
+      if (!match) return
+      const [, q, yearStr] = match
+      const year = Number(yearStr)
+      let start, end
+      if (q === 'FY') {
+        start = new Date(year, 0, 1)
+        end   = new Date(year, 11, 31)
+      } else {
+        const qNum = Number(q.slice(1))          // 1..4
+        const startMonth = (qNum - 1) * 3         // 0,3,6,9
+        start = new Date(year, startMonth, 1)
+        end   = new Date(year, startMonth + 3, 0) // last day of quarter
+      }
+      setDateRange({ start: fmt(start), end: fmt(end) })
+    }
+  }, [])
+
+  const openApptModal = useCallback((contact) => {
+    setApptDateInput(contact.apptDate || new Date().toISOString().split('T')[0])
+    setApptError(null)
+    setApptModal({ contact })
+  }, [])
+
+  const openWonModal = useCallback((contact) => {
+    setWonForm({
+      signedDate: contact.agreementSignedDate || new Date().toISOString().split('T')[0],
+      expiresDate: contact.agreementExpiresDate || '',
+      listPrice: contact.signedListPrice || contact.currentPrice || contact.expiredPrice || '',
+      commissionRate: contact.commissionRate || '',
+      notes: contact.signedNotes || '',
+    })
+    setOutcomeError(null)
+    setWonModal({ contact })
+  }, [])
+
+  const openLostModal = useCallback((contact) => {
+    setLostReason(contact.lostReason || '')
+    setOutcomeError(null)
+    setLostModal({ contact })
+  }, [])
+
+  const editMlsUrl = () => {
+    const next = window.prompt(
+      'MLS link template — use {mls} as the placeholder for the MLS number.\n\nExample:\nhttps://armls.flexmls.com/.../mlsnum={mls}',
+      mlsUrlTemplate
+    )
+    if (next === null) return
+    const trimmed = next.trim()
+    if (!trimmed) {
+      localStorage.removeItem(MLS_URL_KEY)
+      setMlsUrlTemplate(DEFAULT_MLS_URL)
+    } else {
+      localStorage.setItem(MLS_URL_KEY, trimmed)
+      setMlsUrlTemplate(trimmed)
+    }
+  }
 
   // Script popup state
   const [scriptPopup, setScriptPopup] = useState(null) // { contact, scriptKey, type: 'call'|'text'|'email' }
@@ -288,10 +485,11 @@ export default function ExpiredCannonball() {
   // ── Mark as relisted ──
   const markRelisted = useCallback((id) => {
     setContacts(prev => {
-      const next = prev.map(c => c.id === id ? { ...c, tag: 'relisted', relistedDate: new Date().toISOString().split('T')[0] } : c)
+      const next = prev.map(c => c.id === id ? { ...c, status: 'relisted', relistedDate: new Date().toISOString().split('T')[0] } : c)
       saveData(next)
       return next
     })
+    setSelected(prev => prev?.id === id ? { ...prev, status: 'relisted' } : prev)
   }, [])
 
   // ── Check if relisted (opens Redfin search) ──
@@ -301,7 +499,7 @@ export default function ExpiredCannonball() {
   }, [])
 
   // ── Check All mode helpers ──
-  const nonRelistedContacts = useMemo(() => contacts.filter(c => c.tag !== 'relisted'), [contacts])
+  const nonRelistedContacts = useMemo(() => contacts.filter(c => c.status !== 'relisted'), [contacts])
 
   const startCheckAll = () => {
     setCheckAllMode(true)
@@ -357,6 +555,8 @@ export default function ExpiredCannonball() {
         phone: row.phone || row.phonenumber || row.phone_number || '',
         mailAddr: row.mailaddr || row.mailing_address || row.mail_address || '',
         mailDate: row.maildate || row.mail_date || '',
+        expiredPrice: row.expiredprice || row.expired_price || row.listprice || row.list_price || row.price || '',
+        currentPrice: row.currentprice || row.current_price || row.relistprice || row.relist_price || row.newprice || '',
         l1: false, l2: false, l3: false, cb: false, appt: false,
         tag: '',
         cbMailDate: '',
@@ -376,12 +576,12 @@ export default function ExpiredCannonball() {
   }
 
   // ── Label Printing (Avery 5160) ──
+  const [labelSearch, setLabelSearch] = useState('')
   const openLabelModal = () => {
-    // Pre-select all current filtered contacts with property address
-    const sel = {}
-    filtered.forEach(c => { sel[c.id] = 'property' })
-    setLabelSelections(sel)
-    setLabelSelectAll(true)
+    // Start with NOTHING selected so Dana can explicitly pick all, some, or one.
+    setLabelSelections({})
+    setLabelSelectAll(false)
+    setLabelSearch('')
     setShowLabelModal(true)
   }
 
@@ -402,12 +602,37 @@ export default function ExpiredCannonball() {
       setLabelSelections({})
       setLabelSelectAll(false)
     } else {
-      const sel = {}
-      filtered.forEach(c => { sel[c.id] = labelSelections[c.id] || 'property' })
+      const sel = { ...labelSelections }
+      labelFiltered.forEach(c => { sel[c.id] = sel[c.id] || 'property' })
       setLabelSelections(sel)
       setLabelSelectAll(true)
     }
   }
+
+  const selectNoLabels = () => {
+    setLabelSelections({})
+    setLabelSelectAll(false)
+  }
+
+  const selectAllLabelsFiltered = () => {
+    const sel = { ...labelSelections }
+    labelFiltered.forEach(c => { sel[c.id] = sel[c.id] || 'property' })
+    setLabelSelections(sel)
+    setLabelSelectAll(true)
+  }
+
+  // Rows shown inside the label modal: the current tab's filtered list, narrowed further
+  // by the modal's own search box. Declared lazily so the handlers above can reference it.
+  const labelFiltered = useMemo(() => {
+    if (!labelSearch.trim()) return filtered
+    const q = labelSearch.trim().toLowerCase()
+    return filtered.filter(c =>
+      (c.name || '').toLowerCase().includes(q) ||
+      (c.address || '').toLowerCase().includes(q) ||
+      (c.city || '').toLowerCase().includes(q) ||
+      (c.mls || '').includes(q)
+    )
+  }, [filtered, labelSearch])
 
   const printLabels = () => {
     const selected = contacts.filter(c => labelSelections[c.id])
@@ -537,14 +762,40 @@ ${labelHtml}
   // ── Filters ──
   const filtered = useMemo(() => {
     let list = contacts
-    if (filter === 'green') list = list.filter(c => c.tag === 'green')
-    else if (filter === 'purple') list = list.filter(c => c.tag === 'purple')
-    else if (filter === 'relisted') list = list.filter(c => c.tag === 'relisted')
-    else if (filter === 'letters') list = list.filter(c => !c.l1 || !c.l2 || !c.l3)
-    else if (filter === 'cannonball') list = list.filter(c => c.cb || c.tag === 'purple')
-    else if (filter === 'followup') list = list.filter(c => c.followUpDate && !c.followUpDone)
-    else if (filter === 'appt') list = list.filter(c => c.appt)
-    else if (filter === 'all') list = list.filter(c => c.tag !== 'relisted')
+    // Main views
+    if (filter === 'all')            list = list.filter(c => c.status !== 'relisted' && c.status !== 'appt_scheduled')
+    else if (filter === 'standard')  list = list.filter(c => c.status === 'new')
+    else if (filter === 'cannonball') list = list.filter(c => c.status === 'cannonball')
+    else if (filter === 'appt_scheduled') list = list.filter(c => c.status === 'appt_scheduled')
+    else if (filter === 'relisted')  list = list.filter(c => c.status === 'relisted')
+    // Sub-filters (exclude archived by default)
+    else if (filter === 'letters')   list = list.filter(c => c.status !== 'relisted' && (!c.l1 || !c.l2 || !c.l3))
+    else if (filter === 'followup')  list = list.filter(c => c.status !== 'relisted' && c.followUpDate && !c.followUpDone)
+
+    // Outcome sub-filter — only meaningful on the Appt Scheduled tab.
+    if (filter === 'appt_scheduled' && outcomeFilter !== 'all') {
+      list = list.filter(c => (c.apptOutcome || 'pending') === outcomeFilter)
+    }
+
+    // Date range filter. The reference date depends on the current tab:
+    //   appt_scheduled → filter by apptDate
+    //   relisted       → filter by relistedDate
+    //   everything else → filter by expDate
+    if (dateRange.start || dateRange.end) {
+      const startMs = dateRange.start ? new Date(dateRange.start + 'T00:00:00').getTime() : -Infinity
+      const endMs = dateRange.end ? new Date(dateRange.end + 'T23:59:59').getTime() : Infinity
+      const pickDate = (c) => {
+        if (filter === 'appt_scheduled') return c.apptDate || c.apptScheduledDate
+        if (filter === 'relisted')       return c.relistedDate
+        return c.expDate
+      }
+      list = list.filter(c => {
+        const d = pickDate(c)
+        if (!d) return false
+        const ms = new Date(d + 'T12:00:00').getTime()
+        return ms >= startMs && ms <= endMs
+      })
+    }
 
     if (search) {
       const q = search.toLowerCase()
@@ -574,33 +825,260 @@ ${labelHtml}
     }
 
     return list
-  }, [contacts, filter, search, sortByExpired])
+  }, [contacts, filter, search, sortByExpired, outcomeFilter, dateRange])
 
   // ── Stats ──
   const stats = useMemo(() => {
     const total = contacts.length
+    const active = contacts.filter(c => c.status !== 'relisted' && c.status !== 'appt_scheduled').length
     const allLettersDone = contacts.filter(c => c.l1 && c.l2 && c.l3).length
-    const cbReady = contacts.filter(c => c.tag === 'purple').length
+    const standardCount = contacts.filter(c => c.status === 'new').length
+    const cannonballCount = contacts.filter(c => c.status === 'cannonball').length
+    const apptScheduledCount = contacts.filter(c => c.status === 'appt_scheduled').length
+    const relistedCount = contacts.filter(c => c.status === 'relisted').length
     const cbSent = contacts.filter(c => c.cb).length
-    const followUpDue = contacts.filter(c => c.followUpDate && !c.followUpDone).length
-    const apptSet = contacts.filter(c => c.appt).length
-    const greenCount = contacts.filter(c => c.tag === 'green').length
-    const relistedCount = contacts.filter(c => c.tag === 'relisted').length
-    return { total, allLettersDone, cbReady, cbSent, followUpDue, apptSet, greenCount, relistedCount }
+    const followUpDue = contacts.filter(c => c.status !== 'relisted' && c.followUpDate && !c.followUpDone).length
+    return { total, active, allLettersDone, standardCount, cannonballCount, apptScheduledCount, relistedCount, cbSent, followUpDue }
   }, [contacts])
 
   const openDetail = (contact) => { setSelected(contact); setPanelOpen(true) }
   const closePanel = () => { setPanelOpen(false); setSelected(null) }
 
-  const toggleTag = useCallback((id, tag) => {
+  const setStatus = useCallback((id, nextStatus) => {
     setContacts(prev => {
       const c = prev.find(x => x.id === id)
       if (!c) return prev
-      const next = prev.map(x => x.id === id ? { ...x, tag: c.tag === tag ? '' : tag } : x)
+      const changes = { status: nextStatus }
+      if (nextStatus === 'relisted' && !c.relistedDate) {
+        changes.relistedDate = new Date().toISOString().split('T')[0]
+      }
+      if (nextStatus === 'appt_scheduled' && !c.apptScheduledDate) {
+        changes.apptScheduledDate = new Date().toISOString().split('T')[0]
+      }
+      const next = prev.map(x => x.id === id ? { ...x, ...changes } : x)
       saveData(next)
       return next
     })
+    setSelected(prev => prev?.id === id ? { ...prev, status: nextStatus } : prev)
   }, [])
+
+  // Push an expired contact into Sellers (People) by creating the contact + property + a
+  // lead-status listing row in Supabase. Called when Dana marks a contact as
+  // "Listing Appt Scheduled" and confirms the prompt.
+  const confirmApptScheduled = useCallback(async (contact) => {
+    setApptSaving(true)
+    setApptError(null)
+    try {
+      // 1. Ensure the property exists (match by mls_id → address, create if missing).
+      const property_id = await DB.ensureProperty({
+        address: contact.address || '',
+        city: contact.city || '',
+        zip: contact.zip || '',
+        state: 'AZ',
+        mls_id: contact.mls || null,
+        price: contact.expiredPrice ? Number(String(contact.expiredPrice).replace(/[^0-9.]/g, '')) : null,
+        expired_date: contact.expDate || null,
+      })
+
+      // 2. Create the seller contact. Note: we don't dedupe against existing contacts here —
+      //    the contact_merge migration handles dupe collapse on email/phone.
+      const newContact = await DB.createContact({
+        name: contact.name || 'Expired Seller',
+        phone: contact.phone?.trim() || null,
+        email: contact.email?.trim() || null,
+        type: 'seller',
+        source: 'expired',
+        lead_source: 'expired_listing',
+        notes: contact.notes?.trim() || null,
+      })
+
+      // 3. Create the listing row with status='lead' so it lands on the Sellers page
+      //    (signed/active listings live on the separate Listings page post-split).
+      const priceNum = (p) => p ? Number(String(p).replace(/[^0-9.]/g, '')) || null : null
+      const newListing = await DB.createListing({
+        property_id,
+        contact_id: newContact.id,
+        type: 'expired',
+        status: 'lead',
+        source: 'my_expired',
+        list_price: priceNum(contact.currentPrice) || priceNum(contact.expiredPrice),
+        notes: `Pushed from Expired / Cannonball tracker on ${new Date().toLocaleDateString()}.\n${contact.notes?.trim() || ''}`.trim(),
+      })
+
+      // 4. Flip local status + store the back-reference.
+      const today = new Date().toISOString().split('T')[0]
+      const apptDate = apptDateInput || today
+      setContacts(prev => {
+        const next = prev.map(x => x.id === contact.id ? {
+          ...x,
+          status: 'appt_scheduled',
+          apptOutcome: x.apptOutcome || 'pending',
+          apptDate,
+          apptScheduledDate: today,
+          sellersListingId: newListing.id,
+          sellersContactId: newContact.id,
+          sellersPropertyId: property_id,
+        } : x)
+        saveData(next)
+        return next
+      })
+      setSelected(prev => prev?.id === contact.id ? {
+        ...prev,
+        status: 'appt_scheduled',
+        apptOutcome: prev.apptOutcome || 'pending',
+        apptDate,
+        apptScheduledDate: today,
+        sellersListingId: newListing.id,
+      } : prev)
+
+      // 5. Schedule the weekly Monday follow-up reminder. Fire-and-forget — a
+      //    notifications failure shouldn't block the save.
+      emitExpiredApptFollowup({
+        expiredId: contact.id,
+        name: contact.name,
+        address: contact.address,
+        apptDate,
+      }).catch(err => console.error('Failed to schedule follow-up reminder:', err))
+
+      setApptModal(null)
+    } catch (err) {
+      console.error('Failed to push to Sellers:', err)
+      setApptError(err?.message || 'Could not save to Sellers. Check the console for details.')
+    } finally {
+      setApptSaving(false)
+    }
+  }, [apptDateInput])
+
+  // Flip status locally without pushing to Sellers (fallback if Supabase is unreachable).
+  const markApptScheduledLocalOnly = useCallback((id) => {
+    const today = new Date().toISOString().split('T')[0]
+    const apptDate = apptDateInput || today
+    let snapshot = null
+    setContacts(prev => {
+      const next = prev.map(x => x.id === id ? {
+        ...x,
+        status: 'appt_scheduled',
+        apptOutcome: x.apptOutcome || 'pending',
+        apptDate,
+        apptScheduledDate: today,
+      } : x)
+      snapshot = next.find(x => x.id === id)
+      saveData(next)
+      return next
+    })
+    setSelected(prev => prev?.id === id ? { ...prev, status: 'appt_scheduled', apptOutcome: 'pending', apptDate } : prev)
+    // Even without the Supabase push, still schedule the weekly reminder.
+    if (snapshot) {
+      emitExpiredApptFollowup({
+        expiredId: snapshot.id,
+        name: snapshot.name,
+        address: snapshot.address,
+        apptDate,
+      }).catch(err => console.error('Failed to schedule follow-up reminder:', err))
+    }
+    setApptModal(null)
+    setApptError(null)
+  }, [apptDateInput])
+
+  // ── Mark Won / Mark Lost ────────────────────────────────────────────────────
+  const priceNum = (p) => p ? (Number(String(p).replace(/[^0-9.]/g, '')) || null) : null
+
+  const confirmWon = useCallback(async (contact) => {
+    setOutcomeSaving(true)
+    setOutcomeError(null)
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      const signed = {
+        apptOutcome: 'won',
+        apptOutcomeDate: today,
+        agreementSignedDate: wonForm.signedDate || today,
+        agreementExpiresDate: wonForm.expiresDate || null,
+        signedListPrice: wonForm.listPrice || '',
+        commissionRate: wonForm.commissionRate || '',
+        signedNotes: wonForm.notes || '',
+      }
+
+      // If we have a linked Supabase listing, promote it from 'lead' to
+      // 'signed' and stamp the signed-agreement fields so it graduates onto
+      // the signed-Listings page. `coming_soon` is reserved for the moment
+      // Dana actually enters it in the MLS as Coming Soon — she bumps that
+      // status manually via the inline MLS picker on the Listings page.
+      if (contact.sellersListingId) {
+        try {
+          await DB.updateListing(contact.sellersListingId, {
+            status: 'signed',
+            listing_agreement_signed: true,
+            agreement_signed_date: wonForm.signedDate || today,
+            agreement_expires_date: wonForm.expiresDate || null,
+            list_price: priceNum(wonForm.listPrice) ?? null,
+            commission_rate: wonForm.commissionRate ? Number(wonForm.commissionRate) : null,
+            notes: wonForm.notes?.trim() || null,
+          })
+        } catch (err) {
+          console.error('Failed to update Supabase listing:', err)
+          setOutcomeError(`Local state saved, but updating Sellers failed: ${err.message || err}`)
+        }
+      }
+
+      setContacts(prev => {
+        const next = prev.map(x => x.id === contact.id ? { ...x, ...signed } : x)
+        saveData(next)
+        return next
+      })
+      setSelected(prev => prev?.id === contact.id ? { ...prev, ...signed } : prev)
+
+      // Resolve any outstanding follow-up reminder for this expired contact.
+      resolveExpiredApptFollowup(contact.id).catch(err => console.error('Failed to resolve follow-up reminder:', err))
+
+      if (!outcomeError) setWonModal(null)
+    } catch (err) {
+      console.error('Mark Won failed:', err)
+      setOutcomeError(err?.message || 'Could not mark as Won.')
+    } finally {
+      setOutcomeSaving(false)
+    }
+  }, [wonForm, outcomeError])
+
+  const confirmLost = useCallback(async (contact) => {
+    setOutcomeSaving(true)
+    setOutcomeError(null)
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      const changes = {
+        apptOutcome: 'lost',
+        apptOutcomeDate: today,
+        lostReason: lostReason?.trim() || '',
+      }
+      setContacts(prev => {
+        const next = prev.map(x => x.id === contact.id ? { ...x, ...changes } : x)
+        saveData(next)
+        return next
+      })
+      setSelected(prev => prev?.id === contact.id ? { ...prev, ...changes } : prev)
+      resolveExpiredApptFollowup(contact.id).catch(err => console.error('Failed to resolve follow-up reminder:', err))
+      setLostModal(null)
+    } catch (err) {
+      setOutcomeError(err?.message || 'Could not mark as Lost.')
+    } finally {
+      setOutcomeSaving(false)
+    }
+  }, [lostReason])
+
+  // Reopen a closed outcome (clears won/lost back to pending).
+  const reopenAppt = useCallback((id) => {
+    setContacts(prev => {
+      const next = prev.map(x => x.id === id ? {
+        ...x,
+        apptOutcome: 'pending',
+        apptOutcomeDate: '',
+        lostReason: '',
+      } : x)
+      saveData(next)
+      return next
+    })
+    setSelected(prev => prev?.id === id ? { ...prev, apptOutcome: 'pending', apptOutcomeDate: '', lostReason: '' } : prev)
+  }, [])
+
 
   const toggleStep = useCallback((id, key) => {
     setContacts(prev => {
@@ -744,13 +1222,12 @@ ${labelHtml}
 
       {/* ── KPI Strip ── */}
       <div className="ec-kpis">
-        <div className="ec-kpi"><span className="ec-kpi__val">{stats.total}</span><span className="ec-kpi__label">Total</span></div>
+        <div className="ec-kpi"><span className="ec-kpi__val">{stats.active}</span><span className="ec-kpi__label">Active</span></div>
+        <div className="ec-kpi"><span className="ec-kpi__val">{stats.standardCount}</span><span className="ec-kpi__label">Standard</span></div>
+        <div className="ec-kpi ec-kpi--purple"><span className="ec-kpi__val">{stats.cannonballCount}</span><span className="ec-kpi__label">Cannonball (VIP)</span></div>
         <div className="ec-kpi"><span className="ec-kpi__val">{stats.allLettersDone}</span><span className="ec-kpi__label">All Letters Sent</span></div>
-        <div className="ec-kpi ec-kpi--purple"><span className="ec-kpi__val">{stats.cbReady}</span><span className="ec-kpi__label">Cannonball Queue</span></div>
-        <div className="ec-kpi"><span className="ec-kpi__val">{stats.cbSent}</span><span className="ec-kpi__label">CB Sent</span></div>
         <div className="ec-kpi"><span className="ec-kpi__val">{stats.followUpDue}</span><span className="ec-kpi__label">Follow-Up Due</span></div>
-        <div className="ec-kpi ec-kpi--green"><span className="ec-kpi__val">{stats.greenCount}</span><span className="ec-kpi__label">Reached Out</span></div>
-        <div className="ec-kpi ec-kpi--success"><span className="ec-kpi__val">{stats.apptSet}</span><span className="ec-kpi__label">Appts Set</span></div>
+        <div className="ec-kpi ec-kpi--success"><span className="ec-kpi__val">{stats.apptScheduledCount}</span><span className="ec-kpi__label">Appts Scheduled</span></div>
         <div className="ec-kpi ec-kpi--orange"><span className="ec-kpi__val">{stats.relistedCount}</span><span className="ec-kpi__label">Relisted</span></div>
       </div>
 
@@ -758,12 +1235,12 @@ ${labelHtml}
       <div className="ec-filters">
         <TabBar
           tabs={[
-            { label: 'All', value: 'all', count: contacts.length },
-            { label: 'Reached Out', value: 'green', count: stats.greenCount },
-            { label: 'Cannonball Queue', value: 'purple', count: stats.cbReady },
-            { label: 'Letters In Progress', value: 'letters', count: contacts.filter(c => !c.l1 || !c.l2 || !c.l3).length },
+            { label: 'All Active', value: 'all', count: stats.active },
+            { label: 'Standard Outreach', value: 'standard', count: stats.standardCount },
+            { label: 'Cannonball (VIP)', value: 'cannonball', count: stats.cannonballCount },
+            { label: 'Appt Scheduled', value: 'appt_scheduled', count: stats.apptScheduledCount },
+            { label: 'Letters In Progress', value: 'letters', count: contacts.filter(c => c.status !== 'relisted' && (!c.l1 || !c.l2 || !c.l3)).length },
             { label: 'Follow-Up Due', value: 'followup', count: stats.followUpDue },
-            { label: 'Appts Set', value: 'appt', count: stats.apptSet },
             { label: 'Relisted', value: 'relisted', count: stats.relistedCount },
           ]}
           active={filter}
@@ -781,16 +1258,123 @@ ${labelHtml}
         <Input placeholder="Search name, address, MLS..." value={search} onChange={e => setSearch(e.target.value)} className="ec-search" />
       </div>
 
+      {/* ── Secondary filter bar: date range + (contextual) outcome sub-filter ── */}
+      <div className="ec-secondary-filters">
+        <div className="ec-date-range">
+          <label className="ec-date-range__label">
+            {filter === 'appt_scheduled' ? 'Appt date:' : filter === 'relisted' ? 'Relisted date:' : 'Expired date:'}
+          </label>
+          <input
+            type="date"
+            className="ec-date-input"
+            value={dateRange.start}
+            onChange={e => setDateRange(r => ({ ...r, start: e.target.value }))}
+            aria-label="Start date"
+          />
+          <span className="ec-date-range__dash">→</span>
+          <input
+            type="date"
+            className="ec-date-input"
+            value={dateRange.end}
+            onChange={e => setDateRange(r => ({ ...r, end: e.target.value }))}
+            aria-label="End date"
+          />
+          {(dateRange.start || dateRange.end) && (
+            <button type="button" className="ec-date-range__clear" onClick={() => setDateRange({ start: '', end: '' })} title="Clear date range">×</button>
+          )}
+          {/* Quick presets */}
+          <div className="ec-date-presets">
+            {[
+              { label: '7d',  kind: 'days', days: 7  },
+              { label: '30d', kind: 'days', days: 30 },
+              { label: '90d', kind: 'days', days: 90 },
+              { label: 'YTD', kind: 'ytd' },
+            ].map(p => (
+              <button
+                key={p.label}
+                type="button"
+                className="ec-date-preset"
+                onClick={() => applyDatePreset(p)}
+              >{p.label}</button>
+            ))}
+            {/* Quarter dropdown — current year Q1–Q4 + full previous year + previous year by quarter */}
+            <select
+              className="ec-date-preset ec-date-preset--select"
+              value=""
+              onChange={e => {
+                if (!e.target.value) return
+                applyDatePreset({ kind: 'quarter', spec: e.target.value })
+                e.target.value = ''
+              }}
+            >
+              <option value="">Quarter…</option>
+              <optgroup label={`${new Date().getFullYear()} (this year)`}>
+                <option value={`Q1-${new Date().getFullYear()}`}>Q1</option>
+                <option value={`Q2-${new Date().getFullYear()}`}>Q2</option>
+                <option value={`Q3-${new Date().getFullYear()}`}>Q3</option>
+                <option value={`Q4-${new Date().getFullYear()}`}>Q4</option>
+              </optgroup>
+              <optgroup label={`${new Date().getFullYear() - 1} (last year)`}>
+                <option value={`FY-${new Date().getFullYear() - 1}`}>Full year</option>
+                <option value={`Q1-${new Date().getFullYear() - 1}`}>Q1</option>
+                <option value={`Q2-${new Date().getFullYear() - 1}`}>Q2</option>
+                <option value={`Q3-${new Date().getFullYear() - 1}`}>Q3</option>
+                <option value={`Q4-${new Date().getFullYear() - 1}`}>Q4</option>
+              </optgroup>
+            </select>
+          </div>
+        </div>
+        {filter === 'appt_scheduled' && (
+          <div className="ec-outcome-filter">
+            {[
+              { key: 'all',     label: 'All',     count: contacts.filter(c => c.status === 'appt_scheduled').length },
+              { key: 'pending', label: 'Pending', count: contacts.filter(c => c.status === 'appt_scheduled' && (c.apptOutcome || 'pending') === 'pending').length },
+              { key: 'won',     label: 'Won',     count: contacts.filter(c => c.status === 'appt_scheduled' && c.apptOutcome === 'won').length },
+              { key: 'lost',    label: 'Lost',    count: contacts.filter(c => c.status === 'appt_scheduled' && c.apptOutcome === 'lost').length },
+            ].map(opt => (
+              <button
+                key={opt.key}
+                type="button"
+                className={`ec-outcome-btn ec-outcome-btn--${opt.key} ${outcomeFilter === opt.key ? 'ec-outcome-btn--active' : ''}`}
+                onClick={() => setOutcomeFilter(opt.key)}
+              >
+                {opt.label} <span className="ec-outcome-btn__count">{opt.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* ── Table ── */}
       <div className="ec-table-wrap">
         <table className="ec-table">
           <thead>
             <tr>
-              <th>Status</th>
+              <th>
+                Status
+                <button
+                  type="button"
+                  className="ec-help-btn"
+                  title="What do the status circles mean?"
+                  onClick={e => { e.stopPropagation(); setShowStatusHelp(true) }}
+                  style={{ marginLeft: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.85rem', padding: 0, verticalAlign: 'middle' }}
+                >ⓘ</button>
+              </th>
               <th>Name</th>
               <th>Property Address</th>
               <th>City</th>
-              <th>MLS #</th>
+              <th>
+                MLS #
+                <button
+                  type="button"
+                  className="ec-help-btn"
+                  title="Edit MLS link URL template"
+                  onClick={e => { e.stopPropagation(); editMlsUrl() }}
+                  style={{ marginLeft: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: '0.8rem', padding: 0, verticalAlign: 'middle' }}
+                >⚙</button>
+              </th>
+              <th>Exp $</th>
+              <th>List $</th>
               <th>Expired</th>
               <th>Days Ago</th>
               <th>Mail Date</th>
@@ -807,36 +1391,31 @@ ${labelHtml}
               return (
               <tr
                 key={c.id}
-                className={`ec-row ${c.tag === 'green' ? 'ec-row--green' : ''} ${c.tag === 'purple' ? 'ec-row--purple' : ''} ${c.tag === 'relisted' ? 'ec-row--relisted' : ''}`}
+                className={`ec-row ec-row--${c.status || 'new'}`}
                 onClick={() => openDetail(c)}
               >
                 <td className="ec-row__status" onClick={e => e.stopPropagation()}>
-                  {c.tag === 'relisted' ? (
-                    <button className="ec-status-pill ec-status-pill--orange" onClick={() => updateContact(c.id, { tag: '', relistedDate: '' })}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-                      Relisted
-                    </button>
-                  ) : c.tag === 'green' ? (
-                    <button className="ec-status-pill ec-status-pill--green" onClick={() => toggleTag(c.id, 'green')}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                      Reached Out
-                    </button>
-                  ) : c.tag === 'purple' ? (
-                    <button className="ec-status-pill ec-status-pill--purple" onClick={() => toggleTag(c.id, 'purple')}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                      Cannonball
-                    </button>
-                  ) : (
-                    <div className="ec-status-picker">
-                      <button className="ec-status-dot ec-status-dot--green" title="Mark as Reached Out" onClick={() => toggleTag(c.id, 'green')} />
-                      <button className="ec-status-dot ec-status-dot--purple" title="Add to Cannonball Queue" onClick={() => toggleTag(c.id, 'purple')} />
-                    </div>
-                  )}
+                  <StatusPill
+                    status={c.status || 'new'}
+                    onSelect={next => {
+                      if (next === 'appt_scheduled' && c.status !== 'appt_scheduled') {
+                        openApptModal(c)
+                      } else {
+                        setStatus(c.id, next)
+                      }
+                    }}
+                  />
                 </td>
                 <td className="ec-row__name">{c.name}</td>
                 <td className="ec-row__addr">{c.address}</td>
                 <td>{c.city}</td>
-                <td className="ec-row__mls">{c.mls || '—'}</td>
+                <td className="ec-row__mls" onClick={e => e.stopPropagation()}>
+                  {c.mls
+                    ? <a href={buildMlsUrl(c.mls)} target="_blank" rel="noopener noreferrer" className="ec-mls-link">{c.mls}</a>
+                    : '—'}
+                </td>
+                <td className="ec-muted" style={{ fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{fmtPrice(c.expiredPrice) || '—'}</td>
+                <td className="ec-muted" style={{ fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{fmtPrice(c.currentPrice) || '—'}</td>
                 <td>{fmtDate(c.expDate) || '—'}</td>
                 <td className="ec-muted">{daysAgo !== null ? `${daysAgo}d` : '—'}</td>
                 <td>{fmtDate(c.mailDate)}</td>
@@ -845,19 +1424,19 @@ ${labelHtml}
                 <td>
                   {c.cb
                     ? <Badge variant="success" size="sm">Sent</Badge>
-                    : c.tag === 'purple'
+                    : c.status === 'cannonball'
                       ? <Badge variant="accent" size="sm">Queued</Badge>
                       : <span className="ec-muted">—</span>
                   }
                 </td>
                 <td>
-                  {c.appt
+                  {c.appt || c.status === 'appt_scheduled'
                     ? <Badge variant="success" size="sm">Set</Badge>
                     : <span className="ec-muted">—</span>
                   }
                 </td>
                 <td onClick={e => e.stopPropagation()}>
-                  {c.tag === 'relisted' ? (
+                  {c.status === 'relisted' ? (
                     <span className="ec-muted" style={{ fontSize: '0.68rem' }}>{fmtDate(c.relistedDate)}</span>
                   ) : (
                     <div style={{ display: 'flex', gap: 4 }}>
@@ -874,7 +1453,7 @@ ${labelHtml}
               )
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan="13" className="ec-empty">No contacts match this filter</td></tr>
+              <tr><td colSpan="15" className="ec-empty">No contacts match this filter</td></tr>
             )}
           </tbody>
         </table>
@@ -889,7 +1468,11 @@ ${labelHtml}
             scripts={scripts}
             updateContact={updateContact}
             toggleStep={toggleStep}
-            toggleTag={toggleTag}
+            setStatus={setStatus}
+            requestApptScheduled={() => openApptModal(selected)}
+            openWonModal={() => openWonModal(selected)}
+            openLostModal={() => openLostModal(selected)}
+            reopenAppt={() => reopenAppt(selected.id)}
             markRelisted={markRelisted}
             checkRelisted={checkRelisted}
             markOutreach={markOutreach}
@@ -949,7 +1532,7 @@ ${labelHtml}
               <div>
                 <h3>Upload CSV</h3>
                 <p className="ec-script-popup__contact">
-                  Expected columns: name, address, city, zip, mls, expDate, phone, email, mailAddr, mailDate
+                  Expected columns: name, address, city, zip, mls, expDate, phone, email, mailAddr, mailDate, expiredPrice, currentPrice
                 </p>
               </div>
               <button className="ec-script-popup__close" onClick={() => { setShowCsvUpload(false); setCsvText('') }}>
@@ -981,69 +1564,325 @@ ${labelHtml}
       )}
 
       {/* ── Label Printing Modal ── */}
-      {showLabelModal && (
+      {showLabelModal && (() => {
+        const selectedCount = Object.keys(labelSelections).length
+        const sheetCount = Math.ceil(selectedCount / 30)
+        return (
         <div className="ec-script-overlay" onClick={() => setShowLabelModal(false)}>
-          <div className="ec-script-popup" onClick={e => e.stopPropagation()} style={{ maxWidth: 680, maxHeight: '90vh' }}>
+          <div className="ec-script-popup" onClick={e => e.stopPropagation()} style={{ maxWidth: 720, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
             <div className="ec-script-popup__header">
               <div>
                 <h3>Print Avery 5160 Labels</h3>
                 <p className="ec-script-popup__contact">
-                  Select contacts and choose property or mailing address for each. {Object.keys(labelSelections).length} selected.
+                  Pick one, some, or all contacts. Each selected row prints one label. Currently filtered to <strong>{filtered.length}</strong> {filter === 'all' ? 'active' : filter.replace('_', ' ')} contact{filtered.length !== 1 ? 's' : ''}.
                 </p>
               </div>
               <button className="ec-script-popup__close" onClick={() => setShowLabelModal(false)}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
-            <div className="ec-script-popup__body" style={{ padding: 0 }}>
-              <table className="ec-label-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 36 }}>
-                      <input type="checkbox" checked={labelSelectAll} onChange={toggleAllLabels} />
-                    </th>
-                    <th>Name</th>
-                    <th>Address to Print</th>
-                    <th style={{ width: 120 }}>Use</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(c => {
-                    const isSelected = !!labelSelections[c.id]
-                    const addrType = labelSelections[c.id] || 'property'
-                    const displayAddr = addrType === 'mailing' && c.mailAddr
-                      ? c.mailAddr
-                      : `${c.address}, ${c.city}, AZ ${c.zip}`
-                    return (
-                      <tr key={c.id} className={isSelected ? 'ec-label-row--selected' : ''}>
-                        <td>
-                          <input type="checkbox" checked={isSelected} onChange={() => toggleLabelContact(c.id)} />
-                        </td>
-                        <td className="ec-row__name" style={{ fontSize: '0.78rem' }}>{c.name}</td>
-                        <td style={{ fontSize: '0.75rem', color: 'var(--brown-dark)' }}>{displayAddr}</td>
-                        <td>
-                          {isSelected && (
-                            <select
-                              className="ec-label-addr-select"
-                              value={addrType}
-                              onChange={e => setLabelAddr(c.id, e.target.value)}
-                            >
-                              <option value="property">Property</option>
-                              {c.mailAddr && <option value="mailing">Mailing</option>}
-                            </select>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--color-border, #e5dfd7)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', background: 'var(--cream, #faf7f2)' }}>
+              <Input
+                placeholder="Search within this view (name, address, MLS)…"
+                value={labelSearch}
+                onChange={e => setLabelSearch(e.target.value)}
+                style={{ flex: '1 1 220px', minWidth: 0 }}
+              />
+              <Button variant="ghost" size="sm" onClick={selectAllLabelsFiltered}>Select All{labelSearch ? ' (shown)' : ''}</Button>
+              <Button variant="ghost" size="sm" onClick={selectNoLabels} disabled={selectedCount === 0}>Clear</Button>
+              <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                <strong style={{ color: 'var(--brown-dark, #342922)' }}>{selectedCount}</strong> selected · {sheetCount || 0} sheet{sheetCount !== 1 ? 's' : ''}
+              </div>
+            </div>
+            <div className="ec-script-popup__body" style={{ padding: 0, overflow: 'auto', flex: 1 }}>
+              {labelFiltered.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+                  No contacts match this search.
+                </div>
+              ) : (
+                <table className="ec-label-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 36 }}>
+                        <input type="checkbox" checked={labelSelectAll && labelFiltered.every(c => labelSelections[c.id])} onChange={toggleAllLabels} title="Toggle all shown" />
+                      </th>
+                      <th>Name</th>
+                      <th>Address to Print</th>
+                      <th style={{ width: 120 }}>Use</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {labelFiltered.map(c => {
+                      const isSelected = !!labelSelections[c.id]
+                      const addrType = labelSelections[c.id] || 'property'
+                      const displayAddr = addrType === 'mailing' && c.mailAddr
+                        ? c.mailAddr
+                        : `${c.address}, ${c.city}, AZ ${c.zip}`
+                      return (
+                        <tr key={c.id} className={isSelected ? 'ec-label-row--selected' : ''} onClick={() => toggleLabelContact(c.id)} style={{ cursor: 'pointer' }}>
+                          <td onClick={e => e.stopPropagation()}>
+                            <input type="checkbox" checked={isSelected} onChange={() => toggleLabelContact(c.id)} />
+                          </td>
+                          <td className="ec-row__name" style={{ fontSize: '0.78rem' }}>{c.name}</td>
+                          <td style={{ fontSize: '0.75rem', color: 'var(--brown-dark)' }}>{displayAddr}</td>
+                          <td onClick={e => e.stopPropagation()}>
+                            {isSelected && (
+                              <select
+                                className="ec-label-addr-select"
+                                value={addrType}
+                                onChange={e => setLabelAddr(c.id, e.target.value)}
+                              >
+                                <option value="property">Property</option>
+                                {c.mailAddr && <option value="mailing">Mailing</option>}
+                              </select>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
             <div className="ec-script-popup__actions">
-              <Button variant="primary" size="md" onClick={printLabels} disabled={!Object.keys(labelSelections).length}>
-                Print {Object.keys(labelSelections).length} Label{Object.keys(labelSelections).length !== 1 ? 's' : ''}
+              <Button variant="primary" size="md" onClick={printLabels} disabled={selectedCount === 0}>
+                Print {selectedCount || ''} Label{selectedCount !== 1 ? 's' : ''}
               </Button>
               <Button variant="ghost" size="md" onClick={() => setShowLabelModal(false)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+        )
+      })()}
+
+      {/* ── Listing Appt Scheduled Confirmation Modal ── */}
+      {apptModal && (
+        <div className="ec-script-overlay" onClick={() => !apptSaving && (setApptModal(null), setApptError(null))}>
+          <div className="ec-script-popup" onClick={e => e.stopPropagation()} style={{ maxWidth: 540 }}>
+            <div className="ec-script-popup__header">
+              <div>
+                <span className="ec-script-popup__type" style={{ background: STATUS_META.appt_scheduled.color }}>LISTING APPT</span>
+                <h3>Push {apptModal.contact.name} to Sellers?</h3>
+                <p className="ec-script-popup__contact">
+                  {apptModal.contact.address}, {apptModal.contact.city}
+                </p>
+              </div>
+              <button className="ec-script-popup__close" disabled={apptSaving} onClick={() => { setApptModal(null); setApptError(null) }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="ec-script-popup__body" style={{ padding: '20px 24px', fontSize: '0.82rem', lineHeight: 1.55 }}>
+              <p style={{ marginBottom: 12 }}>
+                This will create the following in Supabase so this lead lives in <strong>People → Sellers</strong>:
+              </p>
+              <ul style={{ margin: '0 0 12px 18px', padding: 0, color: 'var(--brown-dark)' }}>
+                <li><strong>Contact</strong> — {apptModal.contact.name} {apptModal.contact.email && <>· {apptModal.contact.email}</>} {apptModal.contact.phone && <>· {fmtPhone(apptModal.contact.phone)}</>}</li>
+                <li><strong>Property</strong> — {apptModal.contact.address}, {apptModal.contact.city}, AZ {apptModal.contact.zip} {apptModal.contact.mls && <>· MLS #{apptModal.contact.mls}</>}</li>
+                <li><strong>Listing</strong> — type: expired, status: lead, source: my_expired {apptModal.contact.currentPrice || apptModal.contact.expiredPrice ? <>· {fmtPrice(apptModal.contact.currentPrice || apptModal.contact.expiredPrice)}</> : null}</li>
+              </ul>
+              <div style={{ marginBottom: 12, padding: 10, background: 'var(--cream, #faf7f2)', borderRadius: 6 }}>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4 }}>APPOINTMENT DATE</label>
+                <input
+                  type="date"
+                  value={apptDateInput}
+                  onChange={e => setApptDateInput(e.target.value)}
+                  className="ec-date-input"
+                  style={{ width: '100%' }}
+                  disabled={apptSaving}
+                />
+                <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', margin: '6px 0 0' }}>
+                  A weekly follow-up reminder will fire every Monday starting after this date, until you mark the outcome Won or Lost.
+                </p>
+              </div>
+              <p style={{ marginBottom: 12, color: 'var(--color-text-muted)' }}>
+                The contact stays on this page — just moves to the <em>Appt Scheduled</em> tab so you can track conversions. If the contact or property already exists in Supabase you may end up with a duplicate; the contact_merge migration will collapse dupes on email/phone.
+              </p>
+              {apptError && (
+                <div style={{ background: 'rgba(230,126,34,0.12)', border: '1px solid rgba(230,126,34,0.4)', color: '#b45309', padding: 10, borderRadius: 6, fontSize: '0.78rem' }}>
+                  <strong>Couldn't push to Sellers:</strong> {apptError}
+                  <br />You can still mark it scheduled locally and add it to Sellers by hand.
+                </div>
+              )}
+            </div>
+            <div className="ec-script-popup__actions">
+              <Button variant="primary" size="md" onClick={() => confirmApptScheduled(apptModal.contact)} disabled={apptSaving}>
+                {apptSaving ? 'Saving…' : 'Push to Sellers & Mark Scheduled'}
+              </Button>
+              <Button variant="ghost" size="md" onClick={() => markApptScheduledLocalOnly(apptModal.contact.id)} disabled={apptSaving}>
+                Mark Scheduled (local only)
+              </Button>
+              <Button variant="ghost" size="md" onClick={() => { setApptModal(null); setApptError(null) }} disabled={apptSaving}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mark Won Modal — captures signed agreement details ── */}
+      {wonModal && (
+        <div className="ec-script-overlay" onClick={() => !outcomeSaving && (setWonModal(null), setOutcomeError(null))}>
+          <div className="ec-script-popup" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
+            <div className="ec-script-popup__header">
+              <div>
+                <span className="ec-script-popup__type" style={{ background: '#1f6b1f' }}>WON — SIGNED</span>
+                <h3>Mark {wonModal.contact.name} as Won</h3>
+                <p className="ec-script-popup__contact">
+                  {wonModal.contact.address}, {wonModal.contact.city}
+                </p>
+              </div>
+              <button className="ec-script-popup__close" disabled={outcomeSaving} onClick={() => { setWonModal(null); setOutcomeError(null) }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="ec-script-popup__body" style={{ padding: '20px 24px', fontSize: '0.82rem' }}>
+              <p style={{ marginBottom: 12, color: 'var(--color-text-muted)' }}>
+                Enter the signed listing agreement details. This promotes the linked Sellers listing from <em>lead</em> to <em>signed</em> and stamps the agreement on it so it graduates to the Listings page. Bump it to <em>coming_soon</em> or <em>active</em> from the Listings page once you actually enter it in the MLS.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <label style={{ display: 'block' }}>
+                  <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 3 }}>SIGNED DATE</span>
+                  <input type="date" className="ec-date-input" value={wonForm.signedDate} onChange={e => setWonForm(f => ({ ...f, signedDate: e.target.value }))} disabled={outcomeSaving} style={{ width: '100%' }} />
+                </label>
+                <label style={{ display: 'block' }}>
+                  <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 3 }}>AGREEMENT EXPIRES</span>
+                  <input type="date" className="ec-date-input" value={wonForm.expiresDate} onChange={e => setWonForm(f => ({ ...f, expiresDate: e.target.value }))} disabled={outcomeSaving} style={{ width: '100%' }} />
+                </label>
+                <label style={{ display: 'block' }}>
+                  <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 3 }}>LIST PRICE</span>
+                  <Input type="text" inputMode="numeric" placeholder="$" value={wonForm.listPrice} onChange={e => setWonForm(f => ({ ...f, listPrice: e.target.value }))} disabled={outcomeSaving} />
+                </label>
+                <label style={{ display: 'block' }}>
+                  <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 3 }}>COMMISSION %</span>
+                  <Input type="text" inputMode="decimal" placeholder="e.g. 2.5" value={wonForm.commissionRate} onChange={e => setWonForm(f => ({ ...f, commissionRate: e.target.value }))} disabled={outcomeSaving} />
+                </label>
+              </div>
+              <Textarea
+                label="Notes"
+                rows={2}
+                value={wonForm.notes}
+                onChange={e => setWonForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Any terms, concessions, or context worth remembering…"
+                disabled={outcomeSaving}
+              />
+              {outcomeError && (
+                <div style={{ background: 'rgba(230,126,34,0.12)', border: '1px solid rgba(230,126,34,0.4)', color: '#b45309', padding: 10, borderRadius: 6, fontSize: '0.78rem', marginTop: 10 }}>
+                  {outcomeError}
+                </div>
+              )}
+            </div>
+            <div className="ec-script-popup__actions">
+              <Button variant="primary" size="md" onClick={() => confirmWon(wonModal.contact)} disabled={outcomeSaving || !wonForm.signedDate}>
+                {outcomeSaving ? 'Saving…' : 'Mark Won & Move to Signed'}
+              </Button>
+              <Button variant="ghost" size="md" onClick={() => { setWonModal(null); setOutcomeError(null) }} disabled={outcomeSaving}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mark Lost Modal ── */}
+      {lostModal && (
+        <div className="ec-script-overlay" onClick={() => !outcomeSaving && (setLostModal(null), setOutcomeError(null))}>
+          <div className="ec-script-popup" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="ec-script-popup__header">
+              <div>
+                <span className="ec-script-popup__type" style={{ background: '#a72e2e' }}>LOST</span>
+                <h3>Mark {lostModal.contact.name} as Lost</h3>
+                <p className="ec-script-popup__contact">
+                  {lostModal.contact.address}, {lostModal.contact.city}
+                </p>
+              </div>
+              <button className="ec-script-popup__close" disabled={outcomeSaving} onClick={() => { setLostModal(null); setOutcomeError(null) }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="ec-script-popup__body" style={{ padding: '20px 24px', fontSize: '0.82rem' }}>
+              <p style={{ marginBottom: 10, color: 'var(--color-text-muted)' }}>
+                Closes the follow-up reminder loop. Captures a reason for your win/loss pattern review. The contact stays on this page in the <em>Lost</em> bucket.
+              </p>
+              <Textarea
+                label="Why did you lose it? (optional)"
+                rows={3}
+                value={lostReason}
+                onChange={e => setLostReason(e.target.value)}
+                placeholder="e.g. went with a friend/family agent, price expectations too high, decided not to sell…"
+                disabled={outcomeSaving}
+              />
+              {outcomeError && (
+                <div style={{ background: 'rgba(230,126,34,0.12)', border: '1px solid rgba(230,126,34,0.4)', color: '#b45309', padding: 10, borderRadius: 6, fontSize: '0.78rem', marginTop: 10 }}>
+                  {outcomeError}
+                </div>
+              )}
+            </div>
+            <div className="ec-script-popup__actions">
+              <Button variant="primary" size="md" onClick={() => confirmLost(lostModal.contact)} disabled={outcomeSaving}>
+                {outcomeSaving ? 'Saving…' : 'Mark Lost'}
+              </Button>
+              <Button variant="ghost" size="md" onClick={() => { setLostModal(null); setOutcomeError(null) }} disabled={outcomeSaving}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Status Help Modal ── */}
+      {showStatusHelp && (
+        <div className="ec-script-overlay" onClick={() => setShowStatusHelp(false)}>
+          <div className="ec-script-popup" onClick={e => e.stopPropagation()} style={{ maxWidth: 560 }}>
+            <div className="ec-script-popup__header">
+              <div>
+                <h3>Statuses — What They Mean</h3>
+                <p className="ec-script-popup__contact">Click the status pill in the table to change it. Each contact has exactly one status.</p>
+              </div>
+              <button className="ec-script-popup__close" onClick={() => setShowStatusHelp(false)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="ec-script-popup__body" style={{ padding: '20px 24px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, fontSize: '0.82rem' }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ width: 14, height: 14, borderRadius: '50%', background: STATUS_META.new.color, flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <strong>New — Standard Outreach</strong>
+                    <div style={{ color: 'var(--color-text-muted)', marginTop: 2 }}>
+                      The default for every imported expired. Runs the normal Letter 1 → 2 → 3 mail sequence plus the regular call/text/email follow-ups. These show up in the <em>All Active</em> and <em>Standard Outreach</em> tabs.
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ width: 14, height: 14, borderRadius: '50%', background: STATUS_META.cannonball.color, flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <strong>Cannonball (VIP) — Premium Track</strong>
+                    <div style={{ color: 'var(--color-text-muted)', marginTop: 2 }}>
+                      Hand-picked high-priority homes you want to go hard on from day one. Unlocks a separate Cannonball Letter sequence in the detail panel (CB1, CB2, plus the physical cannonball package — CMA, handwritten note, marketing plan). These letters go out <strong>before</strong> the standard L1/L2/L3 wave. Shows up in the dedicated <em>Cannonball (VIP)</em> tab so you can manage them apart from the regular pipeline.
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ width: 14, height: 14, borderRadius: '50%', background: STATUS_META.appt_scheduled.color, flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <strong>Listing Appt Scheduled — Converted</strong>
+                    <div style={{ color: 'var(--color-text-muted)', marginTop: 2 }}>
+                      Set when you've booked a listing appointment. Automatically pushes a lead into <strong>People → Sellers</strong> (creates the contact + property + a lead-status listing) and moves the contact into the <em>Appt Scheduled</em> tab so you can track your conversion rate. They stay visible on the expired page — just in a separate bucket.
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ width: 14, height: 14, borderRadius: '50%', background: STATUS_META.relisted.color, flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <strong>Relisted — Archive</strong>
+                    <div style={{ color: 'var(--color-text-muted)', marginTop: 2 }}>
+                      The property is back on the market with another agent. Auto-hides from all active tabs and moves to the <em>Relisted</em> archive tab.
+                    </div>
+                  </div>
+                </div>
+                <div style={{ background: 'var(--cream)', padding: 12, borderRadius: 8, fontSize: '0.78rem', lineHeight: 1.5 }}>
+                  <strong>Rule of thumb:</strong> New = "normal flow." Cannonball = "this one's worth extra effort — give them the premium treatment." Appt Scheduled = "booked — they're officially in Sellers now." Relisted = "out of reach, archive it."
+                </div>
+              </div>
+            </div>
+            <div className="ec-script-popup__actions">
+              <Button variant="primary" size="md" onClick={() => setShowStatusHelp(false)}>Got it</Button>
             </div>
           </div>
         </div>
@@ -1129,7 +1968,7 @@ function ScriptPopup({ contact, scriptKey, type, script, onClose, onMarkDone }) 
 }
 
 // ─── Contact Detail Panel ────────────────────────────────────────────────────
-function ContactDetail({ contact: c, contacts, scripts, updateContact, toggleStep, toggleTag, markRelisted, checkRelisted, markOutreach, openScriptAndCall, openScriptForText, openScriptForEmail }) {
+function ContactDetail({ contact: c, contacts, scripts, updateContact, toggleStep, setStatus, requestApptScheduled, openWonModal, openLostModal, reopenAppt, markRelisted, checkRelisted, markOutreach, openScriptAndCall, openScriptForText, openScriptForEmail }) {
   const fresh = contacts.find(x => x.id === c.id) || c
 
   return (
@@ -1140,17 +1979,23 @@ function ContactDetail({ contact: c, contacts, scripts, updateContact, toggleSte
         <div className="ec-detail__info-grid">
           <div>
             <span className="ec-detail__field-label">Phone</span>
-            {fresh.phone
-              ? <span className="ec-detail__field-val ec-muted" style={{ fontSize: '0.78rem' }}>{fmtPhone(fresh.phone)}</span>
-              : <span className="ec-detail__field-val ec-muted">No phone</span>
-            }
+            <Input
+              type="tel"
+              placeholder="Add phone"
+              value={fresh.phone || ''}
+              onChange={e => updateContact(fresh.id, { phone: e.target.value })}
+              style={{ fontSize: '0.78rem' }}
+            />
           </div>
           <div>
             <span className="ec-detail__field-label">Email</span>
-            {fresh.email
-              ? <span className="ec-detail__field-val" style={{ fontSize: '0.78rem' }}>{fresh.email}</span>
-              : <span className="ec-detail__field-val ec-muted">No email</span>
-            }
+            <Input
+              type="email"
+              placeholder="Add email"
+              value={fresh.email || ''}
+              onChange={e => updateContact(fresh.id, { email: e.target.value })}
+              style={{ fontSize: '0.78rem' }}
+            />
           </div>
           <div>
             <span className="ec-detail__field-label">Property</span>
@@ -1165,7 +2010,9 @@ function ContactDetail({ contact: c, contacts, scripts, updateContact, toggleSte
           {fresh.mls && (
             <div>
               <span className="ec-detail__field-label">MLS #</span>
-              <span className="ec-detail__field-val">{fresh.mls}</span>
+              <span className="ec-detail__field-val">
+                <a href={buildMlsUrl(fresh.mls)} target="_blank" rel="noopener noreferrer" className="ec-mls-link">{fresh.mls}</a>
+              </span>
             </div>
           )}
           {fresh.expDate && (
@@ -1177,34 +2024,117 @@ function ContactDetail({ contact: c, contacts, scripts, updateContact, toggleSte
               </span>
             </div>
           )}
+          <div>
+            <span className="ec-detail__field-label">Expired List Price</span>
+            <Input
+              type="text"
+              inputMode="numeric"
+              placeholder="$ at time of expiration"
+              value={fresh.expiredPrice || ''}
+              onChange={e => updateContact(fresh.id, { expiredPrice: e.target.value })}
+              style={{ fontSize: '0.78rem' }}
+            />
+          </div>
+          <div>
+            <span className="ec-detail__field-label">Current List Price {fresh.status === 'relisted' ? '(relisted)' : '(if active)'}</span>
+            <Input
+              type="text"
+              inputMode="numeric"
+              placeholder="$ current / relisted price"
+              value={fresh.currentPrice || ''}
+              onChange={e => updateContact(fresh.id, { currentPrice: e.target.value })}
+              style={{ fontSize: '0.78rem' }}
+            />
+          </div>
         </div>
       </div>
 
       <hr className="panel-divider" />
 
-      {/* Status Tags */}
+      {/* Status */}
       <div className="ec-detail__section">
         <p className="ec-detail__label">Status</p>
         <div className="ec-detail__tag-row">
           <button
-            className={`ec-detail__tag ec-detail__tag--green ${fresh.tag === 'green' ? 'ec-detail__tag--active' : ''}`}
-            onClick={() => toggleTag(fresh.id, 'green')}
+            className={`ec-detail__tag ec-detail__tag--new ${fresh.status === 'new' ? 'ec-detail__tag--active' : ''}`}
+            onClick={() => setStatus(fresh.id, 'new')}
+            title="Standard expired — runs the normal L1/L2/L3 letter sequence"
           >
-            Reached Out / Listing Appt
+            Standard
           </button>
           <button
-            className={`ec-detail__tag ec-detail__tag--purple ${fresh.tag === 'purple' ? 'ec-detail__tag--active' : ''}`}
-            onClick={() => toggleTag(fresh.id, 'purple')}
+            className={`ec-detail__tag ec-detail__tag--purple ${fresh.status === 'cannonball' ? 'ec-detail__tag--active' : ''}`}
+            onClick={() => setStatus(fresh.id, 'cannonball')}
+            title="High-priority target — gets the premium cannonball letter sequence"
           >
-            Cannonball Queue
+            Cannonball (VIP)
           </button>
           <button
-            className={`ec-detail__tag ec-detail__tag--orange ${fresh.tag === 'relisted' ? 'ec-detail__tag--active' : ''}`}
-            onClick={() => fresh.tag === 'relisted' ? updateContact(fresh.id, { tag: '', relistedDate: '' }) : markRelisted(fresh.id)}
+            className={`ec-detail__tag ec-detail__tag--green ${fresh.status === 'appt_scheduled' ? 'ec-detail__tag--active' : ''}`}
+            onClick={() => fresh.status === 'appt_scheduled' ? setStatus(fresh.id, 'new') : requestApptScheduled()}
+            title="Listing appointment booked — auto-creates a lead in Sellers"
+          >
+            Listing Appt Scheduled
+          </button>
+          <button
+            className={`ec-detail__tag ec-detail__tag--orange ${fresh.status === 'relisted' ? 'ec-detail__tag--active' : ''}`}
+            onClick={() => fresh.status === 'relisted' ? setStatus(fresh.id, 'new') : markRelisted(fresh.id)}
           >
             Relisted
           </button>
         </div>
+        {fresh.status === 'appt_scheduled' && (
+          <div className="ec-appt-outcome" style={{ marginTop: 10, padding: 10, background: 'rgba(34,139,34,0.05)', border: '1px solid rgba(34,139,34,0.18)', borderRadius: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: '0.78rem' }}>
+                <strong>Appointment</strong>
+                {fresh.apptDate && <> · {fmtDate(fresh.apptDate)}</>}
+                {' · '}
+                <span style={{
+                  display: 'inline-block', padding: '1px 8px', borderRadius: 999, fontSize: '0.7rem', fontWeight: 700,
+                  background: fresh.apptOutcome === 'won' ? 'rgba(34,139,34,0.15)' : fresh.apptOutcome === 'lost' ? 'rgba(200,60,60,0.14)' : 'rgba(200,160,90,0.18)',
+                  color: fresh.apptOutcome === 'won' ? '#1f6b1f' : fresh.apptOutcome === 'lost' ? '#a72e2e' : '#8a6b22',
+                }}>
+                  {fresh.apptOutcome === 'won' ? 'WON' : fresh.apptOutcome === 'lost' ? 'LOST' : 'PENDING'}
+                </span>
+              </div>
+              {fresh.sellersListingId && (
+                <a href="/sellers" className="ec-canva-link" style={{ fontSize: '0.72rem' }}>View in Sellers →</a>
+              )}
+            </div>
+            {fresh.apptOutcome === 'won' && (
+              <div style={{ marginTop: 6, fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+                Signed {fmtDate(fresh.agreementSignedDate)}
+                {fresh.signedListPrice && <> · {fmtPrice(fresh.signedListPrice)}</>}
+                {fresh.commissionRate && <> · {fresh.commissionRate}% commission</>}
+                {fresh.agreementExpiresDate && <> · expires {fmtDate(fresh.agreementExpiresDate)}</>}
+              </div>
+            )}
+            {fresh.apptOutcome === 'lost' && fresh.lostReason && (
+              <div style={{ marginTop: 6, fontSize: '0.72rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                Lost: {fresh.lostReason}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+              {fresh.apptOutcome !== 'won' && (
+                <Button variant="primary" size="sm" onClick={openWonModal}>
+                  {fresh.apptOutcome === 'lost' ? 'Mark Won Instead' : 'Mark Won — Signed'}
+                </Button>
+              )}
+              {fresh.apptOutcome !== 'lost' && (
+                <Button variant="ghost" size="sm" onClick={openLostModal}>
+                  {fresh.apptOutcome === 'won' ? 'Mark Lost Instead' : 'Mark Lost'}
+                </Button>
+              )}
+              {(fresh.apptOutcome === 'won' || fresh.apptOutcome === 'lost') && (
+                <Button variant="ghost" size="sm" onClick={reopenAppt}>Reopen</Button>
+              )}
+            </div>
+            <p style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', marginTop: 8, marginBottom: 0 }}>
+              Weekly follow-up reminders run every Monday until you mark this Won or Lost.
+            </p>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
           <Button variant="ghost" size="sm" onClick={() => checkRelisted(fresh)}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4, verticalAlign: '-2px' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -1215,9 +2145,42 @@ function ContactDetail({ contact: c, contacts, scripts, updateContact, toggleSte
 
       <hr className="panel-divider" />
 
+      {/* Cannonball Letter Progress — only shown when status is cannonball */}
+      {fresh.status === 'cannonball' && (
+        <>
+          <div className="ec-detail__section" style={{ background: 'rgba(125,60,152,0.06)', padding: 12, borderRadius: 8, border: '1px solid rgba(125,60,152,0.18)' }}>
+            <p className="ec-detail__label" style={{ color: '#7d3c98' }}>
+              Cannonball Letter Sequence (VIP)
+            </p>
+            <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', margin: '0 0 8px' }}>
+              Premium letters go out BEFORE the standard L1/L2/L3 wave. Mark each one as sent.
+            </p>
+            <div className="ec-detail__letter-row">
+              <label className="ec-check-item">
+                <input type="checkbox" checked={!!fresh.cbl1} onChange={() => updateContact(fresh.id, { cbl1: !fresh.cbl1, cbl1Date: !fresh.cbl1 ? new Date().toISOString().split('T')[0] : '' })} />
+                <span>CB Letter 1 {fresh.cbl1Date && <span className="ec-muted" style={{ fontSize: '0.7rem' }}>· {fmtDate(fresh.cbl1Date)}</span>}</span>
+                <a href={LETTER_LINKS.cb1} target="_blank" rel="noopener noreferrer" className="ec-canva-link" onClick={e => e.stopPropagation()}>Canva</a>
+              </label>
+              <label className="ec-check-item">
+                <input type="checkbox" checked={!!fresh.cbl2} onChange={() => updateContact(fresh.id, { cbl2: !fresh.cbl2, cbl2Date: !fresh.cbl2 ? new Date().toISOString().split('T')[0] : '' })} />
+                <span>CB Letter 2 {fresh.cbl2Date && <span className="ec-muted" style={{ fontSize: '0.7rem' }}>· {fmtDate(fresh.cbl2Date)}</span>}</span>
+                <a href={LETTER_LINKS.cb2} target="_blank" rel="noopener noreferrer" className="ec-canva-link" onClick={e => e.stopPropagation()}>Canva</a>
+              </label>
+              <label className="ec-check-item">
+                <input type="checkbox" checked={!!fresh.cbPackage} onChange={() => updateContact(fresh.id, { cbPackage: !fresh.cbPackage, cbPackageDate: !fresh.cbPackage ? new Date().toISOString().split('T')[0] : '' })} />
+                <span>Cannonball Package (CMA + handwritten note + marketing plan) {fresh.cbPackageDate && <span className="ec-muted" style={{ fontSize: '0.7rem' }}>· {fmtDate(fresh.cbPackageDate)}</span>}</span>
+              </label>
+            </div>
+          </div>
+          <hr className="panel-divider" />
+        </>
+      )}
+
       {/* Letter Progress */}
       <div className="ec-detail__section">
-        <p className="ec-detail__label">Letter Progress</p>
+        <p className="ec-detail__label">
+          {fresh.status === 'cannonball' ? 'Standard Letter Sequence (fallback)' : 'Letter Progress'}
+        </p>
         <div className="ec-detail__letter-row">
           <label className="ec-check-item">
             <input type="checkbox" checked={fresh.l1} onChange={() => updateContact(fresh.id, { l1: !fresh.l1 })} />
@@ -1439,8 +2402,8 @@ function SixMonthSection({ fresh, markOutreach, openScriptAndCall, openScriptFor
 
   const today = new Date().toISOString().split('T')[0]
   const isDue = sixMoDueDate && today >= sixMoDueDate
-  const isRelisted = fresh.tag === 'relisted'
-  const hasResponded = fresh.tag === 'green' || fresh.appt
+  const isRelisted = fresh.status === 'relisted'
+  const hasResponded = fresh.status === 'appt_scheduled' || fresh.appt
   const isBlocked = isRelisted || hasResponded
 
   // Any 6mo outreach done?

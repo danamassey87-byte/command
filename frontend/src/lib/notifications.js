@@ -35,9 +35,52 @@ export async function wakeSnoozed() {
     .lte('snooze_until', nowIso)
 }
 
+/**
+ * Re-arm recurring weekly follow-up reminders.
+ *
+ * Any task_due row with `metadata.kind = 'weekly_followup'` and
+ * `metadata.next_fire_at <= now` (and NOT `metadata.closed = true`) gets flipped
+ * back to `unread` with its `next_fire_at` bumped to the following Monday at
+ * 9am. This makes the reminder fire every Monday regardless of whether Dana
+ * previously read, kept, or dismissed it — only `resolveExpiredApptFollowup`
+ * (called on Won/Lost) can stop the loop by setting `metadata.closed = true`.
+ */
+export async function rearmRecurringFollowups() {
+  const nowIso = new Date().toISOString()
+  // Grab candidates — Supabase/PostgREST can't filter on JSON timestamps
+  // inside metadata from the client cleanly, so we pull the small universe of
+  // weekly_followup rows and filter client-side.
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('id, status, metadata')
+    .eq('type', 'task_due')
+    .eq('source_table', 'expired_contact')
+  if (error) throw new Error(error.message)
+  if (!data || data.length === 0) return
+
+  const due = data.filter(row => {
+    const m = row.metadata || {}
+    if (m.kind !== 'weekly_followup') return false
+    if (m.closed === true) return false
+    const nextFire = m.next_fire_at
+    if (!nextFire) return false
+    return new Date(nextFire).toISOString() <= nowIso
+  })
+
+  for (const row of due) {
+    const newMeta = { ...(row.metadata || {}), next_fire_at: nextMondayAfter(new Date().toISOString().split('T')[0]).toISOString() }
+    await supabase
+      .from('notifications')
+      .update({ status: 'unread', snooze_until: null, metadata: newMeta })
+      .eq('id', row.id)
+  }
+}
+
 /** All "active" notifications (unread, read, kept) plus optional type filter. */
 export async function listActive({ type = null } = {}) {
   await wakeSnoozed()
+  // Fire-and-forget the recurring rearm so the bell never blocks on it.
+  rearmRecurringFollowups().catch(err => console.error('rearmRecurringFollowups failed:', err))
   let query = supabase
     .from('notifications')
     .select('*')
@@ -70,6 +113,7 @@ export async function listDismissed({ limit = 100 } = {}) {
 
 export async function unreadCount() {
   await wakeSnoozed()
+  rearmRecurringFollowups().catch(err => console.error('rearmRecurringFollowups failed:', err))
   const { count, error } = await supabase
     .from('notifications')
     .select('*', { count: 'exact', head: true })
@@ -193,6 +237,112 @@ export async function emitListingContentReminder({ listingId, address, clientNam
   })
 }
 
+// ─── Listing-appointment follow-up reminders ────────────────────────────────
+
+/** Compute the Monday on-or-after a given date (local time, 9am). */
+export function nextMondayAfter(dateStr) {
+  const d = dateStr ? new Date(dateStr + 'T12:00:00') : new Date()
+  // Advance to the next Monday. If `d` IS a Monday, push to next week's Monday
+  // so the reminder fires after the appointment, not the morning of.
+  const day = d.getDay() // 0=Sun, 1=Mon, ...
+  const daysUntilNextMon = day === 1 ? 7 : (8 - day) % 7 || 7
+  d.setDate(d.getDate() + daysUntilNextMon)
+  d.setHours(9, 0, 0, 0)
+  return d
+}
+
+/**
+ * Create (or refresh) a weekly follow-up reminder for an expired-listing
+ * appointment. Scheduled to fire the Monday after the appointment date, then
+ * snoozes itself forward week-by-week until the outcome is marked Won or Lost.
+ *
+ * Dedupes on (type='task_due', source_table='expired_contact', source_id=expiredId).
+ */
+export async function emitExpiredApptFollowup({ expiredId, name, address, apptDate }) {
+  if (!expiredId) throw new Error('expiredId is required')
+  const fireAt = nextMondayAfter(apptDate)
+
+  // Look for an existing active reminder for this expired contact.
+  const { data: existing } = await supabase
+    .from('notifications')
+    .select('id, status')
+    .eq('type', 'task_due')
+    .eq('source_table', 'expired_contact')
+    .eq('source_id', String(expiredId))
+    .in('status', ['unread', 'read', 'kept', 'snoozed'])
+    .limit(1)
+
+  const payload = {
+    type: 'task_due',
+    title: `Follow up: ${name || 'Expired lead'} — listing appt`,
+    body: `Weekly check-in for ${address || 'listing appointment'}. Did they sign? Mark Won or Lost on the Expired tracker.`,
+    link: '/prospecting/expired',
+    source_table: 'expired_contact',
+    source_id: String(expiredId),
+    // `next_fire_at` drives the recurring rearm sweep — when the current moment
+    // passes this value, the sweep flips the row back to unread and bumps it
+    // to the following Monday. `closed: true` is set by
+    // resolveExpiredApptFollowup() on Won/Lost to permanently stop the loop.
+    metadata: { expiredId, apptDate, kind: 'weekly_followup', next_fire_at: fireAt.toISOString(), closed: false },
+  }
+
+  if (existing && existing.length > 0) {
+    // Re-snooze the existing row to the next Monday so it doesn't fire late.
+    return q(
+      supabase
+        .from('notifications')
+        .update({
+          ...payload,
+          status: 'snoozed',
+          snooze_until: fireAt.toISOString(),
+        })
+        .eq('id', existing[0].id)
+        .select()
+        .single()
+    )
+  }
+
+  // New reminder — insert directly with snoozed status so it fires later.
+  return q(
+    supabase
+      .from('notifications')
+      .insert({
+        ...payload,
+        status: 'snoozed',
+        snooze_until: fireAt.toISOString(),
+      })
+      .select()
+      .single()
+  )
+}
+
+/**
+ * Permanently stop the weekly loop for a given expired contact once the
+ * outcome is decided. Sets metadata.closed=true (so the rearm sweep will
+ * skip it) and flips status to dismissed so it falls out of active views.
+ */
+export async function resolveExpiredApptFollowup(expiredId) {
+  const { data } = await supabase
+    .from('notifications')
+    .select('id, metadata')
+    .eq('type', 'task_due')
+    .eq('source_table', 'expired_contact')
+    .eq('source_id', String(expiredId))
+  if (!data || data.length === 0) return []
+  const out = []
+  for (const row of data) {
+    const newMeta = { ...(row.metadata || {}), closed: true, closed_at: new Date().toISOString() }
+    const { data: updated } = await supabase
+      .from('notifications')
+      .update({ status: 'dismissed', metadata: newMeta })
+      .eq('id', row.id)
+      .select()
+      .single()
+    if (updated) out.push(updated)
+  }
+  return out
+}
+
 /**
  * Auto-resolve any content reminder for a listing once the plan has been pushed.
  * Called after pushListingPlanToCalendar succeeds.
@@ -207,6 +357,99 @@ export async function resolveListingContentReminder(listingId) {
       .in('status', ['unread', 'read', 'kept', 'snoozed'])
       .select()
   )
+}
+
+// ─── Stale-record sweep ─────────────────────────────────────────────────────
+//
+// Reads from the `stale_records` SQL view (created by migration_safeguards.sql)
+// and emits a `task_due` notification for each rotting item. Deduped by
+// (kind, record_id) so re-running the sweep won't create duplicate alerts —
+// instead, snoozed/dismissed items stay quiet until the user restores them.
+//
+// Call once per session via `runStaleSweepIfDue()` — it self-throttles to once
+// per calendar day using localStorage.
+
+const STALE_SWEEP_KEY = 'notif_stale_sweep_last_run'
+
+function staleKindMeta(kind) {
+  switch (kind) {
+    case 'stale_lead':         return { titleFn: l => `Lead going cold: ${l.label}`,        link: '/crm/buyers',          bodyFn: r => `${r.days_stale} days with no activity. Time to reach out.` }
+    case 'overdue_appointment':return { titleFn: l => `Overdue appointment: ${l.label}`,    link: '/dashboard/appts',     bodyFn: r => `${r.days_stale} days past scheduled time. Mark held, cancelled, or no-show.` }
+    case 'overdue_closing':    return { titleFn: l => `Overdue closing: ${l.label}`,        link: '/pipeline/escrow',     bodyFn: r => `Closing date passed ${r.days_stale} days ago. Update the transaction.` }
+    default:                   return { titleFn: l => l.label, link: '/notifications',      bodyFn: r => `${r.days_stale} days stale.` }
+  }
+}
+
+/**
+ * Run the stale-record sweep. Reads the stale_records view, emits one
+ * task_due notification per item that doesn't already have an active one.
+ * Returns count of new notifications created.
+ */
+export async function runStaleSweep() {
+  // 1. Read the view (created by migration_safeguards.sql #12)
+  const { data: stale, error } = await supabase
+    .from('stale_records')
+    .select('*')
+    .order('days_stale', { ascending: false })
+
+  if (error) {
+    // View doesn't exist yet (migration not run) — fail silently
+    if (error.message?.includes('does not exist') || error.message?.includes('relation')) return 0
+    throw new Error(error.message)
+  }
+  if (!stale || stale.length === 0) return 0
+
+  // 2. Look up which (kind, record_id) pairs already have an active task_due notification
+  const recordIds = stale.map(s => s.record_id).filter(Boolean)
+  const { data: existing } = await supabase
+    .from('notifications')
+    .select('source_id, metadata')
+    .eq('type', 'task_due')
+    .in('status', ['unread', 'read', 'kept', 'snoozed'])
+    .in('source_id', recordIds)
+
+  const existingKeys = new Set(
+    (existing || []).map(n => `${n.metadata?.kind || ''}:${n.source_id}`)
+  )
+
+  // 3. Emit for any stale item that isn't already represented
+  let created = 0
+  for (const row of stale) {
+    const key = `${row.kind}:${row.record_id}`
+    if (existingKeys.has(key)) continue
+    const meta = staleKindMeta(row.kind)
+    try {
+      await emit({
+        type: 'task_due',
+        title: meta.titleFn(row),
+        body: meta.bodyFn(row),
+        link: meta.link,
+        source_table: row.table_name,
+        source_id: row.record_id,
+        metadata: { kind: row.kind, days_stale: row.days_stale },
+      })
+      created++
+    } catch (e) { console.error('stale sweep emit failed', e) }
+  }
+  return created
+}
+
+/**
+ * Throttled wrapper — only runs the sweep once per calendar day per browser.
+ * Safe to call on every app/bell mount.
+ */
+export async function runStaleSweepIfDue() {
+  try {
+    const today = new Date().toISOString().slice(0, 10)
+    const last = localStorage.getItem(STALE_SWEEP_KEY)
+    if (last === today) return 0
+    const n = await runStaleSweep()
+    localStorage.setItem(STALE_SWEEP_KEY, today)
+    return n
+  } catch (e) {
+    console.error('stale sweep error', e)
+    return 0
+  }
 }
 
 // ─── Demo helper ─────────────────────────────────────────────────────────────
