@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
 import { TagPicker, TagBadge } from '../../components/ui/TagPicker.jsx'
-import RelatedPeopleSection, { cleanRelatedPeople } from '../../components/related-people/RelatedPeopleSection.jsx'
+import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { useBuyers, useShowingSessionsForContact, useContactTags, useNotesForContact } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
@@ -30,6 +30,7 @@ function mapClient(c) {
     bba_expiration_date: c.bba_expiration_date ?? null,
     notes:               c.notes ?? '',
     type:                c.type ?? 'buyer',
+    related_people:      Array.isArray(c.related_people) ? c.related_people : [],
     showings:            [],
     created_at:          c.created_at,
   }
@@ -275,6 +276,12 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
           </div>
         </div>
       </div>
+
+      {Array.isArray(buyer.related_people) && buyer.related_people.length > 0 && (
+        <Card>
+          <RelatedPeopleDisplay value={buyer.related_people} title="Other Parties on This Transaction" />
+        </Card>
+      )}
 
       {buyer.notes && (
         <Card className="buyer-detail__notes">

@@ -2,10 +2,13 @@ import { useState, useMemo, useCallback } from 'react'
 import { SectionHeader, Badge, Card, SlidePanel, Input, Select, Textarea, EmptyState, TabBar } from '../../components/ui/index.jsx'
 import { TagPicker, TagBadge, TagManager } from '../../components/ui/TagPicker.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople } from '../../components/related-people/RelatedPeopleSection.jsx'
-import { useContactsWithTags, useTags } from '../../lib/hooks.js'
+import { useContactsWithTags, useTags, useListings } from '../../lib/hooks.js'
 import { useNavigate } from 'react-router-dom'
 import * as DB from '../../lib/supabase.js'
 import './Database.css'
+
+// Buyer stages that indicate an active buy-side engagement
+const ACTIVE_BUYER_STAGES = new Set(['New Lead', 'Pre-Approval', 'Active Search', 'Showing', 'Under Contract'])
 
 const TYPE_LABELS = {
   buyer: 'Buyer', seller: 'Seller', both: 'Buyer & Seller',
@@ -24,6 +27,7 @@ function fmtDate(d) {
 export default function Database() {
   const { data: contacts, loading, refetch } = useContactsWithTags()
   const { data: allTags } = useTags()
+  const { data: allListings } = useListings()
 
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -36,18 +40,41 @@ export default function Database() {
   const [tab, setTab] = useState('database') // 'database' | 'tags'
   const navigate = useNavigate()
 
-  // Click handler that intercepts dual-role contacts (type='both') and shows
+  const tags = allTags ?? []
+  const rows = contacts ?? []
+
+  // Build a set of contact_ids that have at least one listing. Used for
+  // dual-role detection — a contact with a listing AND a buyer-side stage
+  // is effectively "both" even if their type column doesn't say so.
+  const contactIdsWithListings = useMemo(() => {
+    const set = new Set()
+    for (const l of (allListings ?? [])) {
+      if (l.contact_id) set.add(l.contact_id)
+    }
+    return set
+  }, [allListings])
+
+  // Returns true if this contact is effectively both a buyer and a seller.
+  const isDualRole = (c) => {
+    if (c.type === 'both') return true
+    if (contactIdsWithListings.has(c.id)) {
+      // They have a listing. Dual-role if they're also tracking as a buyer
+      // (type=buyer OR in an active buyer stage).
+      if (c.type === 'buyer') return true
+      if (c.stage && ACTIVE_BUYER_STAGES.has(c.stage)) return true
+    }
+    return false
+  }
+
+  // Click handler that intercepts dual-role contacts and shows
   // a picker first. Single-role contacts go straight to the edit panel.
   const openContact = (c) => {
-    if (c.type === 'both') {
+    if (isDualRole(c)) {
       setDualRolePicker(c)
     } else {
       setSelected(c)
     }
   }
-
-  const tags = allTags ?? []
-  const rows = contacts ?? []
 
   // Build contact list with flattened tags
   const enriched = useMemo(() =>

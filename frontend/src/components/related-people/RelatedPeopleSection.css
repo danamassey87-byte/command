@@ -138,3 +138,62 @@
   background: rgba(0, 0, 0, 0.03);
   border-color: #999;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Read-only display
+   ═══════════════════════════════════════════════════════════════════════════ */
+.rp-display {
+  padding: 14px 0;
+}
+.rp-display__title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--brown-dark, #524136);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.rp-display__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rp-display__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(182, 151, 130, 0.25);
+  border-radius: 10px;
+}
+.rp-display__main { flex: 1; min-width: 0; }
+.rp-display__name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--brown-dark, #524136);
+}
+.rp-display__role {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-top: 2px;
+}
+.rp-display__contact {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.rp-display__link {
+  font-size: 12px;
+  color: var(--brown-dark, #524136);
+  text-decoration: none;
+}
+.rp-display__link:hover {
+  text-decoration: underline;
+}
+.rp-display--compact .rp-display__row {
+  padding: 6px 10px;
+}

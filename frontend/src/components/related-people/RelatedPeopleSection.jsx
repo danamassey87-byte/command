@@ -131,3 +131,44 @@ export function cleanRelatedPeople(list) {
     p.first_name?.trim() || p.last_name?.trim() || p.phone?.trim() || p.email?.trim()
   )
 }
+
+/**
+ * Read-only display of related people. Used on detail pages where editing
+ * happens in the slide-panel form, not inline.
+ */
+export function RelatedPeopleDisplay({ value = [], title = 'Related People', compact = false }) {
+  const list = Array.isArray(value) ? value : []
+  if (list.length === 0) return null
+
+  return (
+    <div className={`rp-display ${compact ? 'rp-display--compact' : ''}`}>
+      {title && <h4 className="rp-display__title">{title}</h4>}
+      <div className="rp-display__list">
+        {list.map((p, i) => {
+          const role = CONTACT_RELATIONSHIP_ROLES.find(r => r.key === p.relationship)
+          const fullName = [p.first_name, p.last_name].filter(Boolean).join(' ') || '(no name)'
+          return (
+            <div key={p.id || i} className="rp-display__row">
+              <div className="rp-display__main">
+                <div className="rp-display__name">{fullName}</div>
+                {role && <div className="rp-display__role">{role.label}</div>}
+              </div>
+              <div className="rp-display__contact">
+                {p.phone && (
+                  <a href={`tel:${p.phone}`} className="rp-display__link" onClick={e => e.stopPropagation()}>
+                    {p.phone}
+                  </a>
+                )}
+                {p.email && (
+                  <a href={`mailto:${p.email}`} className="rp-display__link" onClick={e => e.stopPropagation()}>
+                    {p.email}
+                  </a>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}

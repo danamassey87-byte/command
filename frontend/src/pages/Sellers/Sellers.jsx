@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, CheckItem, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
 import PartiesSection from '../../components/parties/PartiesSection.jsx'
-import RelatedPeopleSection, { cleanRelatedPeople } from '../../components/related-people/RelatedPeopleSection.jsx'
+import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
 import { useListings, useTasksForListing, useDeletedTasksForListing, useContactTags, useNotesForContact, useDocumentsForListing } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
@@ -235,6 +235,8 @@ function mapListing(row) {
     contact_phone:row.contact?.phone ?? '',
     property_id:  row.property_id,
     contact_id:   row.contact_id,
+    contact:      row.contact ?? null,
+    related_people: Array.isArray(row.related_people) ? row.related_people : [],
     created_at:   row.created_at,
     // Seller tracking fields
     cash_offer_requested:     row.cash_offer_requested ?? false,
@@ -1778,6 +1780,12 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>}
           >{exportingPdf ? 'Generating…' : 'Export PDF'}</Button>
         </div>
+      )}
+
+      {Array.isArray(listing.related_people) && listing.related_people.length > 0 && (
+        <Card>
+          <RelatedPeopleDisplay value={listing.related_people} title="Other Parties on This Transaction" />
+        </Card>
       )}
 
       <div className="sellers-plan__phases">
