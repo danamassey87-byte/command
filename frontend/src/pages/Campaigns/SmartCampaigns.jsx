@@ -110,15 +110,28 @@ const STEP_TYPES = {
 }
 
 const CAMPAIGN_TYPES = [
-  { value: 'buyer',        label: 'Buyer Lead' },
-  { value: 'seller',       label: 'Seller Lead' },
-  { value: 'open_house',   label: 'Open House Follow-Up' },
-  { value: 'past_client',  label: 'Past Client' },
-  { value: 'sphere',       label: 'Sphere of Influence' },
-  { value: 'expired',      label: 'Expired Listing' },
-  { value: 'investor',     label: 'Investor' },
-  { value: 'custom',       label: 'Custom' },
+  { value: 'buyer',        label: 'Buyer Lead',             defaultDomain: 'primary' },
+  { value: 'seller',       label: 'Seller Lead',            defaultDomain: 'primary' },
+  { value: 'open_house',   label: 'Open House Follow-Up',   defaultDomain: 'primary' },
+  { value: 'past_client',  label: 'Past Client',            defaultDomain: 'primary' },
+  { value: 'sphere',       label: 'Sphere of Influence',    defaultDomain: 'primary' },
+  { value: 'expired',      label: 'Expired Listing',        defaultDomain: 'subdomain' },
+  { value: 'fsbo',         label: 'FSBO',                   defaultDomain: 'subdomain' },
+  { value: 'circle',       label: 'Circle Prospecting',     defaultDomain: 'subdomain' },
+  { value: 'investor',     label: 'Investor',               defaultDomain: 'primary' },
+  { value: 'custom',       label: 'Custom',                 defaultDomain: 'primary' },
 ]
+
+// Domain → actual from-email mapping
+const SEND_DOMAINS = {
+  primary:   { email: 'dana@danamassey.com',      label: 'dana@danamassey.com — warm / personal' },
+  subdomain: { email: 'dana@mail.danamassey.com',  label: 'dana@mail.danamassey.com — cold / bulk' },
+}
+
+/** Pick the best send_via_domain based on campaign type. */
+function defaultDomainForType(type) {
+  return CAMPAIGN_TYPES.find(t => t.value === type)?.defaultDomain || 'primary'
+}
 
 const DELAY_OPTIONS = [
   { value: 0,  label: 'Immediately' },
@@ -281,7 +294,7 @@ export default function SmartCampaigns() {
       description: tpl.description,
       type: tpl.type,
       status: 'draft',
-      send_via_domain: 'primary',
+      send_via_domain: defaultDomainForType(tpl.type),
       steps: tpl.steps.map(s => ({
         type: s.type,
         delay_days: s.delay_days,
@@ -298,7 +311,7 @@ export default function SmartCampaigns() {
       description: '',
       type: 'custom',
       status: 'draft',
-      send_via_domain: 'primary',
+      send_via_domain: defaultDomainForType('custom'),
       steps: [],
     })
   }, [])
@@ -901,7 +914,17 @@ function CampaignEditor({ campaign, onSave, onCancel, tags = [], campaigns = [] 
       <div className="sc-editor__form">
         <Input label="Campaign Name" value={form.name} onChange={e => updateField('name', e.target.value)} placeholder="e.g., New Buyer Lead Nurture" />
         <Textarea label="Description" value={form.description || ''} onChange={e => updateField('description', e.target.value)} rows={2} placeholder="What is this campaign for?" />
-        <Select label="Campaign Type" value={form.type} onChange={e => updateField('type', e.target.value)}>
+        <Select
+          label="Campaign Type"
+          value={form.type}
+          onChange={e => {
+            const newType = e.target.value
+            updateField('type', newType)
+            // Auto-select the recommended send domain for this campaign type
+            const recommended = defaultDomainForType(newType)
+            updateField('send_via_domain', recommended)
+          }}
+        >
           {CAMPAIGN_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </Select>
         <Select label="Status" value={form.status || 'draft'} onChange={e => updateField('status', e.target.value)}>
@@ -914,14 +937,19 @@ function CampaignEditor({ campaign, onSave, onCancel, tags = [], campaigns = [] 
           value={form.send_via_domain || 'primary'}
           onChange={e => updateField('send_via_domain', e.target.value)}
         >
-          <option value="primary">dana@danamassey.com — warm / personal</option>
-          <option value="subdomain">dana@mail.danamassey.com — cold / bulk (protects primary)</option>
+          <option value="primary">{SEND_DOMAINS.primary.label}</option>
+          <option value="subdomain">{SEND_DOMAINS.subdomain.label}</option>
         </Select>
-        <p style={{ fontSize: 12, color: '#888', marginTop: -4 }}>
-          Use the primary domain for warm contacts (buyers, sellers, past clients).
-          Use the subdomain for cold outreach (FSBO, expired, circle) so spam
-          complaints can't hurt your real inbox.
-        </p>
+        <div style={{ fontSize: 12, color: '#888', marginTop: -4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span>
+            Emails will send from: <strong>{SEND_DOMAINS[form.send_via_domain || 'primary']?.email}</strong>
+          </span>
+          <span>
+            {(form.send_via_domain || 'primary') === 'primary'
+              ? 'Primary domain — for warm contacts (buyers, sellers, past clients, SOI).'
+              : 'Subdomain — for cold outreach (FSBO, expired, circle). Protects your primary inbox reputation.'}
+          </span>
+        </div>
       </div>
 
       {/* ─── Triggers section (only meaningful for saved campaigns) ─── */}
