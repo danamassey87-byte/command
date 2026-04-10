@@ -606,7 +606,7 @@ function ScheduledTab({ openHouses, loading, refetch }) {
       <>
         <OHDetail oh={oh} onBack={() => setSelectedOH(null)} onEdit={() => openEdit(oh)} />
         <SlidePanel open={panelOpen} onClose={closePanel} title="Edit Open House" subtitle={editingOH?.address} width={480}>
-          <OHForm oh={editingOH} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} error={error} />
+          <OHForm key={editingOH?.id || 'new'} oh={editingOH} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} error={error} />
         </SlidePanel>
       </>
     )
@@ -1236,7 +1236,7 @@ function HostReportsTab({ reports, listings, refetch }) {
       )}
 
       <SlidePanel open={panelOpen} onClose={closePanel} title={editing ? 'Edit Host Report' : 'Log Host Report'} width={520}>
-        <HostReportForm report={editing} listings={listings} onSave={handleSave} onClose={closePanel} saving={saving} error={error} />
+        <HostReportForm key={editing?.id || 'new'} report={editing} listings={listings} onSave={handleSave} onClose={closePanel} saving={saving} error={error} />
       </SlidePanel>
     </>
   )

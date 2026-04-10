@@ -431,6 +431,7 @@ export default function ListingAppts() {
         title={editingAppt ? 'Edit Appointment' : 'Add Appointment'}
         subtitle={editingAppt?.seller_name} width={460}>
         <ApptForm
+          key={editingAppt?.id || 'new'}
           appt={editingAppt}
           onSave={handleSave}
           onDelete={handleDelete}

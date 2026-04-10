@@ -19,6 +19,21 @@ const TYPE_VARIANTS = {
   investor: 'default', lead: 'default',
 }
 
+const SOURCE_LABELS = {
+  expired: 'Expired', fsbo: 'FSBO', circle: 'Circle',
+  soi: 'Personal Circle', referral: 'Referral', open_house: 'OH Lead',
+  intake_form: 'Intake Form',
+}
+
+const MLS_STATUS_LABELS = {
+  expired: 'Expired', relisted: 'Relisted', active: 'Active',
+  sold: 'Sold', withdrawn: 'Withdrawn', cancelled: 'Cancelled',
+}
+const MLS_STATUS_COLORS = {
+  expired: '#e74c3c', relisted: '#e67e22', active: '#27ae60',
+  sold: '#8b7a68', withdrawn: '#95a5a6', cancelled: '#95a5a6',
+}
+
 function fmtDate(d) {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -31,6 +46,7 @@ export default function Database() {
 
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [sourceFilter, setSourceFilter] = useState('all')
   const [selectedTags, setSelectedTags] = useState([]) // tag IDs to filter by
   const [tagMode, setTagMode] = useState('any') // 'any' or 'all'
   const [showManager, setShowManager] = useState(false)
@@ -102,6 +118,10 @@ export default function Database() {
       list = list.filter(c => c.type === typeFilter)
     }
 
+    if (sourceFilter !== 'all') {
+      list = list.filter(c => c.lead_source === sourceFilter)
+    }
+
     if (selectedTags.length > 0) {
       list = list.filter(c => {
         const cTagIds = new Set(c.tags.map(t => t.id))
@@ -112,7 +132,7 @@ export default function Database() {
     }
 
     return list
-  }, [enriched, search, typeFilter, selectedTags, tagMode])
+  }, [enriched, search, typeFilter, sourceFilter, selectedTags, tagMode])
 
   // Tag filter toggle
   const toggleTagFilter = (tagId) => {
@@ -186,6 +206,24 @@ export default function Database() {
                 <option value="both">Buyer & Seller</option>
                 <option value="investor">Investors</option>
                 <option value="lead">Leads</option>
+              </select>
+            </div>
+
+            <div className="db-sidebar__section">
+              <div className="db-sidebar__label">Filter by Source</div>
+              <select
+                className="db-sidebar__select"
+                value={sourceFilter}
+                onChange={e => setSourceFilter(e.target.value)}
+              >
+                <option value="all">All Sources</option>
+                <option value="expired">Expired Listings</option>
+                <option value="fsbo">FSBO</option>
+                <option value="circle">Circle Prospecting</option>
+                <option value="soi">Personal Circle</option>
+                <option value="referral">Referral</option>
+                <option value="open_house">Open House Leads</option>
+                <option value="intake_form">Intake Forms</option>
               </select>
             </div>
 
@@ -272,6 +310,7 @@ export default function Database() {
                       <th>Name</th>
                       <th>Contact</th>
                       <th>Type</th>
+                      <th>Source</th>
                       <th>Stage</th>
                       <th>Tags</th>
                       <th>Added</th>
@@ -289,6 +328,20 @@ export default function Database() {
                           <Badge variant={TYPE_VARIANTS[c.type] || 'default'} size="sm">
                             {TYPE_LABELS[c.type] || c.type}
                           </Badge>
+                        </td>
+                        <td className="db-table__source">
+                          {c.lead_source && (
+                            <span className="db-source-badge">{SOURCE_LABELS[c.lead_source] || c.lead_source}</span>
+                          )}
+                          {c.mls_status && (
+                            <span
+                              className="db-mls-badge"
+                              style={{ '--mls-color': MLS_STATUS_COLORS[c.mls_status] || '#95a5a6' }}
+                            >
+                              {MLS_STATUS_LABELS[c.mls_status] || c.mls_status}
+                            </span>
+                          )}
+                          {!c.lead_source && !c.mls_status && '—'}
                         </td>
                         <td className="db-table__stage">{c.stage || '—'}</td>
                         <td className="db-table__tags">
@@ -359,6 +412,7 @@ export default function Database() {
       >
         {selected && (
           <ContactDetail
+            key={selected?.id || 'new'}
             contact={selected}
             onSave={async (updates) => {
               setSaving(true)

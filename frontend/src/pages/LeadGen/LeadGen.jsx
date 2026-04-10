@@ -194,6 +194,15 @@ export default function LeadGen() {
       } else {
         await DB.createLead(dbRow)
         await DB.logActivity('lead_created', `New expired cannonball added: ${draft.address}`, { propertyId: property_id })
+        // Auto-push into the contacts Database (fire-and-forget)
+        DB.ensureContact({
+          name: draft.address || 'Expired Lead',
+          type: 'lead',
+          source: 'Expired Listing',
+          lead_source: 'expired',
+          mls_status: draft.relisted ? 'relisted' : 'expired',
+          notes: `LeadGen lead: ${draft.address}, ${draft.city || ''} ${draft.zip || ''}`.trim(),
+        }).catch(err => console.warn('Failed to sync lead to contacts:', err))
       }
       await refetch()
       closePanel()
@@ -380,7 +389,7 @@ export default function LeadGen() {
 
       <SlidePanel open={panelOpen} onClose={closePanel} title={editingLead ? 'Edit Lead' : 'Add Expired Lead'} subtitle={editingLead?.address} width={460}>
         {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{error}</p>}
-        <LeadForm lead={editingLead} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
+        <LeadForm key={editingLead?.id || 'new'} lead={editingLead} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
       </SlidePanel>
     </div>
   )

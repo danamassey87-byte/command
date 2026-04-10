@@ -389,7 +389,7 @@ export default function Investors() {
         />
         <SlidePanel open={panelOpen} onClose={closePanel} title={editingInvestor ? 'Edit Investor' : 'Add Investor'} subtitle={editingInvestor?.name} width={480}>
           {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{error}</p>}
-          <InvestorForm investor={editingInvestor} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
+          <InvestorForm key={editingInvestor?.id || 'new'} investor={editingInvestor} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
         </SlidePanel>
       </>
     )
@@ -468,7 +468,7 @@ export default function Investors() {
 
       <SlidePanel open={panelOpen} onClose={closePanel} title={editingInvestor ? 'Edit Investor' : 'Add Investor'} subtitle={editingInvestor?.name} width={480}>
         {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{error}</p>}
-        <InvestorForm investor={editingInvestor} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
+        <InvestorForm key={editingInvestor?.id || 'new'} investor={editingInvestor} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
       </SlidePanel>
     </div>
   )

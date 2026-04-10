@@ -252,6 +252,36 @@
   white-space: nowrap;
 }
 
+/* ─── Source & MLS Status Badges ─── */
+.db-table__source {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.75rem;
+}
+.db-source-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(139, 122, 104, 0.1);
+  color: var(--brown-dark);
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.db-mls-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--mls-color, #95a5a6) 15%, transparent);
+  color: var(--mls-color, #95a5a6);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
 /* ─── Contact Detail Panel ─── */
 .contact-detail {
   display: flex;

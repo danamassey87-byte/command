@@ -2307,7 +2307,7 @@ export default function Sellers() {
         />
         <SlidePanel open={panelOpen} onClose={closePanel} title={editingListing ? 'Edit Listing' : 'Add Listing'} subtitle={editingListing?.address} width={460}>
           {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{error}</p>}
-          <ListingForm listing={editingListing} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
+          <ListingForm key={editingListing?.id || 'new'} listing={editingListing} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
         </SlidePanel>
       </>
     )
@@ -2500,7 +2500,7 @@ export default function Sellers() {
 
       <SlidePanel open={panelOpen} onClose={closePanel} title={editingListing ? 'Edit Listing' : 'Add Listing'} subtitle={editingListing?.address} width={460}>
         {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{error}</p>}
-        <ListingForm listing={editingListing} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
+        <ListingForm key={editingListing?.id || 'new'} listing={editingListing} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
       </SlidePanel>
     </div>
   )

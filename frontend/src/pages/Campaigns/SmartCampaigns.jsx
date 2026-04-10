@@ -950,6 +950,22 @@ function CampaignEditor({ campaign, onSave, onCancel, tags = [], campaigns = [] 
               : 'Subdomain — for cold outreach (FSBO, expired, circle). Protects your primary inbox reputation.'}
           </span>
         </div>
+
+        <div style={{ marginTop: 12 }}>
+          <label className="buyer-checkbox-label" style={{ fontSize: 13 }}>
+            <input
+              type="checkbox"
+              checked={!!form.auto_send_enabled}
+              onChange={e => updateField('auto_send_enabled', e.target.checked)}
+            />
+            <strong>Auto-send enabled</strong>
+          </label>
+          <p style={{ fontSize: 11, color: '#888', margin: '4px 0 0 22px' }}>
+            {form.auto_send_enabled
+              ? 'Emails fire automatically when a step becomes due. Manual email steps still require your approval.'
+              : 'OFF — you must manually mark each step as sent from the Send Queue. Turn on to let Resend send automatically.'}
+          </p>
+        </div>
       </div>
 
       {/* ─── Triggers section (only meaningful for saved campaigns) ─── */}

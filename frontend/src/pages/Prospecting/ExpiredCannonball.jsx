@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { Button, Badge, SectionHeader, TabBar, SlidePanel, Input, Textarea } from '../../components/ui/index.jsx'
 import * as DB from '../../lib/supabase.js'
 import { emitExpiredApptFollowup, resolveExpiredApptFollowup } from '../../lib/notifications.js'
@@ -435,6 +435,44 @@ export default function ExpiredCannonball() {
   // Script popup state
   const [scriptPopup, setScriptPopup] = useState(null) // { contact, scriptKey, type: 'call'|'text'|'email' }
 
+  // ─── Auto-sync all expireds into the contacts Database ─────────────────────
+  // Runs once on mount. For every expired that doesn't yet have a contactId,
+  // call ensureContact (which deduplicates by email → phone → name) and store
+  // the resulting contact_id back on the localStorage record.
+  const syncedRef = useRef(false)
+  useEffect(() => {
+    if (syncedRef.current) return
+    syncedRef.current = true
+    ;(async () => {
+      let changed = false
+      const updated = [...contacts]
+      for (let i = 0; i < updated.length; i++) {
+        const c = updated[i]
+        if (c.contactId) continue // already synced
+        try {
+          const contactId = await DB.ensureContact({
+            name: c.name || 'Expired Seller',
+            email: c.email?.trim() || null,
+            phone: c.phone?.trim() || null,
+            type: 'lead',
+            source: 'Expired Listing',
+            lead_source: 'expired',
+            mls_status: c.status === 'relisted' ? 'relisted' : 'expired',
+            notes: c.address ? `Expired listing: ${c.address}, ${c.city || ''} ${c.zip || ''}`.trim() : null,
+          })
+          updated[i] = { ...c, contactId }
+          changed = true
+        } catch (err) {
+          console.warn('Failed to sync expired to contacts:', c.name, err)
+        }
+      }
+      if (changed) {
+        saveData(updated)
+        setContacts(updated)
+      }
+    })()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const update = (newData) => { setContacts(newData); saveData(newData) }
 
   const updateContact = useCallback((id, changes) => {
@@ -484,12 +522,22 @@ export default function ExpiredCannonball() {
 
   // ── Mark as relisted ──
   const markRelisted = useCallback((id) => {
+    let contactId = null
     setContacts(prev => {
-      const next = prev.map(c => c.id === id ? { ...c, status: 'relisted', relistedDate: new Date().toISOString().split('T')[0] } : c)
+      const next = prev.map(c => {
+        if (c.id !== id) return c
+        contactId = c.contactId
+        return { ...c, status: 'relisted', relistedDate: new Date().toISOString().split('T')[0] }
+      })
       saveData(next)
       return next
     })
     setSelected(prev => prev?.id === id ? { ...prev, status: 'relisted' } : prev)
+    // Update mls_status on the linked contact in the Database
+    if (contactId) {
+      DB.updateContact(contactId, { mls_status: 'relisted' }).catch(err =>
+        console.warn('Failed to update contact mls_status:', err))
+    }
   }, [])
 
   // ── Check if relisted (opens Redfin search) ──
@@ -572,6 +620,32 @@ export default function ExpiredCannonball() {
       update(merged)
       setCsvText('')
       setShowCsvUpload(false)
+      // Fire-and-forget: sync new CSV imports into the contacts Database
+      ;(async () => {
+        let changed = false
+        const synced = [...merged]
+        for (let i = contacts.length; i < synced.length; i++) {
+          const c = synced[i]
+          if (c.contactId) continue
+          try {
+            const contactId = await DB.ensureContact({
+              name: c.name || 'Expired Seller',
+              email: c.email?.trim() || null,
+              phone: c.phone?.trim() || null,
+              type: 'lead',
+              source: 'Expired Listing',
+              lead_source: 'expired',
+              mls_status: 'expired',
+              notes: c.address ? `Expired listing: ${c.address}, ${c.city || ''} ${c.zip || ''}`.trim() : null,
+            })
+            synced[i] = { ...c, contactId }
+            changed = true
+          } catch (err) {
+            console.warn('Failed to sync CSV expired to contacts:', c.name, err)
+          }
+        }
+        if (changed) { saveData(synced); setContacts(synced) }
+      })()
     }
   }
 

@@ -1062,7 +1062,86 @@ export const bulkAddContactTags = (rows) =>
 
 // ─── Contacts with Tags (for Database page) ─────────────────────────────────
 export const getContactsWithTags = () =>
-  query(supabase.from('contacts').select('*, contact_tags(tag:tags(id, name, color, category))').order('name'))
+  query(supabase.from('contacts').select('*, contact_tags(tag:tags(id, name, color, category))')
+    .is('deleted_at', null).is('archived_at', null).order('name'))
+
+// ─── Ensure Contact (deduplicated upsert) ───────────────────────────────────
+// Matches by email → phone → name. Returns the contact id (existing or new).
+// Fills blank fields on existing contacts. Used to auto-push prospects/expireds
+// into the contacts Database without creating duplicates.
+export async function ensureContact({
+  name,
+  email = null,
+  phone = null,
+  type = 'lead',
+  source = null,
+  lead_source = null,
+  mls_status = null,
+  notes = null,
+  stage = null,
+}) {
+  const normEmail = email?.trim().toLowerCase() || null
+  const normPhone = phone?.replace(/[^0-9]/g, '') || null
+  const normName = name?.trim().toLowerCase() || null
+
+  // 1. Match by email
+  if (normEmail) {
+    const { data } = await supabase.from('contacts').select('id')
+      .eq('email_normalized', normEmail).is('deleted_at', null).limit(1)
+    if (data?.length) {
+      await fillContactBlanks(data[0].id, { phone, source, lead_source, mls_status, notes, stage })
+      return data[0].id
+    }
+  }
+
+  // 2. Match by phone
+  if (normPhone) {
+    const { data } = await supabase.from('contacts').select('id')
+      .eq('phone_normalized', normPhone).is('deleted_at', null).limit(1)
+    if (data?.length) {
+      await fillContactBlanks(data[0].id, { email, source, lead_source, mls_status, notes, stage })
+      return data[0].id
+    }
+  }
+
+  // 3. Match by name
+  if (normName) {
+    const { data } = await supabase.from('contacts').select('id')
+      .ilike('name', normName).is('deleted_at', null).limit(1)
+    if (data?.length) {
+      await fillContactBlanks(data[0].id, { email, phone, source, lead_source, mls_status, notes, stage })
+      return data[0].id
+    }
+  }
+
+  // 4. Create new
+  const result = await createContact({
+    name: name?.trim() || 'Unknown',
+    email: email?.trim() || null,
+    phone: phone?.trim() || null,
+    type, source, lead_source, mls_status, notes, stage,
+  })
+  return result.id
+}
+
+// Fill only null fields on an existing contact (never overwrite existing data)
+async function fillContactBlanks(contactId, fields) {
+  const updates = {}
+  for (const [k, v] of Object.entries(fields)) {
+    if (v != null && v !== '') updates[k] = v
+  }
+  if (Object.keys(updates).length === 0) return
+  // Only set fields that are currently null
+  const { data: existing } = await supabase.from('contacts').select('*').eq('id', contactId).single()
+  if (!existing) return
+  const onlyBlanks = {}
+  for (const [k, v] of Object.entries(updates)) {
+    if (existing[k] == null || existing[k] === '') onlyBlanks[k] = v
+  }
+  if (Object.keys(onlyBlanks).length > 0) {
+    await supabase.from('contacts').update(onlyBlanks).eq('id', contactId)
+  }
+}
 
 // ─── Daily Tasks ─────────────────────────────────────────────────────────────
 export const getDailyTasks = (from, to) =>

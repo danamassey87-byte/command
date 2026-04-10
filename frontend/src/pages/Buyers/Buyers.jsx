@@ -552,7 +552,7 @@ export default function Buyers() {
           width={460}
         >
           {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{error}</p>}
-          <BuyerForm buyer={editingBuyer} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
+          <BuyerForm key={editingBuyer?.id || 'new'} buyer={editingBuyer} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
         </SlidePanel>
       </>
     )
@@ -704,7 +704,7 @@ export default function Buyers() {
         width={460}
       >
         {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{error}</p>}
-        <BuyerForm buyer={editingBuyer} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
+        <BuyerForm key={editingBuyer?.id || 'new'} buyer={editingBuyer} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
       </SlidePanel>
     </div>
   )

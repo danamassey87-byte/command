@@ -704,6 +704,16 @@ export default function ProspectingList({ source, title, subtitle }) {
         await DB.updateProspect(editing.id, row)
       } else {
         await DB.createProspect(row)
+        // Auto-push new prospect into the contacts Database (fire-and-forget)
+        DB.ensureContact({
+          name: row.name,
+          email: row.email,
+          phone: row.phone,
+          type: 'lead',
+          source: SOURCE_META[row.source]?.label || row.source,
+          lead_source: row.source,
+          notes: row.address ? `Prospect: ${row.address}, ${row.city || ''} ${row.zip || ''}`.trim() : row.notes,
+        }).catch(err => console.warn('Failed to sync prospect to contacts:', err))
       }
       await refetch()
       closePanel()
@@ -938,6 +948,7 @@ export default function ProspectingList({ source, title, subtitle }) {
       <SlidePanel open={panelOpen} onClose={closePanel} title={editing ? `Edit — ${editing.name}` : 'Add Prospect'} subtitle={editing ? SOURCE_META[editing.source]?.label : null} width={500}>
         {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem', marginBottom: 8 }}>{error}</p>}
         <ProspectForm
+          key={editing?.id || 'new'}
           prospect={editing}
           defaultSource={source || 'expired'}
           onSave={handleSave}
