@@ -22,8 +22,19 @@
   /* Layout */
   --heat-cell-size: 22px;
   --heat-cell-gap: 4px;
+  --heat-month-size: 56px;
+  --heat-month-gap: 6px;
   --heat-label-width: 220px;
   --heat-q-label-width: 22px;
+
+  /* Active row size — overridden per view-mode */
+  --heat-row-cell-size: var(--heat-cell-size);
+  --heat-row-cell-gap: var(--heat-cell-gap);
+}
+
+.kpi-heatmap--monthly {
+  --heat-row-cell-size: var(--heat-month-size);
+  --heat-row-cell-gap: var(--heat-month-gap);
 }
 
 .kpi-heatmap__header {
@@ -47,6 +58,41 @@
   font-size: 0.8rem;
   color: var(--color-text-muted);
   margin: 0;
+}
+
+.kpi-heatmap__header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.kpi-heatmap__view-toggle {
+  display: inline-flex;
+  background: var(--cream);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+.kpi-heatmap__view-btn {
+  background: transparent;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  letter-spacing: 0.3px;
+}
+.kpi-heatmap__view-btn:hover { color: var(--color-text); }
+.kpi-heatmap__view-btn--active {
+  background: var(--brown-dark);
+  color: var(--cream);
+  box-shadow: 0 1px 4px rgba(82,65,54,0.25);
 }
 
 .kpi-heatmap__legend {
@@ -168,8 +214,8 @@
 
 .heat-row__q-labels {
   display: grid;
-  grid-template-rows: repeat(4, var(--heat-cell-size));
-  row-gap: var(--heat-cell-gap);
+  grid-template-rows: repeat(4, var(--heat-row-cell-size));
+  row-gap: var(--heat-row-cell-gap);
   width: var(--heat-q-label-width);
   flex-shrink: 0;
 }
@@ -183,17 +229,54 @@
   letter-spacing: 0.5px;
 }
 
-/* Cells grid — 13 cols × 4 rows rectangle */
+/* Cells grid — shared shell */
 .heat-row__cells {
   display: grid;
-  grid-template-columns: repeat(13, var(--heat-cell-size));
-  grid-auto-rows: var(--heat-cell-size);
   gap: var(--heat-cell-gap);
   flex-shrink: 0;
   padding: 8px;
   background: rgba(82, 65, 54, 0.04);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border-light);
+}
+
+/* Weekly: 13 cols × 4 rows */
+.heat-row__cells--weekly {
+  grid-template-columns: repeat(13, var(--heat-cell-size));
+  grid-auto-rows: var(--heat-cell-size);
+}
+
+/* Monthly: 3 cols × 4 rows, bigger cells with month label inside */
+.heat-row__cells--monthly {
+  grid-template-columns: repeat(3, var(--heat-month-size));
+  grid-auto-rows: var(--heat-month-size);
+  gap: var(--heat-month-gap);
+}
+
+.heat-cell--month {
+  width: var(--heat-month-size);
+  height: var(--heat-month-size);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--brown-dark);
+  position: relative;
+}
+/* Month label color flips for darker levels for legibility */
+.heat-cell--month.heat-cell--l4,
+.heat-cell--month.heat-cell--l5 { color: var(--cream); }
+.heat-cell--month.heat-cell--future {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.heat-cell__month-label {
+  pointer-events: none;
 }
 
 /* Individual heat cell */
