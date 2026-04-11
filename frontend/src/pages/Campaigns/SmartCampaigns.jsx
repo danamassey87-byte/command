@@ -346,6 +346,29 @@ export default function SmartCampaigns() {
     }
   }, [reload])
 
+  const [sending, setSending] = useState({})
+  const sendNowViaResend = useCallback(async (enrollmentId) => {
+    setSending(p => ({ ...p, [enrollmentId]: true }))
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const res = await fetch(`${supabaseUrl}/functions/v1/send-campaign-step`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enrollment_id: enrollmentId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(`Send failed: ${data.error || JSON.stringify(data)}`)
+      } else {
+        await reload()
+      }
+    } catch (err) {
+      alert('Send failed: ' + err.message)
+    } finally {
+      setSending(p => ({ ...p, [enrollmentId]: false }))
+    }
+  }, [reload])
+
   const buildVars = useCallback((enrollment) => {
     const contact = allContacts.find(c => c.id === enrollment.contact_id) ?? {}
     const firstName = (contact.name || '').split(' ')[0]
@@ -642,6 +665,17 @@ export default function SmartCampaigns() {
                   )}
 
                   <div className="sc-queue-card__actions">
+                    {/* Send Now via Resend — primary action for email steps */}
+                    {(step?.type === 'email' || step?.type === 'manual_email') && (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={!!sending[enrollment.id]}
+                        onClick={() => sendNowViaResend(enrollment.id)}
+                      >
+                        {sending[enrollment.id] ? 'Sending...' : isManual ? 'Approve & Send Now' : 'Send Now'}
+                      </Button>
+                    )}
                     {(step?.type === 'email' || step?.type === 'manual_email') && step?.email_blocks?.length > 0 && (
                       <Button size="sm" variant="accent" onClick={() => copyFormattedEmail(enrollment, step)}>Copy Formatted</Button>
                     )}
@@ -649,20 +683,29 @@ export default function SmartCampaigns() {
                       <Button size="sm" variant="ghost" onClick={() => openGmail(enrollment, step)}>Open in Gmail</Button>
                     )}
                     {step?.type === 'sms' && (
-                      <Button size="sm" variant="ghost" onClick={() => {
-                        const phone = contactPhone(enrollment.contact_id)
-                        const firstName = (contactName(enrollment.contact_id) || '').split(' ')[0]
-                        const body = resolveAgentVars((step.body || '').replace(/\{first_name\}/g, firstName))
-                        window.open(`sms:${phone}?body=${encodeURIComponent(body)}`, '_blank')
-                      }}>Open SMS</Button>
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => {
+                          const phone = contactPhone(enrollment.contact_id)
+                          const firstName = (contactName(enrollment.contact_id) || '').split(' ')[0]
+                          const body = resolveAgentVars((step.body || '').replace(/\{first_name\}/g, firstName))
+                          window.open(`sms:${phone}?body=${encodeURIComponent(body)}`, '_blank')
+                        }}>Open SMS App</Button>
+                        <Button size="sm" onClick={() => markStepSent(enrollment.id, enrollment.current_step)}>
+                          Mark SMS Sent
+                        </Button>
+                      </>
                     )}
-                    <Button
-                      size="sm"
-                      variant={isManual ? 'primary' : undefined}
-                      onClick={() => markStepSent(enrollment.id, enrollment.current_step)}
-                    >
-                      {isManual ? 'Approve & Mark Sent' : completeLabel}
-                    </Button>
+                    {isTask && (
+                      <Button size="sm" onClick={() => markStepSent(enrollment.id, enrollment.current_step)}>
+                        Mark Complete
+                      </Button>
+                    )}
+                    {/* Manual fallback for email if Resend fails */}
+                    {(step?.type === 'email' || step?.type === 'manual_email') && (
+                      <Button size="sm" variant="ghost" onClick={() => markStepSent(enrollment.id, enrollment.current_step)}>
+                        Mark Sent (manual)
+                      </Button>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => pauseEnrollment(enrollment.id)}>Pause</Button>
                   </div>
                 </Card>

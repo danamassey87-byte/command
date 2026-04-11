@@ -101,6 +101,12 @@ serve(async (req) => {
         continue
       }
 
+      // SMS steps are always manual — Dana sends from her phone
+      if (currentStep.type === 'sms') {
+        results.push({ enrollment_id: enrollment.id, result: 'skipped', reason: 'sms_manual_only' })
+        continue
+      }
+
       // Task steps: auto-advance without sending
       if (currentStep.type === 'task') {
         const nextIdx = enrollment.current_step + 1
