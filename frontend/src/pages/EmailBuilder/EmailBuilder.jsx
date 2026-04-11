@@ -503,9 +503,9 @@ function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst,
           <label className="eb__field-label">PHONE</label>
           <input className="eb__input" value={block.phone} onChange={e => set('phone', e.target.value)} placeholder="(480) 555-1234" />
           <label className="eb__field-label">EMAIL</label>
-          <input className="eb__input" value={block.email} onChange={e => set('email', e.target.value)} placeholder="dana@antigravityre.com" />
+          <input className="eb__input" value={block.email} onChange={e => set('email', e.target.value)} placeholder="dana@danamassey.com" />
           <label className="eb__field-label">WEBSITE</label>
-          <input className="eb__input" value={block.website || ''} onChange={e => set('website', e.target.value)} placeholder="antigravityre.com" />
+          <input className="eb__input" value={block.website || ''} onChange={e => set('website', e.target.value)} placeholder="danamassey.com" />
 
           {/* Social links from Settings */}
           <label className="eb__field-label" style={{ marginTop: 8 }}>SOCIAL LINKS</label>

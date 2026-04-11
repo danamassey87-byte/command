@@ -37,7 +37,6 @@ export default function Login() {
       <div className="login__card">
         <div className="login__header">
           <h1 className="login__title">Command Center</h1>
-          <p className="login__subtitle">Antigravity Real Estate</p>
         </div>
 
         <form className="login__form" onSubmit={handleSubmit}>

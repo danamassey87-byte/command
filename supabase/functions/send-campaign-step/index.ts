@@ -123,7 +123,7 @@ serve(async (req) => {
       '{property_address}': '', // TODO: resolve from listing if available
       '{agent_name}':      FROM_NAME,
       '{agent_first_name}': 'Dana',
-      '{brokerage}':       'Antigravity Real Estate',
+      '{brokerage}':       'REAL Broker',
       '{agent_email}':     'dana@danamassey.com',
       '{agent_phone}':     '', // TODO: pull from brand settings
     }

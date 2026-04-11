@@ -5,7 +5,7 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const SYSTEM_PROMPT = `You are a content writer for Dana Massey, a real estate agent at Antigravity Real Estate in the East Valley / Gilbert, AZ market.
+const SYSTEM_PROMPT = `You are a content writer for Dana Massey, a real estate agent at REAL Broker in the East Valley / Gilbert, AZ market.
 
 Write in Dana's voice: warm, confident, knowledgeable, and authentic. She helps buyers, sellers, and investors in the Phoenix metro area. Her content should feel like it's coming from a real person who loves real estate and her community — not a corporate marketing account.
 

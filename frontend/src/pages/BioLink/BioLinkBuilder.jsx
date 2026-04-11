@@ -80,7 +80,7 @@ function loadPage() {
       { ...newBlock('link'), label: '📋 Home Valuation', url: '#', icon: '🏡' },
       { ...newBlock('form'), title: 'Get My Free Relocation Guide', guideType: 'relocation' },
       newBlock('divider'),
-      { ...newBlock('social'), instagram: 'antigravityre', facebook: 'antigravityre' },
+      { ...newBlock('social'), instagram: 'danamassey', facebook: 'danamassey' },
     ],
   }
 }

@@ -92,31 +92,31 @@ const SIXMO_STEPS = [
 
 // ─── Default Scripts ─────────────────────────────────────────────────────────
 const DEFAULT_SCRIPTS = {
-  call1: `Hi {name}, this is Dana Massey with Antigravity Real Estate. I noticed your property at {address} in {city} recently came off the market, and I wanted to reach out.
+  call1: `Hi {name}, this is Dana Massey with REAL Broker. I noticed your property at {address} in {city} recently came off the market, and I wanted to reach out.
 
 I specialize in the East Valley area and I'd love to chat about what happened with your listing and see if there's anything I can do to help.
 
 Would you have a few minutes to talk?`,
 
-  call2: `Hi {name}, this is Dana again with Antigravity Real Estate. I reached out a few days ago about your property at {address}.
+  call2: `Hi {name}, this is Dana again with REAL Broker. I reached out a few days ago about your property at {address}.
 
 I know the selling process can be frustrating, especially when a listing doesn't work out the first time. I've been putting together some market data for your area and I think there's a real opportunity here.
 
 Would you be open to a quick conversation?`,
 
-  call3: `Hi {name}, it's Dana with Antigravity Real Estate. I wanted to follow up one more time about {address}.
+  call3: `Hi {name}, it's Dana with REAL Broker. I wanted to follow up one more time about {address}.
 
 I actually put together a complimentary market analysis for your property — the numbers are really interesting given what's been happening in {city} lately.
 
 I'd love to share it with you, no strings attached. When would be a good time?`,
 
-  call4: `Hi {name}, Dana Massey here with Antigravity Real Estate. I've reached out a few times about your property at {address} and I don't want to be a pest!
+  call4: `Hi {name}, Dana Massey here with REAL Broker. I've reached out a few times about your property at {address} and I don't want to be a pest!
 
 I just wanted to let you know — if you ever decide to relist, I'm here to help. I'll send you my info so you have it on file.
 
 Wishing you all the best!`,
 
-  text1: `Hi {name}! This is Dana Massey with Antigravity Real Estate. I noticed your home at {address} recently came off the market. Would you be open to a quick chat about your options? No pressure at all.`,
+  text1: `Hi {name}! This is Dana Massey with REAL Broker. I noticed your home at {address} recently came off the market. Would you be open to a quick chat about your options? No pressure at all.`,
 
   text2: `Hey {name}, just following up — I put together a free market analysis for your property at {address}. Happy to share it anytime. Just let me know!`,
 
@@ -134,7 +134,7 @@ Would you be open to a brief conversation?
 
 Best regards,
 Dana Massey
-Antigravity Real Estate`,
+REAL Broker`,
 
   email2: `Subject: Quick update on {address}
 
@@ -150,16 +150,16 @@ Let me know if you'd like to chat!
 
 Best,
 Dana Massey
-Antigravity Real Estate`,
+REAL Broker`,
 
   // ── 6-Month Follow-Up Scripts ──
-  sixmo_call: `Hi {name}, this is Dana Massey with Antigravity Real Estate. We connected a while back about your property at {address} in {city}.
+  sixmo_call: `Hi {name}, this is Dana Massey with REAL Broker. We connected a while back about your property at {address} in {city}.
 
 I wanted to circle back because the market has shifted quite a bit over the last several months. I've seen some really strong activity in your neighborhood lately and I think the timing could be right if you've been thinking about relisting.
 
 I'd love to put together a fresh market analysis for you — no obligation at all. Would you have a few minutes to chat about what's been happening in your area?`,
 
-  sixmo_text: `Hi {name}! It's Dana Massey with Antigravity Real Estate. It's been a while since we last connected about your property at {address}. The market in {city} has changed a lot — I'd love to share an updated analysis with you if you're still thinking about selling. No pressure, just want to make sure you have the latest info!`,
+  sixmo_text: `Hi {name}! It's Dana Massey with REAL Broker. It's been a while since we last connected about your property at {address}. The market in {city} has changed a lot — I'd love to share an updated analysis with you if you're still thinking about selling. No pressure, just want to make sure you have the latest info!`,
 
   sixmo_email: `Subject: 6-month market update for {address}
 
@@ -175,7 +175,7 @@ Would you be open to a quick conversation?
 
 Best regards,
 Dana Massey
-Antigravity Real Estate`,
+REAL Broker`,
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
