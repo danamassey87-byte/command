@@ -104,6 +104,7 @@ function mapOH(row) {
     address:         row.property?.address   ?? '',
     city:            row.property?.city      ?? '',
     property_id:     row.property_id,
+    listing_id:      row.listing_id          ?? '',
     date:            row.date                ?? '',
     start_time:      start,
     end_time:        end,
@@ -183,10 +184,13 @@ function OHQuickForm({ onSave, onClose, saving, error }) {
 // ─── OH Edit Form (full fields) ───────────────────────────────────────────────
 function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error }) {
   const { data: propertiesData } = useProperties()
+  const { data: listingsData } = useListings()
   const properties = propertiesData ?? []
+  const listings = listingsData ?? []
 
   const [draft, setDraft] = useState({
     property_id:         oh?.property_id         ?? '',
+    listing_id:          oh?.listing_id          ?? '',
     address:             oh?.address             ?? '',
     city:                oh?.city                ?? '',
     community:           oh?.community           ?? '',
@@ -210,10 +214,33 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error }) {
   })
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
 
+  // Auto-match listing by property_id
+  const matchedListings = listings.filter(l => l.property_id === draft.property_id)
+
   const handlePropertySelect = (pid) => {
     if (!pid) { set('property_id', ''); return }
     const prop = properties.find(p => p.id === pid)
-    if (prop) setDraft(p => ({ ...p, property_id: pid, address: prop.address, city: prop.city ?? '' }))
+    if (prop) {
+      const autoListing = listings.find(l => l.property_id === pid)
+      setDraft(p => ({ ...p, property_id: pid, address: prop.address, city: prop.city ?? '', listing_id: autoListing?.id ?? p.listing_id }))
+    }
+  }
+
+  const handleListingSelect = (lid) => {
+    if (!lid) { set('listing_id', ''); return }
+    const listing = listings.find(l => l.id === lid)
+    if (listing && listing.property_id) {
+      const prop = properties.find(p => p.id === listing.property_id)
+      setDraft(p => ({
+        ...p,
+        listing_id: lid,
+        property_id: listing.property_id,
+        address: prop?.address ?? p.address,
+        city: prop?.city ?? p.city,
+      }))
+    } else {
+      set('listing_id', lid)
+    }
   }
 
   return (
@@ -224,6 +251,17 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error }) {
           {properties.map(p => (
             <option key={p.id} value={p.id}>{p.address}{p.city ? ` · ${p.city}` : ''}</option>
           ))}
+        </Select>
+        <Select label="Link to My Listing" value={draft.listing_id} onChange={e => handleListingSelect(e.target.value)}>
+          <option value="">— Not linked to a listing —</option>
+          {(matchedListings.length > 0 ? matchedListings : listings).map(l => {
+            const prop = properties.find(p => p.id === l.property_id)
+            return (
+              <option key={l.id} value={l.id}>
+                {prop?.address ?? 'Unknown'}{prop?.city ? ` · ${prop.city}` : ''} ({l.status})
+              </option>
+            )
+          })}
         </Select>
         <Input label="Community / Subdivision" value={draft.community} onChange={e => set('community', e.target.value)} placeholder="e.g. Sunland Village East" />
         <div className="panel-row">
@@ -683,6 +721,7 @@ function ScheduledTab({ openHouses, loading, refetch }) {
       if (!editingOH || typeof editingOH.id !== 'string') return
       const dbRow = {
         property_id:     draft.property_id || editingOH.property_id,
+        listing_id:      draft.listing_id  || null,
         date:            draft.date            || null,
         start_time:      draft.start_time      || null,
         end_time:        draft.end_time        || null,
@@ -776,14 +815,27 @@ function ScheduledTab({ openHouses, loading, refetch }) {
     { key: 'status', label: 'Status', render: v => <Badge variant={ohStatusVariant[v]}>{v}</Badge> },
     {
       key: 'actions', label: '',
-      render: (_, row) => (
-        <div style={{ display: 'flex', gap: 6 }}>
-          <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); setSelectedOH(row) }}>Tasks</Button>
-          <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openEdit(row) }}
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
-          >Edit</Button>
-        </div>
-      ),
+      render: (_, row) => {
+        const isPast = row.date && row.date < new Date().toISOString().slice(0, 10)
+        const canComplete = !['completed', 'cancelled'].includes(row.status)
+        return (
+          <div style={{ display: 'flex', gap: 6 }}>
+            {canComplete && isPast && (
+              <Button size="sm" variant="ghost" onClick={async e => {
+                e.stopPropagation()
+                await DB.updateOpenHouse(row.id, { status: 'completed' })
+                await refetch()
+              }}
+                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>}
+              >Complete</Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); setSelectedOH(row) }}>Tasks</Button>
+            <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openEdit(row) }}
+              icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
+            >Edit</Button>
+          </div>
+        )
+      },
     },
   ]
 
@@ -822,8 +874,12 @@ function ScheduledTab({ openHouses, loading, refetch }) {
         >Schedule Open House</Button>
       </div>
       <DataTable columns={columns} rows={filtered} />
-      <SlidePanel open={panelOpen} onClose={closePanel} title="Schedule Open House" width={440}>
-        <OHQuickForm onSave={handleQuickSave} onClose={closePanel} saving={saving} error={error} />
+      <SlidePanel open={panelOpen} onClose={closePanel} title={editingOH ? 'Edit Open House' : 'Schedule Open House'} subtitle={editingOH?.address} width={editingOH ? 480 : 440}>
+        {editingOH ? (
+          <OHForm key={editingOH.id} oh={editingOH} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} error={error} />
+        ) : (
+          <OHQuickForm onSave={handleQuickSave} onClose={closePanel} saving={saving} error={error} />
+        )}
       </SlidePanel>
     </>
   )
