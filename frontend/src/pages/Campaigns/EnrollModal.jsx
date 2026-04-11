@@ -7,7 +7,7 @@
 // All three converge on a single enrollContacts(campaignId, ids[]) call.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useMemo, useEffect } from 'react'
-import { SlidePanel, Button, Input, Select } from '../../components/ui'
+import { SlidePanel, Button, Input, Select, Badge } from '../../components/ui'
 import { enrollContacts as bulkEnroll } from '../../lib/campaigns'
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -127,6 +127,7 @@ export default function EnrollModal({
   contactsWithTags = [],   // same shape but joined with contact_tags
   tags = [],               // all tags
   existingEnrollments = [],// used to mark already-enrolled contacts
+  allCampaigns = [],       // all campaigns — for "add to different sequence" flow
   onEnrolled,              // (result) => void  — parent reloads after
 }) {
   const [tab, setTab] = useState('tag')   // 'tag' | 'segment' | 'contacts'
@@ -146,6 +147,10 @@ export default function EnrollModal({
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState(null)
 
+  // Re-enrollment confirmation state
+  const [showReenrollConfirm, setShowReenrollConfirm] = useState(false)
+  const [altCampaignId, setAltCampaignId] = useState('')
+
   // Reset when the modal opens/closes or campaign changes
   useEffect(() => {
     if (open) {
@@ -160,7 +165,9 @@ export default function EnrollModal({
     }
   }, [open, campaign?.id])
 
-  // ─── Contacts already enrolled in this campaign (to mark + skip UI) ──────
+  // ─── Contacts already enrolled in this campaign ──────────────────────────
+  // Active = currently in the sequence (block re-enroll without confirm)
+  // Past = completed or stopped (allow re-enroll with confirmation)
   const alreadyEnrolledIds = useMemo(() => {
     if (!campaign) return new Set()
     return new Set(
@@ -168,6 +175,23 @@ export default function EnrollModal({
         .filter(e => e.campaign_id === campaign.id && e.status === 'active')
         .map(e => e.contact_id)
     )
+  }, [campaign, existingEnrollments])
+
+  const pastEnrolledMap = useMemo(() => {
+    if (!campaign) return new Map()
+    const map = new Map()
+    for (const e of existingEnrollments) {
+      if (e.campaign_id !== campaign.id) continue
+      if (e.status === 'active') continue // already tracked above
+      if (!map.has(e.contact_id) || new Date(e.enrolled_at) > new Date(map.get(e.contact_id).enrolled_at)) {
+        map.set(e.contact_id, {
+          status: e.status,
+          campaign_name: e.campaign_name || campaign.name,
+          enrolled_at: e.enrolled_at,
+        })
+      }
+    }
+    return map
   }, [campaign, existingEnrollments])
 
   // ─── Live (non-deleted) contacts ─────────────────────────────────────────
@@ -244,12 +268,31 @@ export default function EnrollModal({
     )
   }, [tab, search, liveContacts])
 
+  // IDs that have past (completed/stopped) enrollments in this campaign
+  const reEnrollIds = useMemo(
+    () => newIds.filter(id => pastEnrolledMap.has(id)),
+    [newIds, pastEnrolledMap]
+  )
+  const freshIds = useMemo(
+    () => newIds.filter(id => !pastEnrolledMap.has(id)),
+    [newIds, pastEnrolledMap]
+  )
+
   // ─── Submit ──────────────────────────────────────────────────────────────
-  const handleEnroll = async () => {
-    if (!campaign || newIds.length === 0) return
+  const handleEnroll = async (targetCampaignId) => {
+    const cid = targetCampaignId || campaign?.id
+    if (!cid || newIds.length === 0) return
+
+    // If there are re-enrollments and we haven't confirmed yet, show the dialog
+    if (reEnrollIds.length > 0 && !showReenrollConfirm && !targetCampaignId) {
+      setShowReenrollConfirm(true)
+      return
+    }
+
     setSubmitting(true)
+    setShowReenrollConfirm(false)
     try {
-      const res = await bulkEnroll(campaign.id, newIds)
+      const res = await bulkEnroll(cid, newIds)
       setResult(res)
       onEnrolled?.(res)
     } catch (err) {
@@ -257,6 +300,28 @@ export default function EnrollModal({
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Enroll only the fresh (never-seen) contacts, skip re-enrollments
+  const handleEnrollFreshOnly = async () => {
+    if (!campaign || freshIds.length === 0) return
+    setSubmitting(true)
+    setShowReenrollConfirm(false)
+    try {
+      const res = await bulkEnroll(campaign.id, freshIds)
+      setResult(res)
+      onEnrolled?.(res)
+    } catch (err) {
+      alert('Enrollment failed: ' + err.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Enroll into a different campaign instead
+  const handleEnrollDifferent = async () => {
+    if (!altCampaignId || newIds.length === 0) return
+    await handleEnroll(altCampaignId)
   }
 
   const toggleTag = (id) => {
@@ -453,7 +518,12 @@ export default function EnrollModal({
                           <div className="enroll-modal__contact-info">
                             <div className="enroll-modal__contact-name">
                               {c.name || '(no name)'}
-                              {isEnrolled && <span className="enroll-modal__badge">already enrolled</span>}
+                              {isEnrolled && <span className="enroll-modal__badge">active</span>}
+                              {!isEnrolled && pastEnrolledMap.has(c.id) && (
+                                <span className="enroll-modal__badge enroll-modal__badge--past">
+                                  {pastEnrolledMap.get(c.id).status}
+                                </span>
+                              )}
                             </div>
                             <div className="enroll-modal__contact-detail">
                               {c.email || '—'}{c.phone ? ` · ${c.phone}` : ''}
@@ -469,31 +539,81 @@ export default function EnrollModal({
                 </div>
               )}
 
-              {/* ─── Footer: preview + enroll ───────────────────────── */}
-              <div className="enroll-modal__footer">
-                <div className="enroll-modal__preview">
-                  <div>
-                    <strong>{matchedIds.length}</strong> matched
+              {/* ─── Re-enrollment confirmation ───────────────────────── */}
+              {showReenrollConfirm && (
+                <div className="enroll-modal__reenroll-confirm">
+                  <div className="enroll-modal__reenroll-warn">
+                    <strong>{reEnrollIds.length} contact{reEnrollIds.length === 1 ? '' : 's'}</strong> already went through this campaign.
                   </div>
-                  <div className="enroll-modal__preview-sub">
-                    {matchedIds.length - newIds.length > 0 && (
-                      <span>{matchedIds.length - newIds.length} already enrolled · </span>
+                  <div className="enroll-modal__reenroll-actions">
+                    {freshIds.length > 0 && (
+                      <Button size="sm" onClick={handleEnrollFreshOnly} disabled={submitting}>
+                        Enroll {freshIds.length} new only
+                      </Button>
                     )}
-                    <span><strong>{newIds.length}</strong> will be enrolled</span>
+                    <Button size="sm" variant="primary" onClick={() => handleEnroll(campaign.id)} disabled={submitting}>
+                      Re-enroll all {newIds.length} anyway
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowReenrollConfirm(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                  <div className="enroll-modal__reenroll-alt">
+                    <span style={{ fontSize: 12, color: '#888' }}>Or add to a different sequence:</span>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <Select
+                        value={altCampaignId}
+                        onChange={e => setAltCampaignId(e.target.value)}
+                      >
+                        <option value="">— pick a campaign —</option>
+                        {allCampaigns
+                          .filter(c => c.id !== campaign.id)
+                          .map(c => <option key={c.id} value={c.id}>{c.name}</option>)
+                        }
+                      </Select>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={!altCampaignId || submitting}
+                        onClick={handleEnrollDifferent}
+                      >
+                        Enroll there
+                      </Button>
+                    </div>
                   </div>
                 </div>
-                <Button
-                  variant="primary"
-                  disabled={newIds.length === 0 || submitting}
-                  onClick={handleEnroll}
-                >
-                  {submitting
-                    ? 'Enrolling...'
-                    : newIds.length === 0
-                      ? 'Nothing to enroll'
-                      : `Enroll ${newIds.length} contact${newIds.length === 1 ? '' : 's'}`}
-                </Button>
-              </div>
+              )}
+
+              {/* ─── Footer: preview + enroll ───────────────────────── */}
+              {!showReenrollConfirm && (
+                <div className="enroll-modal__footer">
+                  <div className="enroll-modal__preview">
+                    <div>
+                      <strong>{matchedIds.length}</strong> matched
+                    </div>
+                    <div className="enroll-modal__preview-sub">
+                      {matchedIds.length - newIds.length > 0 && (
+                        <span>{matchedIds.length - newIds.length} already active · </span>
+                      )}
+                      {reEnrollIds.length > 0 && (
+                        <span>{reEnrollIds.length} previously completed · </span>
+                      )}
+                      <span><strong>{newIds.length}</strong> will be enrolled</span>
+                    </div>
+                  </div>
+                  <Button
+                    variant="primary"
+                    disabled={newIds.length === 0 || submitting}
+                    onClick={() => handleEnroll()}
+                  >
+                    {submitting
+                      ? 'Enrolling...'
+                      : newIds.length === 0
+                        ? 'Nothing to enroll'
+                        : `Enroll ${newIds.length} contact${newIds.length === 1 ? '' : 's'}`}
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </div>

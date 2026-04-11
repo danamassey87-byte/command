@@ -173,7 +173,7 @@ export async function enrollContacts(campaignId, contactIds) {
     supabase.from('campaign_enrollments')
       .select('contact_id')
       .eq('campaign_id', campaignId)
-      .eq('status', 'active')
+      .in('status', ['active', 'paused'])
       .in('contact_id', ids)
   )
   const alreadyActive = new Set(existing.map(r => r.contact_id))

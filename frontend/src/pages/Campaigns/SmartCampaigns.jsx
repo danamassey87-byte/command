@@ -821,6 +821,7 @@ export default function SmartCampaigns() {
         contactsWithTags={allContactsWithTags}
         tags={allTags}
         existingEnrollments={enrollments}
+        allCampaigns={campaigns}
         onEnrolled={() => { reload() }}
       />
 
