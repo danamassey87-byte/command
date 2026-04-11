@@ -28,6 +28,7 @@ import Recovery from './pages/Recovery/Recovery'
 import ListingPlan from './pages/ListingPlan/ListingPlan'
 import BioLinkBuilder from './pages/BioLink/BioLinkBuilder'
 import EmailBuilder from './pages/EmailBuilder/EmailBuilder'
+import NewslettersPage from './pages/Newsletters/Newsletters'
 import IntakeForms from './pages/IntakeForms/IntakeForms'
 import PublicForm from './pages/PublicForm/PublicForm'
 import Notifications from './pages/Notifications/Notifications'
@@ -36,6 +37,10 @@ import TodayShowings from './pages/Calendar/TodayShowings'
 import CalendarTasks from './pages/Calendar/Tasks'
 import SocialDashboard from './pages/Content/SocialDashboard'
 import AIStudio from './pages/AIStudio/AIStudio'
+import PostComposer from './pages/PostComposer/PostComposer'
+import HashtagBank from './pages/HashtagBank/HashtagBank'
+import KeywordTracker from './pages/KeywordTracker/KeywordTracker'
+import InspoRecreator from './pages/InspoRecreator/InspoRecreator'
 import AdsManager from './pages/Ads/AdsManager'
 import AdReports from './pages/Ads/AdReports'
 import Vendors from './pages/Vendors/Vendors'
@@ -177,6 +182,11 @@ export default function App() {
           <Route path="/content/planning"  element={<ContentPlanner />} />
           <Route path="/content/templates" element={<ComingSoon title="Content Templates" />} />
           <Route path="/content/ai-studio" element={<AIStudio />} />
+          <Route path="/content/composer"  element={<PostComposer />} />
+          <Route path="/content/composer/:pieceId" element={<PostComposer />} />
+          <Route path="/content/hashtags" element={<HashtagBank />} />
+          <Route path="/content/seo"      element={<KeywordTracker />} />
+          <Route path="/content/inspo"    element={<InspoRecreator />} />
           <Route path="/content/social"    element={<SocialDashboard />} />
           <Route path="/content/ads"       element={<AdsManager />} />
           <Route path="/content/ads/reports" element={<AdReports />} />
@@ -225,6 +235,7 @@ export default function App() {
           {/* ─── Email ─── */}
           <Route path="/email"             element={<EmailDashboard />} />
           <Route path="/email/builder"     element={<EmailBuilder />} />
+          <Route path="/email/newsletters" element={<NewslettersPage />} />
           <Route path="/email/templates"   element={<ComingSoon title="Email Templates" />} />
           <Route path="/email/campaigns"   element={<ComingSoon title="Campaigns" />} />
           <Route path="/email/sent"        element={<ComingSoon title="Sent Emails" />} />

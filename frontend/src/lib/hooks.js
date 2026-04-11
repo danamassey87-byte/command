@@ -73,10 +73,18 @@ export const useMarketStats   = ()      => useQuery(DB.getMarketStats)
 
 // ─── Content Calendar hooks ────────────────────────────────────────────────────
 export const useClientAvatars   = ()             => useQuery(DB.getClientAvatars)
+export const useInspoBank       = ()             => useQuery(DB.getInspoBank)
+export const usePlannerSlots   = (from, to)     => useQuery(() => DB.getContentPlannerSlots(from, to), [from, to])
+export const useHashtagGroups   = ()             => useQuery(DB.getHashtagGroups)
+export const useHashtagPerf    = (platform)      => useQuery(() => DB.getHashtagPerformance(platform), [platform])
+export const useSeoKeywords    = ()             => useQuery(DB.getSeoKeywords)
 export const useContentPillars  = ()             => useQuery(DB.getContentPillars)
 export const useContentPieces   = (from, to)     => useQuery(() => DB.getContentPieces(from, to), [from, to])
 export const useContentSettings = ()             => useQuery(DB.getContentSettings)
+export const usePublishQueue    = (status)       => useQuery(() => DB.getPublishQueue(status), [status])
+export const useBlotatoConfig   = ()             => useQuery(DB.getBlotatoConfig)
 export const useNotificationPreferences = ()     => useQuery(DB.getNotificationPreferences)
+export const useNewsletters = ()                 => useQuery(DB.getNewsletters)
 
 // ─── Brand Profile hook ───────────────────────────────────────────────────────
 export const useBrandProfile    = ()             => useQuery(DB.getBrandProfile)

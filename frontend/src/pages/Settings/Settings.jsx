@@ -36,7 +36,7 @@ const SOCIAL_CHANNELS = [
   { key: 'linktree',     label: 'Linktree / Bio', icon: '🔗', placeholder: 'https://linktr.ee/yourlink' },
 ]
 
-const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'lists', 'notifications', 'recovery']
+const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'connected', 'lists', 'notifications', 'recovery']
 
 // Each entry = one user-managed dropdown list shown in the Lists tab.
 const DROPDOWN_LISTS_META = [
@@ -76,7 +76,7 @@ export default function Settings() {
             className={`settings-tab${tab === t ? ' settings-tab--active' : ''}`}
             onClick={() => setTab(t)}
           >
-            {t === 'signature' ? 'Signature' : t === 'templates' ? 'Templates & Scripts' : t === 'guidelines' ? 'Brand Guidelines' : t === 'assets' ? 'Logos & Headshots' : t === 'social' ? 'Social Channels' : t === 'lists' ? 'Lists & Tags' : 'Trash & Archive'}
+            {t === 'signature' ? 'Signature' : t === 'templates' ? 'Templates & Scripts' : t === 'guidelines' ? 'Brand Guidelines' : t === 'assets' ? 'Logos & Headshots' : t === 'social' ? 'Social Channels' : t === 'connected' ? 'Connected Accounts' : t === 'lists' ? 'Lists & Tags' : t === 'notifications' ? 'Notifications' : 'Trash & Archive'}
           </button>
         ))}
       </div>
@@ -86,6 +86,7 @@ export default function Settings() {
       {tab === 'guidelines' && <GuidelinesTab brand={brand} refetch={refetch} />}
       {tab === 'assets'     && <AssetsTab     brand={brand} refetch={refetch} />}
       {tab === 'social'     && <SocialTab     brand={brand} refetch={refetch} />}
+      {tab === 'connected'  && <ConnectedAccountsTab />}
       {tab === 'lists'      && <ListsTab />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'recovery'   && <Recovery />}
@@ -832,6 +833,191 @@ function NotificationsTab() {
         ))}
       </div>
       {saving && <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: 8 }}>Saving…</p>}
+    </div>
+  )
+}
+
+// ─── Connected Accounts Tab ─────────────────────────────────────────────────
+function ConnectedAccountsTab() {
+  const [blotatoKey, setBlotatoKey] = useState('')
+  const [blotatoConfig, setBlotatoConfig] = useState(null)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [editingKey, setEditingKey] = useState(false)
+  const [hasSavedKey, setHasSavedKey] = useState(false)
+
+  useEffect(() => {
+    DB.getBlotatoConfig().then(({ data }) => {
+      if (data?.value) {
+        setBlotatoConfig(data.value)
+        if (data.value.api_key) {
+          setBlotatoKey(data.value.api_key)
+          setHasSavedKey(true)
+        }
+      }
+    }).catch(() => {})
+  }, [])
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const value = { ...blotatoConfig, api_key: blotatoKey }
+      await DB.updateBlotatoConfig(value)
+      setBlotatoConfig(value)
+      setTestResult({ ok: true, message: 'Saved!' })
+    } catch (err) {
+      setTestResult({ ok: false, message: err.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleTestConnection() {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      if (!blotatoKey.trim()) {
+        setTestResult({ ok: false, message: 'Enter an API key first' })
+        return
+      }
+      // Test by listing accounts
+      const resp = await fetch('https://api.blotato.com/v2/accounts', {
+        headers: { 'Authorization': `Bearer ${blotatoKey}` },
+      })
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => '')
+        setTestResult({ ok: false, message: `API returned ${resp.status}: ${errText.slice(0, 200)}` })
+        return
+      }
+      const data = await resp.json()
+      const accounts = data.accounts || data.data || []
+      const connectedPlatforms = accounts.map(a => ({
+        platform: a.platform || a.type || 'unknown',
+        account_id: a.id || a.account_id,
+        account_name: a.name || a.username || a.handle || '',
+      }))
+      const updated = { api_key: blotatoKey, connected_platforms: connectedPlatforms }
+      await DB.updateBlotatoConfig(updated)
+      setBlotatoConfig(updated)
+      setTestResult({ ok: true, message: `Connected! Found ${connectedPlatforms.length} account(s).`, accounts: connectedPlatforms })
+    } catch (err) {
+      setTestResult({ ok: false, message: err.message })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  const connectedPlatforms = blotatoConfig?.connected_platforms || []
+
+  return (
+    <div className="settings-section">
+      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--brown-dark)', margin: '0 0 4px' }}>Connected Accounts</h3>
+      <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', margin: '0 0 20px' }}>
+        Connect external services for publishing and automation.
+      </p>
+
+      {/* Blotato */}
+      <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <span style={{ fontSize: '1.3rem' }}>🍌</span>
+          <div>
+            <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.95rem' }}>Blotato</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>AI content engine &amp; multi-platform publisher</div>
+          </div>
+          {connectedPlatforms.length > 0 && (
+            <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 600, color: '#137333', background: '#e6f4ea', padding: '3px 10px', borderRadius: 6 }}>
+              Connected
+            </span>
+          )}
+        </div>
+
+        <div style={{ marginBottom: 10 }}>
+          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)', marginBottom: 4 }}>API Key</label>
+          {hasSavedKey && !editingKey ? (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={{ flex: 1, padding: '7px 10px', border: '1px solid #e0dbd6', borderRadius: 6, fontSize: '0.85rem', color: 'var(--color-text-muted)', background: '#faf8f5', fontFamily: 'monospace', letterSpacing: '0.05em' }}>
+                {'•'.repeat(Math.max(0, blotatoKey.length - 4))}{blotatoKey.slice(-4)}
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setEditingKey(true)}>Change</Button>
+              <Button size="sm" variant="ghost" onClick={handleTestConnection} disabled={testing}>
+                {testing ? 'Testing...' : 'Test'}
+              </Button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Input
+                type="password"
+                value={editingKey ? '' : blotatoKey}
+                onChange={e => setBlotatoKey(e.target.value)}
+                placeholder="Paste your Blotato API key..."
+                style={{ flex: 1 }}
+                autoFocus={editingKey}
+              />
+              {editingKey && (
+                <Button size="sm" variant="ghost" onClick={() => { setEditingKey(false); setBlotatoKey(blotatoConfig?.api_key || '') }}>Cancel</Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={handleTestConnection} disabled={testing || !blotatoKey.trim()}>
+                {testing ? 'Testing...' : 'Test'}
+              </Button>
+              <Button size="sm" onClick={() => { handleSave(); setEditingKey(false); setHasSavedKey(true) }} disabled={saving || !blotatoKey.trim()}>
+                {saving ? 'Saving...' : 'Save'}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {testResult && (
+          <div style={{
+            padding: '8px 12px', borderRadius: 8, fontSize: '0.82rem', marginTop: 8,
+            background: testResult.ok ? '#e6f4ea' : '#fce8e6',
+            color: testResult.ok ? '#137333' : '#c5221f',
+          }}>
+            {testResult.message}
+          </div>
+        )}
+
+        {connectedPlatforms.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)', marginBottom: 6 }}>Connected Platforms</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {connectedPlatforms.map((cp, i) => (
+                <span key={i} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #e0dbd6', fontSize: '0.78rem', color: 'var(--brown-dark)', background: '#faf8f5' }}>
+                  {cp.platform} {cp.account_name ? `(${cp.account_name})` : ''}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Gamma */}
+      <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16, opacity: 0.6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: '1.3rem' }}>🎯</span>
+          <div>
+            <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.95rem' }}>Gamma Pro</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>AI listing presentations &amp; property websites</div>
+          </div>
+          <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 500, color: 'var(--color-text-muted)', background: '#f5f0eb', padding: '3px 10px', borderRadius: 6 }}>
+            Coming Soon
+          </span>
+        </div>
+      </div>
+
+      {/* Canva */}
+      <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16, opacity: 0.6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: '1.3rem' }}>🎨</span>
+          <div>
+            <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.95rem' }}>Canva Connect</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>Design generation &amp; brand kit integration</div>
+          </div>
+          <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 500, color: 'var(--color-text-muted)', background: '#f5f0eb', padding: '3px 10px', borderRadius: 6 }}>
+            Coming Soon
+          </span>
+        </div>
+      </div>
     </div>
   )
 }

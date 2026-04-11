@@ -1,0 +1,115 @@
+/* ─── HashtagBank ─────────────────────────────────────────────────────────── */
+
+.hb-page { max-width: 1000px; margin: 0 auto; padding: 24px 24px 80px; }
+
+.hb-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.hb-header__title {
+  font-family: var(--font-display); font-size: 1.35rem;
+  color: var(--brown-dark); margin: 0;
+}
+
+/* Tabs */
+.hb-tabs { display: flex; gap: 0; border-bottom: 1px solid #e8e3de; margin-bottom: 20px; }
+.hb-tab {
+  padding: 10px 18px; font-size: 0.82rem; color: var(--color-text-muted);
+  border: none; background: none; cursor: pointer;
+  border-bottom: 2px solid transparent; transition: all 0.15s ease;
+}
+.hb-tab:hover { color: var(--brown-dark); }
+.hb-tab--active { color: var(--brown-dark); font-weight: 600; border-bottom-color: var(--brown-dark); }
+
+/* Category filter chips */
+.hb-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.hb-filter-chip {
+  padding: 5px 12px; border-radius: 6px; font-size: 0.78rem;
+  border: 1px solid #e0dbd6; background: #fff; color: var(--brown-dark);
+  cursor: pointer; transition: all 0.15s ease; text-transform: capitalize;
+}
+.hb-filter-chip:hover { border-color: var(--brown-mid); }
+.hb-filter-chip--active { background: var(--cream); border-color: var(--brown-dark); font-weight: 600; }
+
+/* Group cards */
+.hb-groups { display: flex; flex-direction: column; gap: 12px; }
+.hb-group {
+  background: #fff; border: 1px solid #e8e3de; border-radius: 12px;
+  padding: 16px 18px; border-left: 4px solid var(--brown-mid);
+}
+.hb-group__header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.hb-group__name {
+  font-weight: 600; font-size: 0.95rem; color: var(--brown-dark);
+}
+.hb-group__cat {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #fff; padding: 2px 8px; border-radius: 4px;
+}
+.hb-group__count {
+  font-size: 0.72rem; color: var(--color-text-muted); margin-left: auto;
+}
+.hb-group__actions {
+  display: flex; gap: 6px; margin-left: 8px;
+}
+.hb-group__actions button {
+  font-size: 0.75rem; padding: 3px 8px; border-radius: 4px;
+  border: 1px solid #e0dbd6; background: #faf8f5; color: var(--brown-dark);
+  cursor: pointer;
+}
+.hb-group__actions button:hover { background: var(--cream); }
+
+/* Hashtag chips */
+.hb-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.hb-tag {
+  padding: 4px 10px; border-radius: 6px; font-size: 0.78rem;
+  background: #f5f0eb; color: var(--brown-dark);
+}
+.hb-tag--removable { cursor: pointer; }
+.hb-tag--removable:hover { background: #fce8e6; color: #c5221f; text-decoration: line-through; }
+
+/* Add hashtag inline */
+.hb-add-row {
+  display: flex; gap: 6px; margin-top: 8px;
+}
+.hb-add-input {
+  flex: 1; padding: 6px 10px; border: 1px dashed #d8d3ce; border-radius: 6px;
+  font-size: 0.82rem; font-family: inherit; color: var(--brown-dark);
+  background: transparent; outline: none;
+}
+.hb-add-input:focus { border-color: var(--brown-mid); border-style: solid; }
+
+/* Performance table */
+.hb-perf-table { width: 100%; border-collapse: collapse; }
+.hb-perf-table th {
+  text-align: left; font-size: 0.72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--color-text-muted); padding: 8px 10px;
+  border-bottom: 1px solid #e8e3de;
+}
+.hb-perf-table td {
+  padding: 8px 10px; font-size: 0.82rem; color: var(--brown-dark);
+  border-bottom: 1px solid #f0ece7;
+}
+.hb-perf-table tr:hover td { background: #faf8f5; }
+.hb-perf-tag { color: #5b8fa8; font-weight: 500; }
+
+/* Copy bar */
+.hb-copy-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; background: #faf8f5; border-radius: 8px;
+  margin-top: 6px;
+}
+.hb-copy-bar__text {
+  flex: 1; font-size: 0.78rem; color: #5b8fa8; word-break: break-word;
+  max-height: 40px; overflow: hidden;
+}
+
+/* Panel form */
+.hb-form { display: flex; flex-direction: column; gap: 14px; }
+.hb-form-field label {
+  display: block; font-size: 0.72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--color-text-muted); margin-bottom: 4px;
+}

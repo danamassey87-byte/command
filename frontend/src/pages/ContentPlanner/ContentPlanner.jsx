@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '../../components/ui/index.jsx'
-import { generateContent } from '../../lib/supabase'
+import { generateContent, createContentPiece, upsertContentPlatformPost } from '../../lib/supabase'
 import { useContentPillars, useClientAvatars, useProperties } from '../../lib/hooks'
 import './ContentPlanner.css'
 
@@ -178,6 +179,7 @@ function buildCopyText(slot, platformId) {
 
 // ─── Main Component ───
 export default function ContentPlanner() {
+  const navigate = useNavigate()
   const [weekOffset, setWeekOffset] = useState(0)
   const [planner, setPlanner] = useState(loadPlanner)
   const [format, setFormat] = useState(loadFormat)
@@ -727,6 +729,40 @@ export default function ContentPlanner() {
                     </button>
                     <Button size="sm" variant="accent" onClick={() => setActiveTab('repurpose')}>
                       Repurpose to Other Platforms &#8250;
+                    </Button>
+                    <Button size="sm" onClick={async () => {
+                      if (!sel.caption?.trim()) return alert('Write a caption first before sending to the composer.')
+                      try {
+                        const { data: piece } = await createContentPiece({
+                          title: (sel.hook || sel.topic || sel.caption || 'Untitled').slice(0, 80),
+                          body_text: sel.caption,
+                          content_date: selectedDate,
+                          pillar_id: sel.pillar_id || null,
+                          avatar_id: sel.avatar_id || null,
+                          property_id: sel.property_id || null,
+                          status: 'draft',
+                          notes: sel.hashtags || '',
+                          channel: selectedSlot === 'story' ? 'stories' : 'instagram',
+                        })
+                        if (!piece?.id) throw new Error('Failed to create content piece')
+                        // Create platform posts for repurposed platforms
+                        const platforms = Object.keys(sel.repurpose || {})
+                        for (const pid of platforms) {
+                          const rp = sel.repurpose[pid]
+                          await upsertContentPlatformPost({
+                            content_id: piece.id,
+                            platform: pid,
+                            adapted_text: rp.caption || null,
+                            hashtags: rp.hashtags || null,
+                            status: 'draft',
+                          })
+                        }
+                        navigate(`/content/composer/${piece.id}`)
+                      } catch (err) {
+                        alert('Error: ' + err.message)
+                      }
+                    }}>
+                      🚀 Send to Composer
                     </Button>
                   </div>
                 </>

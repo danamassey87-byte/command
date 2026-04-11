@@ -492,13 +492,16 @@ function PieceDetail({ piece, pillars, listings, properties, openHouses, onUpdat
       <div className="cc-detail-actions">
         <div className="cc-detail-label">Post it</div>
         <div className="cc-detail-action-grid">
+          <Link to={`/content/composer/${piece.id}`} className="cc-action-btn cc-action-btn--primary">
+            🚀 Compose &amp; Publish
+          </Link>
           {ch.postUrl && (
-            <a href={ch.postUrl} target="_blank" rel="noreferrer" className="cc-action-btn cc-action-btn--primary">
+            <a href={ch.postUrl} target="_blank" rel="noreferrer" className="cc-action-btn">
               <ChannelIcon channel={piece.channel} size={14} /> Open {ch.label}
             </a>
           )}
           {ch.internal && (
-            <Link to={ch.internal} className="cc-action-btn cc-action-btn--primary">
+            <Link to={ch.internal} className="cc-action-btn">
               <ChannelIcon channel={piece.channel} size={14} /> Open {ch.label}
             </Link>
           )}

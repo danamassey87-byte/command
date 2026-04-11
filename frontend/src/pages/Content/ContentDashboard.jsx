@@ -514,6 +514,22 @@ export default function ContentDashboard() {
               <span className="ct-quick-link__icon">⚡</span>
               <span>Content Studio</span>
             </Link>
+            <Link to="/content/composer" className="ct-quick-link ct-quick-link--compact">
+              <span className="ct-quick-link__icon">🚀</span>
+              <span>Composer</span>
+            </Link>
+            <Link to="/content/hashtags" className="ct-quick-link ct-quick-link--compact">
+              <span className="ct-quick-link__icon">#</span>
+              <span>Hashtags</span>
+            </Link>
+            <Link to="/content/seo" className="ct-quick-link ct-quick-link--compact">
+              <span className="ct-quick-link__icon">🔍</span>
+              <span>SEO/AEO</span>
+            </Link>
+            <Link to="/content/inspo" className="ct-quick-link ct-quick-link--compact">
+              <span className="ct-quick-link__icon">✨</span>
+              <span>Inspo</span>
+            </Link>
           </div>
         </DashCard>
       </div>

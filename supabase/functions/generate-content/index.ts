@@ -1,4 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -28,7 +29,40 @@ serve(async (req) => {
       )
     }
 
-    const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property, source } = await req.json()
+    const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property, source, avatar_id } = await req.json()
+
+    // ─── Avatar context injection ──────────────────────────────────────────
+    // When avatar_id is provided, fetch the avatar and build a targeting block.
+    let avatarContext = ''
+    if (avatar_id) {
+      try {
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        )
+        const { data: avatar } = await supabase
+          .from('client_avatars')
+          .select('*')
+          .eq('id', avatar_id)
+          .single()
+        if (avatar) {
+          const parts = [`TARGET AUDIENCE: ${avatar.name} — ${avatar.type}`]
+          if (avatar.age_range) parts.push(`Age: ${avatar.age_range}`)
+          if (avatar.family_status) parts.push(`Family: ${avatar.family_status}`)
+          if (avatar.motivation) parts.push(`Motivation: ${avatar.motivation}`)
+          if (avatar.pain_points) parts.push(`Pain points: ${avatar.pain_points}`)
+          if (avatar.content_resonates) parts.push(`Responds to: ${avatar.content_resonates}`)
+          if (avatar.online_platforms?.length) parts.push(`Found on: ${avatar.online_platforms.join(', ')}`)
+          if (avatar.price_range_min || avatar.price_range_max) {
+            parts.push(`Price range: $${avatar.price_range_min?.toLocaleString() || '?'} – $${avatar.price_range_max?.toLocaleString() || '?'}`)
+          }
+          parts.push('\nTailor your tone, examples, and messaging to resonate with this specific person.')
+          avatarContext = '\n\n' + parts.join('\n')
+        }
+      } catch (e) {
+        console.error('Avatar lookup failed (non-fatal):', e)
+      }
+    }
 
     // Listing checklist + strategy narrative.
     // Caller supplies the rendered prompt (with {source} etc already inlined)
@@ -301,12 +335,67 @@ Be specific, actionable, and write in Dana's actual voice — warm, confident, n
 Format guidance for ${platform}: ${hints[platform] || 'platform-appropriate tone and length'}.
 
 Output just the adapted copy, nothing else.`
+
+    } else if (type === 'suggest_hashtags') {
+      // Suggest hashtags for a content piece
+      userMessage = `Suggest 15-20 relevant Instagram/social media hashtags for this content:
+
+"${prompt || body_text || 'Real estate content for the East Valley, AZ market'}"
+
+${platform ? `Target platform: ${platform}` : ''}
+
+Mix of:
+- Location hashtags (Gilbert AZ, East Valley, Phoenix metro area)
+- Industry hashtags (real estate, homes for sale, etc.)
+- Niche/topic hashtags specific to the content
+- Trending/engagement hashtags
+
+Return ONLY a valid JSON array of hashtag strings (WITHOUT the # symbol). No extra commentary. Example:
+["gilbertaz", "realestate", "homesforsale", "eastvalley"]`
+
+    } else if (type === 'suggest_keywords') {
+      // Suggest SEO/AEO keywords for target market
+      userMessage = `You are an SEO and AEO (Answer Engine Optimization) strategist for Dana Massey, a real estate agent at REAL Broker in the East Valley / Gilbert, AZ market.
+
+Context: ${prompt || 'Real estate agent targeting buyers, sellers, and investors in Gilbert, Mesa, Queen Creek, Chandler, San Tan Valley, and the greater Phoenix metro area.'}
+
+Generate 10 keyword/phrase suggestions across these categories:
+- SEO: Traditional search engine keywords people type into Google
+- AEO: Question-based phrases people ask AI assistants (ChatGPT, Perplexity, Google AI Overview)
+- Local: Geo-specific keywords for the East Valley market
+- Long Tail: Longer, more specific phrases with lower competition
+
+Return ONLY a valid JSON array of objects. No extra commentary. Example:
+[{"keyword": "homes for sale in Gilbert AZ", "category": "seo", "rationale": "High-volume primary geo keyword"}]`
+
+    } else if (type === 'recreate_inspo') {
+      // Analyze and recreate inspiration content in Dana's voice
+      userMessage = `I found this content that I'd like to recreate in my own voice and style:
+
+"${prompt || body_text}"
+
+${platform ? `Target platform: ${platform}` : ''}
+${pillar ? `Content pillar: ${pillar}` : ''}
+
+Please do TWO things:
+
+1. **ANALYZE** the structure: What hook type is used? What's the emotional arc? What's the CTA pattern? What format/structure makes it effective?
+
+2. **RECREATE** it in Dana's voice — warm, confident, authentic East Valley real estate agent. Same structure and intent, completely different words. Make it sound like Dana wrote it from scratch.
+
+Return ONLY a valid JSON object with these keys (no extra commentary):
+{
+  "analysis": "Brief structural breakdown...",
+  "recreated_text": "The full recreated post...",
+  "suggested_hashtags": ["hashtag1", "hashtag2", ...],
+  "suggested_hook": "The opening hook line..."
+}`
     }
 
     // Pick model + token budget by task. listing_plan is long-form strategy
     // work — worth the Opus spend. Everything else stays on Sonnet.
     const model = type === 'listing_plan' ? 'claude-opus-4-6' : 'claude-sonnet-4-6'
-    const maxTokens = type === 'listing_plan' ? 8192 : 1024
+    const maxTokens = type === 'listing_plan' ? 8192 : (type === 'recreate_inspo' ? 2048 : 1024)
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -318,7 +407,7 @@ Output just the adapted copy, nothing else.`
       body: JSON.stringify({
         model,
         max_tokens: maxTokens,
-        system: SYSTEM_PROMPT,
+        system: SYSTEM_PROMPT + avatarContext,
         messages: [{ role: 'user', content: userMessage }],
       }),
     })
@@ -383,6 +472,52 @@ Output just the adapted copy, nothing else.`
         })
       } catch {
         return new Response(JSON.stringify({ topics: [], raw: text }), {
+          headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    // For suggest_hashtags, parse JSON array
+    if (type === 'suggest_hashtags') {
+      try {
+        const jsonMatch = text.match(/\[[\s\S]*\]/)
+        const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : []
+        return new Response(JSON.stringify({ hashtags: parsed }), {
+          headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      } catch {
+        return new Response(JSON.stringify({ hashtags: [], raw: text }), {
+          headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    // For suggest_keywords, parse JSON array of objects
+    if (type === 'suggest_keywords') {
+      try {
+        const jsonMatch = text.match(/\[[\s\S]*\]/)
+        const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : []
+        return new Response(JSON.stringify({ keywords: parsed }), {
+          headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      } catch {
+        return new Response(JSON.stringify({ keywords: [], raw: text }), {
+          headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    // For recreate_inspo, parse JSON object with analysis + recreated_text
+    if (type === 'recreate_inspo') {
+      try {
+        const jsonMatch = text.match(/\{[\s\S]*\}/)
+        const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {}
+        return new Response(JSON.stringify(parsed), {
+          headers: { ...CORS, 'Content-Type': 'application/json' },
+        })
+      } catch {
+        // Fallback: return as plain text
+        return new Response(JSON.stringify({ recreated_text: text, analysis: '', suggested_hashtags: [], suggested_hook: '' }), {
           headers: { ...CORS, 'Content-Type': 'application/json' },
         })
       }

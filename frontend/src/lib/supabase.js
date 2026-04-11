@@ -370,6 +370,64 @@ export const getShowingSessionsForContact = (contactId) =>
     .eq('contact_id', contactId)
     .order('date', { ascending: false }))
 
+// ─── Hashtag Bank ─────────────────────────────────────────────────────────────
+export const getHashtagGroups = () =>
+  query(supabase.from('hashtag_groups').select('*').order('sort_order'))
+export const createHashtagGroup = (d) =>
+  query(supabase.from('hashtag_groups').insert(d).select().single())
+export const updateHashtagGroup = (id, d) =>
+  query(supabase.from('hashtag_groups').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+export const deleteHashtagGroup = (id) =>
+  query(supabase.from('hashtag_groups').delete().eq('id', id))
+
+export const getHashtagPerformance = (platform) =>
+  query(
+    platform
+      ? supabase.from('hashtag_performance').select('*').eq('platform', platform).order('avg_engagement', { ascending: false })
+      : supabase.from('hashtag_performance').select('*').order('avg_engagement', { ascending: false })
+  )
+export const upsertHashtagPerformance = (d) =>
+  query(supabase.from('hashtag_performance').upsert(d, { onConflict: 'hashtag,platform' }).select().single())
+
+// ─── SEO / AEO Keywords ──────────────────────────────────────────────────────
+export const getSeoKeywords = () =>
+  query(supabase.from('seo_keywords').select('*').order('priority').order('keyword'))
+export const createSeoKeyword = (d) =>
+  query(supabase.from('seo_keywords').insert(d).select().single())
+export const updateSeoKeyword = (id, d) =>
+  query(supabase.from('seo_keywords').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+export const deleteSeoKeyword = (id) =>
+  query(supabase.from('seo_keywords').delete().eq('id', id))
+
+export const getKeywordsForContent = (contentId) =>
+  query(supabase.from('content_keywords').select('*, keyword:seo_keywords(*)').eq('content_id', contentId))
+export const linkContentKeyword = (contentId, keywordId) =>
+  query(supabase.from('content_keywords').upsert({ content_id: contentId, keyword_id: keywordId }, { onConflict: 'content_id,keyword_id' }))
+export const unlinkContentKeyword = (contentId, keywordId) =>
+  query(supabase.from('content_keywords').delete().eq('content_id', contentId).eq('keyword_id', keywordId))
+
+// ─── Inspo Bank ───────────────────────────────────────────────────────────────
+export const getInspoBank = () =>
+  query(supabase.from('inspo_bank').select('*').order('created_at', { ascending: false }))
+export const createInspoEntry = (d) =>
+  query(supabase.from('inspo_bank').insert(d).select().single())
+export const updateInspoEntry = (id, d) =>
+  query(supabase.from('inspo_bank').update(d).eq('id', id).select().single())
+export const deleteInspoEntry = (id) =>
+  query(supabase.from('inspo_bank').delete().eq('id', id))
+
+// ─── Content Planner Slots (Supabase-backed) ─────────────────────────────────
+export const getContentPlannerSlots = (fromDate, toDate) =>
+  query(supabase.from('content_planner_slots').select('*')
+    .gte('slot_date', fromDate).lte('slot_date', toDate)
+    .order('slot_date'))
+export const upsertContentPlannerSlot = (d) =>
+  query(supabase.from('content_planner_slots')
+    .upsert({ ...d, updated_at: new Date().toISOString() }, { onConflict: 'slot_date,slot_type' })
+    .select().single())
+export const deleteContentPlannerSlot = (id) =>
+  query(supabase.from('content_planner_slots').delete().eq('id', id))
+
 // ─── Content Pillars ──────────────────────────────────────────────────────────
 export const getContentPillars = () =>
   query(supabase.from('content_pillars').select('*').order('sort_order'))
@@ -587,6 +645,28 @@ export const updateNotificationPreferences = (value) =>
     .upsert({ key: 'notification_preferences', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
     .select().single())
 
+// ─── Newsletters ─────────────────────────────────────────────────────────────
+export const getNewsletters = () =>
+  query(supabase.from('newsletters').select('*').is('deleted_at', null).order('created_at', { ascending: false }))
+
+export const getNewsletter = (id) =>
+  query(supabase.from('newsletters').select('*').eq('id', id).single())
+
+export const createNewsletter = (d) =>
+  query(supabase.from('newsletters').insert(d).select().single())
+
+export const updateNewsletter = (id, d) =>
+  query(supabase.from('newsletters').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+
+export const deleteNewsletter = (id) =>
+  query(supabase.from('newsletters').update({ deleted_at: new Date().toISOString() }).eq('id', id))
+
+export const getNewsletterRecipients = (newsletterId) =>
+  query(supabase.from('newsletter_recipients').select('*').eq('newsletter_id', newsletterId).order('created_at'))
+
+export const bulkCreateNewsletterRecipients = (rows) =>
+  query(supabase.from('newsletter_recipients').insert(rows))
+
 // ─── AI Content Generation ────────────────────────────────────────────────────
 export async function generateContent(payload) {
   const { data, error } = await supabase.functions.invoke('generate-content', { body: payload })
@@ -753,6 +833,49 @@ export async function snoozeContentPiece(id, { days = 1, toDate = null } = {}) {
 /** Reschedule a content piece to a specific date. */
 export const rescheduleContentPiece = (id, newDate) =>
   query(supabase.from('content_pieces').update({ content_date: newDate }).eq('id', id).select().single())
+
+// ─── Content Publishing (Blotato) ─────────────────────────────────────────────
+
+/** Publish or schedule a platform post via Blotato edge function. */
+export async function publishContent(platformPostId, action = 'publish_now', scheduledFor = null) {
+  const { data, error } = await supabase.functions.invoke('publish-content', {
+    body: { platform_post_id: platformPostId, action, scheduled_for: scheduledFor },
+  })
+  if (error) {
+    let detail = error.message
+    try { const ctx = await error.context?.json?.(); detail = ctx?.error || detail } catch {}
+    throw new Error(detail)
+  }
+  return data
+}
+
+/** Get publish queue entries by status. */
+export const getPublishQueue = (status) =>
+  query(
+    status
+      ? supabase.from('content_publish_queue').select('*, platform_post:content_platform_posts(*, content:content_pieces(*))').eq('status', status).order('created_at', { ascending: false })
+      : supabase.from('content_publish_queue').select('*, platform_post:content_platform_posts(*, content:content_pieces(*))').order('created_at', { ascending: false })
+  )
+
+/** Create a publish queue entry. */
+export const createPublishQueueEntry = (d) =>
+  query(supabase.from('content_publish_queue').insert(d).select().single())
+
+/** Update a publish queue entry. */
+export const updatePublishQueueEntry = (id, d) =>
+  query(supabase.from('content_publish_queue').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+
+// ─── Blotato Config (user_settings) ────────────────────────────────────────
+
+/** Get Blotato connection config. */
+export const getBlotatoConfig = () =>
+  query(supabase.from('user_settings').select('*').eq('key', 'blotato_config').maybeSingle())
+
+/** Update Blotato connection config. */
+export const updateBlotatoConfig = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'blotato_config', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())
 
 /**
  * Trigger the full seller marketing pipeline for a listing.
