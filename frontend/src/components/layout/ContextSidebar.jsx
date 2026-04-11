@@ -46,7 +46,7 @@ const SECTIONS = {
       { label: 'Personal Circle',       path: '/prospecting/soi',       icon: 'heart' },
       { label: 'Referrals',             path: '/prospecting/referrals', icon: 'user' },
       { label: 'OH Prospecting',          path: '/prospecting/oh-leads',  icon: 'users',        group: 'Open Houses' },
-      { label: 'Confirmed Events',      path: '/open-houses',           icon: 'eye' },
+      { label: 'Open Houses',            path: '/open-houses',           icon: 'eye' },
     ],
   },
   people: {

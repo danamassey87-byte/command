@@ -3,14 +3,16 @@ import { Button, Textarea, Input, Badge } from '../../components/ui/index.jsx'
 import { STAGE_EMAILS } from '../Pipeline/Pipeline'
 import { DEFAULT_TEMPLATES as BUYER_DEFAULTS } from '../Pipeline/BuyerSOP'
 import { DEFAULT_TEMPLATES as SELLER_DEFAULTS } from '../Pipeline/SellerSOP'
+import { DEFAULT_OH_TASKS } from '../OpenHouses/OpenHouses'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { key: 'pipeline',   label: 'Pipeline Emails' },
-  { key: 'buyer_sop',  label: 'Buyer Workflow' },
-  { key: 'seller_sop', label: 'Seller Workflow' },
-  { key: 'ai_plans',   label: 'AI Plan Prompts' },
-  { key: 'scripts',    label: 'My Scripts' },
+  { key: 'pipeline',      label: 'Pipeline Emails' },
+  { key: 'buyer_sop',     label: 'Buyer Workflow' },
+  { key: 'seller_sop',    label: 'Seller Workflow' },
+  { key: 'ai_plans',      label: 'AI Plan Prompts' },
+  { key: 'oh_checklist',  label: 'OH Checklist' },
+  { key: 'scripts',       label: 'My Scripts' },
 ]
 
 // ─── AI Plan prompt templates (used by Sellers → Generate Plan with AI) ─────
@@ -324,8 +326,13 @@ export default function TemplatesTab() {
         <AIPlanPromptsEditor search={search} />
       )}
 
+      {/* ── OH Checklist editor ── */}
+      {category === 'oh_checklist' && (
+        <OHChecklistEditor search={search} />
+      )}
+
       {/* ── Template list ── */}
-      {category !== 'scripts' && category !== 'ai_plans' && filtered.map(t => (
+      {category !== 'scripts' && category !== 'ai_plans' && category !== 'oh_checklist' && filtered.map(t => (
         <div key={t.key} className={`tpl-card${editing === t.key ? ' tpl-card--editing' : ''}`}>
           {editing === t.key ? (
             <div className="tpl-edit-form">
@@ -418,7 +425,7 @@ export default function TemplatesTab() {
       ))}
 
       {/* ── Empty search state ── */}
-      {category !== 'scripts' && category !== 'ai_plans' && filtered.length === 0 && search && (
+      {category !== 'scripts' && category !== 'ai_plans' && category !== 'oh_checklist' && filtered.length === 0 && search && (
         <p className="tpl-empty__desc" style={{ textAlign: 'center', padding: 24 }}>No templates match "{search}"</p>
       )}
     </div>
@@ -548,6 +555,201 @@ function AIPlanPromptsEditor({ search }) {
       })}
       {visible.length === 0 && (
         <p className="tpl-empty__desc" style={{ textAlign: 'center', padding: 24 }}>No scenarios match "{search}"</p>
+      )}
+    </>
+  )
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// OH Checklist editor — manage the global open house process checklist.
+// Tasks stored in localStorage under 'oh_checklist_template'. Edits here
+// affect every NEW open house (existing OHs keep their seeded tasks).
+// ═════════════════════════════════════════════════════════════════════════════
+const OH_CHECKLIST_KEY = 'oh_checklist_template'
+const OH_CATEGORIES = [
+  { key: 'pre',    label: 'Pre-Event',  color: '#7c6350' },
+  { key: 'day_of', label: 'Day-Of',     color: '#22c55e' },
+  { key: 'post',   label: 'Follow-Up',  color: '#6366f1' },
+]
+
+function OHChecklistEditor({ search }) {
+  const [tasks, setTasks] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(OH_CHECKLIST_KEY))
+      if (Array.isArray(saved) && saved.length > 0) return saved
+    } catch { /* fall through */ }
+    return DEFAULT_OH_TASKS
+  })
+  const [editingIdx, setEditingIdx] = useState(null)
+  const [editDraft, setEditDraft] = useState('')
+  const [editCat, setEditCat] = useState('pre')
+  const [addingTo, setAddingTo] = useState(null)
+  const [newTaskName, setNewTaskName] = useState('')
+  const [modified, setModified] = useState(() => {
+    try { return localStorage.getItem(OH_CHECKLIST_KEY) !== null } catch { return false }
+  })
+
+  const save = (updated) => {
+    setTasks(updated)
+    localStorage.setItem(OH_CHECKLIST_KEY, JSON.stringify(updated))
+    setModified(true)
+  }
+
+  const resetToDefaults = () => {
+    if (!confirm('Reset the OH checklist to defaults? Your customizations will be lost.')) return
+    localStorage.removeItem(OH_CHECKLIST_KEY)
+    setTasks(DEFAULT_OH_TASKS)
+    setModified(false)
+    setEditingIdx(null)
+    setAddingTo(null)
+  }
+
+  const startEdit = (idx) => {
+    setEditingIdx(idx)
+    setEditDraft(tasks[idx].task_name)
+    setEditCat(tasks[idx].category)
+  }
+  const cancelEdit = () => { setEditingIdx(null) }
+  const saveEdit = (idx) => {
+    const updated = tasks.map((t, i) => i === idx ? { ...t, task_name: editDraft.trim(), category: editCat } : t)
+    save(reorder(updated))
+    setEditingIdx(null)
+  }
+
+  const removeTask = (idx) => {
+    save(reorder(tasks.filter((_, i) => i !== idx)))
+  }
+
+  const addTask = (cat) => {
+    if (!newTaskName.trim()) return
+    const catTasks = tasks.filter(t => t.category === cat)
+    const maxSort = catTasks.length > 0 ? Math.max(...catTasks.map(t => t.sort_order)) : 0
+    const newTask = { task_name: newTaskName.trim(), category: cat, sort_order: maxSort + 1 }
+    save(reorder([...tasks, newTask]))
+    setNewTaskName('')
+    setAddingTo(null)
+  }
+
+  const moveTask = (idx, direction) => {
+    const task = tasks[idx]
+    const sameCat = tasks.filter(t => t.category === task.category)
+    const posInCat = sameCat.findIndex(t => t === task)
+    if (direction === 'up' && posInCat === 0) return
+    if (direction === 'down' && posInCat === sameCat.length - 1) return
+    const swapIdx = direction === 'up' ? posInCat - 1 : posInCat + 1
+    const swapTask = sameCat[swapIdx]
+    const updated = tasks.map(t => {
+      if (t === task) return { ...t, sort_order: swapTask.sort_order }
+      if (t === swapTask) return { ...t, sort_order: task.sort_order }
+      return t
+    })
+    save(reorder(updated))
+  }
+
+  // Re-number sort_order sequentially
+  const reorder = (list) => {
+    let counter = {}
+    return list
+      .sort((a, b) => {
+        const catOrder = { pre: 0, day_of: 1, post: 2 }
+        if (catOrder[a.category] !== catOrder[b.category]) return catOrder[a.category] - catOrder[b.category]
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0)
+      })
+      .map(t => {
+        counter[t.category] = (counter[t.category] ?? 0) + 1
+        return { ...t, sort_order: counter[t.category] }
+      })
+  }
+
+  const q = (search || '').toLowerCase().trim()
+
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', margin: 0 }}>
+          This is the default checklist seeded when you schedule a new open house. Changes here apply to all <strong>future</strong> open houses — existing ones keep their current tasks.
+        </p>
+        {modified && (
+          <Button size="sm" variant="ghost" onClick={resetToDefaults}>Reset to Defaults</Button>
+        )}
+      </div>
+
+      {OH_CATEGORIES.map(cat => {
+        const catTasks = tasks
+          .filter(t => t.category === cat.key)
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          .filter(t => !q || t.task_name.toLowerCase().includes(q))
+
+        return (
+          <div key={cat.key} className="tpl-card" style={{ borderLeft: `3px solid ${cat.color}` }}>
+            <div className="tpl-card__header">
+              <div className="tpl-card__title-row">
+                <span className="tpl-card__name">{cat.label}</span>
+                <span className="tpl-type-badge" style={{ background: `${cat.color}20`, color: cat.color }}>{catTasks.length} tasks</span>
+              </div>
+              <button className="tpl-action-btn" onClick={() => { setAddingTo(addingTo === cat.key ? null : cat.key); setNewTaskName('') }}>
+                + Add Task
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 8 }}>
+              {catTasks.map(task => {
+                const globalIdx = tasks.indexOf(task)
+                const isEditing = editingIdx === globalIdx
+                return (
+                  <div key={globalIdx} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 6, background: isEditing ? 'rgba(124,99,80,0.06)' : 'transparent' }}>
+                    {isEditing ? (
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <input
+                          value={editDraft}
+                          onChange={e => setEditDraft(e.target.value)}
+                          style={{ padding: '6px 8px', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: '0.82rem', fontFamily: 'var(--font-body)' }}
+                          autoFocus
+                        />
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <select value={editCat} onChange={e => setEditCat(e.target.value)} style={{ padding: '4px 8px', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: '0.78rem', fontFamily: 'var(--font-body)' }}>
+                            {OH_CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                          </select>
+                          <Button size="sm" onClick={() => saveEdit(globalIdx)}>Save</Button>
+                          <Button size="sm" variant="ghost" onClick={cancelEdit}>Cancel</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <span style={{ flex: 1, fontSize: '0.82rem' }}>{task.task_name}</span>
+                        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+                          <button className="tpl-action-btn" onClick={() => moveTask(globalIdx, 'up')} title="Move up" style={{ padding: '2px 4px', fontSize: '0.7rem' }}>▲</button>
+                          <button className="tpl-action-btn" onClick={() => moveTask(globalIdx, 'down')} title="Move down" style={{ padding: '2px 4px', fontSize: '0.7rem' }}>▼</button>
+                          <button className="tpl-action-btn" onClick={() => startEdit(globalIdx)}>Edit</button>
+                          <button className="tpl-action-btn tpl-action-btn--delete" onClick={() => removeTask(globalIdx)}>×</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {addingTo === cat.key && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center' }}>
+                <input
+                  value={newTaskName}
+                  onChange={e => setNewTaskName(e.target.value)}
+                  placeholder="New task name..."
+                  style={{ flex: 1, padding: '6px 8px', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: '0.82rem', fontFamily: 'var(--font-body)' }}
+                  autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') addTask(cat.key) }}
+                />
+                <Button size="sm" onClick={() => addTask(cat.key)}>Add</Button>
+                <Button size="sm" variant="ghost" onClick={() => setAddingTo(null)}>Cancel</Button>
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {q && tasks.filter(t => t.task_name.toLowerCase().includes(q)).length === 0 && (
+        <p className="tpl-empty__desc" style={{ textAlign: 'center', padding: 24 }}>No tasks match "{search}"</p>
       )}
     </>
   )

@@ -913,6 +913,159 @@
 .outreach-contact-link--sms   { color: var(--color-success); }
 .outreach-contact-link--email { color: var(--color-info); }
 
+/* ─── Multi-date rows (quick form) ─── */
+.oh-date-row {
+  position: relative;
+  padding: 8px 0;
+}
+.oh-date-row + .oh-date-row {
+  border-top: 1px dashed var(--color-border);
+  margin-top: 4px;
+  padding-top: 12px;
+}
+.oh-date-row__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.oh-date-row__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.oh-date-row__remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.oh-date-row__remove:hover {
+  color: var(--color-danger);
+  background: rgba(185, 28, 28, 0.08);
+}
+.oh-add-date-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+  color: var(--brown-mid);
+  cursor: pointer;
+  margin-top: 8px;
+  transition: all var(--transition-fast);
+}
+.oh-add-date-btn:hover {
+  border-color: var(--brown-mid);
+  background: rgba(124, 99, 80, 0.06);
+}
+
+/* ─── Drag-and-drop between sections ─── */
+.oh-task-card--drop-target {
+  outline: 2px dashed var(--brown-mid);
+  outline-offset: -2px;
+  background: rgba(124, 99, 80, 0.04);
+}
+.oh-task-row--dragging {
+  opacity: 0.4;
+}
+.oh-task-row[draggable="true"] {
+  cursor: grab;
+}
+.oh-task-row[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+/* ─── Add task inline (on OH checklist) ─── */
+.oh-add-task-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-family: var(--font-body);
+  color: var(--color-text-muted);
+  padding: 6px 4px 2px;
+  margin-top: 4px;
+  transition: color var(--transition-fast);
+}
+.oh-add-task-btn:hover {
+  color: var(--brown-mid);
+}
+.oh-add-task-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border);
+}
+.oh-add-task-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-family: var(--font-body);
+  background: var(--color-bg);
+}
+.oh-add-task-input:focus {
+  outline: none;
+  border-color: var(--brown-mid);
+  box-shadow: 0 0 0 2px rgba(124, 99, 80, 0.15);
+}
+.oh-add-task-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ─── Day-of banner ─── */
+.oh-day-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(124, 99, 80, 0.12), rgba(124, 99, 80, 0.06));
+  border: 1px solid rgba(124, 99, 80, 0.25);
+  border-radius: 10px;
+  margin-bottom: var(--space-md);
+}
+.oh-day-banner__icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+.oh-day-banner__text {
+  flex: 1;
+  min-width: 0;
+}
+.oh-day-banner__title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+.oh-day-banner__sub {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+}
+.oh-day-banner__action {
+  flex-shrink: 0;
+}
+
 /* ─── Mobile ─── */
 @media (max-width: 768px) {
   .oh-date-custom { flex-direction: column; gap: var(--space-sm); max-width: 100%; }

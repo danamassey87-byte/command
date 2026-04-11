@@ -40,7 +40,9 @@ class OpenHousesErrorBoundary extends Component {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const STANDARD_TASKS = [
+const OH_CHECKLIST_KEY = 'oh_checklist_template'
+
+export const DEFAULT_OH_TASKS = [
   // ── Pre-Event ──
   { task_name: 'Create OH Sign In in Lofty',                           category: 'pre',    sort_order: 1  },
   { task_name: 'Set up Curbhero Sign In',                              category: 'pre',    sort_order: 2  },
@@ -73,6 +75,14 @@ const STANDARD_TASKS = [
   { task_name: 'Trigger Manychat Thank You sequence',                  category: 'post',   sort_order: 27 },
   { task_name: 'Add hot leads to Lofty & schedule follow-up call',     category: 'post',   sort_order: 28 },
 ]
+
+function getOHChecklist() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(OH_CHECKLIST_KEY))
+    if (Array.isArray(saved) && saved.length > 0) return saved
+  } catch { /* fall through */ }
+  return DEFAULT_OH_TASKS
+}
 
 const OH_STATUS_OPTIONS       = ['scheduled', 'confirmed', 'completed', 'cancelled']
 const OUTREACH_STATUS_OPTIONS = ['reached_out', 'accepted', 'declined', 'no_response']
@@ -119,8 +129,13 @@ function mapOH(row) {
 
 // ─── OH Quick Form (new) ──────────────────────────────────────────────────────
 function OHQuickForm({ onSave, onClose, saving, error }) {
-  const [draft, setDraft] = useState({ address: '', city: '', listing_agent: '', date: '', start_time: '', end_time: '' })
+  const [draft, setDraft] = useState({ address: '', city: '', listing_agent: '' })
+  const [dates, setDates] = useState([{ date: '', start_time: '', end_time: '' }])
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
+  const setDate = (idx, k, v) => setDates(prev => prev.map((d, i) => i === idx ? { ...d, [k]: v } : d))
+  const addDate = () => setDates(prev => [...prev, { date: '', start_time: '', end_time: '' }])
+  const removeDate = (idx) => setDates(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev)
+
   return (
     <>
       <p className="panel-hint">Fill in what you know — you can add URLs and other details later in the Process tab.</p>
@@ -128,17 +143,37 @@ function OHQuickForm({ onSave, onClose, saving, error }) {
         <Input label="Property Address *" value={draft.address} onChange={e => set('address', e.target.value)} placeholder="2222 S Yellow Wood Dr" autoFocus />
         <Input label="City" value={draft.city} onChange={e => set('city', e.target.value)} placeholder="Mesa" />
         <Input label="Listing Agent" value={draft.listing_agent} onChange={e => set('listing_agent', e.target.value)} placeholder="Victoria Cole" />
-        <Input label="Date" type="date" value={draft.date} onChange={e => set('date', e.target.value)} />
-        <div className="panel-row">
-          <Input label="Start Time" type="time" value={draft.start_time} onChange={e => set('start_time', e.target.value)} />
-          <Input label="End Time" type="time" value={draft.end_time} onChange={e => set('end_time', e.target.value)} />
-        </div>
       </div>
+
+      <hr className="panel-divider" />
+      <div className="panel-section">
+        <p className="panel-section-label">Dates & Times</p>
+        {dates.map((d, idx) => (
+          <div key={idx} className="oh-date-row">
+            {dates.length > 1 && (
+              <div className="oh-date-row__header">
+                <span className="oh-date-row__label">Day {idx + 1}</span>
+                <button className="oh-date-row__remove" onClick={() => removeDate(idx)} title="Remove this date">×</button>
+              </div>
+            )}
+            <Input label="Date" type="date" value={d.date} onChange={e => setDate(idx, 'date', e.target.value)} />
+            <div className="panel-row">
+              <Input label="Start Time" type="time" value={d.start_time} onChange={e => setDate(idx, 'start_time', e.target.value)} />
+              <Input label="End Time" type="time" value={d.end_time} onChange={e => setDate(idx, 'end_time', e.target.value)} />
+            </div>
+          </div>
+        ))}
+        <button className="oh-add-date-btn" onClick={addDate}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Another Date
+        </button>
+      </div>
+
       {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem', marginTop: 8 }}>{error}</p>}
       <div className="panel-footer">
         <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-        <Button variant="primary" size="sm" onClick={() => onSave(draft)} disabled={saving || !draft.address.trim()}>
-          {saving ? 'Scheduling…' : 'Schedule & Start Prep'}
+        <Button variant="primary" size="sm" onClick={() => onSave({ ...draft, dates })} disabled={saving || !draft.address.trim()}>
+          {saving ? 'Scheduling…' : dates.length > 1 ? `Schedule ${dates.length} Open Houses` : 'Schedule & Start Prep'}
         </Button>
       </div>
     </>
@@ -265,13 +300,18 @@ function TasksPanel({ ohId }) {
   const [seeding, setSeeding]   = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [taskEdits, setTaskEdits] = useState({})
+  const [addingTo, setAddingTo] = useState(null) // which category is getting a new task
+  const [newTaskName, setNewTaskName] = useState('')
+  const [addingSaving, setAddingSaving] = useState(false)
+  const [dragTaskId, setDragTaskId] = useState(null)
+  const [dropTarget, setDropTarget] = useState(null) // category key being hovered
 
   const today = new Date(); today.setHours(0, 0, 0, 0)
 
   const seedTasks = async () => {
     setSeeding(true)
     try {
-      await DB.bulkCreateOHTasks(STANDARD_TASKS.map(t => ({ ...t, open_house_id: ohId })))
+      await DB.bulkCreateOHTasks(getOHChecklist().map(t => ({ ...t, open_house_id: ohId })))
       await refetch()
     } catch { /* silent */ } finally { setSeeding(false) }
   }
@@ -304,6 +344,44 @@ function TasksPanel({ ohId }) {
     setTaskEdits(p => ({ ...p, [task.id]: { due_date: task.due_date ?? '', doc_link: task.doc_link ?? '' } }))
   }
 
+  const handleAddTask = async (category, scope) => {
+    if (!newTaskName.trim()) return
+    setAddingSaving(true)
+    try {
+      // Always add to this open house
+      const catTasks = tasks.filter(t => t.category === category)
+      const maxSort = catTasks.length > 0 ? Math.max(...catTasks.map(t => t.sort_order)) : 0
+      await DB.createOHTask({ open_house_id: ohId, task_name: newTaskName.trim(), category, sort_order: maxSort + 1 })
+
+      // If global, also update the template in localStorage
+      if (scope === 'global') {
+        const current = getOHChecklist()
+        const catGlobal = current.filter(t => t.category === category)
+        const maxGlobalSort = catGlobal.length > 0 ? Math.max(...catGlobal.map(t => t.sort_order)) : 0
+        const updated = [...current, { task_name: newTaskName.trim(), category, sort_order: maxGlobalSort + 1 }]
+        localStorage.setItem(OH_CHECKLIST_KEY, JSON.stringify(updated))
+      }
+
+      await refetch()
+      setNewTaskName('')
+      setAddingTo(null)
+    } catch { /* silent */ } finally { setAddingSaving(false) }
+  }
+
+  const handleDrop = async (targetCategory) => {
+    setDropTarget(null)
+    if (!dragTaskId) return
+    const task = tasks.find(t => t.id === dragTaskId)
+    if (!task || task.category === targetCategory) { setDragTaskId(null); return }
+    try {
+      const catTasks = tasks.filter(t => t.category === targetCategory)
+      const maxSort = catTasks.length > 0 ? Math.max(...catTasks.map(t => t.sort_order)) : 0
+      await DB.updateOHTask(task.id, { category: targetCategory, sort_order: maxSort + 1 })
+      await refetch()
+    } catch { /* silent */ }
+    setDragTaskId(null)
+  }
+
   const groups = [
     { key: 'pre',    label: 'Pre-Event',  icon: '📣', color: 'var(--brown-mid)' },
     { key: 'day_of', label: 'Day-Of',     icon: '🏡', color: '#22c55e'          },
@@ -328,7 +406,13 @@ function TasksPanel({ ohId }) {
         if (!groupTasks.length) return null
         const done = groupTasks.filter(t => t.completed).length
         return (
-          <Card key={group.key} className="oh-task-card">
+          <Card
+            key={group.key}
+            className={`oh-task-card${dropTarget === group.key ? ' oh-task-card--drop-target' : ''}`}
+            onDragOver={e => { e.preventDefault(); setDropTarget(group.key) }}
+            onDragLeave={() => setDropTarget(null)}
+            onDrop={e => { e.preventDefault(); handleDrop(group.key) }}
+          >
             <div className="oh-task-card__header">
               <span>{group.icon}</span>
               <h3 className="oh-task-card__title">{group.label}</h3>
@@ -344,7 +428,13 @@ function TasksPanel({ ohId }) {
                 const isOverdue = dueDate && dueDate < today && !task.completed
                 const isSoon    = dueDate && !isOverdue && (dueDate - today) / 86400000 <= 2 && !task.completed
                 return (
-                  <div key={task.id} className={`oh-task-row${task.completed ? ' oh-task-row--done' : ''}`}>
+                  <div
+                    key={task.id}
+                    className={`oh-task-row${task.completed ? ' oh-task-row--done' : ''}${dragTaskId === task.id ? ' oh-task-row--dragging' : ''}`}
+                    draggable
+                    onDragStart={() => setDragTaskId(task.id)}
+                    onDragEnd={() => { setDragTaskId(null); setDropTarget(null) }}
+                  >
                     <div className="oh-task-row__main">
                       <button className={`oh-task-check${task.completed ? ' oh-task-check--done' : ''}`} onClick={() => toggleTask(task)}>
                         {task.completed
@@ -383,6 +473,34 @@ function TasksPanel({ ohId }) {
                 )
               })}
             </div>
+
+            {/* Add task inline */}
+            {addingTo === group.key ? (
+              <div className="oh-add-task-form">
+                <input
+                  className="oh-add-task-input"
+                  value={newTaskName}
+                  onChange={e => setNewTaskName(e.target.value)}
+                  placeholder="New task name..."
+                  autoFocus
+                  onKeyDown={e => { if (e.key === 'Escape') { setAddingTo(null); setNewTaskName('') } }}
+                />
+                <div className="oh-add-task-actions">
+                  <Button size="sm" variant="primary" onClick={() => handleAddTask(group.key, 'local')} disabled={addingSaving || !newTaskName.trim()}>
+                    This OH Only
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => handleAddTask(group.key, 'global')} disabled={addingSaving || !newTaskName.trim()}>
+                    + Add to All Future OHs
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => { setAddingTo(null); setNewTaskName('') }}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <button className="oh-add-task-btn" onClick={() => { setAddingTo(group.key); setNewTaskName('') }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Task
+              </button>
+            )}
           </Card>
         )
       })}
@@ -524,22 +642,34 @@ function ScheduledTab({ openHouses, loading, refetch }) {
     setSaving(true); setError(null)
     try {
       const property_id = await DB.ensureProperty({ address: draft.address.trim(), city: draft.city.trim() || null })
-      const dbRow = {
-        property_id,
-        date:          draft.date       || null,
-        start_time:    draft.start_time || null,
-        end_time:      draft.end_time   || null,
-        status:        'scheduled',
-        listing_agent: draft.listing_agent.trim() || null,
+      const datesList = draft.dates || [{ date: '', start_time: '', end_time: '' }]
+      let lastCreated = null
+
+      for (const dt of datesList) {
+        const dbRow = {
+          property_id,
+          date:          dt.date       || null,
+          start_time:    dt.start_time || null,
+          end_time:      dt.end_time   || null,
+          status:        'scheduled',
+          listing_agent: draft.listing_agent.trim() || null,
+        }
+        const created = await DB.createOpenHouse(dbRow)
+        await DB.bulkCreateOHTasks(getOHChecklist().map(t => ({ ...t, open_house_id: created.id })))
+        const dateLabel = dt.date ? ` on ${dt.date}` : ''
+        await DB.logActivity('open_house_created', `Scheduled open house: ${draft.address}${dateLabel}`, { propertyId: property_id })
+        lastCreated = { id: created.id, dt }
       }
-      const created = await DB.createOpenHouse(dbRow)
-      await DB.bulkCreateOHTasks(STANDARD_TASKS.map(t => ({ ...t, open_house_id: created.id })))
-      await DB.logActivity('open_house_created', `Scheduled open house: ${draft.address}`, { propertyId: property_id })
+
       await refetch()
       closePanel()
-      const timeStr = draft.start_time ? (draft.end_time ? `${draft.start_time} – ${draft.end_time}` : draft.start_time) : ''
-      const newOH = { id: created.id, address: draft.address.trim(), city: draft.city.trim(), property_id, date: draft.date || '', start_time: draft.start_time || '', end_time: draft.end_time || '', time: timeStr, status: 'scheduled', inquiries: 0, signIn: 0, leads: 0, notes: '', community: '', agent_name: '', agent_brokerage: '', agent_phone: '', agent_email: '', listing_agent: draft.listing_agent.trim(), lofty_landing_page: '', lofty_other_oh_page: '', groups_through: 0, leads_converted: 0 }
-      setSelectedOH(newOH)
+
+      if (lastCreated) {
+        const dt = lastCreated.dt
+        const timeStr = dt.start_time ? (dt.end_time ? `${dt.start_time} – ${dt.end_time}` : dt.start_time) : ''
+        const newOH = { id: lastCreated.id, address: draft.address.trim(), city: draft.city.trim(), property_id, date: dt.date || '', start_time: dt.start_time || '', end_time: dt.end_time || '', time: timeStr, status: 'scheduled', inquiries: 0, signIn: 0, leads: 0, notes: '', community: '', agent_name: '', agent_brokerage: '', agent_phone: '', agent_email: '', listing_agent: draft.listing_agent.trim(), lofty_landing_page: '', lofty_other_oh_page: '', groups_through: 0, leads_converted: 0 }
+        setSelectedOH(newOH)
+      }
     } catch (e) {
       setError(e.message)
     } finally {
@@ -1380,13 +1510,37 @@ export default function OpenHousesPage() {
   )
 }
 
+// ─── Day-of Banner ───────────────────────────────────────────────────────────
+function DayOfBanner({ openHouses, onGoToProcess }) {
+  const today = new Date().toISOString().slice(0, 10)
+  const todaysOHs = openHouses.filter(oh => oh.date === today && !['cancelled'].includes(oh.status))
+  if (!todaysOHs.length) return null
+
+  const label = todaysOHs.length === 1
+    ? todaysOHs[0].address
+    : `${todaysOHs.length} open houses`
+  const timeStr = todaysOHs.length === 1 && todaysOHs[0].time ? ` at ${todaysOHs[0].time}` : ''
+
+  return (
+    <div className="oh-day-banner">
+      <span className="oh-day-banner__icon">🏡</span>
+      <div className="oh-day-banner__text">
+        <p className="oh-day-banner__title">You have {label} today{timeStr}!</p>
+        <p className="oh-day-banner__sub">Check your process checklist to make sure everything is ready.</p>
+      </div>
+      <div className="oh-day-banner__action">
+        <Button variant="primary" size="sm" onClick={onGoToProcess}>View Checklist</Button>
+      </div>
+    </div>
+  )
+}
+
 function OpenHouses() {
   const [mainTab, setMainTab] = useState('scheduled')
-  const sig = useBrandSignature()
 
   const { data: ohData,       loading: ohLoading,       refetch: refetchOH       } = useOpenHouses()
   const { data: outreachData, loading: outreachLoading, refetch: refetchOutreach } = useOHOutreach()
-  const { data: reportsData,  loading: reportsLoading,  refetch: refetchReports  } = useHostReports()
+  const { data: reportsData,  refetch: refetchReports  } = useHostReports()
   const { data: listingsData } = useListings()
 
   const openHouses = useMemo(() => (ohData       ?? []).map(mapOH), [ohData])
@@ -1396,6 +1550,7 @@ function OpenHouses() {
 
   return (
     <div className="open-houses">
+      <DayOfBanner openHouses={openHouses} onGoToProcess={() => setMainTab('process')} />
       <SectionHeader
         title="Open Houses"
         subtitle="Scheduling, outreach tracking, and host reports"
