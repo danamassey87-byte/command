@@ -537,6 +537,7 @@ function stepClientToRow(s, campaignId, order) {
     task_title: s.task_title ?? null,
     task_notes: s.task_notes ?? null,
     task_link: s.task_link ?? null,
+    attachments: s.attachments ?? null,
   }
 }
 
@@ -556,6 +557,7 @@ function stepRowToClient(r) {
     task_title: r.task_title ?? null,
     task_notes: r.task_notes ?? null,
     task_link: r.task_link ?? null,
+    attachments: r.attachments ?? null,
   }
 }
 

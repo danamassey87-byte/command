@@ -6,6 +6,7 @@ import { blocksToHtml, getEmailTemplates, CAMPAIGN_EMAIL_TEMPLATES } from '../..
 import * as campaignsApi from '../../lib/campaigns'
 import EnrollModal from './EnrollModal'
 import TriggerPicker from './TriggerPicker'
+import EmailStepComposer from '../../components/email/EmailStepComposer'
 import './SmartCampaigns.css'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -899,6 +900,7 @@ export default function SmartCampaigns() {
 function CampaignEditor({ campaign, onSave, onCancel, tags = [], campaigns = [] }) {
   const [form, setForm] = useState({ ...campaign })
   const [expandedStep, setExpandedStep] = useState(null)
+  const [composerStepIdx, setComposerStepIdx] = useState(null) // index of step being designed
 
   const updateField = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
@@ -1110,17 +1112,35 @@ function CampaignEditor({ campaign, onSave, onCancel, tags = [], campaigns = [] 
                       placeholder="e.g., Welcome! Let's get started"
                     />
                     <Textarea
-                      label="Email Body"
+                      label="Email Body (plain text fallback)"
                       value={step.body || ''}
                       onChange={e => updateStep(idx, { body: e.target.value })}
-                      rows={8}
-                      placeholder="Write your email content here..."
+                      rows={4}
+                      placeholder="Plain text version — used if no design is attached"
                     />
-                    <EmailTemplatePicker
-                      currentTemplate={step.email_blocks ? { blocks: step.email_blocks, settings: step.email_settings } : null}
-                      onSelect={(tpl) => updateStep(idx, { email_blocks: tpl.blocks, email_settings: tpl.settings })}
-                      onClear={() => updateStep(idx, { email_blocks: null, email_settings: null })}
-                    />
+
+                    {/* Design email button + template picker */}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Button variant="primary" size="sm" onClick={() => setComposerStepIdx(idx)}
+                        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>}
+                      >
+                        {step.email_blocks ? 'Edit Email Design' : 'Design Email'}
+                      </Button>
+                      {step.email_blocks && (
+                        <Badge variant="accent" size="sm">Design attached ({step.email_blocks.length} blocks)</Badge>
+                      )}
+                      {step.attachments?.length > 0 && (
+                        <Badge variant="info" size="sm">{step.attachments.length} PDF{step.attachments.length > 1 ? 's' : ''}</Badge>
+                      )}
+                    </div>
+
+                    {!step.email_blocks && (
+                      <EmailTemplatePicker
+                        currentTemplate={null}
+                        onSelect={(tpl) => updateStep(idx, { email_blocks: tpl.blocks, email_settings: tpl.settings })}
+                        onClear={() => {}}
+                      />
+                    )}
                   </>
                 )}
 
@@ -1161,6 +1181,22 @@ function CampaignEditor({ campaign, onSave, onCancel, tags = [], campaigns = [] 
         <Button onClick={() => onSave(form)} disabled={!form.name?.trim()}>Save Campaign</Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
+
+      {/* Email Step Composer Modal */}
+      {composerStepIdx !== null && form.steps?.[composerStepIdx] && (
+        <EmailStepComposer
+          open
+          onClose={() => setComposerStepIdx(null)}
+          initialBlocks={form.steps[composerStepIdx].email_blocks}
+          initialSettings={form.steps[composerStepIdx].email_settings}
+          initialSubject={form.steps[composerStepIdx].subject}
+          stepAttachments={form.steps[composerStepIdx].attachments ?? []}
+          onSave={({ subject, email_blocks, email_settings, attachments }) => {
+            updateStep(composerStepIdx, { subject, email_blocks, email_settings, attachments })
+            setComposerStepIdx(null)
+          }}
+        />
+      )}
     </div>
   )
 }

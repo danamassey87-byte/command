@@ -145,7 +145,7 @@ const IMAGE_SHAPES = [
   { value: 'arch', label: 'Arch' },
 ]
 
-const BLOCK_PALETTE = [
+export const BLOCK_PALETTE = [
   { type: 'text', label: 'Text Block', emoji: '📝' },
   { type: 'image', label: 'Image', emoji: '🖼️' },
   { type: 'cta', label: 'Button / CTA', emoji: '🔘' },
@@ -157,7 +157,7 @@ const BLOCK_PALETTE = [
   { type: 'signature', label: 'Signature', emoji: '✍️' },
 ]
 
-function newBlock(type) {
+export function newBlock(type) {
   const id = crypto.randomUUID()
   switch (type) {
     case 'header':
@@ -190,6 +190,17 @@ function newBlock(type) {
 }
 
 // ─── Persistence ───
+export function fillSigBlock(b, sig = {}) {
+  if (b.type !== 'signature') return b
+  return {
+    ...b,
+    name: b.name || sig.full_name || '',
+    title: b.title || (sig.title ? `${sig.title} | ${sig.brokerage || ''}` : sig.brokerage || ''),
+    phone: b.phone || sig.phone || '',
+    email: b.email || sig.email || '',
+  }
+}
+
 function loadDrafts() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [] } catch { return [] }
 }
@@ -200,7 +211,7 @@ function loadTemplates() {
 function saveTemplates(t) { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(t)) }
 
 // ─── Collapsible style section ───
-function StyleSection({ title, children, defaultOpen = false }) {
+export function StyleSection({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="eb__style-section">
@@ -214,7 +225,7 @@ function StyleSection({ title, children, defaultOpen = false }) {
 }
 
 // ─── Block Editor Fields ───
-function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst, isLast, connectedSocials = [], socialChannels = {} }) {
+export function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, isFirst, isLast, connectedSocials = [], socialChannels = {} }) {
   const set = (key, val) => onChange({ ...block, [key]: val })
 
   const handleImageUpload = (e, key = 'imageUrl') => {
@@ -602,7 +613,7 @@ function InlineEdit({ value, onChange, className, style, tag: Tag = 'p', placeho
 }
 
 // ─── Preview Renderer (inline-editable) ───
-function PreviewBlock({ block, onChange, isSelected, onSelect, socialChannels = {}, emailSettings = {} }) {
+export function PreviewBlock({ block, onChange, isSelected, onSelect, socialChannels = {}, emailSettings = {} }) {
   const set = (key, val) => onChange({ ...block, [key]: val })
 
   const inner = (() => {
@@ -846,7 +857,7 @@ function PreviewBlock({ block, onChange, isSelected, onSelect, socialChannels = 
 }
 
 // ─── Main Component ───
-const EMAIL_SOCIAL_CHANNELS = [
+export const EMAIL_SOCIAL_CHANNELS = [
   { key: 'instagram',   label: 'Instagram',       icon: '📷' },
   { key: 'facebook',    label: 'Facebook',        icon: '👥' },
   { key: 'tiktok',      label: 'TikTok',          icon: '🎵' },
@@ -898,24 +909,14 @@ export default function EmailBuilder() {
   }
 
   const sig = brand?.signature ?? {}
-
-  const fillSigBlock = (b) => {
-    if (b.type !== 'signature') return b
-    return {
-      ...b,
-      name: b.name || sig.full_name || '',
-      title: b.title || (sig.title ? `${sig.title} | ${sig.brokerage || ''}` : sig.brokerage || ''),
-      phone: b.phone || sig.phone || '',
-      email: b.email || sig.email || '',
-    }
-  }
+  const _fillSig = (b) => fillSigBlock(b, sig)
 
   const handleSelectTemplate = (template) => {
     const email = {
       draftId: crypto.randomUUID(),
       templateId: template.id,
       subject: template.subject,
-      blocks: template.blocks.map(b => fillSigBlock({ ...b, id: crypto.randomUUID() })),
+      blocks: template.blocks.map(b => _fillSig({ ...b, id: crypto.randomUUID() })),
       createdAt: new Date().toISOString(),
     }
     setActiveEmail(email)
@@ -945,7 +946,7 @@ export default function EmailBuilder() {
   }
 
   const addBlock = (type) => {
-    const block = fillSigBlock(newBlock(type))
+    const block = _fillSig(newBlock(type))
     const blocks = [...activeEmail.blocks, block]
     setActiveEmail({ ...activeEmail, blocks })
     setSelectedBlockIdx(blocks.length - 1)
