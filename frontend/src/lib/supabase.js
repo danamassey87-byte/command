@@ -579,6 +579,14 @@ export const updateGoalTargets = (value) =>
     .upsert({ key: 'annual_goals', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
     .select().single())
 
+// ─── Notification Preferences ────────────────────────────────────────────────
+export const getNotificationPreferences = () =>
+  query(supabase.from('user_settings').select('*').eq('key', 'notification_preferences').maybeSingle())
+export const updateNotificationPreferences = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'notification_preferences', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())
+
 // ─── AI Content Generation ────────────────────────────────────────────────────
 export async function generateContent(payload) {
   const { data, error } = await supabase.functions.invoke('generate-content', { body: payload })

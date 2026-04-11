@@ -36,7 +36,7 @@ const SOCIAL_CHANNELS = [
   { key: 'linktree',     label: 'Linktree / Bio', icon: '🔗', placeholder: 'https://linktr.ee/yourlink' },
 ]
 
-const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'lists', 'recovery']
+const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'lists', 'notifications', 'recovery']
 
 // Each entry = one user-managed dropdown list shown in the Lists tab.
 const DROPDOWN_LISTS_META = [
@@ -87,6 +87,7 @@ export default function Settings() {
       {tab === 'assets'     && <AssetsTab     brand={brand} refetch={refetch} />}
       {tab === 'social'     && <SocialTab     brand={brand} refetch={refetch} />}
       {tab === 'lists'      && <ListsTab />}
+      {tab === 'notifications' && <NotificationsTab />}
       {tab === 'recovery'   && <Recovery />}
     </div>
   )
@@ -766,6 +767,71 @@ function ListsTab() {
           <Button type="submit" disabled={!newTag.name.trim()}>Add Tag</Button>
         </form>
       </div>
+    </div>
+  )
+}
+
+// ─── Notifications Tab ─────────────────────────────────────────────────────
+const DEFAULT_NOTIF_PREFS = {
+  oh_followup_sent:  true,
+  oh_briefing_sent:  true,
+  oh_reminder_sent:  true,
+  oh_report_overdue: true,
+}
+
+const NOTIF_PREF_LABELS = {
+  oh_followup_sent:  { label: 'Post-OH follow-up sent',         description: 'When a follow-up email is sent to the hosting agent 30 min after the open house ends' },
+  oh_briefing_sent:  { label: 'Day-before briefing sent',       description: 'When a briefing email is sent to the hosting agent the morning before an open house' },
+  oh_reminder_sent:  { label: 'Host report reminder sent',      description: 'When a reminder is sent the next day if the host report hasn\'t been submitted' },
+  oh_report_overdue: { label: 'Host report overdue escalation', description: 'When a host report is still missing 24 hours after the reminder' },
+}
+
+function NotificationsTab() {
+  const [prefs, setPrefs] = useState(DEFAULT_NOTIF_PREFS)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    DB.getNotificationPreferences().then(row => {
+      if (row?.value) setPrefs(p => ({ ...DEFAULT_NOTIF_PREFS, ...row.value }))
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [])
+
+  const toggle = async (key) => {
+    const updated = { ...prefs, [key]: !prefs[key] }
+    setPrefs(updated)
+    setSaving(true)
+    try {
+      await DB.updateNotificationPreferences(updated)
+    } catch { /* silent */ }
+    finally { setSaving(false) }
+  }
+
+  if (loading) return <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', padding: 16 }}>Loading preferences…</p>
+
+  return (
+    <div className="settings-section">
+      <h3 className="settings-section-title">Open House Notifications</h3>
+      <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginBottom: 16 }}>
+        Control which in-app notifications you receive when the system sends automated open house emails.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {Object.entries(NOTIF_PREF_LABELS).map(([key, { label, description }]) => (
+          <label key={key} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={prefs[key] ?? true}
+              onChange={() => toggle(key)}
+              style={{ marginTop: 3, accentColor: 'var(--brown-mid)' }}
+            />
+            <div>
+              <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--brown-dark)', margin: 0 }}>{label}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', margin: '2px 0 0' }}>{description}</p>
+            </div>
+          </label>
+        ))}
+      </div>
+      {saving && <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: 8 }}>Saving…</p>}
     </div>
   )
 }

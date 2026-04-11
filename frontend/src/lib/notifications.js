@@ -11,6 +11,10 @@ export const NOTIFICATION_TYPES = {
   message:           { label: 'Message',           icon: '💬', color: '#7a93b7' },
   system:            { label: 'System',            icon: '⚙️', color: '#999999' },
   listing_content:   { label: 'Content Reminder',  icon: '📣', color: '#c99a2e' },
+  oh_followup_sent:  { label: 'OH Follow-Up Sent', icon: '🏡', color: '#7c6350' },
+  oh_briefing_sent:  { label: 'OH Briefing Sent',  icon: '📨', color: '#7c6350' },
+  oh_reminder_sent:  { label: 'OH Reminder Sent',  icon: '🔁', color: '#c8a05a' },
+  oh_report_overdue: { label: 'OH Report Overdue', icon: '⚠️', color: '#b91c1c' },
 }
 
 export function typeMeta(type) {

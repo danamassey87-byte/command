@@ -37,6 +37,32 @@ serve(async (req) => {
     briefings_sent: 0,
   }
 
+  // Load notification preferences (defaults to all on)
+  let notifPrefs: Record<string, boolean> = {
+    oh_followup_sent: true,
+    oh_briefing_sent: true,
+    oh_reminder_sent: true,
+    oh_report_overdue: true,
+  }
+  try {
+    const { data: prefRow } = await db
+      .from('user_settings')
+      .select('value')
+      .eq('key', 'notification_preferences')
+      .maybeSingle()
+    if (prefRow?.value) notifPrefs = { ...notifPrefs, ...prefRow.value }
+  } catch { /* use defaults */ }
+
+  // Helper: insert in-app notification if preference is on
+  async function notify(type: string, title: string, body: string, link: string, sourceId: string) {
+    if (notifPrefs[type] === false) return
+    await db.from('notifications').insert({
+      type, title, body, link,
+      source_table: 'open_houses',
+      source_id: sourceId,
+    })
+  }
+
   try {
     // ─── 1. Post-OH follow-up (30 min after end) ──────────────────────────
     // Find OHs that ended 30-60 min ago and haven't had a follow-up sent
@@ -111,6 +137,15 @@ serve(async (req) => {
           })
         }
 
+        // In-app notification
+        await notify(
+          'oh_followup_sent',
+          `Follow-up sent — ${address}`,
+          `Post-OH follow-up email sent to ${recipientName} (${recipientEmail})`,
+          '/open-houses',
+          oh.id
+        )
+
         // Mark follow-up as sent + update status
         await db.from('open_houses').update({
           followup_sent_at: now.toISOString(),
@@ -163,6 +198,14 @@ serve(async (req) => {
           }),
         })
 
+        await notify(
+          'oh_reminder_sent',
+          `Reminder sent — ${address}`,
+          `Host report reminder sent to ${oh.agent_name || 'hosting agent'} (${oh.agent_email})`,
+          '/open-houses',
+          oh.id
+        )
+
         await db.from('open_houses').update({
           reminder_sent_at: now.toISOString(),
         }).eq('id', oh.id)
@@ -193,15 +236,13 @@ serve(async (req) => {
         .limit(1)
 
       if (!reports?.length) {
-        // Create in-app notification for Dana
-        await db.from('notifications').insert({
-          type: 'oh_report_overdue',
-          title: `Host report overdue — ${oh.property?.address ?? 'OH'}`,
-          body: `${oh.agent_name} hasn't submitted a host report for the ${oh.date} open house. Reminder was sent yesterday.`,
-          link: '/open-houses',
-          source_table: 'open_houses',
-          source_id: oh.id,
-        })
+        await notify(
+          'oh_report_overdue',
+          `Host report overdue — ${oh.property?.address ?? 'OH'}`,
+          `${oh.agent_name} hasn't submitted a host report for the ${oh.date} open house. Reminder was sent yesterday.`,
+          '/open-houses',
+          oh.id
+        )
 
         await db.from('open_houses').update({
           escalation_sent_at: now.toISOString(),
@@ -259,6 +300,14 @@ serve(async (req) => {
             }),
           })
         }
+
+        await notify(
+          'oh_briefing_sent',
+          `Briefing sent — ${address}`,
+          `Day-before briefing email sent to ${oh.agent_name || 'hosting agent'} for tomorrow's open house`,
+          '/open-houses',
+          oh.id
+        )
 
         await db.from('open_houses').update({
           briefing_sent_at: now.toISOString(),

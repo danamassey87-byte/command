@@ -76,6 +76,7 @@ export const useClientAvatars   = ()             => useQuery(DB.getClientAvatars
 export const useContentPillars  = ()             => useQuery(DB.getContentPillars)
 export const useContentPieces   = (from, to)     => useQuery(() => DB.getContentPieces(from, to), [from, to])
 export const useContentSettings = ()             => useQuery(DB.getContentSettings)
+export const useNotificationPreferences = ()     => useQuery(DB.getNotificationPreferences)
 
 // ─── Brand Profile hook ───────────────────────────────────────────────────────
 export const useBrandProfile    = ()             => useQuery(DB.getBrandProfile)
