@@ -59,6 +59,13 @@ export default function EmailDashboard() {
                 <span className="em-tool-link__desc">Your library of reusable templates</span>
               </div>
             </Link>
+            <Link to="/email/newsletters" className="em-tool-link">
+              <span className="em-tool-link__icon">📰</span>
+              <div>
+                <span className="em-tool-link__name">Newsletters</span>
+                <span className="em-tool-link__desc">One-shot bulk emails with 18 templates</span>
+              </div>
+            </Link>
             <Link to="/email/campaigns" className="em-tool-link">
               <span className="em-tool-link__icon">📬</span>
               <div>
