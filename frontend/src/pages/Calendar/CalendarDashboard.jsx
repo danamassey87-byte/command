@@ -39,7 +39,8 @@ export default function CalendarDashboard() {
 
   // Today's showings
   const todayShowings = ss.filter(s => s.date === today)
-  const todayAppts = ap.filter(a => a.appointment_date === today)
+  const getApptDate = (a) => a.scheduled_at ? a.scheduled_at.slice(0, 10) : null
+  const todayAppts = ap.filter(a => getApptDate(a) === today)
 
   // This week
   const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7)
@@ -49,8 +50,9 @@ export default function CalendarDashboard() {
     return d >= now && d <= weekEnd
   })
   const weekAppts = ap.filter(a => {
-    if (!a.appointment_date) return false
-    const d = new Date(a.appointment_date)
+    const dt = a.scheduled_at
+    if (!dt) return false
+    const d = new Date(dt)
     return d >= now && d <= weekEnd
   })
   const weekOH = oh.filter(o => {
@@ -62,7 +64,7 @@ export default function CalendarDashboard() {
   // Upcoming events (all types merged, sorted by date)
   const upcoming = [
     ...weekShowings.map(s => ({ id: `s-${s.id}`, type: 'Showing', name: s.contact?.name ?? '—', date: s.date, count: (s.showings ?? []).length + ' properties' })),
-    ...weekAppts.map(a => ({ id: `a-${a.id}`, type: 'Listing Appt', name: a.contact?.name ?? '—', date: a.appointment_date, time: a.appointment_time })),
+    ...weekAppts.map(a => ({ id: `a-${a.id}`, type: 'Listing Appt', name: a.contact?.name ?? '—', date: getApptDate(a), time: a.scheduled_at ? new Date(a.scheduled_at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : null })),
     ...weekOH.map(o => ({ id: `o-${o.id}`, type: 'Open House', name: o.property?.address ?? '—', date: o.date, time: o.start_time })),
   ].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '')).slice(0, 8)
 

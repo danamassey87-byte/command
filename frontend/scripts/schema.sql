@@ -18,7 +18,7 @@ create table if not exists contacts (
   budget_min    numeric,
   budget_max    numeric,
   bba_signed    boolean default false,
-  bba_expiry_date date,
+  bba_expiration_date date,
   areas         text[],
   beds_min      int,
   baths_min     int

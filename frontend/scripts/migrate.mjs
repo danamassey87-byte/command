@@ -62,7 +62,7 @@ const contactRows = atClients.map(c => ({
   notes:          c['Notes']            ?? null,
   budget_min:     c['Budget']           ?? null,
   bba_signed:     c['BBA Agreement Signed'] ?? false,
-  bba_expiry_date: c['BBA Expiry Date'] ?? null,
+  bba_expiration_date: c['BBA Expiry Date'] ?? null,
 }))
 const insertedContacts = await insert('contacts', contactRows, 'Clients')
 

@@ -39,8 +39,8 @@ const SEGMENTS = [
     filter: c => {
       if (!(c.type === 'buyer' || c.type === 'both')) return false
       if (!c.bba_signed) return false
-      if (!c.bba_expiry_date) return true
-      return new Date(c.bba_expiry_date) >= new Date()
+      if (!c.bba_expiration_date) return true
+      return new Date(c.bba_expiration_date) >= new Date()
     },
   },
   {
@@ -48,8 +48,8 @@ const SEGMENTS = [
     label: 'Buyers — BBA Expiring Soon (30d)',
     description: 'BBA expires in the next 30 days',
     filter: c => {
-      if (!c.bba_signed || !c.bba_expiry_date) return false
-      const days = (new Date(c.bba_expiry_date) - new Date()) / (1000 * 60 * 60 * 24)
+      if (!c.bba_signed || !c.bba_expiration_date) return false
+      const days = (new Date(c.bba_expiration_date) - new Date()) / (1000 * 60 * 60 * 24)
       return days >= 0 && days <= 30
     },
   },

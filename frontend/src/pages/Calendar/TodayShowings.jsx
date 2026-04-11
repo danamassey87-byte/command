@@ -43,9 +43,11 @@ export default function TodayShowings() {
 
   const todayAppts = useMemo(() =>
     (listingAppts ?? []).filter(a => {
-      const d = parseDate(a.appointment_date)
+      const dt = a.scheduled_at
+      if (!dt) return false
+      const d = parseDate(dt.slice(0, 10))
       return d && isSameDay(d, today)
-    }).sort((a, b) => (a.appointment_time ?? '').localeCompare(b.appointment_time ?? ''))
+    }).sort((a, b) => (a.scheduled_at ?? '').localeCompare(b.scheduled_at ?? ''))
   , [listingAppts])
 
   const totalEvents = todaySessions.length + todayOH.length + todayAppts.length
@@ -151,7 +153,7 @@ export default function TodayShowings() {
             {todayAppts.map(appt => (
               <Card key={appt.id} padding hover>
                 <div className="today__card-header">
-                  <span className="today__card-time">{fmtTime(appt.appointment_time)}</span>
+                  <span className="today__card-time">{appt.scheduled_at ? new Date(appt.scheduled_at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : '—'}</span>
                   <span className="today__card-buyer">{appt.contact?.name ?? '—'}</span>
                   <Badge variant="success" size="sm">Listing Appt</Badge>
                 </div>

@@ -128,14 +128,38 @@ function mapOH(row) {
   }
 }
 
+// ─── Conflict detection helper ────────────────────────────────────────────────
+function findOHConflicts(existingOHs, date, startTime, endTime) {
+  if (!date) return []
+  const BUFFER_MINUTES = 60 // 1 hour travel buffer
+  const toMin = (t) => { if (!t) return null; const [h, m] = t.split(':').map(Number); return h * 60 + m }
+
+  const newStart = toMin(startTime)
+  const newEnd   = toMin(endTime) ?? (newStart != null ? newStart + 120 : null) // default 2hr window
+
+  return existingOHs.filter(oh => {
+    if (oh.date !== date) return false
+    if (!oh.start_time) return true // same day, no time = potential conflict
+    const ohStart = toMin(oh.start_time)
+    const ohEnd   = toMin(oh.end_time) ?? (ohStart + 120)
+    if (newStart == null) return true // no time set yet but same day
+    // Check overlap with buffer
+    return newStart < (ohEnd + BUFFER_MINUTES) && newEnd > (ohStart - BUFFER_MINUTES)
+  })
+}
+
 // ─── OH Quick Form (new) ──────────────────────────────────────────────────────
-function OHQuickForm({ onSave, onClose, saving, error }) {
-  const [draft, setDraft] = useState({ address: '', city: '', listing_agent: '' })
+function OHQuickForm({ onSave, onClose, saving, error, existingOHs }) {
+  const [draft, setDraft] = useState({ address: '', city: '', listing_agent: '', hosted_by: '' })
   const [dates, setDates] = useState([{ date: '', start_time: '', end_time: '' }])
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
   const setDate = (idx, k, v) => setDates(prev => prev.map((d, i) => i === idx ? { ...d, [k]: v } : d))
   const addDate = () => setDates(prev => [...prev, { date: '', start_time: '', end_time: '' }])
   const removeDate = (idx) => setDates(prev => prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev)
+
+  // Check for conflicts on each date
+  const conflicts = dates.map(d => findOHConflicts(existingOHs ?? [], d.date, d.start_time, d.end_time))
+  const hasConflicts = conflicts.some(c => c.length > 0)
 
   return (
     <>
@@ -144,6 +168,7 @@ function OHQuickForm({ onSave, onClose, saving, error }) {
         <Input label="Property Address *" value={draft.address} onChange={e => set('address', e.target.value)} placeholder="2222 S Yellow Wood Dr" autoFocus />
         <Input label="City" value={draft.city} onChange={e => set('city', e.target.value)} placeholder="Mesa" />
         <Input label="Listing Agent" value={draft.listing_agent} onChange={e => set('listing_agent', e.target.value)} placeholder="Victoria Cole" />
+        <Input label="Hosted By (leave blank if you)" value={draft.hosted_by} onChange={e => set('hosted_by', e.target.value)} placeholder="Agent name if someone else is hosting" />
       </div>
 
       <hr className="panel-divider" />
@@ -162,6 +187,21 @@ function OHQuickForm({ onSave, onClose, saving, error }) {
               <Input label="Start Time" type="time" value={d.start_time} onChange={e => setDate(idx, 'start_time', e.target.value)} />
               <Input label="End Time" type="time" value={d.end_time} onChange={e => setDate(idx, 'end_time', e.target.value)} />
             </div>
+            {/* Conflict warning */}
+            {conflicts[idx]?.length > 0 && (
+              <div className="oh-conflict-warn">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
+                <div>
+                  <p className="oh-conflict-warn__title">Schedule conflict{conflicts[idx].length > 1 ? 's' : ''}</p>
+                  {conflicts[idx].map(c => (
+                    <p key={c.id} className="oh-conflict-warn__item">
+                      {c.address}{c.time ? ` · ${c.time}` : ''} ({c.status})
+                    </p>
+                  ))}
+                  <p className="oh-conflict-warn__hint">Less than 1 hour buffer between open houses</p>
+                </div>
+              </div>
+            )}
           </div>
         ))}
         <button className="oh-add-date-btn" onClick={addDate}>
@@ -170,6 +210,9 @@ function OHQuickForm({ onSave, onClose, saving, error }) {
         </button>
       </div>
 
+      {hasConflicts && (
+        <p className="oh-conflict-notice">You can still schedule — the conflict warning is just a heads-up about tight timing.</p>
+      )}
       {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem', marginTop: 8 }}>{error}</p>}
       <div className="panel-footer">
         <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
@@ -182,7 +225,7 @@ function OHQuickForm({ onSave, onClose, saving, error }) {
 }
 
 // ─── OH Edit Form (full fields) ───────────────────────────────────────────────
-function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error }) {
+function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existingOHs }) {
   const { data: propertiesData } = useProperties()
   const { data: listingsData } = useListings()
   const properties = propertiesData ?? []
@@ -213,6 +256,12 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error }) {
     notes:               oh?.notes               ?? '',
   })
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
+
+  // Conflict detection (exclude self)
+  const editConflicts = findOHConflicts(
+    (existingOHs ?? []).filter(o => o.id !== oh?.id),
+    draft.date, draft.start_time, draft.end_time
+  )
 
   // Auto-match listing by property_id
   const matchedListings = listings.filter(l => l.property_id === draft.property_id)
@@ -276,6 +325,20 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error }) {
           <Input label="Start Time" type="time" value={draft.start_time} onChange={e => set('start_time', e.target.value)} />
           <Input label="End Time" type="time" value={draft.end_time} onChange={e => set('end_time', e.target.value)} />
         </div>
+        {editConflicts.length > 0 && (
+          <div className="oh-conflict-warn">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
+            <div>
+              <p className="oh-conflict-warn__title">Schedule conflict{editConflicts.length > 1 ? 's' : ''}</p>
+              {editConflicts.map(c => (
+                <p key={c.id} className="oh-conflict-warn__item">
+                  {c.address}{c.time ? ` · ${c.time}` : ''} ({c.status})
+                </p>
+              ))}
+              <p className="oh-conflict-warn__hint">Less than 1 hour buffer between open houses</p>
+            </div>
+          </div>
+        )}
       </div>
 
       <hr className="panel-divider" />
@@ -691,6 +754,7 @@ function ScheduledTab({ openHouses, loading, refetch }) {
           end_time:      dt.end_time   || null,
           status:        'scheduled',
           listing_agent: draft.listing_agent.trim() || null,
+          agent_name:    draft.hosted_by?.trim()    || null,
         }
         const created = await DB.createOpenHouse(dbRow)
         await DB.bulkCreateOHTasks(getOHChecklist().map(t => ({ ...t, open_house_id: created.id })))
@@ -775,7 +839,7 @@ function ScheduledTab({ openHouses, loading, refetch }) {
       <>
         <OHDetail oh={oh} onBack={() => setSelectedOH(null)} onEdit={() => openEdit(oh)} />
         <SlidePanel open={panelOpen} onClose={closePanel} title="Edit Open House" subtitle={editingOH?.address} width={480}>
-          <OHForm key={editingOH?.id || 'new'} oh={editingOH} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} error={error} />
+          <OHForm key={editingOH?.id || 'new'} oh={editingOH} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} error={error} existingOHs={openHouses} />
         </SlidePanel>
       </>
     )
@@ -878,7 +942,7 @@ function ScheduledTab({ openHouses, loading, refetch }) {
         {editingOH ? (
           <OHForm key={editingOH.id} oh={editingOH} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} error={error} />
         ) : (
-          <OHQuickForm onSave={handleQuickSave} onClose={closePanel} saving={saving} error={error} />
+          <OHQuickForm onSave={handleQuickSave} onClose={closePanel} saving={saving} error={error} existingOHs={openHouses} />
         )}
       </SlidePanel>
     </>
@@ -1169,7 +1233,7 @@ function OutreachTab({ records, loading, refetch }) {
   )
 }
 
-// ─── Host Report Form ─────────────────────────────────────────────────────────
+// ─── Host Report Form (Dana's fields) ─────────────────────────────────────────
 function HostReportForm({ report, listings, onSave, onClose, saving, error }) {
   const isNew = !report?.id
   const [draft, setDraft] = useState({
@@ -1181,22 +1245,53 @@ function HostReportForm({ report, listings, onSave, onClose, saving, error }) {
     agent_brokerage:    report?.agent_brokerage    ?? '',
     agent_phone:        report?.agent_phone        ?? '',
     agent_email:        report?.agent_email        ?? '',
+    // Pre-OH activities
+    pre_oh_activities:  report?.pre_oh_activities  ?? '',
+    // Attendance
+    groups_through:     report?.groups_through     ?? 0,
     sign_in_count:      report?.sign_in_count      ?? 0,
     inquiries_count:    report?.inquiries_count    ?? 0,
     leads_count:        report?.leads_count        ?? 0,
+    // Feedback
+    overall_feedback:   report?.overall_feedback   ?? '',
     price_perception:   report?.price_perception   ?? '',
     overall_impression: report?.overall_impression ?? '',
     condition_notes:    report?.condition_notes    ?? '',
     common_questions:   report?.common_questions   ?? '',
-    offer_interest:     report?.offer_interest     ?? false,
+    // Offer interest
+    offer_interest:     report?.offer_interest     ?? '',
+    // Notes
     notes:              report?.notes              ?? '',
   })
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
 
-  const [leads, setLeads] = useState(Array.isArray(report?.leads_json) ? report.leads_json : [])
+  // Agent attendees (repeatable rows)
+  const [agentAttendees, setAgentAttendees] = useState(
+    Array.isArray(report?.leads_json?.filter?.(l => l.type === 'agent'))
+      ? report.leads_json.filter(l => l.type === 'agent')
+      : []
+  )
+  const addAgent    = () => setAgentAttendees(p => [...p, { name: '', brokerage: '', phone: '', email: '', type: 'agent' }])
+  const setAgent    = (i, f, v) => setAgentAttendees(p => p.map((a, idx) => idx === i ? { ...a, [f]: v } : a))
+  const removeAgent = (i) => setAgentAttendees(p => p.filter((_, idx) => idx !== i))
+
+  // Visitor leads (non-agent)
+  const [leads, setLeads] = useState(
+    Array.isArray(report?.leads_json?.filter?.(l => l.type !== 'agent'))
+      ? report.leads_json.filter(l => l.type !== 'agent')
+      : (Array.isArray(report?.leads_json) ? report.leads_json : [])
+  )
   const addLead    = () => setLeads(p => [...p, { name: '', phone: '', email: '', interest: 'buyer' }])
   const setLead    = (i, f, v) => setLeads(p => p.map((l, idx) => idx === i ? { ...l, [f]: v } : l))
   const removeLead = (i) => setLeads(p => p.filter((_, idx) => idx !== i))
+
+  const handleSubmit = () => {
+    const combined = [
+      ...leads,
+      ...agentAttendees.map(a => ({ ...a, type: 'agent' })),
+    ]
+    onSave({ ...draft, leads_json: combined })
+  }
 
   return (
     <>
@@ -1233,9 +1328,19 @@ function HostReportForm({ report, listings, onSave, onClose, saving, error }) {
 
       <hr className="panel-divider" />
       <div className="panel-section">
-        <p className="panel-section-label">Attendance</p>
+        <p className="panel-section-label">Pre-Open House Activities</p>
+        <Textarea rows={3} value={draft.pre_oh_activities} onChange={e => set('pre_oh_activities', e.target.value)}
+          placeholder="Door knocking, circle prospecting, flyer drops, social media…" />
+      </div>
+
+      <hr className="panel-divider" />
+      <div className="panel-section">
+        <p className="panel-section-label">Attendance & Traffic</p>
         <div className="panel-row">
+          <Input label="# Groups Through" type="number" min="0" value={draft.groups_through} onChange={e => set('groups_through', e.target.value)} />
           <Input label="Sign-in Count" type="number" min="0" value={draft.sign_in_count} onChange={e => set('sign_in_count', e.target.value)} />
+        </div>
+        <div className="panel-row">
           <Input label="Inquiries" type="number" min="0" value={draft.inquiries_count} onChange={e => set('inquiries_count', e.target.value)} />
           <Input label="Hot Leads" type="number" min="0" value={draft.leads_count} onChange={e => set('leads_count', e.target.value)} />
         </div>
@@ -1243,8 +1348,10 @@ function HostReportForm({ report, listings, onSave, onClose, saving, error }) {
 
       <hr className="panel-divider" />
       <div className="panel-section">
-        <p className="panel-section-label">Buyer Feedback</p>
-        <div className="panel-row">
+        <p className="panel-section-label">Overall Feedback (Positive & Negative)</p>
+        <Textarea rows={4} value={draft.overall_feedback} onChange={e => set('overall_feedback', e.target.value)}
+          placeholder="What went well? What concerns came up? General buyer sentiment…" />
+        <div className="panel-row" style={{ marginTop: 8 }}>
           <Select label="Price Perception" value={draft.price_perception} onChange={e => set('price_perception', e.target.value)}>
             <option value="">— Select —</option>
             <option value="too_high">Too High</option>
@@ -1261,21 +1368,50 @@ function HostReportForm({ report, listings, onSave, onClose, saving, error }) {
         </div>
         <Textarea label="Condition / Staging Notes" rows={2} value={draft.condition_notes} onChange={e => set('condition_notes', e.target.value)} placeholder="What did visitors say about condition, staging, etc.?" />
         <Textarea label="Common Questions Asked" rows={2} value={draft.common_questions} onChange={e => set('common_questions', e.target.value)} placeholder="What did people ask about most?" />
-        <label className="oh-offer-label">
-          <input type="checkbox" checked={draft.offer_interest} onChange={e => set('offer_interest', e.target.checked)} />
-          Any visitors expressed offer interest?
-        </label>
+      </div>
+
+      <hr className="panel-divider" />
+      <div className="panel-section">
+        <p className="panel-section-label">Offer Interest</p>
+        <Select value={draft.offer_interest} onChange={e => set('offer_interest', e.target.value)}>
+          <option value="">— Select —</option>
+          <option value="yes">Yes — someone hinted at an offer</option>
+          <option value="no">No</option>
+          <option value="maybe">Maybe — showed strong interest</option>
+        </Select>
       </div>
 
       <hr className="panel-divider" />
       <div className="panel-section">
         <div className="oh-leads-header">
-          <p className="panel-section-label">Individual Leads</p>
+          <p className="panel-section-label">Agent Attendees</p>
+          <Button size="sm" variant="ghost" onClick={addAgent}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}
+          >Add Agent</Button>
+        </div>
+        {agentAttendees.length === 0 && <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>No agent attendees logged yet.</p>}
+        {agentAttendees.map((agent, i) => (
+          <div key={i} className="oh-lead-row">
+            <Input placeholder="Agent Name" value={agent.name} onChange={e => setAgent(i, 'name', e.target.value)} />
+            <Input placeholder="Brokerage" value={agent.brokerage} onChange={e => setAgent(i, 'brokerage', e.target.value)} />
+            <Input placeholder="Phone" value={agent.phone} onChange={e => setAgent(i, 'phone', e.target.value)} />
+            <Input placeholder="Email" value={agent.email} onChange={e => setAgent(i, 'email', e.target.value)} />
+            <button className="oh-lead-remove" onClick={() => removeAgent(i)} title="Remove">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <hr className="panel-divider" />
+      <div className="panel-section">
+        <div className="oh-leads-header">
+          <p className="panel-section-label">Visitor Leads</p>
           <Button size="sm" variant="ghost" onClick={addLead}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}
           >Add Lead</Button>
         </div>
-        {leads.length === 0 && <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>No individual leads captured yet.</p>}
+        {leads.length === 0 && <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>No visitor leads captured yet.</p>}
         {leads.map((lead, i) => (
           <div key={i} className="oh-lead-row">
             <Input placeholder="Name" value={lead.name} onChange={e => setLead(i, 'name', e.target.value)} />
@@ -1300,7 +1436,7 @@ function HostReportForm({ report, listings, onSave, onClose, saving, error }) {
       {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem', marginTop: 8 }}>{error}</p>}
       <div className="panel-footer">
         <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-        <Button variant="primary" size="sm" onClick={() => onSave({ ...draft, leads_json: leads })} disabled={saving || !draft.listing_id}>
+        <Button variant="primary" size="sm" onClick={handleSubmit} disabled={saving || !draft.listing_id}>
           {saving ? 'Saving…' : isNew ? 'Submit Report' : 'Save Changes'}
         </Button>
       </div>
@@ -1557,6 +1693,151 @@ function ProcessTab({ openHouses, refetch }) {
   )
 }
 
+// ─── Calendar View ───────────────────────────────────────────────────────────
+function CalendarView({ openHouses, onSelectOH }) {
+  const [viewMode, setViewMode] = useState('week')  // 'week' | '3day' | 'weekend'
+  const [anchorDate, setAnchorDate] = useState(() => {
+    const d = new Date(); d.setHours(0,0,0,0); return d
+  })
+
+  const today = new Date(); today.setHours(0,0,0,0)
+  const todayStr = today.toISOString().slice(0,10)
+
+  // Calculate visible days based on view mode and anchor
+  const visibleDays = useMemo(() => {
+    const days = []
+    if (viewMode === 'weekend') {
+      // Find the Saturday of this week (or next if past Saturday)
+      const d = new Date(anchorDate)
+      const dow = d.getDay()
+      const satOffset = dow <= 6 ? (6 - dow) : 0
+      d.setDate(d.getDate() + satOffset)
+      days.push(new Date(d))
+      const sun = new Date(d); sun.setDate(sun.getDate() + 1)
+      days.push(sun)
+    } else if (viewMode === '3day') {
+      for (let i = 0; i < 3; i++) {
+        const d = new Date(anchorDate)
+        d.setDate(d.getDate() + i)
+        days.push(d)
+      }
+    } else {
+      // Full week — start on the anchor day's Monday
+      const d = new Date(anchorDate)
+      const dow = d.getDay()
+      const mondayOffset = dow === 0 ? -6 : 1 - dow
+      d.setDate(d.getDate() + mondayOffset)
+      for (let i = 0; i < 7; i++) {
+        const day = new Date(d)
+        day.setDate(day.getDate() + i)
+        days.push(day)
+      }
+    }
+    return days
+  }, [viewMode, anchorDate])
+
+  const navigate = (dir) => {
+    setAnchorDate(prev => {
+      const d = new Date(prev)
+      if (viewMode === 'week') d.setDate(d.getDate() + dir * 7)
+      else if (viewMode === '3day') d.setDate(d.getDate() + dir * 3)
+      else d.setDate(d.getDate() + dir * 7) // weekend skips by week
+      return d
+    })
+  }
+
+  const goToday = () => {
+    const d = new Date(); d.setHours(0,0,0,0)
+    setAnchorDate(d)
+  }
+
+  // Group open houses by date
+  const ohByDate = useMemo(() => {
+    const map = {}
+    openHouses.forEach(oh => {
+      if (!oh.date) return
+      if (!map[oh.date]) map[oh.date] = []
+      map[oh.date].push(oh)
+    })
+    return map
+  }, [openHouses])
+
+  const gridCols = viewMode === 'week' ? 7 : viewMode === '3day' ? 3 : 2
+  const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+
+  // Header label
+  const headerLabel = useMemo(() => {
+    if (!visibleDays.length) return ''
+    const first = visibleDays[0]
+    const last = visibleDays[visibleDays.length - 1]
+    const fmtOpts = { month: 'short', day: 'numeric' }
+    if (first.getMonth() === last.getMonth()) {
+      return `${first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} ${first.getDate()}–${last.getDate()}`
+    }
+    return `${first.toLocaleDateString('en-US', fmtOpts)} – ${last.toLocaleDateString('en-US', { ...fmtOpts, year: 'numeric' })}`
+  }, [visibleDays])
+
+  return (
+    <div>
+      <div className="oh-calendar-controls">
+        <div className="oh-cal-view-btns">
+          <button className={`oh-cal-view-btn${viewMode === 'week' ? ' oh-cal-view-btn--active' : ''}`} onClick={() => setViewMode('week')}>Full Week</button>
+          <button className={`oh-cal-view-btn${viewMode === '3day' ? ' oh-cal-view-btn--active' : ''}`} onClick={() => setViewMode('3day')}>3 Days</button>
+          <button className={`oh-cal-view-btn${viewMode === 'weekend' ? ' oh-cal-view-btn--active' : ''}`} onClick={() => setViewMode('weekend')}>Weekend</button>
+        </div>
+        <button className="oh-cal-today-btn" onClick={goToday}>Today</button>
+        <div className="oh-cal-nav">
+          <button className="oh-cal-nav-btn" onClick={() => navigate(-1)}>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="10 12 6 8 10 4"/></svg>
+          </button>
+          <span className="oh-cal-nav-label">{headerLabel}</span>
+          <button className="oh-cal-nav-btn" onClick={() => navigate(1)}>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="6 4 10 8 6 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div className={`oh-cal-grid oh-cal-grid--${gridCols}`}>
+        {/* Day headers */}
+        {visibleDays.map((d, i) => (
+          <div key={`h-${i}`} className="oh-cal-day-header">
+            {dayNames[d.getDay()]} {d.getDate()}
+          </div>
+        ))}
+
+        {/* Day cells */}
+        {visibleDays.map((d, i) => {
+          const dateStr = d.toISOString().slice(0,10)
+          const isToday = dateStr === todayStr
+          const dayOHs  = ohByDate[dateStr] ?? []
+
+          return (
+            <div key={`d-${i}`} className={`oh-cal-day${isToday ? ' oh-cal-day--today' : ''}`}>
+              <span className="oh-cal-day__number">
+                {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+              {dayOHs.map(oh => {
+                const isHosted = !!oh.agent_name
+                return (
+                  <div
+                    key={oh.id}
+                    className={`oh-cal-event${isHosted ? ' oh-cal-event--hosted' : ' oh-cal-event--hosting'}`}
+                    onClick={() => onSelectOH?.(oh)}
+                  >
+                    {oh.time && <span className="oh-cal-event__time">{oh.time}</span>}
+                    <span className="oh-cal-event__address">{oh.address}</span>
+                    {isHosted && <span className="oh-cal-event__host">{oh.agent_name} hosting</span>}
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function OpenHousesPage() {
   return (
@@ -1618,6 +1899,7 @@ function OpenHouses() {
       <TabBar
         tabs={[
           { label: 'Scheduled',     value: 'scheduled',    count: openHouses.length },
+          { label: 'Calendar',      value: 'calendar'                               },
           { label: 'Process',       value: 'process'                                },
           { label: 'Outreach',      value: 'outreach',     count: outreach.length   },
           { label: 'Host Reports',  value: 'host_reports', count: reports.length    },
@@ -1627,6 +1909,7 @@ function OpenHouses() {
       />
 
       {mainTab === 'scheduled'    && <ScheduledTab    openHouses={openHouses} loading={ohLoading}       refetch={refetchOH}       />}
+      {mainTab === 'calendar'     && <CalendarView    openHouses={openHouses} onSelectOH={() => setMainTab('scheduled')} />}
       {mainTab === 'process'      && <ProcessTab      openHouses={openHouses}                           refetch={refetchOH}       />}
       {mainTab === 'outreach'     && <OutreachTab     records={outreach}      loading={outreachLoading} refetch={refetchOutreach} />}
       {mainTab === 'host_reports' && <HostReportsTab  reports={reports}       listings={listings}       refetch={refetchReports}  />}

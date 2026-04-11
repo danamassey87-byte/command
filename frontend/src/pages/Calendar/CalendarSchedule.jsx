@@ -88,15 +88,16 @@ function buildEvents(sessions, openHouses, listingAppts, tasks) {
 
   // Listing appointments
   ;(listingAppts ?? []).forEach(a => {
-    const d = parseDate(a.appointment_date)
+    const dt = a.scheduled_at
+    const d = dt ? parseDate(dt.slice(0, 10)) : null
     if (!d) return
-    const name = a.seller_name || a.contact?.name || 'Listing Appt'
-    const addr = [a.address, a.city].filter(Boolean).join(', ')
+    const name = a.contact?.name || 'Listing Appt'
+    const addr = [a.property?.address, a.property?.city].filter(Boolean).join(', ')
     events.push({
       id: `appt-${a.id}`,
       type: 'listing-appt',
       date: d,
-      time: a.appointment_time,
+      time: dt ? new Date(dt).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12: false }) : null,
       title: name,
       subtitle: addr || 'Listing Appointment',
       color: 'var(--color-success)',
@@ -434,12 +435,12 @@ export default function CalendarSchedule() {
               <>
                 <div className="cal__detail-row">
                   <span className="cal__detail-label">Seller</span>
-                  <span>{detailEvent.raw.seller_name || detailEvent.raw.contact?.name || '—'}</span>
+                  <span>{detailEvent.raw.contact?.name || '—'}</span>
                 </div>
-                {detailEvent.raw.address && (
+                {detailEvent.raw.property?.address && (
                   <div className="cal__detail-row">
                     <span className="cal__detail-label">Property</span>
-                    <span>{[detailEvent.raw.address, detailEvent.raw.city].filter(Boolean).join(', ')}</span>
+                    <span>{[detailEvent.raw.property.address, detailEvent.raw.property.city].filter(Boolean).join(', ')}</span>
                   </div>
                 )}
                 {detailEvent.raw.contact?.phone && (

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Button, Badge, SectionHeader, TabBar, Card, SlidePanel, Input, Select, Textarea } from '../../components/ui/index.jsx'
-import { useListingAppointments, useApptChecklist } from '../../lib/hooks.js'
+import { useListingAppointments, useApptChecklist, useContacts } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 import './ListingAppts.css'
 
@@ -19,32 +19,81 @@ const PREP_TASKS = [
 
 function fmtDate(d) {
   if (!d) return '—'
-  return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })
+  const dt = new Date(d)
+  if (isNaN(dt)) return '—'
+  return dt.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' })
+}
+
+function fmtTime(d) {
+  if (!d) return ''
+  const dt = new Date(d)
+  if (isNaN(dt)) return ''
+  return dt.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' })
+}
+
+function getContactName(appt) {
+  return appt.contact?.name || '—'
+}
+
+function getAddress(appt) {
+  const addr = appt.property?.address || ''
+  const city = appt.property?.city || ''
+  return [addr, city].filter(Boolean).join(', ') || '—'
 }
 
 // ─── Appointment Form ──────────────────────────────────────────────────────────
-function ApptForm({ appt, onSave, onDelete, onClose, saving, deleting, error }) {
+function ApptForm({ appt, contacts, onSave, onDelete, onClose, saving, deleting, error }) {
   const isNew = !appt?.id
   const [draft, setDraft] = useState({
-    seller_name:             appt?.seller_name             ?? '',
-    address:                 appt?.address                 ?? '',
-    city:                    appt?.city                    ?? '',
-    appointment_date:        appt?.appointment_date        ?? '',
-    appointment_time:        appt?.appointment_time        ?? '',
+    contact_id:              appt?.contact_id              ?? appt?.contact?.id ?? '',
+    scheduled_date:          appt?.scheduled_at ? new Date(appt.scheduled_at).toISOString().slice(0, 10) : '',
+    scheduled_time:          appt?.scheduled_at ? new Date(appt.scheduled_at).toTimeString().slice(0, 5) : '',
     listing_price_discussed: appt?.listing_price_discussed ?? '',
     outcome:                 appt?.outcome                 ?? 'pending',
     lost_reason:             appt?.lost_reason             ?? '',
     notes:                   appt?.notes                   ?? '',
   })
+  const [contactSearch, setContactSearch] = useState('')
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
+
+  const filteredContacts = useMemo(() => {
+    if (!contactSearch.trim()) return (contacts ?? []).slice(0, 20)
+    const q = contactSearch.toLowerCase()
+    return (contacts ?? []).filter(c => c.name?.toLowerCase().includes(q)).slice(0, 20)
+  }, [contacts, contactSearch])
+
+  const selectedContact = (contacts ?? []).find(c => c.id === draft.contact_id)
 
   return (
     <>
       <div className="panel-section">
-        <p className="panel-section-label">Seller & Property</p>
-        <Input label="Seller Name *" value={draft.seller_name} onChange={e => set('seller_name', e.target.value)} placeholder="John & Jane Smith" autoFocus />
-        <Input label="Property Address" value={draft.address} onChange={e => set('address', e.target.value)} placeholder="123 Main St" />
-        <Input label="City" value={draft.city} onChange={e => set('city', e.target.value)} placeholder="Gilbert" />
+        <p className="panel-section-label">Client</p>
+        {selectedContact ? (
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+            <Badge variant="success">{selectedContact.name}</Badge>
+            <Button variant="ghost" size="sm" onClick={() => set('contact_id', '')}>Change</Button>
+          </div>
+        ) : (
+          <>
+            <Input
+              label="Search contacts"
+              value={contactSearch}
+              onChange={e => setContactSearch(e.target.value)}
+              placeholder="Type a name…"
+              autoFocus={isNew}
+            />
+            {contactSearch.trim() && filteredContacts.length > 0 && (
+              <div className="la-contact-results">
+                {filteredContacts.map(c => (
+                  <button key={c.id} className="la-contact-result" onClick={() => { set('contact_id', c.id); setContactSearch('') }}>
+                    <span className="la-contact-result-name">{c.name}</span>
+                    <span className="la-contact-result-meta">{c.type} {c.phone ? `· ${c.phone}` : ''}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
         <Input label="Estimated List Price ($)" type="number" value={draft.listing_price_discussed} onChange={e => set('listing_price_discussed', e.target.value)} placeholder="550000" />
       </div>
 
@@ -52,8 +101,8 @@ function ApptForm({ appt, onSave, onDelete, onClose, saving, deleting, error }) 
       <div className="panel-section">
         <p className="panel-section-label">Appointment</p>
         <div className="panel-row">
-          <Input label="Date" type="date" value={draft.appointment_date} onChange={e => set('appointment_date', e.target.value)} />
-          <Input label="Time" type="time" value={draft.appointment_time} onChange={e => set('appointment_time', e.target.value)} />
+          <Input label="Date" type="date" value={draft.scheduled_date} onChange={e => set('scheduled_date', e.target.value)} />
+          <Input label="Time" type="time" value={draft.scheduled_time} onChange={e => set('scheduled_time', e.target.value)} />
         </div>
         <div className="panel-row">
           <Select label="Outcome" value={draft.outcome} onChange={e => set('outcome', e.target.value)}>
@@ -71,7 +120,7 @@ function ApptForm({ appt, onSave, onDelete, onClose, saving, deleting, error }) 
       {error && <p style={{ color:'var(--color-danger)', fontSize:'0.82rem', marginTop:8 }}>{error}</p>}
       <div className="panel-footer">
         <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-        <Button variant="primary" size="sm" onClick={() => onSave(draft)} disabled={saving || !draft.seller_name.trim()}>
+        <Button variant="primary" size="sm" onClick={() => onSave(draft)} disabled={saving || !draft.contact_id}>
           {saving ? 'Saving…' : isNew ? 'Add Appointment' : 'Save Changes'}
         </Button>
         {!isNew && (
@@ -157,17 +206,17 @@ function ApptDetail({ appt, onEdit, onClose, onCreateListing }) {
     <>
       <div className="la-detail-header">
         <div>
-          <h3 className="la-detail-name">{appt.seller_name}</h3>
-          <p className="la-detail-address">{appt.address}{appt.city ? `, ${appt.city}` : ''}</p>
+          <h3 className="la-detail-name">{getContactName(appt)}</h3>
+          <p className="la-detail-address">{getAddress(appt)}</p>
           <div style={{ display:'flex', gap:8, marginTop:6, flexWrap:'wrap' }}>
             <Badge variant={outcomeVariant[appt.outcome]}>{appt.outcome}</Badge>
             {appt.listing_price_discussed && (
               <Badge variant="default">${Number(appt.listing_price_discussed).toLocaleString()}</Badge>
             )}
           </div>
-          {appt.appointment_date && (
+          {appt.scheduled_at && (
             <p style={{ fontSize:'0.78rem', color:'var(--color-text-muted)', marginTop:6 }}>
-              {fmtDate(appt.appointment_date)}{appt.appointment_time ? ` at ${appt.appointment_time}` : ''}
+              {fmtDate(appt.scheduled_at)} at {fmtTime(appt.scheduled_at)}
             </p>
           )}
         </div>
@@ -205,7 +254,9 @@ function ApptDetail({ appt, onEdit, onClose, onCreateListing }) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function ListingAppts() {
   const { data, loading, refetch } = useListingAppointments()
+  const { data: contactsData } = useContacts()
   const appts = data ?? []
+  const contacts = contactsData ?? []
 
   const [tab, setTab]             = useState('upcoming')
   const [panelMode, setPanelMode] = useState(null) // 'detail' | 'form'
@@ -223,33 +274,37 @@ export default function ListingAppts() {
   const handleSave = async (draft) => {
     setSaving(true); setError(null)
     try {
+      // Build scheduled_at from date + time
+      let scheduled_at = null
+      if (draft.scheduled_date) {
+        const timePart = draft.scheduled_time || '09:00'
+        scheduled_at = new Date(`${draft.scheduled_date}T${timePart}`).toISOString()
+      }
+
       const row = {
-        seller_name:             draft.seller_name.trim(),
-        address:                 draft.address.trim()    || null,
-        city:                    draft.city.trim()       || null,
-        appointment_date:        draft.appointment_date  || null,
-        appointment_time:        draft.appointment_time  || null,
+        contact_id:              draft.contact_id || null,
+        scheduled_at,
         listing_price_discussed: draft.listing_price_discussed ? Number(draft.listing_price_discussed) : null,
         outcome:                 draft.outcome,
-        lost_reason:             draft.lost_reason.trim() || null,
-        notes:                   draft.notes.trim()       || null,
+        lost_reason:             draft.lost_reason?.trim() || null,
+        notes:                   draft.notes?.trim() || null,
       }
       let saved
       if (editingAppt?.id) {
         saved = await DB.updateListingAppointment(editingAppt.id, row)
-        await DB.logActivity('appt_updated', `Updated listing appointment: ${draft.seller_name}`)
+        await DB.logActivity('appt_updated', `Updated listing appointment: ${getContactName(editingAppt)}`)
       } else {
         saved = await DB.createListingAppointment(row)
         // Auto-seed checklist
         await DB.bulkCreateApptChecklist(
           PREP_TASKS.map((task_name, i) => ({ appointment_id: saved.id, task_name, sort_order: i }))
         )
-        await DB.logActivity('appt_created', `New listing appointment: ${draft.seller_name}`)
+        await DB.logActivity('appt_created', `New listing appointment: ${contacts.find(c => c.id === draft.contact_id)?.name ?? 'Client'}`)
       }
       await refetch()
       // Open detail after create
       if (!editingAppt) {
-        setSelectedAppt({ ...row, id: saved.id, created_at: saved.created_at })
+        setSelectedAppt({ ...row, id: saved.id, created_at: saved.created_at, contact: saved.contact, property: saved.property })
         setPanelMode('detail')
       } else {
         closePanel()
@@ -261,7 +316,7 @@ export default function ListingAppts() {
 
   const handleDelete = async () => {
     if (!editingAppt?.id) return
-    if (!confirm(`Remove appointment with ${editingAppt.seller_name}?`)) return
+    if (!confirm(`Remove appointment with ${getContactName(editingAppt)}?`)) return
     setDeleting(true)
     try {
       await DB.deleteListingAppointment(editingAppt.id)
@@ -272,22 +327,22 @@ export default function ListingAppts() {
   }
 
   const handleCreateListing = (appt) => {
-    // Navigate to sellers page with pre-filled state (use sessionStorage as a simple handoff)
     sessionStorage.setItem('newListing', JSON.stringify({
-      address: appt.address, city: appt.city, listPrice: appt.listing_price_discussed,
-      seller_name: appt.seller_name,
+      address: appt.property?.address, city: appt.property?.city,
+      listPrice: appt.listing_price_discussed,
+      seller_name: getContactName(appt),
     }))
     window.location.href = '/sellers'
   }
 
   const upcoming = useMemo(() =>
     appts.filter(a => ['pending','rescheduled'].includes(a.outcome))
-      .sort((a,b) => (a.appointment_date||'').localeCompare(b.appointment_date||''))
+      .sort((a,b) => (a.scheduled_at||'').localeCompare(b.scheduled_at||''))
   , [appts])
 
   const history = useMemo(() =>
     appts.filter(a => ['won','lost','cancelled'].includes(a.outcome))
-      .sort((a,b) => (b.appointment_date||'').localeCompare(a.appointment_date||''))
+      .sort((a,b) => (b.scheduled_at||'').localeCompare(a.scheduled_at||''))
   , [appts])
 
   const wonCount  = appts.filter(a => a.outcome === 'won').length
@@ -299,18 +354,18 @@ export default function ListingAppts() {
     ? (appts.find(a => a.id === selectedAppt.id) ?? selectedAppt)
     : selectedAppt
 
-  const columns = (rows) => [
+  const columns = () => [
     {
-      key: 'seller_name', label: 'Seller',
-      render: (v, row) => (
+      key: 'contact', label: 'Client',
+      render: (_, row) => (
         <div>
-          <p style={{ fontWeight:600, fontSize:'0.85rem' }}>{v}</p>
-          <p style={{ fontSize:'0.72rem', color:'var(--color-text-muted)' }}>{row.address}{row.city ? `, ${row.city}` : ''}</p>
+          <p style={{ fontWeight:600, fontSize:'0.85rem' }}>{getContactName(row)}</p>
+          <p style={{ fontSize:'0.72rem', color:'var(--color-text-muted)' }}>{getAddress(row)}</p>
         </div>
       ),
     },
-    { key: 'appointment_date', label: 'Date', render: v => fmtDate(v) },
-    { key: 'appointment_time', label: 'Time', render: v => v || '—' },
+    { key: 'scheduled_at', label: 'Date', render: v => fmtDate(v) },
+    { key: 'scheduled_at_time', label: 'Time', render: (_, row) => fmtTime(row.scheduled_at) || '—' },
     {
       key: 'listing_price_discussed', label: 'Est. Price',
       render: v => v ? `$${Number(v).toLocaleString()}` : '—',
@@ -380,11 +435,11 @@ export default function ListingAppts() {
           ? <p className="la-empty">No upcoming appointments. Add one to get started.</p>
           : <div className="la-table-wrap">
               <table className="la-table">
-                <thead><tr>{columns(upcoming).map(c => <th key={c.key}>{c.label}</th>)}</tr></thead>
+                <thead><tr>{columns().map(c => <th key={c.key}>{c.label}</th>)}</tr></thead>
                 <tbody>
                   {upcoming.map(row => (
                     <tr key={row.id} className="la-table-row" onClick={() => openDetail(row)}>
-                      {columns(upcoming).map(c => (
+                      {columns().map(c => (
                         <td key={c.key}>{c.render ? c.render(row[c.key], row) : (row[c.key] ?? '—')}</td>
                       ))}
                     </tr>
@@ -399,11 +454,11 @@ export default function ListingAppts() {
           ? <p className="la-empty">No completed appointments yet.</p>
           : <div className="la-table-wrap">
               <table className="la-table">
-                <thead><tr>{columns(history).map(c => <th key={c.key}>{c.label}</th>)}</tr></thead>
+                <thead><tr>{columns().map(c => <th key={c.key}>{c.label}</th>)}</tr></thead>
                 <tbody>
                   {history.map(row => (
                     <tr key={row.id} className={`la-table-row la-table-row--${row.outcome}`} onClick={() => openDetail(row)}>
-                      {columns(history).map(c => (
+                      {columns().map(c => (
                         <td key={c.key}>{c.render ? c.render(row[c.key], row) : (row[c.key] ?? '—')}</td>
                       ))}
                     </tr>
@@ -415,7 +470,7 @@ export default function ListingAppts() {
 
       {/* Detail panel */}
       <SlidePanel open={panelMode === 'detail'} onClose={closePanel}
-        title={currentAppt?.seller_name ?? 'Appointment'} subtitle={currentAppt?.address} width={480}>
+        title={currentAppt ? getContactName(currentAppt) : 'Appointment'} subtitle={currentAppt ? getAddress(currentAppt) : ''} width={480}>
         {currentAppt && (
           <ApptDetail
             appt={currentAppt}
@@ -429,10 +484,11 @@ export default function ListingAppts() {
       {/* Form panel */}
       <SlidePanel open={panelMode === 'form'} onClose={closePanel}
         title={editingAppt ? 'Edit Appointment' : 'Add Appointment'}
-        subtitle={editingAppt?.seller_name} width={460}>
+        subtitle={editingAppt ? getContactName(editingAppt) : ''} width={460}>
         <ApptForm
           key={editingAppt?.id || 'new'}
           appt={editingAppt}
+          contacts={contacts}
           onSave={handleSave}
           onDelete={handleDelete}
           onClose={closePanel}

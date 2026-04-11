@@ -53,7 +53,7 @@ begin
   -- For each column in the list, we do: col = coalesce(contacts.col, dupe.col)
   col_list := array[
     'email', 'phone', 'type', 'source', 'lead_source',
-    'bba_signed', 'bba_expiry_date', 'bba_expiration_date',
+    'bba_signed', 'bba_expiration_date',
     'budget_min', 'budget_max', 'beds_min', 'baths_min',
     'address', 'city', 'state', 'zip', 'neighborhood',
     'birthday', 'anniversary', 'website'

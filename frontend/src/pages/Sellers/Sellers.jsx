@@ -4,7 +4,7 @@ import { Button, Badge, SectionHeader, TabBar, DataTable, Card, CheckItem, Slide
 import PartiesSection from '../../components/parties/PartiesSection.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
-import { useListings, useTasksForListing, useDeletedTasksForListing, useContactTags, useNotesForContact, useDocumentsForListing } from '../../lib/hooks.js'
+import { useListings, useTasksForListing, useDeletedTasksForListing, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
@@ -1546,6 +1546,13 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
   const { openNote, createAndOpen } = useNotesContext()
   const hasTasks = dbTasks && dbTasks.length > 0
 
+  // Open house history for this listing
+  const { data: allOHs } = useOpenHouses()
+  const listingOHs = useMemo(() =>
+    (allOHs ?? []).filter(oh => oh.listing_id === listing.id)
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  , [allOHs, listing.id])
+
   // Documents
   const { data: docs, refetch: refetchDocs } = useDocumentsForListing(isDbRow ? listing.id : null)
   const fileInputRef = useRef(null)
@@ -2049,6 +2056,47 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
           )}
         </div>
       )}
+
+      {/* ── Open House History ── */}
+      <div className="sellers-plan__section">
+        <div className="sellers-plan__section-header">
+          <h3 className="sellers-plan__section-title">Open Houses ({listingOHs.length})</h3>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/open-houses')}>
+            {listingOHs.length > 0 ? 'View All' : 'Schedule OH'}
+          </Button>
+        </div>
+        {listingOHs.length === 0 ? (
+          <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>No open houses linked to this listing yet.</p>
+        ) : (
+          <>
+            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: 8 }}>
+              {listingOHs.length} open house{listingOHs.length !== 1 ? 's' : ''}, {listingOHs.reduce((sum, oh) => sum + (oh.sign_in_count ?? 0), 0)} total sign-ins
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {listingOHs.map(oh => {
+                const isHosted = !!oh.agent_name
+                const dateStr = oh.date ? new Date(oh.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—'
+                const timeStr = oh.start_time ? (oh.end_time ? `${oh.start_time} – ${oh.end_time}` : oh.start_time) : ''
+                return (
+                  <div key={oh.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--cream)', borderRadius: 'var(--radius-md)', borderLeft: `3px solid ${isHosted ? '#6366f1' : 'var(--brown-mid)'}` }}>
+                    <div>
+                      <p style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--brown-dark)' }}>
+                        {dateStr}{timeStr ? ` · ${timeStr}` : ''}
+                      </p>
+                      <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
+                        {isHosted ? `Hosted by ${oh.agent_name}` : 'You hosted'}
+                        {oh.sign_in_count > 0 && ` · ${oh.sign_in_count} sign-ins`}
+                        {oh.leads_count > 0 && ` · ${oh.leads_count} hot leads`}
+                      </p>
+                    </div>
+                    <Badge variant={oh.status === 'completed' ? 'default' : oh.status === 'confirmed' ? 'success' : 'info'} size="sm">{oh.status}</Badge>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </div>
 
       {/* ── Modals ── */}
       {showAddTask && (

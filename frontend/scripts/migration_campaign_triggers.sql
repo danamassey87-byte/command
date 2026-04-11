@@ -222,7 +222,7 @@ begin
       new.id,
       'contacts',
       new.id,
-      jsonb_build_object('expiry_date', new_data->>'bba_expiry_date')
+      jsonb_build_object('expiry_date', new_data->>'bba_expiration_date')
     );
   end if;
 

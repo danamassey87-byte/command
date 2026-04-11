@@ -133,11 +133,11 @@ export default function DailyTasks() {
     })
     // Listing appointments today
     ;(listingAppts ?? []).forEach(a => {
-      const d = a.appointment_date?.slice(0, 10)
+      const d = a.scheduled_at?.slice(0, 10)
       if (d === TODAY) {
         events.push({
           id: `appt_${a.id}`, title: `Listing Appt: ${a.contact?.name ?? 'Client'}`,
-          category: 'transaction', due_time: a.appointment_date?.slice(11, 16) || null,
+          category: 'transaction', due_time: a.scheduled_at?.slice(11, 16) || null,
           source_link: '/dashboard/appts', source_type: 'calendar',
           external: true,
         })

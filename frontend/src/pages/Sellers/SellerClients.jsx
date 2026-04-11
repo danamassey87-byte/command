@@ -64,7 +64,7 @@ export default function SellerClients() {
       _source: 'appointment',
       id: `appt:${a.id}`,
       rawId: a.id,
-      sellerName: a.contact?.name || a.seller_name || '—',
+      sellerName: a.contact?.name || '—',
       property: a.property?.address || a.address || '—',
       city: a.property?.city || a.city,
       price: a.listing_price_discussed,
@@ -73,9 +73,7 @@ export default function SellerClients() {
            : (a.outcome || 'Appointment').charAt(0).toUpperCase() + (a.outcome || 'appointment').slice(1),
       stageVariant: OUTCOME_VARIANT[a.outcome] || 'info',
       source: a.source || 'Appointment',
-      date: a.scheduled_at || (a.appointment_date && a.appointment_time
-        ? `${a.appointment_date}T${a.appointment_time}`
-        : a.appointment_date),
+      date: a.scheduled_at,
       dateLabel: 'Appt',
     }))
     // Hide appointments that have already been marked 'won' AND have a matching signed
