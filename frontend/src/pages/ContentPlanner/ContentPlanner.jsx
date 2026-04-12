@@ -1,7 +1,7 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../components/ui/index.jsx'
-import { generateContent, createContentPiece, upsertContentPlatformPost } from '../../lib/supabase'
+import { generateContent, createContentPiece, upsertContentPlatformPost, getContentPlannerSlots, upsertContentPlannerSlot } from '../../lib/supabase'
 import { useContentPillars, useClientAvatars, useProperties } from '../../lib/hooks'
 import './ContentPlanner.css'
 
@@ -135,10 +135,7 @@ function fmtShort(d) { return d.toLocaleDateString('en-US', { month: 'short', da
 function dayName(d) { return d.toLocaleDateString('en-US', { weekday: 'long' }) }
 function dayAbbr(d) { return d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() }
 
-function loadPlanner() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {} } catch { return {} }
-}
-function savePlanner(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)) }
+// Format + inspo stay in localStorage (lightweight config, not content data)
 function loadFormat() {
   try { return JSON.parse(localStorage.getItem(FORMAT_KEY)) || DEFAULT_FORMAT } catch { return DEFAULT_FORMAT }
 }
@@ -147,6 +144,81 @@ function loadInspo() {
   try { return JSON.parse(localStorage.getItem(INSPO_KEY)) || [] } catch { return [] }
 }
 function saveInspo(data) { localStorage.setItem(INSPO_KEY, JSON.stringify(data)) }
+
+// ─── Supabase slot helpers ───
+// Convert DB rows to the planner shape: { [dateStr]: { slots: { story: {...}, reel: {...}, carousel: {...} } } }
+function rowsToPlanner(rows) {
+  const p = {}
+  for (const row of (rows || [])) {
+    const d = row.slot_date
+    if (!p[d]) p[d] = { meta: {}, slots: {} }
+    p[d].slots[row.slot_type] = {
+      topic: row.topic || '', hook: row.hook || '', caption: row.caption || '',
+      hashtags: row.hashtags || '', keywords: row.keywords || '', link: row.link || '',
+      manychatKeyword: row.manychat_keyword || '', canvaLink: row.canva_link || '',
+      notes: row.notes || '',
+      pillar_id: row.pillar_id || '', avatar_id: row.avatar_id || '',
+      property_id: row.property_id || '', neighborhood: row.neighborhood || '',
+      repurpose: row.repurpose || {},
+    }
+  }
+  return p
+}
+
+// Save one slot to Supabase (debounced in the component)
+async function saveSlotToDb(dateStr, slotType, slot) {
+  try {
+    await upsertContentPlannerSlot({
+      slot_date: dateStr,
+      slot_type: slotType,
+      topic: slot.topic || null,
+      hook: slot.hook || null,
+      caption: slot.caption || null,
+      hashtags: slot.hashtags || null,
+      keywords: slot.keywords || null,
+      link: slot.link || null,
+      manychat_keyword: slot.manychatKeyword || null,
+      canva_link: slot.canvaLink || null,
+      notes: slot.notes || null,
+      pillar_id: slot.pillar_id || null,
+      avatar_id: slot.avatar_id || null,
+      property_id: slot.property_id || null,
+      neighborhood: slot.neighborhood || null,
+      repurpose: slot.repurpose || {},
+    })
+  } catch (err) {
+    console.error('Failed to save planner slot:', err)
+  }
+}
+
+// One-time migration: if Supabase is empty but localStorage has data, migrate it
+async function migrateLocalStorageToDb(fromDate, toDate) {
+  try {
+    const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+    const localDates = Object.keys(local)
+    if (localDates.length === 0) return null
+
+    const { data: existing } = await getContentPlannerSlots('1900-01-01', '2099-12-31')
+    if (existing && existing.length > 0) return null // DB already has data, skip
+
+    // Migrate all localStorage slots to DB
+    let count = 0
+    for (const dateStr of localDates) {
+      const day = local[dateStr]
+      if (!day?.slots) continue
+      for (const [slotType, slot] of Object.entries(day.slots)) {
+        if (!slot || (!slot.topic && !slot.caption && !slot.hook)) continue
+        await saveSlotToDb(dateStr, slotType, slot)
+        count++
+      }
+    }
+    if (count > 0) console.log(`Migrated ${count} planner slots from localStorage to Supabase`)
+    return count
+  } catch (err) {
+    console.error('localStorage migration failed:', err)
+    return null
+  }
+}
 
 // ─── Empty slot template ───
 function emptySlot() {
@@ -181,7 +253,8 @@ function buildCopyText(slot, platformId) {
 export default function ContentPlanner() {
   const navigate = useNavigate()
   const [weekOffset, setWeekOffset] = useState(0)
-  const [planner, setPlanner] = useState(loadPlanner)
+  const [planner, setPlanner] = useState({})
+  const [dbLoading, setDbLoading] = useState(true)
   const [format, setFormat] = useState(loadFormat)
   const [inspoBank, setInspoBank] = useState(loadInspo)
   const [selectedDate, setSelectedDate] = useState(null)
@@ -215,6 +288,34 @@ export default function ContentPlanner() {
   const today = fmtDate(new Date())
   const weekLabel = `Week of ${fmtShort(weekDates[0])} - ${fmtShort(weekDates[6])}`
 
+  // ─── Load slots from Supabase ───
+  const saveTimer = useRef(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setDbLoading(true)
+    const fromDate = fmtDate(weekDates[0])
+    const toDate = fmtDate(weekDates[6])
+
+    ;(async () => {
+      // One-time migration check on first load
+      await migrateLocalStorageToDb(fromDate, toDate)
+
+      const { data } = await getContentPlannerSlots(fromDate, toDate)
+      if (!cancelled) {
+        setPlanner(prev => {
+          const dbPlanner = rowsToPlanner(data)
+          // Merge: DB wins for the current week range, keep other dates from prev
+          const merged = { ...prev }
+          for (const d of Object.keys(dbPlanner)) merged[d] = dbPlanner[d]
+          return merged
+        })
+        setDbLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [weekOffset])
+
   // ─── Slot data access ───
   const getSlot = (dateStr, slotType) => {
     return { ...emptySlot(), ...(planner[dateStr]?.slots?.[slotType] || {}) }
@@ -237,7 +338,10 @@ export default function ContentPlanner() {
       },
     }
     setPlanner(newPlanner)
-    savePlanner(newPlanner)
+
+    // Debounced save to Supabase (300ms)
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => saveSlotToDb(dateStr, slotType, slot), 300)
   }
 
   const updateDayMeta = (dateStr, updates) => {
@@ -247,7 +351,8 @@ export default function ContentPlanner() {
       [dateStr]: { ...day, meta: { ...day.meta, ...updates } },
     }
     setPlanner(newPlanner)
-    savePlanner(newPlanner)
+    // Day meta (format/topic/niche overrides) stays in local state only —
+    // the weekly format template handles this at the format level
   }
 
   const updateRepurpose = (dateStr, slotType, platformId, updates) => {

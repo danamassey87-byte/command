@@ -64,6 +64,8 @@ export default function PostComposer() {
   // AI state
   const [aiLoading, setAiLoading]     = useState(false)
   const [aiAdapting, setAiAdapting]   = useState(null) // platformId being adapted
+  const [videoGenerating, setVideoGenerating] = useState(false)
+  const [videoResult, setVideoResult] = useState(null)
 
   const fileInputRef = useRef(null)
 
@@ -391,6 +393,27 @@ export default function PostComposer() {
     }
   }
 
+  // ─── Generate video via Blotato ────────────────────────────────────────
+  const VIDEO_PLATFORMS = ['tiktok', 'instagram', 'youtube', 'stories']
+  const hasVideoPlatform = selectedPlatforms.some(p => VIDEO_PLATFORMS.includes(p))
+
+  async function generateVideo() {
+    if (videoGenerating || !mainCaption.trim()) return
+    setVideoGenerating(true)
+    setVideoResult(null)
+    try {
+      const data = await DB.generateBlotatoVideo(
+        mainCaption,
+        mediaFiles.filter(m => m.url).map(m => m.url)
+      )
+      setVideoResult(data)
+    } catch (err) {
+      setVideoResult({ error: err.message })
+    } finally {
+      setVideoGenerating(false)
+    }
+  }
+
   // ─── Render ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -535,7 +558,29 @@ export default function PostComposer() {
             <button className={`pc-ai-btn ${aiLoading ? 'pc-ai-btn--loading' : ''}`} onClick={aiSuggestHooks} disabled={aiLoading}>
               <span className="pc-ai-btn__icon">✦</span> Suggest Hooks
             </button>
+            {hasVideoPlatform && (
+              <button className={`pc-ai-btn ${videoGenerating ? 'pc-ai-btn--loading' : ''}`} onClick={generateVideo} disabled={videoGenerating || !mainCaption.trim()}>
+                <span className="pc-ai-btn__icon">🎬</span> {videoGenerating ? 'Generating...' : 'Generate Video'}
+              </button>
+            )}
           </div>
+
+          {videoResult && (
+            <div style={{
+              padding: '10px 14px', borderRadius: 8, fontSize: '0.82rem',
+              background: videoResult.error ? '#fce8e6' : '#e6f4ea',
+              color: videoResult.error ? '#c5221f' : '#137333',
+            }}>
+              {videoResult.error
+                ? `Video generation failed: ${videoResult.error}`
+                : `Video created! ${videoResult.url ? '' : 'Processing — check Blotato dashboard for status.'}`}
+              {videoResult.url && (
+                <a href={videoResult.url} target="_blank" rel="noreferrer" style={{ marginLeft: 8, fontWeight: 600, color: '#137333' }}>
+                  View Video &rarr;
+                </a>
+              )}
+            </div>
+          )}
 
           {/* Hashtags */}
           <div className="pc-hashtag-section">

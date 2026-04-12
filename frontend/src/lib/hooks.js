@@ -73,6 +73,7 @@ export const useMarketStats   = ()      => useQuery(DB.getMarketStats)
 
 // ─── Content Calendar hooks ────────────────────────────────────────────────────
 export const useClientAvatars   = ()             => useQuery(DB.getClientAvatars)
+export const useAiPrompts       = ()             => useQuery(DB.getAiPrompts)
 export const useInspoBank       = ()             => useQuery(DB.getInspoBank)
 export const usePlannerSlots   = (from, to)     => useQuery(() => DB.getContentPlannerSlots(from, to), [from, to])
 export const useHashtagGroups   = ()             => useQuery(DB.getHashtagGroups)

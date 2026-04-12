@@ -406,6 +406,32 @@ export const linkContentKeyword = (contentId, keywordId) =>
 export const unlinkContentKeyword = (contentId, keywordId) =>
   query(supabase.from('content_keywords').delete().eq('content_id', contentId).eq('keyword_id', keywordId))
 
+// ─── Blotato Video Generation ─────────────────────────────────────────────────
+export async function generateBlotatoVideo(videoPrompt, mediaUrls = []) {
+  const { data, error } = await supabase.functions.invoke('publish-content', {
+    body: { platform_post_id: null, action: 'generate_video', video_prompt: videoPrompt, media_urls: mediaUrls },
+  })
+  if (error) throw new Error(error.message)
+  return data
+}
+
+// ─── Gamma Presentations ──────────────────────────────────────────────────────
+export async function buildPresentation(listingId, strategyText, photos = []) {
+  const { data, error } = await supabase.functions.invoke('build-presentation', {
+    body: { listing_id: listingId, strategy_text: strategyText, photos },
+  })
+  if (error) throw new Error(error.message)
+  return data
+}
+
+// ─── AI Prompts ───────────────────────────────────────────────────────────────
+export const getAiPrompts = () =>
+  query(supabase.from('ai_prompts').select('*').order('prompt_key'))
+export const getAiPrompt = (promptKey) =>
+  query(supabase.from('ai_prompts').select('*').eq('prompt_key', promptKey).maybeSingle())
+export const updateAiPrompt = (id, d) =>
+  query(supabase.from('ai_prompts').update({ ...d, is_default: false, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+
 // ─── Inspo Bank ───────────────────────────────────────────────────────────────
 export const getInspoBank = () =>
   query(supabase.from('inspo_bank').select('*').order('created_at', { ascending: false }))

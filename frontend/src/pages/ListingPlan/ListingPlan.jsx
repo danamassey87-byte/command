@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { SectionHeader, Input, Badge, SlidePanel, Button, Textarea } from '../../components/ui/index.jsx'
 import { PropertyPicker } from '../../components/ui/PropertyPicker.jsx'
-import { generateContent, pushListingPlanToCalendar } from '../../lib/supabase.js'
+import { generateContent, pushListingPlanToCalendar, buildPresentation } from '../../lib/supabase.js'
 import './ListingPlan.css'
 
 // ─── AI Prompts ─────────────────────────────────────────────────────────────
@@ -239,6 +239,8 @@ export default function ListingPlan() {
   const [savedPlans, setSavedPlans]   = useState(() => {
     try { return JSON.parse(localStorage.getItem('listing_plans') || '[]') } catch { return [] }
   })
+  const [generatingPres, setGeneratingPres] = useState(false)
+  const [presResult, setPresResult] = useState(null)
 
   const activePrompt = planType === 'new' ? NEW_LISTING_PROMPT : RELISTING_PROMPT
   const promptWithAddress = `${activePrompt}\n\n---\n\nADDRESS: ${address}`
@@ -474,8 +476,49 @@ export default function ListingPlan() {
                 </svg>
                 Auto-Generate Calendar
               </button>
+              <button
+                className="listing-plan__copy-btn"
+                onClick={async () => {
+                  if (!linkedProperty || !output?.content) return
+                  setGeneratingPres(true)
+                  setPresResult(null)
+                  try {
+                    const result = await buildPresentation(
+                      linkedProperty.listing_id || linkedProperty.id,
+                      output.content
+                    )
+                    setPresResult(result)
+                  } catch (err) {
+                    setPresResult({ error: err.message })
+                  } finally {
+                    setGeneratingPres(false)
+                  }
+                }}
+                disabled={!linkedProperty || !output?.content || generatingPres}
+                title={!output?.content ? 'Generate a listing plan first' : !linkedProperty ? 'Pick a property first' : 'Create a Gamma presentation from this plan'}
+                style={{ background: linkedProperty && output?.content ? '#7627bb' : undefined, color: linkedProperty && output?.content ? '#fff' : undefined, borderColor: linkedProperty && output?.content ? '#7627bb' : undefined }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+                {generatingPres ? 'Generating…' : 'Gamma Presentation'}
+              </button>
             </div>
           </div>
+
+          {presResult && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: presResult.error ? '#fce8e6' : '#f3e8fd', border: `1px solid ${presResult.error ? '#c5221f' : '#7627bb'}`, borderRadius: 'var(--radius-md)', color: presResult.error ? '#c5221f' : '#7627bb', fontSize: '0.82rem', margin: '12px 0' }}>
+              {presResult.error ? (
+                <span>Presentation generation failed: {presResult.error}</span>
+              ) : (
+                <span>
+                  Presentation generated!{' '}
+                  {presResult.url && <a href={presResult.url} target="_blank" rel="noreferrer" style={{ color: '#7627bb', fontWeight: 600 }}>Open in Gamma &rarr;</a>}
+                </span>
+              )}
+              <button onClick={() => setPresResult(null)} style={{ background: 'none', border: 'none', color: 'inherit', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', fontSize: '0.78rem' }}>Dismiss</button>
+            </div>
+          )}
 
           {pushedCount !== null && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--color-success-bg)', border: '1px solid var(--color-success)', borderRadius: 'var(--radius-md)', color: 'var(--color-success)', fontSize: '0.82rem', margin: '12px 0' }}>

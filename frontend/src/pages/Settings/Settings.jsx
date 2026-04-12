@@ -36,7 +36,7 @@ const SOCIAL_CHANNELS = [
   { key: 'linktree',     label: 'Linktree / Bio', icon: '🔗', placeholder: 'https://linktr.ee/yourlink' },
 ]
 
-const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'connected', 'lists', 'notifications', 'recovery']
+const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'connected', 'ai_prompts', 'lists', 'notifications', 'recovery']
 
 // Each entry = one user-managed dropdown list shown in the Lists tab.
 const DROPDOWN_LISTS_META = [
@@ -76,7 +76,7 @@ export default function Settings() {
             className={`settings-tab${tab === t ? ' settings-tab--active' : ''}`}
             onClick={() => setTab(t)}
           >
-            {t === 'signature' ? 'Signature' : t === 'templates' ? 'Templates & Scripts' : t === 'guidelines' ? 'Brand Guidelines' : t === 'assets' ? 'Logos & Headshots' : t === 'social' ? 'Social Channels' : t === 'connected' ? 'Connected Accounts' : t === 'lists' ? 'Lists & Tags' : t === 'notifications' ? 'Notifications' : 'Trash & Archive'}
+            {{ signature: 'Signature', templates: 'Templates & Scripts', guidelines: 'Brand Guidelines', assets: 'Logos & Headshots', social: 'Social Channels', connected: 'Connected Accounts', ai_prompts: 'AI Prompts', lists: 'Lists & Tags', notifications: 'Notifications', recovery: 'Trash & Archive' }[t] || t}
           </button>
         ))}
       </div>
@@ -87,6 +87,7 @@ export default function Settings() {
       {tab === 'assets'     && <AssetsTab     brand={brand} refetch={refetch} />}
       {tab === 'social'     && <SocialTab     brand={brand} refetch={refetch} />}
       {tab === 'connected'  && <ConnectedAccountsTab />}
+      {tab === 'ai_prompts' && <AiPromptsTab />}
       {tab === 'lists'      && <ListsTab />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'recovery'   && <Recovery />}
@@ -1017,6 +1018,124 @@ function ConnectedAccountsTab() {
             Coming Soon
           </span>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── AI Prompts Tab ─────────────────────────────────────────────────────────
+function AiPromptsTab() {
+  const [prompts, setPrompts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState(null)
+  const [editText, setEditText] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    DB.getAiPrompts().then(({ data }) => {
+      setPrompts(data || [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  function startEdit(prompt) {
+    setEditingId(prompt.id)
+    setEditText(prompt.prompt_text)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditText('')
+  }
+
+  async function handleSave(prompt) {
+    setSaving(true)
+    try {
+      const { data } = await DB.updateAiPrompt(prompt.id, { prompt_text: editText })
+      setPrompts(prev => prev.map(p => p.id === prompt.id ? { ...p, ...data, prompt_text: editText, is_default: false } : p))
+      setEditingId(null)
+    } catch (err) {
+      alert('Save failed: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <div className="settings-section"><p style={{ color: 'var(--color-text-muted)' }}>Loading prompts...</p></div>
+
+  return (
+    <div className="settings-section">
+      <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--brown-dark)', margin: '0 0 4px' }}>AI Prompts</h3>
+      <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', margin: '0 0 20px' }}>
+        Customize the prompts Claude uses when generating content, hashtags, keywords, and more. Edit any prompt to change the tone, instructions, or format.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {prompts.map(prompt => (
+          <div key={prompt.id} style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '16px 18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <code style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)', background: '#f5f0eb', padding: '2px 8px', borderRadius: 4 }}>
+                {prompt.prompt_key}
+              </code>
+              {prompt.is_default && (
+                <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#137333', background: '#e6f4ea', padding: '2px 6px', borderRadius: 4 }}>Default</span>
+              )}
+              {!prompt.is_default && (
+                <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#e65100', background: '#fff3e0', padding: '2px 6px', borderRadius: 4 }}>Customized</span>
+              )}
+            </div>
+            {prompt.description && (
+              <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', margin: '0 0 8px' }}>{prompt.description}</p>
+            )}
+
+            {editingId === prompt.id ? (
+              <div>
+                <textarea
+                  value={editText}
+                  onChange={e => setEditText(e.target.value)}
+                  rows={8}
+                  style={{
+                    width: '100%', padding: '10px 12px', border: '1px solid #e0dbd6', borderRadius: 8,
+                    fontFamily: 'monospace', fontSize: '0.8rem', lineHeight: 1.5, color: 'var(--brown-dark)',
+                    resize: 'vertical', outline: 'none',
+                  }}
+                />
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <Button size="sm" onClick={() => handleSave(prompt)} disabled={saving}>
+                    {saving ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={cancelEdit}>Cancel</Button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <pre style={{
+                  fontSize: '0.78rem', lineHeight: 1.5, color: '#555', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                  background: '#faf8f5', padding: '10px 12px', borderRadius: 8, margin: 0,
+                  maxHeight: 150, overflow: 'hidden',
+                }}>
+                  {prompt.prompt_text}
+                </pre>
+                <button
+                  onClick={() => startEdit(prompt)}
+                  style={{
+                    marginTop: 8, fontSize: '0.75rem', padding: '4px 12px', borderRadius: 5,
+                    border: '1px solid #e0dbd6', background: '#faf8f5', color: 'var(--brown-dark)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Edit Prompt
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {prompts.length === 0 && (
+          <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: '40px 0', fontSize: '0.85rem' }}>
+            No AI prompts configured yet. Run the migration to seed defaults.
+          </p>
+        )}
       </div>
     </div>
   )
