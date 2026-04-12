@@ -671,6 +671,31 @@ export const updateNotificationPreferences = (value) =>
     .upsert({ key: 'notification_preferences', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
     .select().single())
 
+// ─── AI Campaign Recommendations ─────────────────────────────────────────────
+export const getAIRecommendations = (campaignId) =>
+  query(supabase.from('campaign_ai_recommendations').select('*')
+    .eq('campaign_id', campaignId)
+    .in('status', ['pending', 'snoozed'])
+    .order('confidence', { ascending: false }))
+
+export const getAllPendingRecommendations = () =>
+  query(supabase.from('campaign_ai_recommendations').select('*, campaign:campaigns(id,name)')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false }))
+
+export const updateRecommendation = (id, updates) =>
+  query(supabase.from('campaign_ai_recommendations')
+    .update({ ...updates, status_changed_at: new Date().toISOString() })
+    .eq('id', id).select().single())
+
+export async function triggerCampaignAnalysis(campaignId) {
+  const { data, error } = await supabase.functions.invoke('ai-campaign-insights', {
+    body: campaignId ? { campaign_id: campaignId } : {},
+  })
+  if (error) throw new Error(error.message || 'Analysis failed')
+  return data
+}
+
 // ─── Newsletters ─────────────────────────────────────────────────────────────
 export const getNewsletters = () =>
   query(supabase.from('newsletters').select('*').is('deleted_at', null).order('created_at', { ascending: false }))

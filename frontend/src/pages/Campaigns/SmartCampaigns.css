@@ -1144,3 +1144,31 @@
   color: #8b6914 !important;
 }
 
+/* ─── AI Insights Panel ─── */
+.ai-insights { display: flex; flex-direction: column; gap: var(--space-md); }
+.ai-insights__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ai-insights__title { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; color: var(--brown-dark); margin: 0; }
+.ai-insights__subtitle { font-size: 0.78rem; color: var(--color-text-muted); margin: 2px 0 0; }
+.ai-insights__error { font-size: 0.82rem; color: var(--color-danger); }
+.ai-insights__loading { font-size: 0.82rem; color: var(--color-text-muted); }
+.ai-insights__empty { text-align: center; padding: 32px 16px; }
+.ai-insights__empty p { font-size: 0.85rem; color: var(--color-text-muted); margin: 0; }
+.ai-insights__empty-note { font-size: 0.75rem; margin-top: 6px !important; font-style: italic; }
+.ai-insights__list { display: flex; flex-direction: column; gap: var(--space-sm); }
+
+.ai-rec-card { padding: var(--space-md) !important; display: flex; flex-direction: column; gap: 8px; border-left: 3px solid var(--brown-mid); }
+.ai-rec-card__top { display: flex; align-items: center; justify-content: space-between; }
+.ai-rec-card__type { display: flex; align-items: center; gap: 6px; }
+.ai-rec-card__step { font-size: 0.72rem; color: var(--color-text-muted); }
+.ai-rec-card__campaign { font-size: 0.78rem; color: var(--brown-mid); font-weight: 600; margin: 0; }
+
+.ai-rec-card__compare { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; }
+.ai-rec-card__current, .ai-rec-card__suggested { flex: 1; }
+.ai-rec-card__label { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-muted); }
+.ai-rec-card__value { font-size: 0.82rem; color: var(--brown-dark); margin: 4px 0 0; padding: 6px 8px; background: var(--color-surface); border-radius: 4px; }
+.ai-rec-card__value--new { background: rgba(106, 158, 114, 0.12); border: 1px solid rgba(106, 158, 114, 0.3); }
+.ai-rec-card__arrow { color: var(--color-text-muted); font-size: 1.2rem; padding-top: 18px; flex-shrink: 0; }
+.ai-rec-card__suggestion { font-size: 0.85rem; color: var(--brown-dark); padding: 8px; background: rgba(106, 158, 114, 0.08); border-radius: 6px; margin: 0; }
+.ai-rec-card__reasoning { font-size: 0.78rem; color: var(--color-text-muted); font-style: italic; margin: 0; }
+.ai-rec-card__actions { display: flex; gap: 6px; flex-wrap: wrap; padding-top: 4px; }
+

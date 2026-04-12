@@ -7,6 +7,7 @@ import * as campaignsApi from '../../lib/campaigns'
 import EnrollModal from './EnrollModal'
 import TriggerPicker from './TriggerPicker'
 import EmailStepComposer from '../../components/email/EmailStepComposer'
+import AIInsightsPanel from './AIInsightsPanel'
 import './SmartCampaigns.css'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -547,6 +548,7 @@ export default function SmartCampaigns() {
           { value: 'active',    label: 'Enrollments',  count: enrollments.length },
           { value: 'history',   label: 'History',       count: history.length },
           { value: 'templates', label: 'Templates',     count: templates.length },
+          { value: 'ai',        label: 'AI Insights'                              },
         ]}
         active={mainTab}
         onChange={setMainTab}
@@ -835,6 +837,22 @@ export default function SmartCampaigns() {
               </Card>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ═══ AI INSIGHTS TAB ═══ */}
+      {mainTab === 'ai' && (
+        <div className="sc-section">
+          <AIInsightsPanel
+            campaigns={campaigns}
+            onApply={(rec) => {
+              // Find the campaign and open editor with suggestion pre-filled
+              const c = campaigns.find(cp => cp.id === rec.campaign_id)
+              if (c && rec._editMode) {
+                setEditing({ ...c })
+              }
+            }}
+          />
         </div>
       )}
 
