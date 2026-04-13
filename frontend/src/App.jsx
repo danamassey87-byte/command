@@ -41,6 +41,7 @@ import PostComposer from './pages/PostComposer/PostComposer'
 import HashtagBank from './pages/HashtagBank/HashtagBank'
 import KeywordTracker from './pages/KeywordTracker/KeywordTracker'
 import InspoRecreator from './pages/InspoRecreator/InspoRecreator'
+import GammaPresentations from './pages/GammaPresentations/GammaPresentations'
 import AdsManager from './pages/Ads/AdsManager'
 import AdReports from './pages/Ads/AdReports'
 import Vendors from './pages/Vendors/Vendors'
@@ -187,6 +188,7 @@ export default function App() {
           <Route path="/content/hashtags" element={<HashtagBank />} />
           <Route path="/content/seo"      element={<KeywordTracker />} />
           <Route path="/content/inspo"    element={<InspoRecreator />} />
+          <Route path="/content/gamma"   element={<GammaPresentations />} />
           <Route path="/content/social"    element={<SocialDashboard />} />
           <Route path="/content/ads"       element={<AdsManager />} />
           <Route path="/content/ads/reports" element={<AdReports />} />

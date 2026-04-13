@@ -1,14 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// build-presentation — generates a listing presentation via Gamma API.
+// build-gamma-custom — generates non-listing presentations via Gamma API.
 //
-// Flow:
-//   1. Receive listing_id + strategy text + optional photos
-//   2. Claude transforms strategy → slide outline
-//   3. POST to Gamma API to generate presentation
-//   4. Poll until complete → update listing record with URL
+// Supports: buyer consultations, CMAs, market reports, OH recaps, custom decks.
+// Flow: Claude → slide outline → Gamma generation → poll → return URL.
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -17,7 +13,23 @@ const CORS = {
 
 const GAMMA_API = 'https://public-api.gamma.app/v1.0'
 
-serve(async (req) => {
+const TYPE_PROMPTS: Record<string, string> = {
+  buyer_consult: `Create a buyer consultation presentation for a real estate agent meeting with a potential buyer client.
+Include: intro/credentials, current market conditions, the buying process timeline, financing overview, what to expect at showings, how the agent adds value, and next steps/CTA.`,
+
+  cma: `Create a Comparative Market Analysis (CMA) presentation for a real estate agent.
+Include: subject property overview, methodology, comparable sold properties (3-5), active competition, market trends chart concept, pricing recommendation, and agent credentials.`,
+
+  market_report: `Create a monthly/quarterly real estate market report presentation.
+Include: key market stats (median price, DOM, inventory), year-over-year trends, neighborhood spotlights, buyer vs seller market indicators, forecast/outlook, and agent branding/contact.`,
+
+  open_house_recap: `Create a post-open-house recap presentation for a listing agent to share with the seller.
+Include: attendance summary, visitor feedback themes, showing activity comparison, marketing reach stats, agent recommendations for next steps, and timeline.`,
+
+  custom: `Create a professional real estate presentation based on the user's notes below.`,
+}
+
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS })
   }
@@ -33,53 +45,20 @@ serve(async (req) => {
       )
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    )
+    const { title, strategy_text, presentation_type } = await req.json()
 
-    const { listing_id, strategy_text, photos } = await req.json()
-
-    if (!listing_id) {
+    if (!title) {
       return new Response(
-        JSON.stringify({ error: 'Missing listing_id' }),
+        JSON.stringify({ error: 'Missing title' }),
         { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } }
       )
     }
 
-    // 1. Load listing + property data
-    const { data: listing, error: listErr } = await supabase
-      .from('listings')
-      .select('*, property:properties(*)')
-      .eq('id', listing_id)
-      .single()
-
-    if (listErr || !listing) {
-      return new Response(
-        JSON.stringify({ error: 'Listing not found', detail: listErr?.message }),
-        { status: 404, headers: { ...CORS, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // 2. Mark as generating
-    await supabase
-      .from('listings')
-      .update({ presentation_status: 'generating' })
-      .eq('id', listing_id)
-
-    const property = listing.property || {}
-    const addr = property.address || 'Property'
-    const city = property.city || ''
-    const price = property.price ? `$${Number(property.price).toLocaleString()}` : ''
-    const specs = [
-      property.bedrooms && `${property.bedrooms} bed`,
-      property.bathrooms && `${property.bathrooms} bath`,
-      property.sqft && `${Number(property.sqft).toLocaleString()} sqft`,
-    ].filter(Boolean).join(' · ')
-
-    // 3. Build slide outline from strategy text using Claude
+    // 1. Build slide outline via Claude
     let slideOutline = ''
-    if (anthropicKey && strategy_text) {
+    const typePrompt = TYPE_PROMPTS[presentation_type] || TYPE_PROMPTS.custom
+
+    if (anthropicKey) {
       try {
         const claudeResp = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -91,25 +70,25 @@ serve(async (req) => {
           body: JSON.stringify({
             model: 'claude-sonnet-4-6',
             max_tokens: 2048,
-            system: 'You are a presentation designer. Convert real estate listing strategy text into a concise slide outline for Gamma.app. Use clear slide titles and bullet points. Keep it under 10 slides.',
-            messages: [{ role: 'user', content: `Create a presentation outline for this property listing:\n\nAddress: ${addr}, ${city}\nPrice: ${price}\nSpecs: ${specs}\n\nStrategy:\n${strategy_text}\n\nFormat as a presentation outline with slide titles and key bullets. Include:\n1. Title slide with address and price\n2. Property highlights\n3. Neighborhood / lifestyle\n4. Market positioning\n5. Marketing strategy\n6. Timeline\n7. Why Dana Massey / REAL Broker\n8. Next steps / CTA` }],
+            system: `You are a presentation designer for Dana Massey, a real estate agent at REAL Broker in the East Valley / Gilbert, AZ market. Convert instructions into a concise, compelling slide outline for Gamma.app. Use clear slide titles and bullet points. Keep it under 12 slides. Make it look professional and high-end.`,
+            messages: [{ role: 'user', content: `${typePrompt}\n\nTitle: ${title}\n\nAdditional notes from the agent:\n${strategy_text || 'None provided — use best practices for this type of presentation.'}\n\nFormat as a presentation outline with slide titles and key bullet points.` }],
           }),
         })
         if (claudeResp.ok) {
-          const claudeResult = await claudeResp.json()
-          slideOutline = claudeResult.content?.[0]?.text || ''
+          const result = await claudeResp.json()
+          slideOutline = result.content?.[0]?.text || ''
         }
       } catch (e) {
-        console.error('Claude outline generation failed:', e)
+        console.error('Claude outline failed:', e)
       }
     }
 
-    // Fallback outline if Claude fails
+    // Fallback
     if (!slideOutline) {
-      slideOutline = `${addr}\n${city} · ${price} · ${specs}\n\n${strategy_text || 'Listing presentation for this property.'}`
+      slideOutline = `${title}\n\nDana Massey — REAL Broker\nEast Valley / Gilbert, AZ\n\n${strategy_text || typePrompt}`
     }
 
-    // 4. Create presentation via Gamma API
+    // 2. Send to Gamma
     const gammaResp = await fetch(`${GAMMA_API}/generations`, {
       method: 'POST',
       headers: {
@@ -119,17 +98,12 @@ serve(async (req) => {
       body: JSON.stringify({
         text: slideOutline,
         style: 'professional',
-        title: `${addr} — Listing Presentation`,
+        title,
       }),
     })
 
     if (!gammaResp.ok) {
       const errText = await gammaResp.text().catch(() => '')
-      await supabase
-        .from('listings')
-        .update({ presentation_status: 'none' })
-        .eq('id', listing_id)
-
       return new Response(
         JSON.stringify({ error: `Gamma API error (${gammaResp.status}): ${errText.slice(0, 300)}`, code: 'gamma_error' }),
         { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
@@ -140,10 +114,9 @@ serve(async (req) => {
     const gammaUrl = gammaResult.url || gammaResult.presentation_url || gammaResult.edit_url || null
     const gammaId = gammaResult.id || gammaResult.generation_id || null
 
-    // 5. If async (has an ID but no URL yet), poll for completion
+    // 3. Poll if async
     let finalUrl = gammaUrl
     if (!finalUrl && gammaId) {
-      // Poll up to 60 seconds
       for (let i = 0; i < 12; i++) {
         await new Promise(r => setTimeout(r, 5000))
         try {
@@ -166,31 +139,21 @@ serve(async (req) => {
       }
     }
 
-    // 6. Update listing record
-    const now = new Date().toISOString()
-    await supabase
-      .from('listings')
-      .update({
-        presentation_url: finalUrl,
-        presentation_status: finalUrl ? 'draft' : 'none',
-        presentation_generated_at: finalUrl ? now : null,
-      })
-      .eq('id', listing_id)
-
     return new Response(
       JSON.stringify({
         ok: true,
         url: finalUrl,
         gamma_id: gammaId,
-        status: finalUrl ? 'draft' : 'pending',
+        status: finalUrl ? 'ready' : 'generating',
       }),
       { headers: { ...CORS, 'Content-Type': 'application/json' } }
     )
 
-  } catch (err) {
-    console.error('build-presentation error:', err)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Internal error'
+    console.error('build-gamma-custom error:', err)
     return new Response(
-      JSON.stringify({ error: err.message || 'Internal error', code: 'internal_error' }),
+      JSON.stringify({ error: message, code: 'internal_error' }),
       { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } }
     )
   }

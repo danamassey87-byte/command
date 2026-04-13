@@ -1,0 +1,126 @@
+/* ─── Gamma Presentations ──────────────────────────────────────────────────── */
+
+.gp-page { max-width: 1060px; margin: 0 auto; padding: 24px 24px 80px; }
+
+.gp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.gp-header__title {
+  font-family: var(--font-display); font-size: 1.35rem;
+  color: var(--brown-dark); margin: 0;
+}
+.gp-header__sub {
+  font-size: 0.82rem; color: var(--color-text-muted); margin: 2px 0 0;
+}
+
+/* Tabs */
+.gp-tabs { display: flex; gap: 0; border-bottom: 1px solid #e8e3de; margin-bottom: 20px; }
+.gp-tab {
+  padding: 10px 18px; font-size: 0.82rem; color: var(--color-text-muted);
+  border: none; background: none; cursor: pointer;
+  border-bottom: 2px solid transparent; transition: all 0.15s ease;
+}
+.gp-tab:hover { color: var(--brown-dark); }
+.gp-tab--active { color: var(--brown-dark); font-weight: 600; border-bottom-color: var(--brown-dark); }
+
+/* Type filter chips */
+.gp-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.gp-filter-chip {
+  padding: 5px 12px; border-radius: 6px; font-size: 0.78rem;
+  border: 1px solid #e0dbd6; background: #fff; color: var(--brown-dark);
+  cursor: pointer; transition: all 0.15s ease; text-transform: capitalize;
+}
+.gp-filter-chip:hover { background: #f5f0eb; }
+.gp-filter-chip--active { background: var(--brown-dark); color: #fff; border-color: var(--brown-dark); }
+
+/* Presentation cards */
+.gp-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+.gp-card {
+  background: #fff; border: 1px solid #e8e3de; border-radius: 12px;
+  overflow: hidden; transition: box-shadow 0.15s ease;
+}
+.gp-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+
+.gp-card__preview {
+  height: 160px; background: linear-gradient(135deg, #f5f0eb 0%, #e8e3de 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.5rem; color: var(--brown-dark); position: relative;
+}
+.gp-card__preview img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+
+.gp-card__status {
+  position: absolute; top: 10px; right: 10px;
+  padding: 3px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.gp-card__status--ready { background: #e6f4ea; color: #137333; }
+.gp-card__status--generating { background: #fef7e0; color: #b8860b; }
+.gp-card__status--pending { background: #f5f0eb; color: var(--color-text-muted); }
+.gp-card__status--failed { background: #fce8e6; color: #c5221f; }
+
+.gp-card__body { padding: 14px 16px; }
+.gp-card__title {
+  font-family: var(--font-display); font-size: 0.95rem;
+  color: var(--brown-dark); margin: 0 0 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gp-card__meta {
+  font-size: 0.75rem; color: var(--color-text-muted); margin: 0 0 10px;
+}
+.gp-card__type {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 0.7rem; background: #f5f0eb; color: var(--brown-dark);
+  margin-right: 6px;
+}
+
+.gp-card__actions { display: flex; gap: 6px; }
+.gp-card__actions .btn { font-size: 0.78rem; padding: 5px 12px; }
+
+/* New presentation form */
+.gp-form {
+  background: #fff; border: 1px solid #e8e3de; border-radius: 12px;
+  padding: 20px; margin-bottom: 20px;
+}
+.gp-form__row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;
+}
+.gp-form__row--full { grid-template-columns: 1fr; }
+.gp-form__label {
+  display: block; font-size: 0.72rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--color-text-muted); margin-bottom: 4px;
+}
+
+/* Empty state */
+.gp-empty {
+  text-align: center; padding: 60px 20px; color: var(--color-text-muted);
+}
+.gp-empty__icon { font-size: 2.5rem; margin-bottom: 10px; }
+.gp-empty__title { font-family: var(--font-display); font-size: 1.1rem; color: var(--brown-dark); margin: 0 0 6px; }
+.gp-empty__text { font-size: 0.85rem; margin: 0 0 16px; }
+
+/* Not configured banner */
+.gp-setup-banner {
+  background: linear-gradient(135deg, #f5f0eb 0%, #fff 100%);
+  border: 1px solid #e8e3de; border-radius: 12px;
+  padding: 24px; text-align: center; margin-bottom: 20px;
+}
+.gp-setup-banner__icon { font-size: 2rem; margin-bottom: 8px; }
+.gp-setup-banner__title { font-family: var(--font-display); font-size: 1.05rem; color: var(--brown-dark); margin: 0 0 6px; }
+.gp-setup-banner__text { font-size: 0.82rem; color: var(--color-text-muted); margin: 0 0 14px; max-width: 480px; margin-left: auto; margin-right: auto; }
+.gp-setup-banner__steps { text-align: left; max-width: 400px; margin: 0 auto 16px; }
+.gp-setup-banner__step {
+  display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px;
+  font-size: 0.82rem; color: var(--brown-dark);
+}
+.gp-setup-banner__num {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  background: var(--brown-dark); color: #fff; font-size: 0.72rem;
+  display: flex; align-items: center; justify-content: center; font-weight: 600;
+}

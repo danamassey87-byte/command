@@ -424,6 +424,32 @@ export async function buildPresentation(listingId, strategyText, photos = []) {
   return data
 }
 
+export async function buildGammaCustom(title, strategyText, presentationType) {
+  const { data, error } = await supabase.functions.invoke('build-gamma-custom', {
+    body: { title, strategy_text: strategyText, presentation_type: presentationType },
+  })
+  if (error) throw new Error(error.message)
+  return data
+}
+
+export const getGammaPresentations = () =>
+  query(supabase.from('gamma_presentations').select('*').order('created_at', { ascending: false }))
+export const createGammaPresentation = (d) =>
+  query(supabase.from('gamma_presentations').insert(d).select().single())
+export const updateGammaPresentation = (id, d) =>
+  query(supabase.from('gamma_presentations').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+export const deleteGammaPresentation = (id) =>
+  query(supabase.from('gamma_presentations').delete().eq('id', id))
+
+/** Get Gamma config from user_settings. */
+export const getGammaConfig = () =>
+  query(supabase.from('user_settings').select('*').eq('key', 'gamma_config').maybeSingle())
+/** Update Gamma config. */
+export const updateGammaConfig = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'gamma_config', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())
+
 // ─── AI Prompts ───────────────────────────────────────────────────────────────
 export const getAiPrompts = () =>
   query(supabase.from('ai_prompts').select('*').order('prompt_key'))

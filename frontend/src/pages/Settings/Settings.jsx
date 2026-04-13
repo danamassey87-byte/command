@@ -993,18 +993,7 @@ function ConnectedAccountsTab() {
       </div>
 
       {/* Gamma */}
-      <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16, opacity: 0.6 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: '1.3rem' }}>🎯</span>
-          <div>
-            <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.95rem' }}>Gamma Pro</div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>AI listing presentations &amp; property websites</div>
-          </div>
-          <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 500, color: 'var(--color-text-muted)', background: '#f5f0eb', padding: '3px 10px', borderRadius: 6 }}>
-            Coming Soon
-          </span>
-        </div>
-      </div>
+      <GammaConfigCard />
 
       {/* Canva */}
       <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16, opacity: 0.6 }}>
@@ -1018,6 +1007,129 @@ function ConnectedAccountsTab() {
             Coming Soon
           </span>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Gamma Config Card (inside Connected Accounts) ──────────────────────────
+function GammaConfigCard() {
+  const [gammaKey, setGammaKey] = useState('')
+  const [hasSavedKey, setHasSavedKey] = useState(false)
+  const [editingKey, setEditingKey] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    DB.getGammaConfig().then(({ data }) => {
+      if (data?.value?.api_key) {
+        setGammaKey(data.value.api_key)
+        setHasSavedKey(true)
+      }
+    }).catch(() => {})
+  }, [])
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await DB.updateGammaConfig({ api_key: gammaKey })
+      setTestResult({ ok: true, message: 'Saved!' })
+      setHasSavedKey(true)
+      setEditingKey(false)
+    } catch (err) {
+      setTestResult({ ok: false, message: err.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      if (!gammaKey.trim()) {
+        setTestResult({ ok: false, message: 'Enter an API key first' })
+        return
+      }
+      const resp = await fetch('https://public-api.gamma.app/v1.0/themes', {
+        headers: { 'X-API-KEY': gammaKey },
+      })
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => '')
+        setTestResult({ ok: false, message: `API returned ${resp.status}: ${errText.slice(0, 200)}` })
+        return
+      }
+      setTestResult({ ok: true, message: 'Connected! Gamma API is working.' })
+    } catch (err) {
+      setTestResult({ ok: false, message: err.message })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <span style={{ fontSize: '1.3rem' }}>🎯</span>
+        <div>
+          <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.95rem' }}>Gamma Pro</div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>AI listing presentations &amp; property websites</div>
+        </div>
+        {hasSavedKey && !editingKey && (
+          <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 600, color: '#137333', background: '#e6f4ea', padding: '3px 10px', borderRadius: 6 }}>
+            Connected
+          </span>
+        )}
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)', marginBottom: 4 }}>API Key</label>
+        {hasSavedKey && !editingKey ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ flex: 1, padding: '7px 10px', border: '1px solid #e0dbd6', borderRadius: 6, fontSize: '0.85rem', color: 'var(--color-text-muted)', background: '#faf8f5', fontFamily: 'monospace', letterSpacing: '0.05em' }}>
+              {'•'.repeat(Math.max(0, gammaKey.length - 4))}{gammaKey.slice(-4)}
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => setEditingKey(true)}>Change</Button>
+            <Button size="sm" variant="ghost" onClick={handleTest} disabled={testing}>
+              {testing ? 'Testing...' : 'Test'}
+            </Button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Input
+              type="password"
+              value={editingKey ? '' : gammaKey}
+              onChange={e => setGammaKey(e.target.value)}
+              placeholder="Paste your Gamma API key..."
+              style={{ flex: 1 }}
+              autoFocus={editingKey}
+            />
+            {editingKey && (
+              <Button size="sm" variant="ghost" onClick={() => { setEditingKey(false); }}>Cancel</Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={handleTest} disabled={testing || !gammaKey.trim()}>
+              {testing ? 'Testing...' : 'Test'}
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={saving || !gammaKey.trim()}>
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {testResult && (
+        <div style={{
+          padding: '8px 12px', borderRadius: 8, fontSize: '0.82rem', marginTop: 8,
+          background: testResult.ok ? '#e6f4ea' : '#fce8e6',
+          color: testResult.ok ? '#137333' : '#c5221f',
+        }}>
+          {testResult.message}
+        </div>
+      )}
+
+      <div style={{ marginTop: 10, fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+        Get your API key from <strong>gamma.app</strong> → Account Settings → API Keys (Pro plan required)
       </div>
     </div>
   )
