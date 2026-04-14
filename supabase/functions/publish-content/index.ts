@@ -45,7 +45,91 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    const { platform_post_id, action, scheduled_for } = await req.json()
+    const { platform_post_id, action, scheduled_for, video_prompt, media_urls } = await req.json()
+
+    // ─── Generate Video via Blotato ──────────────────────────────────────────
+    if (action === 'generate_video') {
+      if (!video_prompt?.trim()) {
+        return new Response(
+          JSON.stringify({ error: 'Missing video_prompt' }),
+          { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Call Blotato video generation endpoint
+      const videoBody: Record<string, any> = {
+        prompt: video_prompt,
+        style: 'professional',
+      }
+
+      // Attach media assets if provided (images for slideshow-style videos)
+      if (media_urls?.length) {
+        videoBody.media_urls = media_urls
+      }
+
+      // Try Blotato's video generation endpoint
+      const videoResp = await fetch(`${BLOTATO_API}/videos/generate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${blotatoKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(videoBody),
+      })
+
+      if (!videoResp.ok) {
+        const errText = await videoResp.text().catch(() => '')
+        return new Response(
+          JSON.stringify({
+            error: `Blotato video API error (${videoResp.status}): ${errText.slice(0, 300)}`,
+            code: 'blotato_video_error',
+          }),
+          { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const videoResult = await videoResp.json()
+      const videoUrl = videoResult.video_url || videoResult.url || null
+      const videoId = videoResult.video_id || videoResult.id || null
+
+      // If async generation, poll for completion (up to 90 seconds)
+      let finalVideoUrl = videoUrl
+      if (!finalVideoUrl && videoId) {
+        for (let i = 0; i < 18; i++) {
+          await new Promise(r => setTimeout(r, 5000))
+          try {
+            const pollResp = await fetch(`${BLOTATO_API}/videos/${videoId}`, {
+              headers: { 'Authorization': `Bearer ${blotatoKey}` },
+            })
+            if (pollResp.ok) {
+              const pollData = await pollResp.json()
+              if (pollData.status === 'completed' || pollData.video_url) {
+                finalVideoUrl = pollData.video_url || pollData.url
+                break
+              }
+              if (pollData.status === 'failed') {
+                return new Response(
+                  JSON.stringify({ error: 'Video generation failed', code: 'video_failed' }),
+                  { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
+                )
+              }
+            }
+          } catch (e) {
+            console.error('Blotato video poll error:', e)
+          }
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          video_url: finalVideoUrl,
+          video_id: videoId,
+          status: finalVideoUrl ? 'ready' : 'generating',
+        }),
+        { headers: { ...CORS, 'Content-Type': 'application/json' } }
+      )
+    }
 
     if (!platform_post_id || !action) {
       return new Response(

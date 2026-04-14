@@ -42,6 +42,7 @@ import HashtagBank from './pages/HashtagBank/HashtagBank'
 import KeywordTracker from './pages/KeywordTracker/KeywordTracker'
 import InspoRecreator from './pages/InspoRecreator/InspoRecreator'
 import GammaPresentations from './pages/GammaPresentations/GammaPresentations'
+import VideoStudio from './pages/VideoStudio/VideoStudio'
 import AdsManager from './pages/Ads/AdsManager'
 import AdReports from './pages/Ads/AdReports'
 import Vendors from './pages/Vendors/Vendors'
@@ -99,6 +100,8 @@ import MileageLog  from './pages/PnL/MileageLog'
 import TaxSummary  from './pages/PnL/TaxSummary'
 import RecurringExpenses from './pages/PnL/RecurringExpenses'
 import BudgetVsActual from './pages/PnL/BudgetVsActual'
+import CostTracker from './pages/PnL/CostTracker'
+import ROIAnalytics from './pages/PnL/ROIAnalytics'
 
 // ─── Placeholder for new pages (renders a "Coming Soon" card) ────────────────
 function ComingSoon({ title }) {
@@ -189,6 +192,7 @@ export default function App() {
           <Route path="/content/seo"      element={<KeywordTracker />} />
           <Route path="/content/inspo"    element={<InspoRecreator />} />
           <Route path="/content/gamma"   element={<GammaPresentations />} />
+          <Route path="/content/video"   element={<VideoStudio />} />
           <Route path="/content/social"    element={<SocialDashboard />} />
           <Route path="/content/ads"       element={<AdsManager />} />
           <Route path="/content/ads/reports" element={<AdReports />} />
@@ -202,6 +206,8 @@ export default function App() {
           <Route path="/pnl/recurring"    element={<RecurringExpenses />} />
           <Route path="/pnl/budget"       element={<BudgetVsActual />} />
           <Route path="/pnl/tax"          element={<TaxSummary />} />
+          <Route path="/pnl/costs"       element={<CostTracker />} />
+          <Route path="/pnl/roi"         element={<ROIAnalytics />} />
 
           {/* ─── Net Sheet ─── */}
           <Route path="/net-sheet"         element={<NetSheet />} />

@@ -534,6 +534,10 @@ export default function ContentDashboard() {
               <span className="ct-quick-link__icon">🎯</span>
               <span>Gamma</span>
             </Link>
+            <Link to="/content/video" className="ct-quick-link ct-quick-link--compact">
+              <span className="ct-quick-link__icon">🎬</span>
+              <span>Video</span>
+            </Link>
           </div>
         </DashCard>
       </div>
