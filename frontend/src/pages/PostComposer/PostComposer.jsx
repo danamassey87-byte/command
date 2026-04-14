@@ -112,6 +112,27 @@ export default function PostComposer() {
     })()
   }, [pieceId])
 
+  // ─── Pick up video export from Video Studio ────────────────────────────────
+  useEffect(() => {
+    const exported = sessionStorage.getItem('video_studio_export')
+    if (exported) {
+      try {
+        const data = JSON.parse(exported)
+        if (data.url) {
+          setMediaFiles(prev => [...prev, {
+            file: null,
+            preview: data.url,
+            url: data.url,
+            name: data.name || 'video.webm',
+            type: data.type || 'video/webm',
+            fromVideoStudio: true,
+          }])
+        }
+      } catch { /* ignore */ }
+      sessionStorage.removeItem('video_studio_export')
+    }
+  }, [])
+
   // ─── Derived ──────────────────────────────────────────────────────────────
   const pillarList = pillars ?? []
   const avatarList = avatars ?? []
