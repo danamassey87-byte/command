@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════════════
  * Global quick-add bar + forms — uses project brand palette
- *   --dark-brown: #524136   --med-brown: #b79782
+ *   --dark-brown: #3A2A1E   --med-brown: #b79782
  *   --light: #c8c3b9        --cream: #efede8   --white: #ffffff
  * ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -12,9 +12,9 @@
   align-items: center;
   gap: 8px;
   padding: 7px 14px 7px 11px;
-  background: #524136;
+  background: #3A2A1E;
   color: #fff;
-  border: 1px solid #524136;
+  border: 1px solid #3A2A1E;
   border-radius: 999px;
   font-family: 'Poppins', system-ui, sans-serif;
   font-size: 13px;
@@ -83,13 +83,13 @@
   height: 34px;
   background: #efede8;
   border-radius: 8px;
-  color: #524136;
+  color: #3A2A1E;
   flex-shrink: 0;
 }
 .gab__item-title {
   font-size: 13.5px;
   font-weight: 600;
-  color: #524136;
+  color: #3A2A1E;
 }
 .gab__item-sub {
   font-size: 11.5px;
@@ -203,7 +203,7 @@
   transition: all 0.15s;
 }
 .qa-toggle__btn--active {
-  background: #524136;
+  background: #3A2A1E;
   color: #fff;
   box-shadow: 0 1px 3px rgba(82, 65, 54, 0.2);
 }
@@ -217,10 +217,10 @@
   border: 1px solid #efede8;
   border-radius: 8px;
   font-size: 13px;
-  color: #524136;
+  color: #3A2A1E;
   cursor: pointer;
 }
-.qa-checkbox input { accent-color: #524136; }
+.qa-checkbox input { accent-color: #3A2A1E; }
 
 /* ─── Duplicate warning ────────────────────────────────────────────────── */
 .dup-warning {
@@ -309,7 +309,7 @@
 .dup-warning__match-primary {
   font-size: 13px;
   font-weight: 600;
-  color: #524136;
+  color: #3A2A1E;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -374,7 +374,7 @@
   background: #fff;
   border: 1px solid #d6cfc2;
   border-radius: 6px;
-  color: #524136;
+  color: #3A2A1E;
   transition: border-color 0.12s;
   box-sizing: border-box;
 }
@@ -443,7 +443,7 @@
 .ac__option-address {
   font-size: 13px;
   font-weight: 500;
-  color: #524136;
+  color: #3A2A1E;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -628,7 +628,7 @@
 .ac__usps-suggest__addr {
   font-size: 13px;
   font-weight: 500;
-  color: #524136;
+  color: #3A2A1E;
 }
 .ac__usps-suggest__meta {
   font-size: 11.5px;
@@ -648,16 +648,16 @@
   font-family: 'Poppins', sans-serif;
   border: 1px solid #c8c3b9;
   background: #fff;
-  color: #524136;
+  color: #3A2A1E;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s ease;
 }
 .ac__usps-btn:hover { background: #efede8; }
 .ac__usps-btn--accept {
-  background: #524136;
+  background: #3A2A1E;
   color: #fff;
-  border-color: #524136;
+  border-color: #3A2A1E;
 }
 .ac__usps-btn--accept:hover {
   background: #6a5445;

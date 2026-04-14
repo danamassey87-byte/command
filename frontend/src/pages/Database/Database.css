@@ -369,7 +369,7 @@
 .db-dual-modal__title {
   margin: 0 0 6px;
   font-size: 22px;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .db-dual-modal__sub {
   margin: 0 0 22px;
@@ -396,7 +396,7 @@
   transition: all 0.15s ease;
 }
 .db-dual-choice:hover {
-  border-color: var(--brown-dark, #524136);
+  border-color: var(--brown-dark, #3A2A1E);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(82, 65, 54, 0.08);
 }
@@ -404,7 +404,7 @@
 .db-dual-choice__label {
   font-size: 15px;
   font-weight: 600;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .db-dual-choice__detail {
   font-size: 11px;

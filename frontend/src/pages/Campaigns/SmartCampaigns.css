@@ -23,7 +23,7 @@
 }
 .sc-stat-card--accent {
   background: rgba(82,65,54,0.08);
-  border-color: var(--brown-dark, #524136);
+  border-color: var(--brown-dark, #3A2A1E);
 }
 .sc-stat-card--warn .sc-stat-num {
   color: #D97706;
@@ -31,7 +31,7 @@
 .sc-stat-num {
   font-family: var(--font-display, 'DM Serif Display', serif);
   font-size: 1.6rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   line-height: 1.1;
 }
 .sc-stat-label {
@@ -67,7 +67,7 @@
 .sc-campaign-card__name {
   font-family: var(--font-display, 'DM Serif Display', serif);
   font-size: 1.05rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   margin: 0;
 }
 .sc-campaign-card__desc {
@@ -98,7 +98,7 @@
 }
 .sc-mini-num {
   font-weight: 600;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   margin-right: 2px;
 }
 .sc-campaign-card__actions {
@@ -130,7 +130,7 @@
 .sc-template-step__num {
   width: 18px; height: 18px;
   border-radius: 50%;
-  background: var(--brown-dark, #524136);
+  background: var(--brown-dark, #3A2A1E);
   color: #fff;
   font-size: 0.65rem;
   display: flex; align-items: center; justify-content: center;
@@ -145,7 +145,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 
 /* ─── Queue ─── */
@@ -175,7 +175,7 @@
 .sc-queue-card__contact {
   font-family: var(--font-display, 'DM Serif Display', serif);
   font-size: 1.1rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   margin: 0;
 }
 .sc-queue-card__campaign {
@@ -186,7 +186,7 @@
 .sc-queue-card__subject {
   font-size: 0.8rem;
   font-weight: 500;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   margin: 0;
 }
 .sc-queue-card__preview {
@@ -223,9 +223,9 @@
   gap: 6px;
 }
 .sc-filter-btn--active {
-  background: var(--brown-dark, #524136);
+  background: var(--brown-dark, #3A2A1E);
   color: #fff;
-  border-color: var(--brown-dark, #524136);
+  border-color: var(--brown-dark, #3A2A1E);
 }
 .sc-filter-count {
   font-size: 0.7rem;
@@ -254,7 +254,7 @@
 .sc-enrollment-row__left { flex: 1; min-width: 0; }
 .sc-enrollment-row__name {
   font-weight: 600;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   font-size: 0.88rem;
 }
 .sc-enrollment-row__campaign {
@@ -276,7 +276,7 @@
 }
 .sc-progress-bar__fill {
   height: 100%;
-  background: var(--brown-dark, #524136);
+  background: var(--brown-dark, #3A2A1E);
   border-radius: 3px;
   transition: width 0.3s;
 }
@@ -319,7 +319,7 @@
 .sc-history-row__name {
   font-weight: 600;
   font-size: 0.82rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .sc-history-row__detail {
   font-size: 0.78rem;
@@ -357,7 +357,7 @@
 .sc-enroll-contact__name {
   font-weight: 600;
   font-size: 0.85rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .sc-enroll-contact__detail {
   font-size: 0.75rem;
@@ -393,7 +393,7 @@
   margin: 0;
   font-family: var(--font-display, 'DM Serif Display', serif);
   font-size: 0.95rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .sc-editor__steps { display: flex; flex-direction: column; gap: 8px; }
 .sc-editor__empty-steps {
@@ -433,7 +433,7 @@
 .sc-step-card__num {
   width: 22px; height: 22px;
   border-radius: 50%;
-  background: var(--brown-dark, #524136);
+  background: var(--brown-dark, #3A2A1E);
   color: #fff;
   font-size: 0.7rem;
   display: flex; align-items: center; justify-content: center;
@@ -450,7 +450,7 @@
 .sc-step-card__type-label {
   font-weight: 600;
   font-size: 0.78rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .sc-step-card__delay {
   font-size: 0.72rem;
@@ -508,7 +508,7 @@
   border-radius: 4px;
   background: rgba(82,65,54,0.03);
   font-size: 0.68rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   cursor: pointer;
   font-family: monospace;
 }
@@ -525,14 +525,14 @@
   margin: 0;
   font-family: var(--font-display, 'DM Serif Display', serif);
   font-size: 1.15rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .sc-detail__info {
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 0.82rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .sc-detail__info strong { color: var(--color-text-muted, #8c7b6f); font-weight: 500; margin-right: 4px; }
 .sc-detail__actions { display: flex; gap: 6px; }
@@ -541,7 +541,7 @@
   margin: 8px 0 0;
   font-family: var(--font-display, 'DM Serif Display', serif);
   font-size: 0.9rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   padding-top: 8px;
   border-top: 1px solid rgba(182,151,130,0.12);
 }
@@ -560,14 +560,14 @@
 .sc-detail__step--sent { opacity: 0.6; }
 .sc-detail__step--current {
   background: rgba(82,65,54,0.06);
-  border-color: var(--brown-dark, #524136);
+  border-color: var(--brown-dark, #3A2A1E);
 }
 .sc-detail__step[data-type="email"] .sc-detail__step-num { background: #4A90D9; }
 .sc-detail__step[data-type="sms"] .sc-detail__step-num   { background: #38A169; }
 .sc-detail__step-num {
   width: 20px; height: 20px;
   border-radius: 50%;
-  background: var(--brown-dark, #524136);
+  background: var(--brown-dark, #3A2A1E);
   color: #fff;
   font-size: 0.65rem;
   display: flex; align-items: center; justify-content: center;
@@ -575,7 +575,7 @@
   margin-top: 1px;
 }
 .sc-detail__step-info { flex: 1; min-width: 0; }
-.sc-detail__step-type { font-size: 0.78rem; font-weight: 500; color: var(--brown-dark, #524136); }
+.sc-detail__step-type { font-size: 0.78rem; font-weight: 500; color: var(--brown-dark, #3A2A1E); }
 .sc-detail__step-subject { font-size: 0.75rem; color: var(--color-text-muted, #8c7b6f); }
 .sc-detail__step-sent-at { font-size: 0.7rem; color: #38A169; }
 .sc-detail__step-actions { flex-shrink: 0; }
@@ -608,7 +608,7 @@
   text-transform: uppercase;
   font-size: 0.65rem;
   letter-spacing: 0.04em;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   min-width: 60px;
 }
 .sc-detail__log-detail { flex: 1; color: var(--color-text-muted, #8c7b6f); }
@@ -789,7 +789,7 @@
 .sc-triggers__header h4 {
   margin: 0;
   font-size: 14px;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .sc-triggers__hint {
   font-size: 12px;
@@ -820,7 +820,7 @@
 .sc-trigger-row__label {
   font-size: 13px;
   font-weight: 500;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -877,7 +877,7 @@
 .sc-queue-card__link {
   display: inline-block;
   font-size: 12px;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   text-decoration: underline;
   margin-top: 6px;
 }
@@ -908,7 +908,7 @@
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -916,7 +916,7 @@
 .enroll-modal__tab.is-active {
   background: #fff;
   box-shadow: 0 1px 3px rgba(82, 65, 54, 0.12);
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 
 /* ── By Tag ────────────────────────────────────────────────────────────── */
@@ -998,7 +998,7 @@
 .enroll-modal__link-btn {
   background: none;
   border: none;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   text-decoration: underline;
   font-size: 12px;
   cursor: pointer;
@@ -1036,7 +1036,7 @@
 .enroll-modal__contact-name {
   font-size: 13px;
   font-weight: 500;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1074,7 +1074,7 @@
 }
 .enroll-modal__preview strong {
   font-size: 16px;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .enroll-modal__preview-sub {
   font-size: 11px;
@@ -1125,7 +1125,7 @@
 }
 .enroll-modal__reenroll-warn {
   font-size: 13px;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .enroll-modal__reenroll-actions {
   display: flex;

@@ -1,21 +1,24 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Cormorant:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Jost:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,opsz,wght@0,6..12,300;0,6..12,400;0,6..12,500;0,6..12,600;0,6..12,700;1,6..12,300;1,6..12,400;1,6..12,500;1,6..12,600;1,6..12,700&display=swap');
 
-/* ─── Design Tokens ─── */
+/* ─── Design Tokens — Brand Style Guide v1.0 (April 2026) ─── */
 :root {
-  --brown-dark:   #524136;
-  --brown-mid:    #b79782;
-  --brown-light:  #c8c3b9;
-  --cream:        #efede8;
+  /* Core Palette — 6 colors, organic modern */
+  --brown-dark:   #3A2A1E;  /* Deep Espresso — primary text, dark bg, headers. NEVER pure black. */
+  --brown-warm:   #5A4136;  /* Warm Brown — secondary text, subheadings, icon fills */
+  --brown-mid:    #B79782;  /* Camel — accent highlights, buttons, CTAs, divider lines */
+  --brown-light:  #C8C3B9;  /* Warm Stone — borders, card bg, secondary containers, muted text */
+  --cream:        #EFEDE8;  /* Linen Cream — page bg, light sections, breathing space */
+  --sage-green:   #8B9A7B;  /* Sage Green — accent only (10-15%). Tags, callouts, fresh pops */
   --white:        #ffffff;
 
   /* Semantic aliases */
   --color-primary:      var(--brown-dark);
   --color-accent:       var(--brown-mid);
   --color-muted:        var(--brown-light);
-  --color-bg:           #f4f2ee;
+  --color-bg:           var(--cream);
   --color-surface:      var(--white);
   --color-text:         var(--brown-dark);
-  --color-text-muted:   var(--brown-mid);
+  --color-text-muted:   var(--brown-warm);
   --color-border:       #ddd8d0;
   --color-border-light: #e8e4de;
 
@@ -26,7 +29,7 @@
   --glass-border:       rgba(255, 255, 255, 0.55);
 
   /* Status colors */
-  --color-success:      #6a9e72;
+  --color-success:      #8B9A7B;  /* Sage Green — aligned with brand */
   --color-success-bg:   #edf4ee;
   --color-warning:      #c99a2e;
   --color-warning-bg:   #fdf6e3;
@@ -35,11 +38,11 @@
   --color-info:         #5a87b4;
   --color-info-bg:      #eef4fa;
 
-  /* Typography */
-  --font-display:  'Cormorant Garamond', Georgia, serif;
-  --font-body:     'Jost', system-ui, sans-serif;
-  --font-script:   'Cormorant', 'Cormorant Garamond', Georgia, serif;
-  --font-impact:   'Cormorant Garamond', Georgia, serif;
+  /* Typography — Nunito Sans primary (90%), Halow Duo Script for logo only */
+  --font-display:  'Nunito Sans', system-ui, sans-serif;
+  --font-body:     'Nunito Sans', system-ui, sans-serif;
+  --font-script:   'Halow Duo Script', cursive;  /* Logo mark + 1 special use per design max */
+  --font-impact:   'Nunito Sans', system-ui, sans-serif;
 
   /* Layout */
   --topnav-height: 88px;
@@ -61,10 +64,10 @@
   --radius-full: 9999px;
 
   /* Shadows */
-  --shadow-xs:  0 1px 2px rgba(82, 65, 54, 0.04), 0 1px 4px rgba(82, 65, 54, 0.06);
-  --shadow-sm:  0 2px 6px rgba(82, 65, 54, 0.06), 0 4px 12px rgba(82, 65, 54, 0.04);
-  --shadow-md:  0 4px 16px rgba(82, 65, 54, 0.08), 0 8px 32px rgba(82, 65, 54, 0.04);
-  --shadow-lg:  0 8px 32px rgba(82, 65, 54, 0.10), 0 16px 48px rgba(82, 65, 54, 0.06);
+  --shadow-xs:  0 1px 2px rgba(58, 42, 30, 0.04), 0 1px 4px rgba(58, 42, 30, 0.06);
+  --shadow-sm:  0 2px 6px rgba(58, 42, 30, 0.06), 0 4px 12px rgba(58, 42, 30, 0.04);
+  --shadow-md:  0 4px 16px rgba(58, 42, 30, 0.08), 0 8px 32px rgba(58, 42, 30, 0.04);
+  --shadow-lg:  0 8px 32px rgba(58, 42, 30, 0.10), 0 16px 48px rgba(58, 42, 30, 0.06);
 
   /* Transitions */
   --transition-fast:   0.15s ease;

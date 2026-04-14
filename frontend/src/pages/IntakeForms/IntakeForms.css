@@ -1039,7 +1039,7 @@
 .if-dialog__title {
   margin: 0 0 4px;
   font-size: 22px;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .if-dialog__sub {
   margin: 0 0 20px;
@@ -1080,14 +1080,14 @@
   background: rgba(182, 151, 130, 0.04);
 }
 .if-dialog__usage--selected {
-  border-color: var(--brown-dark, #524136);
+  border-color: var(--brown-dark, #3A2A1E);
   background: rgba(82, 65, 54, 0.06);
 }
 .if-dialog__usage-icon { font-size: 18px; }
 .if-dialog__usage-label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .if-dialog__usage-desc {
   font-size: 11px;
@@ -1110,7 +1110,7 @@
 }
 .if-section-title {
   font-size: 18px;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   margin: 0 0 4px;
 }
 .if-section-sub {
@@ -1149,7 +1149,7 @@
 .if-inbox__name {
   font-size: 14px;
   font-weight: 500;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .if-inbox__meta {
   font-size: 12px;
@@ -1158,7 +1158,7 @@
 }
 .if-inbox__merge-link {
   font-size: 13px;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   text-decoration: underline;
   font-weight: 500;
 }

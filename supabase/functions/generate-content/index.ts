@@ -29,7 +29,30 @@ serve(async (req) => {
       )
     }
 
-    const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property, source, avatar_id } = await req.json()
+    const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property, source, avatar_id, framework } = await req.json()
+
+    // ─── Framework injection ─────────────────────────────────────────────
+    // When a copywriting framework is specified, fetch it from ai_prompts and
+    // prepend it as writing instructions for Claude.
+    let frameworkContext = ''
+    if (framework) {
+      try {
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        )
+        const { data: fwPrompt } = await supabase
+          .from('ai_prompts')
+          .select('prompt_text')
+          .eq('prompt_key', `framework_${framework}`)
+          .maybeSingle()
+        if (fwPrompt?.prompt_text) {
+          frameworkContext = '\n\nCOPYWRITING FRAMEWORK INSTRUCTIONS:\n' + fwPrompt.prompt_text
+        }
+      } catch (e) {
+        console.error('Framework lookup failed (non-fatal):', e)
+      }
+    }
 
     // ─── Avatar context injection ──────────────────────────────────────────
     // When avatar_id is provided, fetch the avatar and build a targeting block.
@@ -407,7 +430,7 @@ Return ONLY a valid JSON object with these keys (no extra commentary):
       body: JSON.stringify({
         model,
         max_tokens: maxTokens,
-        system: SYSTEM_PROMPT + avatarContext,
+        system: SYSTEM_PROMPT + frameworkContext + avatarContext,
         messages: [{ role: 'user', content: userMessage }],
       }),
     })

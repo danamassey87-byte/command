@@ -3,7 +3,7 @@ import './StyleControls.css'
 
 // ─── Brand colors from the app ───
 const BRAND_COLORS = [
-  { name: 'Dark', value: '#524136' },
+  { name: 'Dark', value: '#3A2A1E' },
   { name: 'Mid', value: '#b79782' },
   { name: 'Cream', value: '#efede8' },
   { name: 'White', value: '#ffffff' },
@@ -11,10 +11,10 @@ const BRAND_COLORS = [
 
 // Pre-mixed brand combos
 const BRAND_MIXES = [
-  { name: 'Warm Blend', value: 'linear-gradient(135deg, #524136, #b79782)', flat: '#7a6c5c' },
+  { name: 'Warm Blend', value: 'linear-gradient(135deg, #3A2A1E, #b79782)', flat: '#7a6c5c' },
   { name: 'Soft Fade', value: 'linear-gradient(135deg, #b79782, #efede8)', flat: '#d3c2b5' },
-  { name: 'Deep Cream', value: 'linear-gradient(135deg, #524136, #efede8)', flat: '#a1978f' },
-  { name: 'Espresso', value: 'linear-gradient(135deg, #524136, #7a5f48)', flat: '#664d40' },
+  { name: 'Deep Cream', value: 'linear-gradient(135deg, #3A2A1E, #efede8)', flat: '#a1978f' },
+  { name: 'Espresso', value: 'linear-gradient(135deg, #3A2A1E, #7a5f48)', flat: '#664d40' },
   { name: 'Blush', value: 'linear-gradient(135deg, #b79782, #d4b8a6)', flat: '#c6a894' },
   { name: 'Latte', value: 'linear-gradient(135deg, #efede8, #d4c8be)', flat: '#e2dad3' },
 ]
@@ -66,7 +66,7 @@ export function BrandColorPicker({ value, onChange, label, showMixes = false, sh
         <div className="sc-color__custom">
           <input
             type="color"
-            value={value?.startsWith('#') ? value : '#524136'}
+            value={value?.startsWith('#') ? value : '#3A2A1E'}
             onChange={e => onChange(e.target.value)}
             className="sc-color__input"
           />
@@ -75,7 +75,7 @@ export function BrandColorPicker({ value, onChange, label, showMixes = false, sh
             value={value || ''}
             onChange={e => onChange(e.target.value)}
             className="sc-color__hex"
-            placeholder="#524136"
+            placeholder="#3A2A1E"
             maxLength={7}
           />
         </div>
@@ -131,6 +131,7 @@ export function BorderRadiusControl({ value = 0, onChange, label, max = 50, show
 
 // ─── Font Picker ───
 const BUILT_IN_FONTS = [
+  { name: 'Nunito Sans', value: "'Nunito Sans', sans-serif" },
   { name: 'Poppins', value: "'Poppins', sans-serif" },
   { name: 'Playfair Display', value: "'Playfair Display', Georgia, serif" },
   { name: 'Cormorant Garamond', value: "'Cormorant Garamond', Georgia, serif" },

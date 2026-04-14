@@ -52,6 +52,7 @@ export default function PostComposer() {
   // Metadata
   const [pillarId, setPillarId]     = useState('')
   const [avatarId, setAvatarId]     = useState('')
+  const [framework, setFramework]   = useState('')
   const [propertyId, setPropertyId] = useState('')
   const [property, setProperty]     = useState(null)
   const [contentDate, setContentDate] = useState(() => new Date().toISOString().slice(0, 10))
@@ -181,6 +182,7 @@ export default function PostComposer() {
         pillar: pillar?.name || 'Real Estate',
         prompt,
         avatar_id: avatarId || undefined,
+        framework: framework || undefined,
       })
       if (result.text) setMainCaption(result.text)
     } catch (err) {
@@ -201,6 +203,7 @@ export default function PostComposer() {
         platform: platformId,
         body_text: mainCaption,
         avatar_id: avatarId || undefined,
+        framework: framework || undefined,
       })
       if (result.text) {
         setPlatformTexts(prev => ({ ...prev, [platformId]: result.text }))
@@ -222,6 +225,7 @@ export default function PostComposer() {
         body_text: mainCaption,
         active_platforms: selectedPlatforms,
         avatar_id: avatarId || undefined,
+        framework: framework || undefined,
       })
       if (result.text) {
         try {
@@ -251,6 +255,8 @@ export default function PostComposer() {
         pillar: pillar?.name || 'Real Estate',
         prompt: mainCaption || 'real estate content',
         body_text: activeTab === 'main' ? 'Instagram post' : activeTab,
+        avatar_id: avatarId || undefined,
+        framework: framework || undefined,
       })
       if (result.hooks?.length) {
         const hookText = result.hooks.join('\n\n---\n\n')
@@ -688,6 +694,21 @@ export default function PostComposer() {
                   {pillarList.map(p => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
+                </select>
+              </div>
+            </div>
+            <div className="pc-picker-row" style={{ marginTop: 8 }}>
+              <div className="pc-picker-field" style={{ flex: '1 1 100%' }}>
+                <label>Framework</label>
+                <select value={framework} onChange={e => setFramework(e.target.value)}>
+                  <option value="">Auto (no framework)</option>
+                  <option value="pas">PAS — Problem · Agitate · Solution</option>
+                  <option value="pastor">PASTOR — Problem · Amplify · Story · Transform · Offer · Response</option>
+                  <option value="aida">AIDA — Attention · Interest · Desire · Action</option>
+                  <option value="bab">BAB — Before · After · Bridge</option>
+                  <option value="4ps">4Ps — Picture · Promise · Proof · Push</option>
+                  <option value="storybrand">StoryBrand — Hero · Problem · Guide · Plan · CTA</option>
+                  <option value="fab">FAB — Features · Advantages · Benefits</option>
                 </select>
               </div>
             </div>

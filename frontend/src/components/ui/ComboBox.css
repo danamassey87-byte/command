@@ -16,7 +16,7 @@
   cursor: pointer;
   border: 1px solid #c8c3b9;
   background: #fff;
-  color: #524136;
+  color: #3A2A1E;
   transition: all 0.15s ease;
   white-space: nowrap;
 }
@@ -24,9 +24,9 @@
 .combo__btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .combo__btn--save {
-  background: #524136;
+  background: #3A2A1E;
   color: #fff;
-  border-color: #524136;
+  border-color: #3A2A1E;
 }
 .combo__btn--save:hover:not(:disabled) {
   background: #6a5445;

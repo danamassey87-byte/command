@@ -18,7 +18,7 @@
 .notifs-page__title {
   font-family: var(--font-display, Georgia, serif);
   font-size: 1.7rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   margin: 0 0 4px 0;
 }
 
@@ -34,7 +34,7 @@
 }
 
 .notifs-btn {
-  background: var(--brown-dark, #524136);
+  background: var(--brown-dark, #3A2A1E);
   color: white;
   border: none;
   padding: 8px 14px;
@@ -47,7 +47,7 @@
 
 .notifs-btn--ghost {
   background: white;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   border: 1px solid rgba(82, 65, 54, 0.2);
 }
 .notifs-btn--ghost:hover { background: #faf8f5; }
@@ -87,10 +87,10 @@
   opacity: 0.75;
 }
 
-.notifs-tab:hover { color: var(--brown-dark, #524136); }
+.notifs-tab:hover { color: var(--brown-dark, #3A2A1E); }
 
 .notifs-tab--active {
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   border-bottom-color: var(--brown-mid, #b79782);
 }
 
@@ -130,7 +130,7 @@
 .notifs-chip--active {
   background: #faf8f5;
   border-color: var(--brown-mid, #b79782);
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   font-weight: 600;
 }
 
@@ -148,7 +148,7 @@
   border-radius: 8px;
   padding: 6px 10px;
   font-size: 0.78rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   cursor: pointer;
 }
 
@@ -184,7 +184,7 @@
   background: #faf8f5;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -238,7 +238,7 @@
 .notifs-row__title {
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -294,7 +294,7 @@
   padding: 5px 11px;
   font-size: 0.72rem;
   cursor: pointer;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .notifs-row__actions button:hover {
   background: var(--brown-mid, #b79782);
@@ -315,7 +315,7 @@
   padding: 5px 11px;
   font-size: 0.72rem;
   cursor: pointer;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .notifs-row__snooze-menu button:hover {
   background: var(--brown-mid, #b79782);

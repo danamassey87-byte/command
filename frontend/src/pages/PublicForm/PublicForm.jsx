@@ -260,7 +260,7 @@ export default function PublicForm() {
           <FormLogoHeader logo={form.logo} />
           <div className="pf-thanks">
             <div className="pf-thanks__icon">✓</div>
-            <h2 className="pf-thanks__title" style={{ color: s.accentColor || '#524136' }}>Thank you!</h2>
+            <h2 className="pf-thanks__title" style={{ color: s.accentColor || '#3A2A1E' }}>Thank you!</h2>
             <p className="pf-thanks__msg">{form.thankYouMessage || 'Your response has been received.'}</p>
           </div>
         </div>
@@ -270,7 +270,7 @@ export default function PublicForm() {
 
   const enabledFields = (form.fields || []).filter(f => f.enabled)
   const sections = [...new Set(enabledFields.map(f => f.section))]
-  const accent = s.accentColor || '#524136'
+  const accent = s.accentColor || '#3A2A1E'
 
   return (
     <div

@@ -40,7 +40,7 @@ function saveResponses(r) { localStorage.setItem(RESPONSES_KEY, JSON.stringify(r
 
 // ─── Brand colors ───
 const BRAND = {
-  dark: '#524136',
+  dark: '#3A2A1E',
   mid: '#b79782',
   cream: '#efede8',
   white: '#ffffff',

@@ -5,7 +5,7 @@
   border-radius: 8px;
   padding: 16px;
   font-family: 'Poppins', sans-serif;
-  color: #524136;
+  color: #3A2A1E;
 }
 
 .stale-w--loading {
@@ -24,7 +24,7 @@
 .stale-w__title {
   font-size: 13.5px;
   font-weight: 600;
-  color: #524136;
+  color: #3A2A1E;
 }
 .stale-w__sub {
   font-size: 11.5px;
@@ -34,7 +34,7 @@
 
 .stale-w__sync {
   padding: 6px 12px;
-  background: #524136;
+  background: #3A2A1E;
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -81,7 +81,7 @@
 .stale-w__label {
   font-size: 12.5px;
   font-weight: 500;
-  color: #524136;
+  color: #3A2A1E;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -99,7 +99,7 @@
   border-radius: 5px;
   font-family: inherit;
   font-size: 11px;
-  color: #524136;
+  color: #3A2A1E;
   cursor: pointer;
 }
 .stale-w__open:hover { background: #efede8; }

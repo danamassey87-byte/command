@@ -235,7 +235,7 @@ function SignatureTab({ brand, refetch }) {
 function GuidelinesTab({ brand, refetch }) {
   const gl = brand?.guidelines ?? {}
   const [draft, setDraft] = useState({
-    primary_color:   gl.primary_color ?? '#524136',
+    primary_color:   gl.primary_color ?? '#3A2A1E',
     secondary_color: gl.secondary_color ?? '#b79782',
     accent_color:    gl.accent_color ?? '#c9b99a',
     tagline:         gl.tagline ?? '',
@@ -248,7 +248,7 @@ function GuidelinesTab({ brand, refetch }) {
     if (!brand?.guidelines) return
     const g = brand.guidelines
     setDraft({
-      primary_color: g.primary_color ?? '#524136', secondary_color: g.secondary_color ?? '#b79782',
+      primary_color: g.primary_color ?? '#3A2A1E', secondary_color: g.secondary_color ?? '#b79782',
       accent_color: g.accent_color ?? '#c9b99a', tagline: g.tagline ?? '',
       tone_of_voice: g.tone_of_voice ?? '', fonts: g.fonts ?? '',
     })

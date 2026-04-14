@@ -6,7 +6,7 @@ import './BioLinkBuilder.css'
 
 // ─── Default brand colors from the app ───
 const BRAND = {
-  dark: '#524136',
+  dark: '#3A2A1E',
   mid: '#b79782',
   cream: '#efede8',
   white: '#ffffff',
@@ -16,6 +16,7 @@ const STORAGE_KEY = 'biolink_page'
 const CUSTOM_FONTS_KEY = 'biolink_custom_fonts'
 
 const BUILT_IN_FONTS = [
+  { name: 'Nunito Sans', value: "'Nunito Sans', sans-serif" },
   { name: 'Poppins', value: "'Poppins', sans-serif" },
   { name: 'Playfair Display', value: "'Playfair Display', Georgia, serif" },
   { name: 'Cormorant Garamond', value: "'Cormorant Garamond', Georgia, serif" },

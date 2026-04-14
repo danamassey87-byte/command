@@ -11,7 +11,7 @@ const TEMPLATES_KEY = 'email_saved_templates'
 
 // ─── Brand ───
 const BRAND = {
-  dark: '#524136',
+  dark: '#3A2A1E',
   mid: '#b79782',
   cream: '#efede8',
   white: '#ffffff',

@@ -2,7 +2,7 @@
 // Converts Email Builder blocks to inline-styled HTML for Gmail/email clients
 
 const BRAND = {
-  dark: '#524136',
+  dark: '#3A2A1E',
   mid: '#b79782',
   cream: '#efede8',
   white: '#ffffff',
@@ -139,10 +139,10 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     name: 'Clean & Simple',
     emoji: '✨',
     blocks: [
-      { id: '1', type: 'header', logoUrl: '', bgColor: '#524136', textColor: '#ffffff', borderRadius: 0, padding: 28 },
+      { id: '1', type: 'header', logoUrl: '', bgColor: '#3A2A1E', textColor: '#ffffff', borderRadius: 0, padding: 28 },
       { id: '2', type: 'greeting', text: 'Hi {first_name},', fontSize: 15, fontFamily: '' },
       { id: '3', type: 'text', content: '', fontSize: 14, fontFamily: '', lineHeight: 1.65 },
-      { id: '4', type: 'cta', label: 'Learn More', url: '#', bgColor: '#524136', textColor: '#ffffff', borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
+      { id: '4', type: 'cta', label: 'Learn More', url: '#', bgColor: '#3A2A1E', textColor: '#ffffff', borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
       { id: '5', type: 'signature', name: '', title: '', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
     settings: { bgColor: '#e8e4de', emailBgColor: '#ffffff', fontFamily: '', borderRadius: 6 },
@@ -164,11 +164,11 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     name: 'Property Showcase',
     emoji: '🏠',
     blocks: [
-      { id: '1', type: 'header', logoUrl: '', bgColor: '#524136', textColor: '#ffffff', borderRadius: 0, padding: 28 },
+      { id: '1', type: 'header', logoUrl: '', bgColor: '#3A2A1E', textColor: '#ffffff', borderRadius: 0, padding: 28 },
       { id: '2', type: 'greeting', text: 'Hi {first_name},', fontSize: 15, fontFamily: '' },
       { id: '3', type: 'text', content: '', fontSize: 14, fontFamily: '', lineHeight: 1.65 },
       { id: '4', type: 'property-card', address: '', price: '', beds: '', baths: '', sqft: '', description: '', borderRadius: 8, bgColor: '#faf9f7' },
-      { id: '5', type: 'cta', label: 'Schedule a Showing', url: '#', bgColor: '#524136', textColor: '#ffffff', borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
+      { id: '5', type: 'cta', label: 'Schedule a Showing', url: '#', bgColor: '#3A2A1E', textColor: '#ffffff', borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
       { id: '6', type: 'signature', name: '', title: '', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
     settings: { bgColor: '#e8e4de', emailBgColor: '#ffffff', fontFamily: '', borderRadius: 6 },
@@ -178,7 +178,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     name: 'Market Update',
     emoji: '📊',
     blocks: [
-      { id: '1', type: 'header', logoUrl: '', bgColor: '#524136', textColor: '#ffffff', borderRadius: 0, padding: 28 },
+      { id: '1', type: 'header', logoUrl: '', bgColor: '#3A2A1E', textColor: '#ffffff', borderRadius: 0, padding: 28 },
       { id: '2', type: 'greeting', text: 'Hi {first_name},', fontSize: 15, fontFamily: '' },
       { id: '3', type: 'text', content: '', fontSize: 14, fontFamily: '', lineHeight: 1.65 },
       { id: '4', type: 'stats-row', stats: [
@@ -187,7 +187,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
         { label: 'Active Listings', value: '—', delta: '' },
       ], borderRadius: 8 },
       { id: '5', type: 'text', content: '', fontSize: 14, fontFamily: '', lineHeight: 1.65 },
-      { id: '6', type: 'cta', label: "Get Your Home's Value", url: '#', bgColor: '#524136', textColor: '#ffffff', borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
+      { id: '6', type: 'cta', label: "Get Your Home's Value", url: '#', bgColor: '#3A2A1E', textColor: '#ffffff', borderRadius: 6, fontSize: 14, fontFamily: '', padding: 12 },
       { id: '7', type: 'signature', name: '', title: '', phone: '', email: '', website: '', agentLogoUrl: '', brokerageLogoUrl: '', instagram: '', facebook: '' },
     ],
     settings: { bgColor: '#e8e4de', emailBgColor: '#ffffff', fontFamily: '', borderRadius: 6 },

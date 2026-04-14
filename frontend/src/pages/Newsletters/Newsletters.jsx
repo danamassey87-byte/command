@@ -9,7 +9,7 @@ import * as DB from '../../lib/supabase'
 import './Newsletters.css'
 
 // ─── Newsletter Templates ────────────────────────────────────────────────────
-const BRAND = { dark: '#524136', mid: '#b79782', cream: '#efede8', white: '#ffffff' }
+const BRAND = { dark: '#3A2A1E', mid: '#b79782', cream: '#efede8', white: '#ffffff' }
 
 const NEWSLETTER_TEMPLATES = [
   // ── 4 Weekly Rotating ──

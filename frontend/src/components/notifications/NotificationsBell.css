@@ -15,7 +15,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
@@ -26,7 +26,7 @@
 }
 
 .notif-bell__btn--has-unread {
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 
 .notif-bell__badge {
@@ -83,7 +83,7 @@
 .notif-bell__title {
   font-weight: 600;
   font-size: 0.9rem;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 
 .notif-bell__header-actions {
@@ -99,7 +99,7 @@
   cursor: pointer;
   padding: 0;
 }
-.notif-bell__link-btn:hover { color: var(--brown-dark, #524136); text-decoration: underline; }
+.notif-bell__link-btn:hover { color: var(--brown-dark, #3A2A1E); text-decoration: underline; }
 
 .notif-bell__body {
   overflow-y: auto;
@@ -156,7 +156,7 @@
 .notif-item__title {
   font-size: 0.83rem;
   font-weight: 600;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -246,7 +246,7 @@
   padding: 4px 10px;
   font-size: 0.72rem;
   cursor: pointer;
-  color: var(--brown-dark, #524136);
+  color: var(--brown-dark, #3A2A1E);
 }
 .notif-item__snooze-menu button:hover {
   background: var(--brown-mid, #b79782);
