@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,opsz,wght@0,6..12,300;0,6..12,400;0,6..12,500;0,6..12,600;0,6..12,700;1,6..12,300;1,6..12,400;1,6..12,500;1,6..12,600;1,6..12,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Cormorant:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Nunito+Sans:ital,opsz,wght@0,6..12,300;0,6..12,400;0,6..12,500;0,6..12,600;0,6..12,700;1,6..12,300;1,6..12,400;1,6..12,500;1,6..12,600;1,6..12,700&display=swap');
 
 /* ─── Design Tokens — Brand Style Guide v1.0 (April 2026) ─── */
 :root {
@@ -38,11 +38,11 @@
   --color-info:         #5a87b4;
   --color-info-bg:      #eef4fa;
 
-  /* Typography — Nunito Sans primary (90%), Halow Duo Script for logo only */
-  --font-display:  'Nunito Sans', system-ui, sans-serif;
+  /* Typography — Cormorant Garamond for display/headings, Nunito Sans for body */
+  --font-display:  'Cormorant Garamond', Georgia, serif;
   --font-body:     'Nunito Sans', system-ui, sans-serif;
-  --font-script:   'Halow Duo Script', cursive;  /* Logo mark + 1 special use per design max */
-  --font-impact:   'Nunito Sans', system-ui, sans-serif;
+  --font-script:   'Cormorant', 'Cormorant Garamond', Georgia, serif;
+  --font-impact:   'Cormorant Garamond', Georgia, serif;
 
   /* Layout */
   --topnav-height: 88px;
