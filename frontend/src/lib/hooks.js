@@ -43,6 +43,8 @@ export const useActivityLog   = () => useQuery(() => DB.getActivityLog(25))
 export const useTasksForListing = (listingId) =>
   useQuery(() => DB.getTasksForListing(listingId), [listingId])
 
+export const useAllChecklistTasks = () => useQuery(DB.getAllChecklistTasks)
+
 export const useDeletedTasksForListing = (listingId) =>
   useQuery(() => DB.getDeletedTasksForListing(listingId), [listingId])
 
@@ -117,6 +119,12 @@ export const useNotesForTransaction = (tid) => useQuery(() => DB.getNotesForTran
 export const useAllNoteTags         = ()    => useQuery(DB.getAllNoteTags)
 export const useFavorites           = ()    => useQuery(DB.getFavorites)
 
+// ─── Cost Tracker localStorage helper ──────────────────────────────────────────
+function loadCostTrackerItems() {
+  try { return JSON.parse(localStorage.getItem('cost_tracker_items')) || [] }
+  catch { return [] }
+}
+
 // ─── Dashboard aggregate hook ─────────────────────────────────────────────────
 export function useDashboardData() {
   const contacts        = useContacts()
@@ -130,6 +138,7 @@ export function useDashboardData() {
   const activity        = useActivityLog()
   const pnlExpenses     = useAllExpenses()
   const pnlIncome       = useAllIncomeEntries()
+  const listingAppts    = useListingAppointments()
 
   const loading = contacts.loading || transactions.loading || listings.loading
   const error   = contacts.error   || transactions.error   || listings.error
@@ -143,15 +152,56 @@ export function useDashboardData() {
   const iv = investors.data       ?? []
   const ws = weeklyStats.data     ?? []
   const ac = activity.data        ?? []
+  const la = listingAppts.data    ?? []
 
   const now = new Date()
+  const yearStr = String(now.getFullYear())
 
   // ── P&L data ──
-  const pe = (pnlExpenses.data ?? []).filter(e => e.date?.startsWith(String(now.getFullYear())))
-  const pi = (pnlIncome.data ?? []).filter(i => i.date?.startsWith(String(now.getFullYear())))
+  const pe = (pnlExpenses.data ?? []).filter(e => e.date?.startsWith(yearStr))
+  const pi = (pnlIncome.data ?? []).filter(i => i.date?.startsWith(yearStr))
   const pnlTotalIncome  = pi.reduce((s, i) => s + (Number(i.amount) || 0), 0)
   const pnlTotalExpense = pe.reduce((s, e) => s + (Number(e.amount) || 0), 0)
   const pnlNetProfit    = pnlTotalIncome - pnlTotalExpense
+
+  // ── Cost Tracker data ──
+  const costItems = loadCostTrackerItems()
+  const ytdCosts = costItems.filter(i => (i.date ?? '').startsWith(yearStr))
+  const totalCostTrackerSpend = ytdCosts.reduce((s, i) => s + (Number(i.amount) || 0) * (Number(i.quantity) || 1), 0)
+  const listingCosts = ytdCosts.filter(i => i.entity_type === 'listing')
+  const ohCosts = ytdCosts.filter(i => i.entity_type === 'open_house')
+  const leadGenCosts = ytdCosts.filter(i => i.entity_type === 'lead_gen')
+  const uniqueListingsTracked = [...new Set(listingCosts.map(i => i.entity_id))].length
+  const avgCostPerListing = uniqueListingsTracked > 0
+    ? listingCosts.reduce((s, i) => s + (Number(i.amount) || 0) * (Number(i.quantity) || 1), 0) / uniqueListingsTracked
+    : 0
+
+  // ── Auto-computed production KPIs (YTD from real data) ──
+  const ytdListingApptsSet = la.filter(a => a.scheduled_at?.startsWith(yearStr)).length
+  const ytdListingApptsHeld = la.filter(a => {
+    if (!a.scheduled_at?.startsWith(yearStr)) return false
+    return a.outcome !== 'cancelled' && new Date(a.scheduled_at) <= now
+  }).length
+  const ytdListingsTaken = la.filter(a => a.outcome === 'won' && a.scheduled_at?.startsWith(yearStr)).length
+  const closedDeals = t.filter(x => (x.status ?? '').toLowerCase().includes('closed'))
+  const ytdClosedDeals = closedDeals.filter(d => d.closing_date?.startsWith(yearStr))
+  const ytdListingsSold = ytdClosedDeals.filter(d => (d.deal_type ?? '').toLowerCase() === 'seller').length
+  const ytdBuyerSales = ytdClosedDeals.filter(d => (d.deal_type ?? '').toLowerCase() === 'buyer').length
+  const ytdSalesClosed = ytdClosedDeals.length
+  const ytdOHEvents = oh.filter(x => x.date?.startsWith(yearStr)).length
+  const ytdNewLeads = ld.filter(x => x.created_at?.startsWith(yearStr)).length
+  const ytdBuyerRepsSigned = c.filter(x => x.bba_signed && x.bba_signed_date?.startsWith(yearStr)).length
+  const ytdEarnedIncome = pnlTotalIncome
+  const ytdPaidIncome = pi.filter(i => i.status === 'received' || i.status === 'deposited').reduce((s, i) => s + (Number(i.amount) || 0), 0)
+
+  // OH conversion metrics
+  const ohLeads = c.filter(x => (x.lead_source ?? '').toLowerCase().includes('open house'))
+  const ohClosedDeals = closedDeals.filter(d => (d.lead_source ?? '').toLowerCase().includes('open house'))
+  const ohConversionRate = oh.length > 0 ? (ohClosedDeals.length / oh.length) * 100 : 0
+
+  // Letter conversion
+  const letterConverted = ld.filter(x => (x.stage ?? '').toLowerCase() === 'converted').length
+  const letterConversionRate = ld.length > 0 ? (letterConverted / ld.length) * 100 : 0
 
   // ── KPIs ──
   const kpis = {
@@ -171,6 +221,23 @@ export function useDashboardData() {
       const d = new Date(x.date)
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
     }).length,
+    // Cost tracker KPIs
+    totalCostTrackerSpend,
+    avgCostPerListing,
+    ohConversionRate,
+    letterConversionRate,
+    // Auto-computed production KPIs
+    ytdListingApptsSet,
+    ytdListingApptsHeld,
+    ytdListingsTaken,
+    ytdListingsSold,
+    ytdBuyerSales,
+    ytdSalesClosed,
+    ytdOHEvents,
+    ytdNewLeads,
+    ytdBuyerRepsSigned,
+    ytdEarnedIncome,
+    ytdPaidIncome,
   }
 
   // ── Conversion funnel ──
@@ -242,6 +309,7 @@ export function useDashboardData() {
     loading, error,
     contacts: c, transactions: t, listings: l, showingSessions: ss,
     openHouses: oh, leads: ld, investors: iv, weeklyStats: ws, activity: ac,
+    listingAppts: la, costItems,
     kpis, conversionFunnel, interestLevels, topProperties,
     activityByType, topClients, expiringLeads, investorFeedback,
     latestWeek, listingValue, avgDOM,
@@ -249,7 +317,7 @@ export function useDashboardData() {
       contacts.refetch(); transactions.refetch(); listings.refetch()
       showingSessions.refetch(); openHouses.refetch(); leads.refetch()
       investors.refetch(); weeklyStats.refetch(); activity.refetch()
-      pnlExpenses.refetch(); pnlIncome.refetch()
+      pnlExpenses.refetch(); pnlIncome.refetch(); listingAppts.refetch()
     },
   }
 }

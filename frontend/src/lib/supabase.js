@@ -174,6 +174,10 @@ export const getTasksForListing = (listingId) =>
     .is('deleted_at', null)
     .order('sort_order'))
 
+export const getAllChecklistTasks = () =>
+  query(supabase.from('checklist_tasks').select('listing_id,completed')
+    .is('deleted_at', null))
+
 export const getDeletedTasksForListing = (listingId) =>
   query(supabase.from('checklist_tasks').select('*')
     .eq('listing_id', listingId)

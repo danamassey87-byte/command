@@ -4,7 +4,7 @@ import { Button, Badge, SectionHeader, TabBar, DataTable, Card, CheckItem, Slide
 import PartiesSection from '../../components/parties/PartiesSection.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
-import { useListings, useTasksForListing, useDeletedTasksForListing, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses } from '../../lib/hooks.js'
+import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
@@ -1565,6 +1565,10 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
   const [showStrategy, setShowStrategy] = useState(false)
   const [copiedStrategy, setCopiedStrategy] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [uploadError, setUploadError] = useState(null)
+
+  // Collapsible phase sections — all expanded by default
+  const [collapsedPhases, setCollapsedPhases] = useState({})
   const navigate = useNavigate()
 
   // Ref on the printable region (plan + strategy) for window.print and PDF export.
@@ -1579,17 +1583,19 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
     const node = printableRef.current
     if (!node) return
     setExportingPdf(true)
-    // Bring the node onscreen briefly so html2canvas can measure it.
-    // It stays visually hidden by z-index / containment inside the offscreen
-    // wrapper but becomes a real laid-out element with computed dimensions.
+    // Move the node into the viewport so html2canvas can measure and render it.
+    // Use z-index: -9999 to keep it behind all content (visibility: hidden would
+    // cause html2canvas to produce a blank page).
     const prev = {
+      position: node.style.position,
       left: node.style.left,
       top: node.style.top,
-      visibility: node.style.visibility,
+      zIndex: node.style.zIndex,
     }
+    node.style.position = 'fixed'
     node.style.left = '0'
     node.style.top = '0'
-    node.style.visibility = 'hidden'
+    node.style.zIndex = '-9999'
     try {
       const html2pdf = (await import('html2pdf.js')).default
       const filename = `${(listing.contact_name || 'Client').replace(/[^\w-]+/g, '_')}_${(listing.address || 'Listing').replace(/[^\w-]+/g, '_')}_${isNew ? 'Launch' : 'Relaunch'}_Plan.pdf`
@@ -1608,9 +1614,10 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
       console.error('PDF export failed:', e)
       alert('PDF export failed. Try using the Print button and "Save as PDF" from the print dialog.')
     } finally {
+      node.style.position = prev.position
       node.style.left = prev.left
       node.style.top = prev.top
-      node.style.visibility = prev.visibility
+      node.style.zIndex = prev.zIndex
       setExportingPdf(false)
     }
   }
@@ -1703,6 +1710,7 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
     const files = Array.from(e.target.files)
     if (!files.length || !isDbRow) return
     setUploading(true)
+    setUploadError(null)
     try {
       for (const file of files) {
         await DB.uploadListingDocument(file, listing.id)
@@ -1711,6 +1719,7 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
       refetchDocs()
     } catch (err) {
       console.error('Upload failed:', err)
+      setUploadError(err.message || 'Upload failed — check that the storage bucket exists and has the correct policies.')
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -1795,38 +1804,112 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         </Card>
       )}
 
-      <div className="sellers-plan__phases">
-        {displayPhases.map(phase => {
-          const phaseItems = hasTasks
-            ? dbTasks.map((t, i) => ({ ...t, i })).filter(t => t.phase === phase)
-            : plan.map((step, i) => ({ ...step, i })).filter(s => s.phase === phase)
-          const phaseCompleted = phaseItems.filter(s => !!checks[s.i]).length
-          const meta = phaseLabels[phase] ?? { label: phase, color: '#888' }
-          return (
-            <Card key={phase} className="sellers-plan__phase-card">
-              <div className="sellers-plan__phase-header">
-                <div className="sellers-plan__phase-dot" style={{ background: meta.color }} />
-                <h3 className="sellers-plan__phase-name">{meta.label}</h3>
-                <span className="sellers-plan__phase-count">{phaseCompleted}/{phaseItems.length}</span>
-              </div>
-              {phaseItems.map(step => {
-                const completedAt = getCompletedAt(step.i)
-                const isDbTask = hasTasks && dbTasks[step.i]
-                return (
-                  <CheckItem
-                    key={step.i}
-                    label={step.label}
-                    checked={!!checks[step.i]}
-                    onChange={() => toggle(step.i)}
-                    note={completedAt ? new Date(completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : undefined}
-                    onEdit={isDbTask ? (nextLabel) => editTaskLabel(dbTasks[step.i].id, nextLabel) : undefined}
-                    onDelete={isDbTask ? () => softDeleteTask(dbTasks[step.i]) : undefined}
+      <div className="sellers-plan__body">
+        {/* ── Left: Unified Checklist ── */}
+        <div className="sellers-plan__checklist-col">
+          <Card className="sellers-plan__checklist-card">
+            {displayPhases.map(phase => {
+              const phaseItems = hasTasks
+                ? dbTasks.map((t, i) => ({ ...t, i })).filter(t => t.phase === phase)
+                : plan.map((step, i) => ({ ...step, i })).filter(s => s.phase === phase)
+              const phaseCompleted = phaseItems.filter(s => !!checks[s.i]).length
+              const meta = phaseLabels[phase] ?? { label: phase, color: '#888' }
+              const isCollapsed = !!collapsedPhases[phase]
+              return (
+                <div key={phase} className="sellers-plan__phase-section">
+                  <button
+                    type="button"
+                    className="sellers-plan__phase-toggle"
+                    onClick={() => setCollapsedPhases(p => ({ ...p, [phase]: !p[phase] }))}
+                  >
+                    <div className="sellers-plan__phase-dot" style={{ background: meta.color }} />
+                    <h3 className="sellers-plan__phase-name">{meta.label}</h3>
+                    <span className="sellers-plan__phase-count">{phaseCompleted}/{phaseItems.length}</span>
+                    <svg
+                      className={`sellers-plan__phase-chevron ${isCollapsed ? '' : 'sellers-plan__phase-chevron--open'}`}
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                  {!isCollapsed && (
+                    <div className="sellers-plan__phase-items">
+                      {phaseItems.map(step => {
+                        const completedAt = getCompletedAt(step.i)
+                        const isDbTask = hasTasks && dbTasks[step.i]
+                        return (
+                          <CheckItem
+                            key={step.i}
+                            label={step.label}
+                            checked={!!checks[step.i]}
+                            onChange={() => toggle(step.i)}
+                            note={completedAt ? new Date(completedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : undefined}
+                            onEdit={isDbTask ? (nextLabel) => editTaskLabel(dbTasks[step.i].id, nextLabel) : undefined}
+                            onDelete={isDbTask ? () => softDeleteTask(dbTasks[step.i]) : undefined}
+                          />
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </Card>
+        </div>
+
+        {/* ── Right: Documents Sidebar ── */}
+        {isDbRow && (
+          <div className="sellers-plan__docs-col">
+            <Card className="sellers-plan__docs-sidebar">
+              <div className="sellers-plan__section-header">
+                <h3 className="sellers-plan__section-title">Documents ({(docs ?? []).length})</h3>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={handleFileUpload}
                   />
-                )
-              })}
+                  <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                    icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>}
+                  >{uploading ? 'Uploading...' : 'Attach'}</Button>
+                </div>
+              </div>
+
+              {uploadError && (
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-danger)', background: 'rgba(220,50,50,0.06)', padding: '6px 10px', borderRadius: 'var(--radius-md)', marginBottom: 8 }}>
+                  {uploadError}
+                </div>
+              )}
+
+              {(docs ?? []).length === 0 ? (
+                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>No documents yet.</p>
+              ) : (
+                <div className="sellers-plan__docs-grid">
+                  {(docs ?? []).map(doc => (
+                    <div key={doc.id} className="sellers-plan__doc-card">
+                      <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="sellers-plan__doc-link">
+                        <span className="sellers-plan__doc-icon">{fileIcon(doc.file_type)}</span>
+                        <div className="sellers-plan__doc-info">
+                          <span className="sellers-plan__doc-name">{doc.name}</span>
+                          <span className="sellers-plan__doc-meta">
+                            {formatFileSize(doc.file_size)}
+                            {doc.category && doc.category !== 'general' && ` · ${doc.category}`}
+                            {' · '}{new Date(doc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                      </a>
+                      <button className="sellers-plan__doc-delete" onClick={() => handleDeleteDoc(doc)} title="Remove">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
-          )
-        })}
+          </div>
+        )}
       </div>
 
       {/* ── Strategy Narrative (reusable for content) ── */}
@@ -1984,51 +2067,6 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         </div>
       )}
 
-      {/* ── Documents ── */}
-      {isDbRow && (
-        <div className="sellers-plan__section">
-          <div className="sellers-plan__section-header">
-            <h3 className="sellers-plan__section-title">Documents ({(docs ?? []).length})</h3>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                style={{ display: 'none' }}
-                onChange={handleFileUpload}
-              />
-              <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}
-                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>}
-              >{uploading ? 'Uploading…' : 'Attach File'}</Button>
-            </div>
-          </div>
-
-          {(docs ?? []).length === 0 ? (
-            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>No documents attached yet. Upload disclosures, contracts, photos, or any listing files.</p>
-          ) : (
-            <div className="sellers-plan__docs-grid">
-              {(docs ?? []).map(doc => (
-                <div key={doc.id} className="sellers-plan__doc-card">
-                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="sellers-plan__doc-link">
-                    <span className="sellers-plan__doc-icon">{fileIcon(doc.file_type)}</span>
-                    <div className="sellers-plan__doc-info">
-                      <span className="sellers-plan__doc-name">{doc.name}</span>
-                      <span className="sellers-plan__doc-meta">
-                        {formatFileSize(doc.file_size)}
-                        {doc.category && doc.category !== 'general' && ` · ${doc.category}`}
-                        {' · '}{new Date(doc.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </span>
-                    </div>
-                  </a>
-                  <button className="sellers-plan__doc-delete" onClick={() => handleDeleteDoc(doc)} title="Remove">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── Linked Notes ── */}
       {contactId && (
@@ -2131,7 +2169,34 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
 // ─── Main Sellers Page ────────────────────────────────────────────────────────
 export default function Sellers() {
   const { data: dbData, loading, refetch } = useListings()
+  const { data: allOHsMain } = useOpenHouses()
+  const { data: allTasks } = useAllChecklistTasks()
   const listings = useMemo(() => (dbData ?? []).map(mapListing), [dbData])
+
+  // Build a map of listing_id → next upcoming open house
+  const nextOHByListing = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    const map = {}
+    for (const oh of (allOHsMain ?? [])) {
+      if (!oh.listing_id || !oh.date || oh.date < today) continue
+      if (!map[oh.listing_id] || oh.date < map[oh.listing_id].date) {
+        map[oh.listing_id] = oh
+      }
+    }
+    return map
+  }, [allOHsMain])
+
+  // Build a map of listing_id → { total, done } from real checklist_tasks
+  const taskProgressByListing = useMemo(() => {
+    const map = {}
+    for (const t of (allTasks ?? [])) {
+      if (!t.listing_id) continue
+      if (!map[t.listing_id]) map[t.listing_id] = { total: 0, done: 0 }
+      map[t.listing_id].total++
+      if (t.completed) map[t.listing_id].done++
+    }
+    return map
+  }, [allTasks])
 
   const [filter, setFilter]               = useState('all')
   const [selectedListing, setSelectedListing] = useState(null)
@@ -2419,6 +2484,23 @@ export default function Sellers() {
     { key: 'dom', label: 'DOM', render: v => `${v}d` },
     { key: 'offers', label: 'Offers', render: v => v > 0 ? <Badge variant="success" size="sm">{v}</Badge> : '—' },
     {
+      key: 'nextOH', label: 'Next OH',
+      render: (_, row) => {
+        const oh = nextOHByListing[row.id]
+        if (!oh) return <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>—</span>
+        const d = new Date(oh.date + 'T12:00:00')
+        const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        const timeStr = oh.start_time ? oh.start_time.slice(0, 5) : ''
+        const daysOut = Math.ceil((d - new Date()) / 86400000)
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: daysOut <= 3 ? 'var(--color-danger)' : 'var(--brown-dark)' }}>{dateStr}</span>
+            {timeStr && <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{timeStr}</span>}
+          </div>
+        )
+      },
+    },
+    {
       key: 'status', label: 'MLS Status',
       render: (v, row) => (
         <InlineStatusPicker
@@ -2468,17 +2550,18 @@ export default function Sellers() {
     },
     {
       key: 'checklist', label: 'Plan Progress',
-      render: (v, row) => {
-        const plan = row.type === 'new' ? launchChecklist : relaunchChecklist
-        const checks = v ?? {}
-        const done = Object.values(checks).filter(Boolean).length
-        const pct = Math.round((done / plan.length) * 100)
+      render: (_, row) => {
+        const progress = taskProgressByListing[row.id]
+        if (!progress || progress.total === 0) {
+          return <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>No tasks</span>
+        }
+        const pct = Math.round((progress.done / progress.total) * 100)
         return (
           <div className="sellers-progress-cell">
             <div className="sellers-progress-bar">
               <div className="sellers-progress-bar__fill" style={{ width: `${pct}%` }} />
             </div>
-            <span className="sellers-progress-cell__pct">{pct}%</span>
+            <span className="sellers-progress-cell__pct">{progress.done}/{progress.total}</span>
           </div>
         )
       },
