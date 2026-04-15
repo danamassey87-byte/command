@@ -50,7 +50,7 @@
   text-align: center;
   flex-shrink: 0;
 }
-.ec-kpi--purple { border-left: 3px solid #9b59b6; }
+.ec-kpi--purple { border-left: 3px solid #C2714F; }
 .ec-kpi--green { border-left: 3px solid var(--color-success); }
 .ec-kpi--success { border-left: 3px solid #2ecc71; }
 .ec-kpi__val {
@@ -132,11 +132,11 @@
   background: rgba(106, 158, 114, 0.14) !important;
 }
 .ec-row--purple {
-  background: rgba(155, 89, 182, 0.06) !important;
-  border-left: 3px solid #9b59b6;
+  background: rgba(194, 113, 79, 0.06) !important;
+  border-left: 3px solid #C2714F;
 }
 .ec-row--purple:hover {
-  background: rgba(155, 89, 182, 0.12) !important;
+  background: rgba(194, 113, 79, 0.12) !important;
 }
 
 /* ── Status Pills (in table) ── */
@@ -166,11 +166,11 @@
   background: rgba(106, 158, 114, 0.25);
 }
 .ec-status-pill--purple {
-  background: rgba(155, 89, 182, 0.12);
-  color: #7b3fa0;
+  background: rgba(194, 113, 79, 0.12);
+  color: #8B4513;
 }
 .ec-status-pill--purple:hover {
-  background: rgba(155, 89, 182, 0.22);
+  background: rgba(194, 113, 79, 0.22);
 }
 
 /* Untagged: show two small labeled dots on hover */
@@ -191,7 +191,7 @@
   position: relative;
 }
 .ec-status-dot--green { border-color: rgba(106, 158, 114, 0.4); }
-.ec-status-dot--purple { border-color: rgba(155, 89, 182, 0.3); }
+.ec-status-dot--purple { border-color: rgba(194, 113, 79, 0.3); }
 .ec-status-dot--green:hover {
   background: var(--color-success);
   border-color: var(--color-success);
@@ -199,10 +199,10 @@
   box-shadow: 0 0 0 3px rgba(106, 158, 114, 0.2);
 }
 .ec-status-dot--purple:hover {
-  background: #9b59b6;
-  border-color: #9b59b6;
+  background: #C2714F;
+  border-color: #C2714F;
   transform: scale(1.2);
-  box-shadow: 0 0 0 3px rgba(155, 89, 182, 0.2);
+  box-shadow: 0 0 0 3px rgba(194, 113, 79, 0.2);
 }
 
 .ec-row__name { font-weight: 500; color: var(--brown-dark); white-space: nowrap; }
@@ -227,7 +227,7 @@
 .ec-status-menu-item:hover { filter: brightness(0.96); }
 
 /* Row tint by status */
-.ec-row--cannonball { background: rgba(125,60,152,0.035); }
+.ec-row--cannonball { background: rgba(160,82,45,0.035); }
 .ec-row--appt_scheduled { background: rgba(34,139,34,0.035); }
 .ec-row--relisted { background: rgba(230,126,34,0.04); opacity: 0.78; }
 
@@ -320,7 +320,7 @@
   font-size: 0.55rem;
 }
 .ec-pip--cb.ec-pip--done {
-  background: #9b59b6;
+  background: #C2714F;
 }
 
 .ec-followup-date {
@@ -434,8 +434,8 @@ a.ec-detail__field-val:hover { text-decoration: underline; }
 }
 .ec-detail__tag--green { border-color: var(--color-success); color: var(--color-success); }
 .ec-detail__tag--green.ec-detail__tag--active { background: var(--color-success); color: #fff; }
-.ec-detail__tag--purple { border-color: #9b59b6; color: #9b59b6; }
-.ec-detail__tag--purple.ec-detail__tag--active { background: #9b59b6; color: #fff; }
+.ec-detail__tag--purple { border-color: #C2714F; color: #C2714F; }
+.ec-detail__tag--purple.ec-detail__tag--active { background: #C2714F; color: #fff; }
 
 /* ── Letter & CB Checklist ── */
 .ec-detail__letter-row,
@@ -710,7 +710,7 @@ a.ec-detail__field-val:hover { text-decoration: underline; }
 .ec-se-tab--active.ec-se-tab--call { border-bottom-color: var(--color-info); }
 .ec-se-tab--active.ec-se-tab--text { border-bottom-color: #27ae60; }
 .ec-se-tab--active.ec-se-tab--email { border-bottom-color: #e67e22; }
-.ec-se-tab--active.ec-se-tab--sixmo { border-bottom-color: #8e44ad; }
+.ec-se-tab--active.ec-se-tab--sixmo { border-bottom-color: #8B4513; }
 .ec-se-tab__count {
   font-size: 0.62rem;
   font-weight: 700;
@@ -936,14 +936,14 @@ a.ec-detail__field-val:hover { text-decoration: underline; }
 .ec-sixmo-pending svg { color: var(--color-warning); flex-shrink: 0; margin-top: 2px; }
 
 .ec-opip--sixmo.ec-opip--done {
-  background: #8e44ad;
+  background: #8B4513;
   color: #fff;
   border-color: transparent;
   width: auto;
   padding: 0 4px;
 }
 
-.ec-script-editor__badge--sixmo { background: #8e44ad; }
+.ec-script-editor__badge--sixmo { background: #8B4513; }
 
 /* ─── Manual / Campaign Mode Toggle ─── */
 .ec-detail__label-row {

@@ -15,7 +15,7 @@ import './ExpiredCannonball.css'
 //   relisted       — property is back on the market; archived to the Relisted tab
 const STATUS_META = {
   new:            { label: 'New',                color: '#8b7a68', bg: 'rgba(139,122,104,0.12)' },
-  cannonball:     { label: 'Cannonball (VIP)',   color: '#7d3c98', bg: 'rgba(125,60,152,0.12)' },
+  cannonball:     { label: 'Cannonball (VIP)',   color: '#A0522D', bg: 'rgba(160,82,45,0.12)' },
   appt_scheduled: { label: 'Listing Appt Set',   color: '#228b22', bg: 'rgba(34,139,34,0.12)' },
   relisted:       { label: 'Relisted',           color: '#e67e22', bg: 'rgba(230,126,34,0.12)' },
 }
@@ -2222,8 +2222,8 @@ function ContactDetail({ contact: c, contacts, scripts, updateContact, toggleSte
       {/* Cannonball Letter Progress — only shown when status is cannonball */}
       {fresh.status === 'cannonball' && (
         <>
-          <div className="ec-detail__section" style={{ background: 'rgba(125,60,152,0.06)', padding: 12, borderRadius: 8, border: '1px solid rgba(125,60,152,0.18)' }}>
-            <p className="ec-detail__label" style={{ color: '#7d3c98' }}>
+          <div className="ec-detail__section" style={{ background: 'rgba(160,82,45,0.06)', padding: 12, borderRadius: 8, border: '1px solid rgba(160,82,45,0.18)' }}>
+            <p className="ec-detail__label" style={{ color: '#A0522D' }}>
               Cannonball Letter Sequence (VIP)
             </p>
             <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', margin: '0 0 8px' }}>
