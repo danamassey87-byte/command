@@ -88,6 +88,8 @@ export const usePublishQueue    = (status)       => useQuery(() => DB.getPublish
 export const useBlotatoConfig   = ()             => useQuery(DB.getBlotatoConfig)
 export const useNotificationPreferences = ()     => useQuery(DB.getNotificationPreferences)
 export const useNewsletters = ()                 => useQuery(DB.getNewsletters)
+export const useSeoKeywordSets = ()             => useQuery(DB.getSeoKeywordSets)
+export const useContentBank = ()                => useQuery(DB.getContentBank)
 
 // ─── Brand Profile hook ───────────────────────────────────────────────────────
 export const useBrandProfile    = ()             => useQuery(DB.getBrandProfile)

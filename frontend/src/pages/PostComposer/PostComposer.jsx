@@ -5,7 +5,7 @@ import { PropertyPicker } from '../../components/ui/PropertyPicker.jsx'
 import { HashtagPicker } from '../../components/ui/HashtagPicker.jsx'
 import * as DB from '../../lib/supabase.js'
 import {
-  useContentPillars, useClientAvatars, useProperties,
+  useContentPillars, useClientAvatars, useProperties, useSeoKeywordSets,
 } from '../../lib/hooks.js'
 import './PostComposer.css'
 
@@ -36,6 +36,7 @@ export default function PostComposer() {
   // Data hooks
   const { data: pillars }  = useContentPillars()
   const { data: avatars }  = useClientAvatars()
+  const { data: keywordSets } = useSeoKeywordSets()
 
   // Core state
   const [piece, setPiece]                 = useState(null)
@@ -53,6 +54,7 @@ export default function PostComposer() {
   const [pillarId, setPillarId]     = useState('')
   const [avatarId, setAvatarId]     = useState('')
   const [framework, setFramework]   = useState('')
+  const [keywordSetId, setKeywordSetId] = useState('')
   const [propertyId, setPropertyId] = useState('')
   const [property, setProperty]     = useState(null)
   const [contentDate, setContentDate] = useState(() => new Date().toISOString().slice(0, 10))
@@ -751,6 +753,38 @@ export default function PostComposer() {
                 </div>
               )}
             </div>
+            {/* SEO Keyword Set picker */}
+            <div className="pc-picker-row" style={{ marginTop: 8 }}>
+              <div className="pc-picker-field" style={{ flex: '1 1 100%' }}>
+                <label>SEO Keyword Set</label>
+                <select value={keywordSetId} onChange={e => setKeywordSetId(e.target.value)}>
+                  <option value="">None</option>
+                  {(keywordSets ?? []).map(ks => (
+                    <option key={ks.id} value={ks.id}>{ks.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {keywordSetId && (() => {
+              const ks = (keywordSets ?? []).find(k => k.id === keywordSetId)
+              if (!ks) return null
+              const keywords = Array.isArray(ks.keywords) ? ks.keywords : []
+              return keywords.length > 0 ? (
+                <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {keywords.slice(0, 8).map((kw, i) => (
+                    <span key={i} style={{
+                      padding: '2px 8px', borderRadius: 4, fontSize: '0.68rem',
+                      background: '#edf4ee', color: 'var(--sage-green)', fontWeight: 500,
+                    }}>{kw}</span>
+                  ))}
+                  {keywords.length > 8 && (
+                    <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', padding: '2px 4px' }}>
+                      +{keywords.length - 8} more
+                    </span>
+                  )}
+                </div>
+              ) : null
+            })()}
           </div>
 
           {/* Platform previews */}
