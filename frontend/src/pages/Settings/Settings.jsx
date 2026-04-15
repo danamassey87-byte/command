@@ -849,11 +849,11 @@ function ConnectedAccountsTab() {
   const [hasSavedKey, setHasSavedKey] = useState(false)
 
   useEffect(() => {
-    DB.getBlotatoConfig().then(({ data }) => {
-      if (data?.value) {
-        setBlotatoConfig(data.value)
-        if (data.value.api_key) {
-          setBlotatoKey(data.value.api_key)
+    DB.getBlotatoConfig().then((row) => {
+      if (row?.value) {
+        setBlotatoConfig(row.value)
+        if (row.value.api_key) {
+          setBlotatoKey(row.value.api_key)
           setHasSavedKey(true)
         }
       }
@@ -1225,9 +1225,9 @@ function GammaConfigCard() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    DB.getGammaConfig().then(({ data }) => {
-      if (data?.value?.api_key) {
-        setGammaKey(data.value.api_key)
+    DB.getGammaConfig().then((row) => {
+      if (row?.value?.api_key) {
+        setGammaKey(row.value.api_key)
         setHasSavedKey(true)
       }
     }).catch(() => {})

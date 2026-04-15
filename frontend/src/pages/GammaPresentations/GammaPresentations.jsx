@@ -55,7 +55,7 @@ export default function GammaPresentations() {
 
   async function checkGammaConfig() {
     try {
-      const { data } = await DB.getGammaConfig()
+      const data = await DB.getGammaConfig()
       setGammaConfigured(!!(data?.value?.api_key))
     } catch {
       setGammaConfigured(false)
