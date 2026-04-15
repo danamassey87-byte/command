@@ -1,0 +1,154 @@
+/* ─── Content Hub Shell ────────────────────────────────────────────────────── */
+
+.ch-page { max-width: 1200px; margin: 0 auto; padding: 20px 24px 80px; }
+
+.ch-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.ch-header__title {
+  font-family: var(--font-display); font-size: 1.4rem;
+  color: var(--brown-dark); margin: 0;
+}
+.ch-header__sub {
+  font-size: 0.82rem; color: var(--color-text-muted); margin: 2px 0 0;
+}
+
+/* 4-tab bar */
+.ch-tabs {
+  display: flex; gap: 0; border-bottom: 2px solid #e8e3de;
+  margin-bottom: 20px; position: sticky; top: 0;
+  background: var(--cream); z-index: 10; padding-top: 2px;
+}
+.ch-tab {
+  padding: 12px 22px; font-size: 0.85rem; font-weight: 500;
+  color: var(--color-text-muted); border: none; background: none;
+  cursor: pointer; border-bottom: 2px solid transparent;
+  margin-bottom: -2px; transition: all 0.15s ease;
+  font-family: var(--font-body); display: flex; align-items: center; gap: 6px;
+}
+.ch-tab:hover { color: var(--brown-dark); }
+.ch-tab--active {
+  color: var(--brown-dark); font-weight: 600;
+  border-bottom-color: var(--brown-dark);
+}
+.ch-tab__icon { font-size: 1rem; }
+.ch-tab__badge {
+  font-size: 0.68rem; font-weight: 700; padding: 1px 6px;
+  border-radius: 8px; background: var(--sage-green); color: #fff;
+}
+
+/* ─── Plan Tab ─────────────────────────────────────────────────────────────── */
+
+.plan-layout {
+  display: grid; grid-template-columns: 1fr 300px; gap: 20px;
+}
+
+/* Calendar section */
+.plan-cal { background: #fff; border: 1px solid #e8e3de; border-radius: 12px; overflow: hidden; }
+.plan-cal__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-bottom: 1px solid #e8e3de;
+}
+.plan-cal__title {
+  font-family: var(--font-display); font-size: 1.05rem; color: var(--brown-dark); margin: 0;
+}
+.plan-cal__nav { display: flex; gap: 6px; }
+.plan-cal__nav button {
+  padding: 5px 10px; border: 1px solid #e0dbd6; border-radius: 6px;
+  background: #fff; font-size: 0.78rem; cursor: pointer; color: var(--brown-dark);
+}
+.plan-cal__nav button:hover { background: #f5f0eb; }
+
+/* Week grid */
+.plan-week { display: grid; grid-template-columns: repeat(7, 1fr); }
+.plan-day {
+  border-right: 1px solid #f0ece6; border-bottom: 1px solid #f0ece6;
+  min-height: 120px; padding: 8px;
+}
+.plan-day:nth-child(7n) { border-right: none; }
+.plan-day--today { background: #faf8f5; }
+.plan-day--dragover { background: rgba(139,154,123,0.08); }
+.plan-day__label {
+  font-size: 0.7rem; font-weight: 600; color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px;
+}
+.plan-day__date {
+  font-size: 0.82rem; font-weight: 600; color: var(--brown-dark); margin-bottom: 6px;
+}
+.plan-day__date--today {
+  background: var(--brown-dark); color: #fff; width: 24px; height: 24px;
+  border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.75rem;
+}
+
+/* Content chips in calendar */
+.plan-chip {
+  padding: 3px 8px; border-radius: 4px; font-size: 0.7rem;
+  margin-bottom: 3px; cursor: grab; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  border-left: 3px solid var(--brown-mid);
+  background: #faf8f5; color: var(--brown-dark);
+}
+.plan-chip:active { cursor: grabbing; }
+.plan-chip--published { border-left-color: var(--sage-green); background: #edf4ee; }
+.plan-chip--scheduled { border-left-color: #c99a2e; background: #fdf6e3; }
+.plan-chip--draft { border-left-color: var(--brown-light); }
+
+/* Add button in day cell */
+.plan-day__add {
+  font-size: 0.68rem; color: var(--brown-mid); cursor: pointer;
+  border: none; background: none; padding: 2px 0; opacity: 0;
+  transition: opacity 0.15s;
+}
+.plan-day:hover .plan-day__add { opacity: 1; }
+
+/* ─── Planner sidebar ─── */
+.plan-sidebar { display: flex; flex-direction: column; gap: 14px; }
+
+.plan-card {
+  background: #fff; border: 1px solid #e8e3de; border-radius: 12px;
+  padding: 14px 16px;
+}
+.plan-card__title {
+  font-family: var(--font-display); font-size: 0.95rem;
+  color: var(--brown-dark); margin: 0 0 10px;
+}
+
+/* Weekly format slots */
+.plan-slot {
+  display: grid; grid-template-columns: 70px 1fr; gap: 8px;
+  align-items: center; margin-bottom: 8px; font-size: 0.78rem;
+}
+.plan-slot__day {
+  font-weight: 600; color: var(--brown-dark); text-transform: uppercase;
+  font-size: 0.7rem; letter-spacing: 0.03em;
+}
+.plan-slot__info {
+  padding: 6px 10px; background: #faf8f5; border-radius: 6px;
+  font-size: 0.75rem; color: var(--brown-warm);
+  border: 1px solid #e8e3de; cursor: pointer;
+}
+.plan-slot__info:hover { background: #f5f0eb; }
+
+/* Stats mini cards */
+.plan-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.plan-stat {
+  text-align: center; padding: 10px 8px; background: #faf8f5;
+  border-radius: 8px;
+}
+.plan-stat__num {
+  font-family: var(--font-display); font-size: 1.3rem;
+  font-weight: 700; color: var(--brown-dark); line-height: 1;
+}
+.plan-stat__label {
+  font-size: 0.68rem; color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px;
+}
+
+@media (max-width: 800px) {
+  .plan-layout { grid-template-columns: 1fr; }
+  .plan-week { grid-template-columns: 1fr; }
+}

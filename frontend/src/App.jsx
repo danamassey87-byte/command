@@ -45,6 +45,14 @@ import GammaPresentations from './pages/GammaPresentations/GammaPresentations'
 import VideoStudio from './pages/VideoStudio/VideoStudio'
 import AdsManager from './pages/Ads/AdsManager'
 import AdReports from './pages/Ads/AdReports'
+
+// ─── Content Hub (new unified structure) ──────────────────────────────────────
+import ContentHub from './pages/ContentHub/ContentHub'
+import PlanTab from './pages/ContentHub/PlanTab'
+import CreateTab from './pages/ContentHub/CreateTab'
+import PublishTab from './pages/ContentHub/PublishTab'
+import MeasureTab from './pages/ContentHub/MeasureTab'
+import ContentBank from './pages/ContentHub/ContentBank'
 import Vendors from './pages/Vendors/Vendors'
 
 // ─── Section Dashboards ────────────────────────────────────────────────────────
@@ -180,11 +188,20 @@ export default function App() {
           {/* ─── Open Houses ─── */}
           <Route path="/open-houses"       element={<OpenHouses />} />
 
-          {/* ─── Content ─── */}
-          <Route path="/content"           element={<ContentDashboard />} />
+          {/* ─── Content Hub (unified 4-tab structure) ─── */}
+          <Route path="/content" element={<ContentHub />}>
+            <Route index element={<PlanTab />} />
+            <Route path="plan" element={<PlanTab />} />
+            <Route path="create" element={<CreateTab />} />
+            <Route path="create/:pieceId" element={<CreateTab />} />
+            <Route path="publish" element={<PublishTab />} />
+            <Route path="measure" element={<MeasureTab />} />
+            <Route path="bank" element={<ContentBank />} />
+          </Route>
+
+          {/* ─── Content sub-pages (still accessible, redirect later) ─── */}
           <Route path="/content/calendar"  element={<ContentCalendar />} />
           <Route path="/content/planning"  element={<ContentPlanner />} />
-          <Route path="/content/templates" element={<ComingSoon title="Content Templates" />} />
           <Route path="/content/ai-studio" element={<AIStudio />} />
           <Route path="/content/composer"  element={<PostComposer />} />
           <Route path="/content/composer/:pieceId" element={<PostComposer />} />
@@ -196,7 +213,6 @@ export default function App() {
           <Route path="/content/social"    element={<SocialDashboard />} />
           <Route path="/content/ads"       element={<AdsManager />} />
           <Route path="/content/ads/reports" element={<AdReports />} />
-          <Route path="/content/stats"     element={<ComingSoon title="Content Stats" />} />
 
           {/* ─── P&L ─── */}
           <Route path="/pnl"              element={<PnLOverview />} />

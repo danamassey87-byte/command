@@ -675,6 +675,12 @@ export default function PostComposer() {
               />
             </div>
             <div className="pc-schedule__buttons">
+              <Button size="sm" variant="ghost" onClick={async () => {
+                if (!piece?.id) { await saveDraft(); }
+                if (piece?.id) { await DB.bankContentPiece(piece.id); setPublishStatus('banked') }
+              }} disabled={saving || !mainCaption.trim()} style={{ color: 'var(--brown-warm)' }}>
+                Save to Bank
+              </Button>
               <Button size="sm" variant="ghost" onClick={schedulePost} disabled={saving || !selectedPlatforms.length}>
                 Schedule
               </Button>

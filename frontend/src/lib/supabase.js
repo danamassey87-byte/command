@@ -436,6 +436,22 @@ export async function buildGammaCustom(title, strategyText, presentationType) {
   return data
 }
 
+// ─── Content Bank ─────────────────────────────────────────────────────────
+export const getContentBank = () =>
+  query(supabase.from('content_pieces').select('*').eq('status', 'banked').order('banked_at', { ascending: false }))
+export const bankContentPiece = (id) =>
+  query(supabase.from('content_pieces').update({ status: 'banked', banked_at: new Date().toISOString() }).eq('id', id).select().single())
+
+// ─── SEO Keyword Sets ─────────────────────────────────────────────────────
+export const getSeoKeywordSets = () =>
+  query(supabase.from('seo_keyword_sets').select('*').order('name'))
+export const createSeoKeywordSet = (d) =>
+  query(supabase.from('seo_keyword_sets').insert(d).select().single())
+export const updateSeoKeywordSet = (id, d) =>
+  query(supabase.from('seo_keyword_sets').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+export const deleteSeoKeywordSet = (id) =>
+  query(supabase.from('seo_keyword_sets').delete().eq('id', id))
+
 export const getGammaPresentations = () =>
   query(supabase.from('gamma_presentations').select('*').order('created_at', { ascending: false }))
 export const createGammaPresentation = (d) =>
