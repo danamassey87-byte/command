@@ -903,7 +903,17 @@ function ConnectedAccountsTab() {
       setBlotatoConfig(updated)
       setTestResult({ ok: true, message: `Connected! Found ${connectedPlatforms.length} account(s).`, accounts: connectedPlatforms })
     } catch (err) {
-      setTestResult({ ok: false, message: err.message })
+      // CORS blocks direct browser calls to Blotato — save the key and verify on first publish
+      if (err.message?.includes('fetch') || err.name === 'TypeError') {
+        const updated = { api_key: blotatoKey, connected_platforms: [] }
+        await DB.updateBlotatoConfig(updated)
+        setBlotatoConfig(updated)
+        setHasSavedKey(true)
+        setEditingKey(false)
+        setTestResult({ ok: true, message: 'Key saved! Connection will be verified on first publish.' })
+      } else {
+        setTestResult({ ok: false, message: err.message })
+      }
     } finally {
       setTesting(false)
     }
@@ -1255,7 +1265,15 @@ function GammaConfigCard() {
       }
       setTestResult({ ok: true, message: 'Connected! Gamma API is working.' })
     } catch (err) {
-      setTestResult({ ok: false, message: err.message })
+      // CORS blocks direct browser calls to Gamma — save and verify on first use
+      if (err.message?.includes('fetch') || err.name === 'TypeError') {
+        await DB.updateGammaConfig({ api_key: gammaKey })
+        setHasSavedKey(true)
+        setEditingKey(false)
+        setTestResult({ ok: true, message: 'Key saved! Connection will be verified on first presentation.' })
+      } else {
+        setTestResult({ ok: false, message: err.message })
+      }
     } finally {
       setTesting(false)
     }
