@@ -478,6 +478,63 @@
   .pipe__list-header, .pipe__list-row { grid-template-columns: 1fr 1fr 1fr 0.5fr; }
   .pipe__list-th:nth-child(n+5), .pipe__list-td:nth-child(n+5) { display: none; }
 }
+/* ─── Timestamps Section ─── */
+.pipe__timestamps { display: flex; flex-direction: column; gap: 4px; }
+.pipe__timestamp-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--color-border-light, #f0ebe4); }
+.pipe__timestamp-row:last-child { border-bottom: none; }
+.pipe__timestamp-label { font-size: 0.75rem; color: var(--color-text-muted); }
+.pipe__timestamp-value { font-size: 0.75rem; font-weight: 500; color: var(--brown-dark); font-family: var(--font-body); }
+
+/* ─── Offer History Tab ─── */
+.pipe__offer-history { display: flex; flex-direction: column; gap: 10px; }
+.pipe__offer-card {
+  background: var(--cream); border-radius: var(--radius-md); padding: 12px;
+  border-left: 3px solid var(--brown-mid);
+}
+.pipe__offer-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.pipe__offer-card-title { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; }
+.pipe__offer-attempt {
+  font-size: 0.68rem; font-weight: 600; color: var(--color-warning);
+  background: rgba(201, 150, 46, 0.12); padding: 1px 6px; border-radius: var(--radius-full);
+}
+.pipe__offer-card-details {
+  display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.75rem; color: var(--color-text-muted); margin-bottom: 4px;
+}
+.pipe__offer-card-reason {
+  font-size: 0.75rem; color: var(--brown-dark); padding: 6px 8px; margin-top: 4px;
+  background: rgba(196, 64, 64, 0.06); border-radius: var(--radius-sm);
+}
+.pipe__offer-card-timestamps {
+  display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.68rem; color: var(--color-text-muted); margin-top: 6px;
+  padding-top: 6px; border-top: 1px solid var(--color-border-light, #f0ebe4);
+}
+.pipe__offer-reoffer-btn {
+  font-family: var(--font-body); font-size: 0.75rem; font-weight: 600;
+  color: var(--color-info); background: none; border: 1px solid var(--color-info);
+  border-radius: var(--radius-md); padding: 6px 12px; margin-top: 8px;
+  cursor: pointer; transition: all 0.15s;
+}
+.pipe__offer-reoffer-btn:hover { background: var(--color-info); color: var(--white); }
+
+/* ─── Reject / Archive Modal ─── */
+.pipe__modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.pipe__modal {
+  background: var(--white); border-radius: var(--radius-lg); padding: 24px;
+  width: 100%; max-width: 440px; box-shadow: var(--shadow-xl, 0 20px 48px rgba(0,0,0,0.2));
+  display: flex; flex-direction: column; gap: 12px;
+}
+.pipe__modal-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--brown-dark); margin: 0; }
+.pipe__modal-subtitle { font-size: 0.82rem; color: var(--color-text-muted); margin: 0; }
+.pipe__modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.pipe__modal-hint {
+  font-size: 0.72rem; color: var(--color-text-muted); font-style: italic;
+  padding-top: 8px; border-top: 1px solid var(--color-border-light, #f0ebe4);
+  margin-top: 4px;
+}
+
 @media (max-width: 600px) {
   .pipe__topbar { flex-direction: column; align-items: flex-start; }
   .pipe__list-header, .pipe__list-row { grid-template-columns: 1fr 1fr; }

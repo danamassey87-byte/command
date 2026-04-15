@@ -367,6 +367,82 @@ function DealNotesTab({ contactId, dealId }) {
   )
 }
 
+// ─── Offer History Tab ───────────────────────────────────────────────────────
+function OfferHistoryTab({ contactId, currentDealId, onReOffer }) {
+  const { data: offers, loading } = useOfferHistory(contactId)
+
+  if (loading) return <p style={{ padding: 16, fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>Loading offer history...</p>
+
+  const history = (offers ?? []).filter(o => o.id !== currentDealId)
+  if (history.length === 0) {
+    return (
+      <div className="pipe__detail-section">
+        <p style={{ padding: '16px 0', fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
+          No previous offers for this contact. This is their first deal in the pipeline.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="pipe__detail-section">
+      <h4 className="pipe__detail-section-title">All Offers ({history.length} previous)</h4>
+      <div className="pipe__offer-history">
+        {history.map(offer => {
+          const outcomeColors = {
+            rejected: '#c44040', withdrawn: '#8b8b8b', expired: '#b07d62',
+            accepted: 'var(--color-success)', countered: '#7ba1c7', active: 'var(--color-info)',
+          }
+          const outcomeLabel = offer.outcome
+            ? offer.outcome.charAt(0).toUpperCase() + offer.outcome.slice(1)
+            : offer.is_active_offer === false ? 'Archived' : 'Unknown'
+          return (
+            <div key={offer.id} className="pipe__offer-card">
+              <div className="pipe__offer-card-header">
+                <div className="pipe__offer-card-title">
+                  <span style={{ fontWeight: 600 }}>{offer.property?.address ?? 'No property'}</span>
+                  {offer.offer_number > 1 && <span className="pipe__offer-attempt">Attempt #{offer.offer_number}</span>}
+                </div>
+                <Badge
+                  variant="default" size="sm"
+                  style={{ background: outcomeColors[offer.outcome] || '#8b8b8b', color: '#fff', border: 'none' }}
+                >
+                  {outcomeLabel}
+                </Badge>
+              </div>
+              <div className="pipe__offer-card-details">
+                <span>Offer: {fmtDollar(offer.offer_price)}</span>
+                {offer.offer_submitted_at && <span>Submitted: {fmtTimestamp(offer.offer_submitted_at)}</span>}
+                {offer.outcome_date && <span>Outcome: {fmtTimestamp(offer.outcome_date)}</span>}
+              </div>
+              {offer.rejection_reason && (
+                <div className="pipe__offer-card-reason">
+                  <strong>Reason:</strong> {offer.rejection_reason}
+                </div>
+              )}
+              {offer.outcome_notes && (
+                <div className="pipe__offer-card-reason">
+                  <strong>Notes:</strong> {offer.outcome_notes}
+                </div>
+              )}
+              <div className="pipe__offer-card-timestamps">
+                <span>Created: {fmtTimestamp(offer.created_at)}</span>
+                {offer.status_changed_at && <span>Last status: {fmtTimestamp(offer.status_changed_at)}</span>}
+                <span>Status: {offer.status}</span>
+              </div>
+              {(offer.outcome === 'rejected' || offer.outcome === 'expired') && (
+                <button className="pipe__offer-reoffer-btn" onClick={() => onReOffer(offer)}>
+                  Submit New Offer on {offer.property?.address ?? 'this property'} →
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function Pipeline() {
   const { data: transactions, loading, error, refetch } = useTransactions()
   const { data: contacts } = useContacts()
@@ -651,7 +727,11 @@ export default function Pipeline() {
     const newStage = STAGES.find(s => s.value === stageValue)
     if (!newStage) return
     try {
-      await DB.updateTransaction(dragDeal.id, { status: newStage.label })
+      const update = { status: newStage.label }
+      if (stageValue === 'offer' && !dragDeal.offer_submitted_at) {
+        update.offer_submitted_at = new Date().toISOString()
+      }
+      await DB.updateTransaction(dragDeal.id, update)
       refetch()
     } catch (err) {
       alert('Error moving deal: ' + err.message)
@@ -762,7 +842,12 @@ export default function Pipeline() {
     if (idx >= STAGES.length - 1) return
     const next = STAGES[idx + 1]
     try {
-      await DB.updateTransaction(deal.id, { status: next.label })
+      const update = { status: next.label }
+      // Auto-set offer_submitted_at when moving to Offer Submitted
+      if (next.value === 'offer' && !deal.offer_submitted_at) {
+        update.offer_submitted_at = new Date().toISOString()
+      }
+      await DB.updateTransaction(deal.id, update)
       refetch()
     } catch (err) {
       alert('Error: ' + err.message)
@@ -927,9 +1012,12 @@ export default function Pipeline() {
                       >
                         <div className="pipe__card-top">
                           <span className="pipe__card-name">{deal.contact?.name ?? '—'}</span>
-                          <Badge variant={deal.deal_type === 'buyer' ? 'info' : deal.deal_type === 'seller' ? 'accent' : 'dark'} size="sm">
-                            {deal.deal_type ?? '—'}
-                          </Badge>
+                          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                            {deal.offer_number > 1 && <Badge variant="warning" size="sm">Offer #{deal.offer_number}</Badge>}
+                            <Badge variant={deal.deal_type === 'buyer' ? 'info' : deal.deal_type === 'seller' ? 'accent' : 'dark'} size="sm">
+                              {deal.deal_type ?? '—'}
+                            </Badge>
+                          </div>
                         </div>
                         <span className="pipe__card-addr">{deal.property?.address ?? 'No property'}</span>
                         <div className="pipe__card-price-row">
@@ -1519,6 +1607,53 @@ export default function Pipeline() {
           </div>
         )}
       </SlidePanel>
+
+      {/* ─── Reject / Archive Offer Modal ─── */}
+      {rejectDeal && (
+        <div className="pipe__modal-overlay" onClick={() => setRejectDeal(null)}>
+          <div className="pipe__modal" onClick={e => e.stopPropagation()}>
+            <h3 className="pipe__modal-title">Archive Offer</h3>
+            <p className="pipe__modal-subtitle">
+              {rejectDeal.contact?.name} — {rejectDeal.property?.address ?? 'No property'}
+              {rejectDeal.offer_price && ` — ${fmtDollar(rejectDeal.offer_price)}`}
+            </p>
+
+            <Select label="Outcome" id="reject-outcome" value={rejectOutcome} onChange={e => setRejectOutcome(e.target.value)}>
+              <option value="rejected">Rejected by Seller</option>
+              <option value="withdrawn">Withdrawn by Us</option>
+              <option value="expired">Offer Expired</option>
+            </Select>
+
+            <Input
+              label="Reason"
+              id="reject-reason"
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="e.g. Seller accepted another offer, price too low, multiple offers..."
+            />
+
+            <Textarea
+              label="Notes"
+              id="reject-notes"
+              value={rejectNotes}
+              onChange={e => setRejectNotes(e.target.value)}
+              rows={3}
+              placeholder="Any additional details about the outcome..."
+            />
+
+            <div className="pipe__modal-actions">
+              <Button variant="ghost" size="sm" onClick={() => setRejectDeal(null)}>Cancel</Button>
+              <Button variant="danger" size="sm" onClick={confirmRejectOffer} disabled={rejecting}>
+                {rejecting ? 'Archiving...' : 'Archive Offer'}
+              </Button>
+            </div>
+
+            <p className="pipe__modal-hint">
+              This removes the deal from the active board. You can submit a new offer from the Offer History tab anytime.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
