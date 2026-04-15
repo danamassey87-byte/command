@@ -422,6 +422,27 @@
   background: #fff;
 }
 
+/* ─── Inspo Recreator Panel ─── */
+.pc-inspo-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(58,42,30,0.3); backdrop-filter: blur(4px);
+  display: flex; justify-content: flex-end;
+}
+.pc-inspo-panel {
+  width: 480px; max-width: 90vw; height: 100%;
+  background: #fff; padding: 24px; overflow-y: auto;
+  box-shadow: -8px 0 32px rgba(58,42,30,0.12);
+  animation: inspo-slide-in 0.2s ease;
+}
+@keyframes inspo-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.pc-inspo-panel__header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+
 /* ─── Phone Mockup Previews ─── */
 .pc-mockup {
   margin-bottom: 12px; cursor: pointer;

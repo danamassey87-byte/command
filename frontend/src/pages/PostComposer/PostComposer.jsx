@@ -70,6 +70,12 @@ export default function PostComposer() {
   const [videoGenerating, setVideoGenerating] = useState(false)
   const [videoResult, setVideoResult] = useState(null)
 
+  // Inspo Recreator panel
+  const [inspoOpen, setInspoOpen] = useState(false)
+  const [inspoCaption, setInspoCaption] = useState('')
+  const [inspoLoading, setInspoLoading] = useState(false)
+  const [inspoResult, setInspoResult] = useState(null)
+
   const fileInputRef = useRef(null)
 
   // ─── Load existing piece ─────────────────────────────────────────────────
@@ -191,6 +197,14 @@ export default function PostComposer() {
     if (e.dataTransfer.files?.length) handleFileAdd(e.dataTransfer.files)
   }
 
+  // ─── Helper: get selected keyword set keywords for AI context ────────────
+  function getKeywordContext() {
+    if (!keywordSetId) return undefined
+    const ks = (keywordSets ?? []).find(k => k.id === keywordSetId)
+    if (!ks?.keywords?.length) return undefined
+    return Array.isArray(ks.keywords) ? ks.keywords.join(', ') : undefined
+  }
+
   // ─── AI: Write caption ────────────────────────────────────────────────────
   async function aiWrite() {
     if (aiLoading) return
@@ -198,7 +212,9 @@ export default function PostComposer() {
     try {
       const pillar = pillarList.find(p => p.id === pillarId)
       const avatar = avatarList.find(a => a.id === avatarId)
-      const prompt = mainCaption || 'Write an engaging social media post about real estate in the East Valley, AZ area.'
+      const seoKws = getKeywordContext()
+      const prompt = (mainCaption || 'Write an engaging social media post about real estate in the East Valley, AZ area.')
+        + (seoKws ? `\n\nSEO TARGET KEYWORDS (naturally weave these in): ${seoKws}` : '')
 
       const result = await DB.generateContent({
         type: 'write',
@@ -422,6 +438,38 @@ export default function PostComposer() {
     }
   }
 
+  // ─── Inspo Recreator ──────────────────────────────────────────────────
+  async function handleInspoRecreate() {
+    if (inspoLoading || !inspoCaption.trim()) return
+    setInspoLoading(true)
+    setInspoResult(null)
+    try {
+      const result = await DB.generateContent({
+        type: 'recreate_inspo',
+        prompt: inspoCaption,
+        platform: activeTab !== 'main' ? activeTab : 'instagram',
+        avatar_id: avatarId || undefined,
+        framework: framework || undefined,
+      })
+      setInspoResult(result)
+    } catch (err) {
+      setInspoResult({ error: err.message })
+    } finally {
+      setInspoLoading(false)
+    }
+  }
+
+  function useInspoResult() {
+    if (!inspoResult?.recreated_text) return
+    setMainCaption(inspoResult.recreated_text)
+    if (inspoResult.suggested_hashtags?.length) {
+      setHashtags(inspoResult.suggested_hashtags.map(h => `#${h}`).join(' '))
+    }
+    setInspoOpen(false)
+    setInspoCaption('')
+    setInspoResult(null)
+  }
+
   // ─── Generate video via Blotato ────────────────────────────────────────
   const VIDEO_PLATFORMS = ['tiktok', 'instagram', 'youtube', 'stories']
   const hasVideoPlatform = selectedPlatforms.some(p => VIDEO_PLATFORMS.includes(p))
@@ -586,6 +634,9 @@ export default function PostComposer() {
             </button>
             <button className={`pc-ai-btn ${aiLoading ? 'pc-ai-btn--loading' : ''}`} onClick={aiSuggestHooks} disabled={aiLoading}>
               <span className="pc-ai-btn__icon">✦</span> Suggest Hooks
+            </button>
+            <button className="pc-ai-btn" onClick={() => setInspoOpen(true)}>
+              <span className="pc-ai-btn__icon">✨</span> Recreate Inspo
             </button>
             {hasVideoPlatform && (
               <button className={`pc-ai-btn ${videoGenerating ? 'pc-ai-btn--loading' : ''}`} onClick={generateVideo} disabled={videoGenerating || !mainCaption.trim()}>
@@ -878,6 +929,107 @@ export default function PostComposer() {
           })()}
         </div>
       </div>
+
+      {/* ─── Inspo Recreator Panel ─── */}
+      {inspoOpen && (
+        <div className="pc-inspo-overlay" onClick={() => setInspoOpen(false)}>
+          <div className="pc-inspo-panel" onClick={e => e.stopPropagation()}>
+            <div className="pc-inspo-panel__header">
+              <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--brown-dark)', margin: 0 }}>
+                Recreate Inspiration
+              </h3>
+              <button onClick={() => setInspoOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
+                &times;
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', margin: '0 0 14px' }}>
+              Paste a caption or post you love. Claude will analyze the structure, then recreate it in your voice with your framework and avatar.
+            </p>
+
+            <textarea
+              value={inspoCaption}
+              onChange={e => setInspoCaption(e.target.value)}
+              placeholder="Paste the original caption, post text, or content you want to recreate..."
+              rows={6}
+              style={{
+                width: '100%', padding: '10px 12px', border: '1px solid #e0dbd6',
+                borderRadius: 8, fontSize: '0.85rem', resize: 'vertical',
+                fontFamily: 'var(--font-body)', marginBottom: 12,
+              }}
+            />
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <Button size="sm" onClick={handleInspoRecreate} disabled={inspoLoading || !inspoCaption.trim()}>
+                {inspoLoading ? 'Analyzing...' : '✨ Recreate in My Voice'}
+              </Button>
+              {framework && (
+                <span style={{ fontSize: '0.72rem', color: 'var(--sage-green)', alignSelf: 'center' }}>
+                  Using {framework.toUpperCase()} framework
+                </span>
+              )}
+            </div>
+
+            {inspoResult?.error && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fce8e6', color: '#c5221f', fontSize: '0.82rem', marginBottom: 12 }}>
+                {inspoResult.error}
+              </div>
+            )}
+
+            {inspoResult?.analysis && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)', marginBottom: 4 }}>
+                  Analysis
+                </div>
+                <div style={{ padding: '10px 14px', background: '#faf8f5', borderRadius: 8, fontSize: '0.82rem', color: 'var(--brown-dark)', lineHeight: 1.6 }}>
+                  {inspoResult.analysis}
+                </div>
+              </div>
+            )}
+
+            {inspoResult?.recreated_text && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)', marginBottom: 4 }}>
+                  Recreated in Your Voice
+                </div>
+                <div style={{ padding: '10px 14px', background: '#edf4ee', borderRadius: 8, fontSize: '0.85rem', color: 'var(--brown-dark)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                  {inspoResult.recreated_text}
+                </div>
+                {inspoResult.suggested_hook && (
+                  <div style={{ marginTop: 6, fontSize: '0.78rem', color: 'var(--sage-green)' }}>
+                    <strong>Suggested hook:</strong> {inspoResult.suggested_hook}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <Button size="sm" onClick={useInspoResult}>
+                    Use This in My Post
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    navigator.clipboard.writeText(inspoResult.recreated_text)
+                  }}>
+                    Copy
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {inspoResult?.suggested_hashtags?.length > 0 && (
+              <div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)', marginBottom: 4 }}>
+                  Suggested Hashtags
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {inspoResult.suggested_hashtags.map((h, i) => (
+                    <span key={i} style={{ padding: '3px 8px', borderRadius: 4, fontSize: '0.72rem', background: '#f5f0eb', color: 'var(--brown-dark)' }}>
+                      #{h}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
