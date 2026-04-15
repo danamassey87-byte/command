@@ -111,7 +111,8 @@ export const useDailyStreaks    = ()         => useQuery(() => DB.getDailyStreak
 // useVendors accepts optional { roleGroup, search } — both optional.
 // Callers without args get all vendors (role/name sorted).
 export const useVendors           = (opts = {}) =>
-  useQuery(() => DB.getVendors(opts), [opts.roleGroup, opts.search])
+  useQuery(() => DB.getVendors(opts), [opts.roleGroup, opts.search, opts.includeArchived])
+export const useArchivedVendors   = ()          => useQuery(DB.getArchivedVendors)
 export const useVendorAssignments = ()          => useQuery(DB.getVendorAssignments)
 export const usePartiesForListing = (listingId) =>
   useQuery(() => DB.getPartiesForListing(listingId), [listingId])

@@ -32,6 +32,7 @@ import NewslettersPage from './pages/Newsletters/Newsletters'
 import IntakeForms from './pages/IntakeForms/IntakeForms'
 import PublicForm from './pages/PublicForm/PublicForm'
 import OHSignIn from './pages/OHSignIn/OHSignIn'
+import GoogleCallback from './pages/Auth/GoogleCallback'
 import Notifications from './pages/Notifications/Notifications'
 import CalendarSchedule from './pages/Calendar/CalendarSchedule'
 import TodayShowings from './pages/Calendar/TodayShowings'
@@ -137,6 +138,7 @@ export default function App() {
         {/* Public client-facing pages (unauthed) */}
         <Route path="/form/:slug" element={<PublicForm />} />
         <Route path="/oh-signin/:openHouseId" element={<OHSignIn />} />
+        <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
         <Route path="/login" element={<LoginGate />} />
         <Route element={<ProtectedRoute><BrandProvider><NotesProvider><FavoritesProvider><Layout /></FavoritesProvider></NotesProvider></BrandProvider></ProtectedRoute>}>
@@ -209,7 +211,7 @@ export default function App() {
           <Route path="/content/composer/:pieceId" element={<Navigate to="/content/create" replace />} />
           <Route path="/content/hashtags"  element={<Navigate to="/content/measure" replace />} />
           <Route path="/content/seo"       element={<Navigate to="/content/measure" replace />} />
-          <Route path="/content/inspo"     element={<Navigate to="/content/create" replace />} />
+          <Route path="/content/inspo"     element={<InspoRecreator />} />
           <Route path="/content/social"    element={<Navigate to="/content/measure" replace />} />
           <Route path="/content/stats"     element={<Navigate to="/content/measure" replace />} />
           <Route path="/content/templates" element={<Navigate to="/content/create" replace />} />

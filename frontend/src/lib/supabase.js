@@ -241,7 +241,7 @@ export async function uploadListingDocument(file, listingId) {
 // ─── Transactions ─────────────────────────────────────────────────────────────
 export const getTransactions = () =>
   query(supabase.from('transactions').select(`
-    *, contact:contacts(id,name,email,phone), property:properties(id,address,city,price)
+    *, contact:contacts(id,name,email,phone), property:properties(id,address,city,price,image_url)
   `).order('created_at', { ascending: false }))
 
 export const createTransaction  = (d)      => query(supabase.from('transactions').insert(d).select().single())
@@ -1609,3 +1609,88 @@ export const updateFavorites = (value) =>
   query(supabase.from('user_settings')
     .upsert({ key: 'favorites', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
     .select().single())
+
+// ─── Google OAuth Tokens (user_settings) ────────────────────────────────────
+
+/** Get Google OAuth tokens from user_settings. Returns { value } or null. */
+export const getGoogleTokens = async () => {
+  const { data, error } = await supabase.from('user_settings').select('*').eq('key', 'google_tokens').maybeSingle()
+  if (error) throw new Error(error.message)
+  return data
+}
+
+/** Update/store Google tokens. */
+export const updateGoogleTokens = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'google_tokens', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())
+
+/** Clear Google tokens (disconnect). */
+export const clearGoogleTokens = () =>
+  query(supabase.from('user_settings').delete().eq('key', 'google_tokens'))
+
+/** Start Google OAuth flow — calls google-auth edge function to get consent URL. */
+export async function startGoogleAuth() {
+  const redirectUri = `${window.location.origin}/auth/google/callback`
+  const { data, error } = await supabase.functions.invoke('google-auth', {
+    body: { action: 'get_auth_url', redirect_uri: redirectUri },
+  })
+  if (error) {
+    let detail = error.message
+    try {
+      const ctx = error.context
+      if (ctx && typeof ctx.json === 'function') {
+        const body = await ctx.json()
+        detail = body.error || body.detail || detail
+      }
+    } catch (_) {}
+    return { data: null, error: detail }
+  }
+  if (data?.error) return { data: null, error: data.error }
+  return { data, error: null }
+}
+
+/** Push open houses + showings to Google Calendar. */
+export async function syncGoogleCalendar(action = 'push', options = {}) {
+  const { data, error } = await supabase.functions.invoke('google-calendar-sync', {
+    body: { action, ...options },
+  })
+  if (error) {
+    let detail = error.message
+    try {
+      const ctx = error.context
+      if (ctx && typeof ctx.json === 'function') {
+        const body = await ctx.json()
+        detail = body.error || body.detail || detail
+      }
+    } catch (_) {}
+    return { data: null, error: detail }
+  }
+  if (data?.error) return { data: null, error: data.error }
+  return { data, error: null }
+}
+
+/** Pull events from Google Calendar. */
+export async function pullGoogleCalendar(timeMin, timeMax) {
+  return syncGoogleCalendar('pull', { time_min: timeMin, time_max: timeMax })
+}
+
+/** Scan Gmail for replies to campaign emails. */
+export async function scanGmailReplies(daysBack = 7) {
+  const { data, error } = await supabase.functions.invoke('gmail-reply-detect', {
+    body: { days_back: daysBack },
+  })
+  if (error) {
+    let detail = error.message
+    try {
+      const ctx = error.context
+      if (ctx && typeof ctx.json === 'function') {
+        const body = await ctx.json()
+        detail = body.error || body.detail || detail
+      }
+    } catch (_) {}
+    return { data: null, error: detail }
+  }
+  if (data?.error) return { data: null, error: data.error }
+  return { data, error: null }
+}

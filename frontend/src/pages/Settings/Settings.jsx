@@ -1008,7 +1008,200 @@ function ConnectedAccountsTab() {
           </span>
         </div>
       </div>
+
+      {/* Google Calendar + Gmail */}
+      <GoogleAccountCard />
     </div>
+  )
+}
+
+// ─── Google Account Card (Calendar + Gmail) ─────────────────────────────────
+function GoogleAccountCard() {
+  const [tokens, setTokens] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [connecting, setConnecting] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [syncStatus, setSyncStatus] = useState(null)
+  const [syncing, setSyncing] = useState(false)
+  const [replyStatus, setReplyStatus] = useState(null)
+  const [scanning, setScanning] = useState(false)
+
+  useEffect(() => {
+    DB.getGoogleTokens().then(data => {
+      if (data?.value) setTokens(data.value)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  async function handleConnect() {
+    setConnecting(true)
+    try {
+      const { data, error } = await DB.startGoogleAuth()
+      if (error) throw new Error(error)
+      if (data?.auth_url) {
+        window.location.href = data.auth_url
+      } else {
+        throw new Error('No auth URL returned')
+      }
+    } catch (err) {
+      alert('Failed to start Google auth: ' + err.message)
+      setConnecting(false)
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!confirm('Disconnect Google account? Calendar sync and Gmail reply detection will stop working.')) return
+    setDisconnecting(true)
+    try {
+      await DB.clearGoogleTokens()
+      setTokens(null)
+    } catch (err) {
+      alert('Failed to disconnect: ' + err.message)
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
+  async function handleCalendarSync() {
+    setSyncing(true)
+    setSyncStatus(null)
+    try {
+      const { data, error } = await DB.syncGoogleCalendar('push')
+      if (error) throw new Error(error)
+      if (data?.error) throw new Error(data.error)
+      setSyncStatus({ ok: true, message: `Synced ${data.synced || 0} events to Google Calendar.` })
+    } catch (err) {
+      setSyncStatus({ ok: false, message: err.message })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  async function handleScanReplies() {
+    setScanning(true)
+    setReplyStatus(null)
+    try {
+      const { data, error } = await DB.scanGmailReplies()
+      if (error) throw new Error(error)
+      if (data?.error) throw new Error(data.error)
+      setReplyStatus({
+        ok: true,
+        message: `Found ${data.replies_found || 0} replies, flagged ${data.contacts_flagged || 0} contacts.`,
+      })
+    } catch (err) {
+      setReplyStatus({ ok: false, message: err.message })
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const isConnected = !!tokens?.access_token
+  const connectedEmail = tokens?.email || ''
+
+  if (loading) {
+    return (
+      <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16 }}>
+        <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>Loading Google connection...</p>
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {/* Google Calendar */}
+      <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <span style={{ fontSize: '1.3rem' }}>📅</span>
+          <div>
+            <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.95rem' }}>Google Calendar</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>Two-way sync for open houses &amp; showings</div>
+          </div>
+          {isConnected && (
+            <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 600, color: '#137333', background: '#e6f4ea', padding: '3px 10px', borderRadius: 6 }}>
+              Connected
+            </span>
+          )}
+        </div>
+
+        {isConnected ? (
+          <div>
+            {connectedEmail && (
+              <div style={{ fontSize: '0.82rem', color: 'var(--brown-dark)', marginBottom: 10 }}>
+                Linked to <strong>{connectedEmail}</strong>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Button size="sm" onClick={handleCalendarSync} disabled={syncing}>
+                {syncing ? 'Syncing...' : 'Sync Now'}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={handleDisconnect} disabled={disconnecting}>
+                {disconnecting ? 'Disconnecting...' : 'Disconnect'}
+              </Button>
+            </div>
+            {syncStatus && (
+              <div style={{
+                padding: '8px 12px', borderRadius: 8, fontSize: '0.82rem', marginTop: 8,
+                background: syncStatus.ok ? '#e6f4ea' : '#fce8e6',
+                color: syncStatus.ok ? '#137333' : '#c5221f',
+              }}>
+                {syncStatus.message}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            <Button size="sm" onClick={handleConnect} disabled={connecting}>
+              {connecting ? 'Connecting...' : 'Connect Google Account'}
+            </Button>
+            <div style={{ marginTop: 8, fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+              Grants access to Calendar events and Gmail (read-only). You can disconnect anytime.
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Gmail Reply Detection */}
+      <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <span style={{ fontSize: '1.3rem' }}>📧</span>
+          <div>
+            <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.95rem' }}>Gmail Reply Detection</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>Auto-flag contacts who reply to campaign emails</div>
+          </div>
+          {isConnected && (
+            <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 600, color: '#137333', background: '#e6f4ea', padding: '3px 10px', borderRadius: 6 }}>
+              Connected
+            </span>
+          )}
+        </div>
+
+        {isConnected ? (
+          <div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginBottom: 10 }}>
+              Uses the same Google account as Calendar. Scans for replies to emails sent from your domains.
+            </div>
+            <Button size="sm" onClick={handleScanReplies} disabled={scanning}>
+              {scanning ? 'Scanning...' : 'Scan for Replies'}
+            </Button>
+            {replyStatus && (
+              <div style={{
+                padding: '8px 12px', borderRadius: 8, fontSize: '0.82rem', marginTop: 8,
+                background: replyStatus.ok ? '#e6f4ea' : '#fce8e6',
+                color: replyStatus.ok ? '#137333' : '#c5221f',
+              }}>
+                {replyStatus.message}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
+              Connect Google Calendar above to enable Gmail reply detection.
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   )
 }
 

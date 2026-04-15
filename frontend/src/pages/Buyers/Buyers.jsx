@@ -4,7 +4,7 @@ import { Button, Badge, SectionHeader, TabBar, DataTable, Card, SlidePanel, Inpu
 import LeadSourcePicker from '../../components/ui/LeadSourcePicker.jsx'
 import { TagPicker, TagBadge } from '../../components/ui/TagPicker.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
-import { useBuyers, useTransactions, useShowingSessionsForContact, useContactTags, useNotesForContact } from '../../lib/hooks.js'
+import { useBuyers, useTransactions, useShowingSessionsForContact, useContactTags, useNotesForContact, useVendors } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
@@ -51,6 +51,95 @@ const stageVariant = {
 }
 
 const showingStatusVariant = { 'scheduled': 'info', 'toured': 'default', 'offer-accepted': 'success' }
+
+// ─── Lender Picker (pulls from Vendors rolodex) ────────────────────────────────
+function LenderPicker({ value, onChange }) {
+  const { data: lenders, refetch } = useVendors({ roleGroup: 'representation' })
+  const lenderVendors = useMemo(() =>
+    (lenders ?? []).filter(v => v.role === 'lender' && (v.status ?? 'active') !== 'do_not_use'),
+    [lenders]
+  )
+  const [showAdd, setShowAdd] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newCompany, setNewCompany] = useState('')
+  const [newPhone, setNewPhone] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [addSaving, setAddSaving] = useState(false)
+
+  const handleAddLender = async () => {
+    if (!newName.trim()) return
+    setAddSaving(true)
+    try {
+      await DB.createVendor({
+        role: 'lender',
+        role_group: 'representation',
+        name: newName.trim(),
+        company: newCompany.trim() || null,
+        phone: newPhone.trim() || null,
+        email: newEmail.trim() || null,
+        status: 'active',
+      })
+      onChange(newName.trim() + (newCompany.trim() ? ` – ${newCompany.trim()}` : ''))
+      await refetch()
+      setShowAdd(false)
+      setNewName(''); setNewCompany(''); setNewPhone(''); setNewEmail('')
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setAddSaving(false)
+    }
+  }
+
+  return (
+    <div className="lender-picker">
+      <label className="lender-picker__label">Lender / Loan Officer</label>
+      <select
+        className="lender-picker__select"
+        value={lenderVendors.some(l => (l.name + (l.company ? ` – ${l.company}` : '')) === value) ? value : '__custom__'}
+        onChange={e => {
+          if (e.target.value === '__add__') { setShowAdd(true) }
+          else if (e.target.value === '__custom__') { /* keep current */ }
+          else onChange(e.target.value)
+        }}
+      >
+        <option value="">— Select lender —</option>
+        {lenderVendors.map(l => {
+          const display = l.name + (l.company ? ` – ${l.company}` : '')
+          return <option key={l.id} value={display}>{display}{l.preferred ? ' ★' : ''}</option>
+        })}
+        {value && !lenderVendors.some(l => (l.name + (l.company ? ` – ${l.company}` : '')) === value) && (
+          <option value="__custom__">{value}</option>
+        )}
+        <option value="__add__">+ Add new lender to rolodex…</option>
+      </select>
+      <input
+        type="text"
+        className="lender-picker__input"
+        placeholder="Or type lender name manually"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+      />
+
+      {showAdd && (
+        <div className="lender-picker__add-form">
+          <p className="panel-section-label">Add Lender to Vendors</p>
+          <input className="lender-picker__field" placeholder="Name *" value={newName} onChange={e => setNewName(e.target.value)} />
+          <input className="lender-picker__field" placeholder="Company" value={newCompany} onChange={e => setNewCompany(e.target.value)} />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input className="lender-picker__field" placeholder="Phone" value={newPhone} onChange={e => setNewPhone(e.target.value)} style={{ flex: 1 }} />
+            <input className="lender-picker__field" placeholder="Email" value={newEmail} onChange={e => setNewEmail(e.target.value)} style={{ flex: 1 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+            <button className="lender-picker__btn lender-picker__btn--save" disabled={addSaving || !newName.trim()} onClick={handleAddLender}>
+              {addSaving ? 'Saving…' : 'Add & Select'}
+            </button>
+            <button className="lender-picker__btn lender-picker__btn--cancel" onClick={() => setShowAdd(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ─── Buyer Edit Form ───────────────────────────────────────────────────────────
 function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
@@ -135,7 +224,7 @@ function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
         </div>
         <div className="panel-row">
           <Input label="Pre-Approval Amount ($)" type="number" value={draft.pre_approval_amount} onChange={e => set('pre_approval_amount', e.target.value)} placeholder="500000" />
-          <Input label="Lender / Loan Officer" value={draft.lender_name} onChange={e => set('lender_name', e.target.value)} placeholder="Jane Smith – ABC Lending" />
+          <LenderPicker value={draft.lender_name} onChange={v => set('lender_name', v)} />
         </div>
         <div className="panel-row">
           <Input label="Min Beds" type="number" value={draft.beds_min} onChange={e => set('beds_min', e.target.value)} min="0" />

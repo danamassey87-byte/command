@@ -78,6 +78,80 @@
   .buyer-dashboard__value { font-size: 1.15rem; }
 }
 
+/* ─── Lender Picker ─── */
+.lender-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+.lender-picker__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+}
+.lender-picker__select {
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  background: var(--white);
+  color: var(--brown-dark);
+}
+.lender-picker__input {
+  padding: 7px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  color: var(--brown-dark);
+}
+.lender-picker__input:focus,
+.lender-picker__select:focus {
+  outline: none;
+  border-color: var(--brown-mid);
+}
+.lender-picker__add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  margin-top: 4px;
+  background: var(--cream);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.lender-picker__field {
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  color: var(--brown-dark);
+}
+.lender-picker__field:focus {
+  outline: none;
+  border-color: var(--brown-mid);
+}
+.lender-picker__btn {
+  padding: 5px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+.lender-picker__btn--save {
+  background: var(--brown-dark);
+  color: var(--white);
+}
+.lender-picker__btn--save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.lender-picker__btn--cancel {
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
 /* ─── Pipeline Strip (shared with LeadGen) ─── */
 .pipeline-strip {
   display: flex;

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react'
 import { Button, Badge, SectionHeader, Card, Input, Select, Textarea, SlidePanel, EmptyState } from '../../components/ui/index.jsx'
-import { useVendors } from '../../lib/hooks.js'
+import { useVendors, useArchivedVendors } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 import { VENDOR_ROLE_GROUPS as ROLE_GROUPS, VENDOR_ROLES as ROLES, ROLE_BY_KEY, roleLabel, roleGroupFor } from '../../lib/vendorRoles.js'
 import './Vendors.css'
@@ -24,6 +24,7 @@ const blankDraft = () => ({
   license_state: 'AZ',
   preferred: false,
   rating: 5,
+  status: 'active',
   specialties: [],
   tags: [],
   notes: '',
@@ -31,6 +32,16 @@ const blankDraft = () => ({
 
 const STAR = '\u2605'
 const STAR_EMPTY = '\u2606'
+
+const VENDOR_STATUSES = [
+  { key: 'active',      label: 'Active',        variant: 'success' },
+  { key: 'probation',   label: 'Probationary',   variant: 'warning' },
+  { key: 'do_not_use',  label: 'Do Not Use',    variant: 'danger'  },
+  { key: 'inactive',    label: 'Inactive',       variant: 'default' },
+]
+
+const statusLabel = (s) => VENDOR_STATUSES.find(vs => vs.key === s)?.label ?? 'Active'
+const statusVariant = (s) => VENDOR_STATUSES.find(vs => vs.key === s)?.variant ?? 'default'
 
 // Format a phone like (480) 555-1234 if it's 10 digits, else return as-is.
 const fmtPhone = (p) => {
@@ -82,10 +93,13 @@ const buildTextContact = (v) => {
 // ═════════════════════════════════════════════════════════════════════════════
 export default function Vendors() {
   const { data: vendors, refetch } = useVendors()
+  const { data: archivedVendors, refetch: refetchArchived } = useArchivedVendors()
   const [groupFilter, setGroupFilter] = useState('all')
   const [roleFilter, setRoleFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [showPreferred, setShowPreferred] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+  const [statusFilter, setStatusFilter] = useState('all')
 
   // Edit panel
   const [panelOpen, setPanelOpen] = useState(false)
@@ -98,19 +112,23 @@ export default function Vendors() {
   const [exporting, setExporting] = useState(false)
   const printableRef = useRef(null)
 
+  // Active list to display — either active vendors or archived ones
+  const displayList = showArchived ? (archivedVendors ?? []) : (vendors ?? [])
+
   // Filtered list
   const filtered = useMemo(() => {
-    const list = vendors ?? []
+    const list = displayList
     const q = search.toLowerCase().trim()
     return list.filter(v => {
       if (showPreferred && !v.preferred) return false
+      if (statusFilter !== 'all' && (v.status ?? 'active') !== statusFilter) return false
       if (groupFilter !== 'all' && (v.role_group || roleGroupFor(v.role)) !== groupFilter) return false
       if (roleFilter !== 'all' && v.role !== roleFilter) return false
       if (!q) return true
       const hay = `${v.name ?? ''} ${v.company ?? ''} ${v.role ?? ''} ${v.email ?? ''} ${v.phone ?? ''} ${v.city ?? ''}`.toLowerCase()
       return hay.includes(q)
     })
-  }, [vendors, groupFilter, roleFilter, search, showPreferred])
+  }, [displayList, groupFilter, roleFilter, search, showPreferred, statusFilter])
 
   // Group visible results by role_group for the rendered sections.
   const grouped = useMemo(() => {
@@ -124,14 +142,14 @@ export default function Vendors() {
   }, [filtered])
 
   const counts = useMemo(() => {
-    const list = vendors ?? []
+    const list = displayList
     const by = { all: list.length }
     for (const rg of ROLE_GROUPS) {
       by[rg.key] = list.filter(v => (v.role_group || roleGroupFor(v.role)) === rg.key).length
     }
     by.preferred = list.filter(v => v.preferred).length
     return by
-  }, [vendors])
+  }, [displayList])
 
   // Which roles to offer in the role filter dropdown (based on current group)
   const roleOptions = useMemo(() => {
@@ -151,6 +169,7 @@ export default function Vendors() {
       ...blankDraft(),
       ...v,
       role_group: v.role_group || roleGroupFor(v.role),
+      status: v.status || 'active',
       specialties: v.specialties || [],
       tags: v.tags || [],
     })
@@ -190,6 +209,7 @@ export default function Vendors() {
         license_state: draft.license_state?.trim() || null,
         preferred: !!draft.preferred,
         rating: Number(draft.rating) || null,
+        status: draft.status || 'active',
         notes: draft.notes.trim() || null,
       }
       if (editing?.id) await DB.updateVendor(editing.id, payload)
@@ -210,6 +230,35 @@ export default function Vendors() {
     try {
       await DB.deleteVendor(editing.id)
       refetch()
+      closePanel()
+    } catch (e) { console.error(e) }
+  }
+
+  const handleArchive = async (v) => {
+    if (!confirm(`Archive "${v.name}"? You can bring them back from the Archived view.`)) return
+    try {
+      await DB.archiveVendor(v.id)
+      refetch()
+      refetchArchived()
+      closePanel()
+    } catch (e) { console.error(e) }
+  }
+
+  const handleUnarchive = async (v) => {
+    try {
+      await DB.unarchiveVendor(v.id)
+      refetch()
+      refetchArchived()
+    } catch (e) { console.error(e) }
+  }
+
+  const handleHardDelete = async () => {
+    if (!editing?.id) return
+    if (!confirm(`PERMANENTLY delete "${editing.name}"? This cannot be undone.`)) return
+    try {
+      await DB.hardDeleteVendor(editing.id)
+      refetch()
+      refetchArchived()
       closePanel()
     } catch (e) { console.error(e) }
   }
@@ -339,6 +388,20 @@ export default function Vendors() {
           <option value="all">All roles</option>
           {roleOptions.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
         </select>
+        <select
+          className="vendors-role-select"
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+        >
+          <option value="all">All statuses</option>
+          {VENDOR_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+        </select>
+        <button
+          className={`vendors-chip vendors-chip--archive${showArchived ? ' vendors-chip--active' : ''}`}
+          onClick={() => setShowArchived(v => !v)}
+        >
+          {showArchived ? 'Showing Archived' : 'Show Archived'} <span className="vendors-chip__count">{(archivedVendors ?? []).length}</span>
+        </button>
         {selectedCount > 0 && (
           <div className="vendors-toolbar__selection">
             <span>{selectedCount} selected</span>
@@ -375,12 +438,15 @@ export default function Vendors() {
                     key={v.id}
                     vendor={v}
                     selected={!!selected[v.id]}
+                    isArchived={showArchived}
                     onToggleSelect={() => toggleSelect(v.id)}
                     onEdit={() => openEdit(v)}
                     onTogglePreferred={() => togglePreferred(v)}
                     onCopy={() => copyContact(v)}
                     onVCard={() => downloadVCard(v)}
                     onEmail={() => emailIntro(v)}
+                    onArchive={() => handleArchive(v)}
+                    onUnarchive={() => handleUnarchive(v)}
                   />
                 ))}
               </div>
@@ -398,6 +464,7 @@ export default function Vendors() {
           onSave={handleSave}
           onCancel={closePanel}
           onDelete={editing ? handleDelete : null}
+          onHardDelete={editing ? handleHardDelete : null}
           saving={saving}
           isEditing={!!editing}
         />
@@ -410,12 +477,14 @@ export default function Vendors() {
 }
 
 // ─── Vendor Card ─────────────────────────────────────────────────────────────
-function VendorCard({ vendor: v, selected, onToggleSelect, onEdit, onTogglePreferred, onCopy, onVCard, onEmail }) {
+function VendorCard({ vendor: v, selected, isArchived, onToggleSelect, onEdit, onTogglePreferred, onCopy, onVCard, onEmail, onArchive, onUnarchive }) {
   const [copied, setCopied] = useState(false)
   const doCopy = () => { onCopy(); setCopied(true); setTimeout(() => setCopied(false), 1600) }
   const role = roleLabel(v.role)
+  const vStatus = v.status || 'active'
+  const isDnU = vStatus === 'do_not_use'
   return (
-    <Card className={`vendor-card${selected ? ' vendor-card--selected' : ''}${v.preferred ? ' vendor-card--preferred' : ''}`}>
+    <Card className={`vendor-card${selected ? ' vendor-card--selected' : ''}${v.preferred ? ' vendor-card--preferred' : ''}${isDnU ? ' vendor-card--dnu' : ''}${isArchived ? ' vendor-card--archived' : ''}`}>
       <div className="vendor-card__top">
         <label className="vendor-card__check" onClick={e => e.stopPropagation()}>
           <input type="checkbox" checked={selected} onChange={onToggleSelect} />
@@ -429,6 +498,7 @@ function VendorCard({ vendor: v, selected, onToggleSelect, onEdit, onTogglePrefe
           {v.company && <p className="vendor-card__company">{v.company}{v.title ? ` · ${v.title}` : ''}</p>}
           <p className="vendor-card__role">
             <Badge variant="default" size="sm">{role}</Badge>
+            {vStatus !== 'active' && <Badge variant={statusVariant(vStatus)} size="sm">{statusLabel(vStatus)}</Badge>}
             {typeof v.rating === 'number' && v.rating > 0 && (
               <span className="vendor-card__rating">{STAR.repeat(v.rating)}{STAR_EMPTY.repeat(5 - v.rating)}</span>
             )}
@@ -443,6 +513,9 @@ function VendorCard({ vendor: v, selected, onToggleSelect, onEdit, onTogglePrefe
           {v.preferred ? STAR : STAR_EMPTY}
         </button>
       </div>
+      {v.notes && (
+        <p className="vendor-card__notes">{v.notes}</p>
+      )}
       <div className="vendor-card__contact">
         {v.phone && <a href={`tel:${v.phone}`} onClick={e => e.stopPropagation()}>{fmtPhone(v.phone)}</a>}
         {v.email && <a href={`mailto:${v.email}`} onClick={e => e.stopPropagation()}>{v.email}</a>}
@@ -455,13 +528,18 @@ function VendorCard({ vendor: v, selected, onToggleSelect, onEdit, onTogglePrefe
         <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); onVCard() }}>vCard</Button>
         <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); onEmail() }}>Email</Button>
         <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); onEdit() }}>Edit</Button>
+        {isArchived ? (
+          <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); onUnarchive() }}>Restore</Button>
+        ) : (
+          <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); onArchive() }}>Archive</Button>
+        )}
       </div>
     </Card>
   )
 }
 
 // ─── Vendor Form ─────────────────────────────────────────────────────────────
-function VendorForm({ draft, setField, onRoleChange, onSave, onCancel, onDelete, saving, isEditing }) {
+function VendorForm({ draft, setField, onRoleChange, onSave, onCancel, onDelete, onHardDelete, saving, isEditing }) {
   return (
     <>
       <div className="panel-section">
@@ -490,6 +568,9 @@ function VendorForm({ draft, setField, onRoleChange, onSave, onCancel, onDelete,
         <div className="panel-row">
           <Select label="Rating" value={draft.rating} onChange={e => setField('rating', Number(e.target.value))}>
             {[5, 4, 3, 2, 1, 0].map(n => <option key={n} value={n}>{n === 0 ? 'Unrated' : `${STAR.repeat(n)} (${n})`}</option>)}
+          </Select>
+          <Select label="Status" value={draft.status || 'active'} onChange={e => setField('status', e.target.value)}>
+            {VENDOR_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
           </Select>
         </div>
       </div>
@@ -547,9 +628,16 @@ function VendorForm({ draft, setField, onRoleChange, onSave, onCancel, onDelete,
         </Button>
         <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
         {onDelete && (
-          <Button variant="ghost" size="sm" onClick={onDelete} style={{ marginLeft: 'auto', color: 'var(--color-danger)' }}>
-            Delete
-          </Button>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <Button variant="ghost" size="sm" onClick={onDelete} style={{ color: 'var(--color-danger)' }}>
+              Delete
+            </Button>
+            {onHardDelete && (
+              <Button variant="ghost" size="sm" onClick={onHardDelete} style={{ color: 'var(--color-danger)', fontSize: '0.72rem' }}>
+                Permanently Delete
+              </Button>
+            )}
+          </div>
         )}
       </div>
     </>

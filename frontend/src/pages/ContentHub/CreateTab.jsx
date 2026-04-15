@@ -48,6 +48,20 @@ export default function CreateTab() {
             {m.label}
           </button>
         ))}
+        <button
+          onClick={() => navigate('/content/inspo')}
+          style={{
+            padding: '8px 16px', borderRadius: 8, fontSize: '0.82rem',
+            border: '2px solid transparent', background: '#fff',
+            color: 'var(--brown-warm)', cursor: 'pointer', fontWeight: 500,
+            display: 'flex', alignItems: 'center', gap: 6,
+            whiteSpace: 'nowrap', transition: 'all 0.15s ease',
+            marginLeft: 'auto',
+          }}
+        >
+          <span>&#10024;</span>
+          Inspo Library
+        </button>
       </div>
 
       {/* Active mode */}
