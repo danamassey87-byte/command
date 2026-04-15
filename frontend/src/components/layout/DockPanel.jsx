@@ -6,7 +6,7 @@ import * as DB from '../../lib/supabase'
 import './DockPanel.css'
 
 const NOTE_COLORS = [
-  null, '#c0604a', '#c99a2e', '#6a9e72', '#5a87b4', '#8b6fb0', '#b79782',
+  null, '#c0604a', '#c99a2e', '#6a9e72', 'var(--brown-mid)', '#8b6fb0', '#b79782',
 ]
 
 export default function DockPanel() {

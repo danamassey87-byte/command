@@ -10,7 +10,7 @@ const BUYER_SOP = [
   {
     id: 'initial_lead',
     label: 'Initial Lead & Pre-Appointment',
-    color: '#5a87b4',
+    color: 'var(--brown-mid)',
     tasks: [
       { id: 'lead_in',             text: 'New lead comes in (website, lead magnet, referral, SOI, open house)',          hasTemplate: false },
       { id: 'lead_workflow',        text: 'Send New Buyer Lead Workflow email (auto-response sets appointment)',         hasTemplate: true, templateKey: 'new_buyer_lead' },

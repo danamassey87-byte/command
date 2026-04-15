@@ -35,6 +35,16 @@ export const deleteContact = async (id) => {
   return softDelete('contacts', id)
 }
 
+// ─── On-Hold Contacts ─────────────────────────────────────────────────────────
+export const getOnHoldContacts = () => query(supabase.from('contacts').select('*')
+  .not('on_hold_at', 'is', null).is('deleted_at', null).is('archived_at', null).order('on_hold_at', { ascending: false }))
+
+export const putContactOnHold = (id, reason) =>
+  updateContact(id, { on_hold_at: new Date().toISOString(), on_hold_reason: reason || null })
+
+export const reactivateContact = (id) =>
+  updateContact(id, { on_hold_at: null, on_hold_reason: null, reactivated_at: new Date().toISOString() })
+
 // ─── Properties ──────────────────────────────────────────────────────────────
 export const getProperties  = ()      => query(supabase.from('properties').select('*')
   .is('deleted_at', null).is('archived_at', null).order('address'))
@@ -142,6 +152,57 @@ export const updateListing  = async (id, d) => {
 export const deleteListing  = async (id) => {
   const { softDelete } = await import('./safeguards')
   return softDelete('listings', id)
+}
+
+// ─── Price History ───────────────────────────────────────────────────────────
+export const getPriceHistory = (listingId) =>
+  query(supabase.from('listing_price_history').select('*')
+    .eq('listing_id', listingId).order('changed_at', { ascending: false }))
+
+export const createPriceHistoryEntry = (d) =>
+  query(supabase.from('listing_price_history').insert(d).select().single())
+
+export const updatePriceHistoryEntry = (id, d) =>
+  query(supabase.from('listing_price_history').update(d).eq('id', id).select().single())
+
+export const deletePriceHistoryEntry = (id) =>
+  query(supabase.from('listing_price_history').delete().eq('id', id))
+
+// Fetch the analytics view for all listings (portfolio-wide stats)
+export const getPriceAnalytics = () =>
+  query(supabase.from('listing_price_analytics').select('*'))
+
+// Record a price reduction: updates listing.current_price (trigger auto-logs
+// to listing_price_history), then enriches the trigger row with reason/notes.
+export async function recordPriceReduction(listingId, { newPrice, reason, notes }) {
+  // 1. Update current_price — the DB trigger auto-creates the history row
+  await updateListing(listingId, { current_price: newPrice })
+
+  // 2. Find the trigger-created row (most recent for this listing) and
+  //    enrich it with the reason + notes the user provided in the modal.
+  const history = await getPriceHistory(listingId)
+  const latestEntry = history?.[0]
+  if (latestEntry && latestEntry.source === 'trigger') {
+    await updatePriceHistoryEntry(latestEntry.id, {
+      reason,
+      notes: notes || null,
+      source: 'manual',  // upgrade to manual since user provided context
+    })
+  }
+
+  return latestEntry
+}
+
+// Get count of unpublished content referencing a property
+export const getUnpublishedContentForProperty = async (propertyId) => {
+  if (!propertyId) return []
+  const { data, error } = await supabase
+    .from('content_pieces')
+    .select('id, title, status, content_platform_posts(id, platform, status)')
+    .eq('property_id', propertyId)
+    .in('status', ['draft', 'scheduled'])
+  if (error) throw new Error(error.message)
+  return data ?? []
 }
 
 // ─── Listing Appointments (seller consultations) ─────────────────────────────
@@ -298,6 +359,40 @@ export const createReOffer = async (previousDeal) => {
   }).select(`
     *, contact:contacts(id,name,email,phone), property:properties(id,address,city,price)
   `).single())
+}
+
+// Merge two deals: keep the "primary" deal, absorb data from "secondary", delete secondary
+export const mergeDeals = async (primaryId, secondaryId) => {
+  // Fetch both deals
+  const [primary, secondary] = await Promise.all([
+    query(supabase.from('transactions').select('*').eq('id', primaryId).single()),
+    query(supabase.from('transactions').select('*').eq('id', secondaryId).single()),
+  ])
+  // Merge: primary wins for non-null fields, fill gaps from secondary
+  const merged = {}
+  const fields = [
+    'contact_id', 'property_id', 'deal_type', 'status', 'offer_price',
+    'closing_date', 'contract_date', 'commission_pct', 'expected_commission',
+    'financing_type', 'lender', 'title_company', 'lead_source', 'lead_source_fee',
+    'referral_fee', 'referral_to', 'tc_fee', 'broker_fee', 'notes',
+    'offer_submitted_at', 'status_changed_at',
+  ]
+  for (const f of fields) {
+    merged[f] = primary[f] ?? secondary[f] ?? null
+  }
+  // Combine notes if both have them
+  if (primary.notes && secondary.notes && primary.notes !== secondary.notes) {
+    merged.notes = `${primary.notes}\n\n[Merged] ${secondary.notes}`
+  }
+  merged.updated_at = new Date().toISOString()
+  // Update primary with merged data
+  await query(supabase.from('transactions').update(merged).eq('id', primaryId))
+  // Delete secondary
+  await query(supabase.from('transactions').delete().eq('id', secondaryId))
+  // Return updated primary
+  return query(supabase.from('transactions').select(`
+    *, contact:contacts(id,name,email,phone), property:properties(id,address,city,price,image_url)
+  `).eq('id', primaryId).single())
 }
 
 // Get status change log for a transaction
@@ -1694,3 +1789,28 @@ export async function scanGmailReplies(daysBack = 7) {
   if (data?.error) return { data: null, error: data.error }
   return { data, error: null }
 }
+
+// ─── Gmail Reply Detection ──────────────────────────────────────────────────
+
+/** Get all gmail reply log entries, newest first. */
+export const getGmailReplyLog = () =>
+  query(supabase.from('gmail_reply_log').select('*').order('created_at', { ascending: false }).limit(200))
+
+/** Get contacts who have replied to campaign emails. */
+export const getReplyDetectedContacts = () =>
+  query(supabase.from('contacts').select('*')
+    .not('last_reply_scan_at', 'is', null)
+    .is('deleted_at', null)
+    .order('last_reply_scan_at', { ascending: false }))
+
+/** Get campaign step history entries with reply_detected = true. */
+export const getRepliedStepHistory = () =>
+  query(supabase.from('campaign_step_history').select('*')
+    .eq('reply_detected', true)
+    .order('replied_at', { ascending: false }))
+
+/** Get reply log entries for a specific contact. */
+export const getReplyLogForContact = (contactId) =>
+  query(supabase.from('gmail_reply_log').select('*')
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending: false }))

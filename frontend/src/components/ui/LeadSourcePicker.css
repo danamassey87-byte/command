@@ -66,8 +66,8 @@
   border-top: 1px solid var(--cream);
 }
 .lsp__option--add:hover {
-  background: rgba(90,135,180,0.08);
-  color: #5a87b4;
+  background: rgba(183,151,130,0.08);
+  color: var(--color-info);
 }
 
 .lsp__empty {

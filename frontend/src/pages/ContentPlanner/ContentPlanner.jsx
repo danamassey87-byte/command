@@ -84,7 +84,7 @@ const DEFAULT_FORMAT = [
 const NICHE_COLORS = {
   COMMUNITY: '#6a9e72',
   LISTINGS: '#c99a2e',
-  AUTHORITY: '#5a87b4',
+  AUTHORITY: 'var(--brown-mid)',
   PERSONAL: '#b79782',
   LOCAL: '#c0604a',
 }

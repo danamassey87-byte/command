@@ -5,7 +5,7 @@ import LeadSourcePicker from '../../components/ui/LeadSourcePicker.jsx'
 import PartiesSection from '../../components/parties/PartiesSection.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
-import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses } from '../../lib/hooks.js'
+import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses, usePriceHistory } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
@@ -50,10 +50,10 @@ const relaunchChecklist = [
 ]
 
 const phaseLabels = {
-  prep:     { label: 'Preparation', color: '#5a87b4' },
+  prep:     { label: 'Preparation', color: 'var(--brown-mid)' },
   mls:      { label: 'MLS',         color: '#6a9e72' },
   marketing:{ label: 'Marketing',   color: '#b79782' },
-  analysis: { label: 'Analysis',    color: '#5a87b4' },
+  analysis: { label: 'Analysis',    color: 'var(--brown-warm)' },
   refresh:  { label: 'Refresh',     color: '#c99a2e' },
   relaunch: { label: 'Relaunch',    color: '#6a9e72' },
 }
@@ -226,6 +226,9 @@ function mapListing(row) {
     zip:          p.zip     ?? '',
     listPrice:    row.list_price ? `$${Number(row.list_price).toLocaleString()}` : '—',
     listPriceRaw: row.list_price ?? '',
+    currentPrice: row.current_price ? `$${Number(row.current_price).toLocaleString()}` : '',
+    currentPriceRaw: row.current_price ?? '',
+    closePrice:   row.close_price ?? '',
     listDate:     row.list_date  ?? '',
     status:       row.status     ?? 'active',
     type:         row.type       ?? 'new',
@@ -317,7 +320,7 @@ const COMMON_FEATURES = [
 ]
 
 // ─── Seller / Listing Form ────────────────────────────────────────────────────
-function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
+function ListingForm({ listing, onSave, onDelete, onPutOnHold, onClose, saving, deleting }) {
   const isNew = !listing?.id || typeof listing.id === 'number'
   const contactId = listing?.contact_id
   const { data: tagData } = useContactTags(contactId)
@@ -330,6 +333,8 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
     city:         listing?.city          ?? '',
     zip:          listing?.zip           ?? '',
     listPrice:    listing?.listPriceRaw  ?? '',
+    currentPrice: listing?.currentPriceRaw ?? '',
+    closePrice:   listing?.closePrice    ?? '',
     listDate:     listing?.listDate      ?? '',
     type:         listing?.type          ?? 'new',
     status:       listing?.status        ?? 'lead',
@@ -413,6 +418,19 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
           <Input label="List Price ($)" type="number" value={draft.listPrice} onChange={e => set('listPrice', e.target.value)} placeholder="529000" />
           <Input label="List Date" type="date" value={draft.listDate} onChange={e => set('listDate', e.target.value)} />
         </div>
+        <div className="panel-row">
+          <Input label="Current Price ($)" type="number" value={draft.currentPrice} onChange={e => set('currentPrice', e.target.value)} placeholder={draft.listPrice || '529000'} />
+          {(draft.status === 'closed' || draft.status === 'pending') && (
+            <Input label="Close / Sale Price ($)" type="number" value={draft.closePrice} onChange={e => set('closePrice', e.target.value)} placeholder="515000" />
+          )}
+        </div>
+        {draft.listPrice && draft.currentPrice && Number(draft.currentPrice) < Number(draft.listPrice) && (
+          <div className="price-reduction-inline-badge">
+            <Badge variant="warning" size="sm">
+              Price reduced {((1 - Number(draft.currentPrice) / Number(draft.listPrice)) * 100).toFixed(1)}% from original
+            </Badge>
+          </div>
+        )}
         <div className="panel-row">
           <Select label="Type" value={draft.type} onChange={e => set('type', e.target.value)}>
             {TYPE_OPTIONS.map(t => <option key={t} value={t}>{t === 'new' ? 'New Listing' : 'Expired'}</option>)}
@@ -663,6 +681,11 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
         <Button variant="primary" size="sm" onClick={handleSave} disabled={saving || !draft.address.trim()}>
           {saving ? 'Saving…' : isNew ? 'Add Listing' : 'Save Changes'}
         </Button>
+        {!isNew && contactId && (
+          <Button variant="warning" size="sm" onClick={onPutOnHold} disabled={saving}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>}
+          >Put Seller on Hold</Button>
+        )}
         {!isNew && (
           <Button variant="danger" size="sm" onClick={onDelete} disabled={deleting}>
             {deleting ? 'Removing…' : 'Delete'}
@@ -825,6 +848,250 @@ function AddTaskModal({ listing, onClose, onAdded }) {
             {saving ? 'Adding…' : 'Add Item'}
           </Button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Price Reduction Modal ──────────────────────────────────────────────────
+const REDUCTION_REASONS = [
+  { value: 'market_feedback', label: 'Market Feedback — Showings but No Offers' },
+  { value: 'low_traffic',     label: 'Low Traffic / Few Showings' },
+  { value: 'comp_adjustment', label: 'New Comps Indicate Lower Value' },
+  { value: 'dom_strategy',    label: 'DOM Strategy — Planned Reduction' },
+  { value: 'appraisal',       label: 'Appraisal Came In Low' },
+  { value: 'seller_motivated',label: 'Seller Wants Faster Sale' },
+  { value: 'seasonal',        label: 'Seasonal Adjustment' },
+  { value: 'condition',       label: 'Inspection / Condition Issue' },
+  { value: 'other',           label: 'Other' },
+]
+
+function PriceReductionModal({ listing, onClose, onSaved }) {
+  const currentPrice = Number(listing.currentPriceRaw || listing.listPriceRaw) || 0
+  const originalPrice = Number(listing.listPriceRaw) || 0
+
+  const [newPrice, setNewPrice] = useState('')
+  const [reason, setReason] = useState('market_feedback')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+  const [updateContent, setUpdateContent] = useState(true)
+  const [unpublishedCount, setUnpublishedCount] = useState(0)
+
+  // Check for unpublished content on mount
+  useEffect(() => {
+    if (listing.property_id) {
+      DB.getUnpublishedContentForProperty(listing.property_id)
+        .then(items => setUnpublishedCount(items?.length ?? 0))
+        .catch(() => {})
+    }
+  }, [listing.property_id])
+
+  const newPriceNum = Number(newPrice) || 0
+  const reductionAmount = currentPrice - newPriceNum
+  const reductionPct = currentPrice > 0 ? ((reductionAmount / currentPrice) * 100) : 0
+  const cumulativePct = originalPrice > 0 ? (((originalPrice - newPriceNum) / originalPrice) * 100) : 0
+
+  const handleSave = async () => {
+    if (!newPriceNum || newPriceNum <= 0) return
+    setSaving(true)
+    setError(null)
+    try {
+      await DB.recordPriceReduction(listing.id, {
+        newPrice: newPriceNum,
+        reason,
+        notes: notes.trim() || null,
+      })
+      await DB.logActivity('price_reduction', `Price reduced: ${listing.address} — $${currentPrice.toLocaleString()} → $${newPriceNum.toLocaleString()} (${reductionPct.toFixed(1)}%)`, {
+        propertyId: listing.property_id,
+      })
+
+      // Emit notification
+      emitNotification({
+        type: 'price_change',
+        title: `Price Reduction: ${listing.address}`,
+        body: `$${currentPrice.toLocaleString()} → $${newPriceNum.toLocaleString()} (-${reductionPct.toFixed(1)}%)${unpublishedCount > 0 && updateContent ? ` · ${unpublishedCount} content piece(s) flagged for update` : ''}`,
+        link: '/crm/sellers',
+        source_table: 'listings',
+        source_id: listing.id,
+        metadata: { previousPrice: currentPrice, newPrice: newPriceNum, reason },
+      }).catch(err => console.error('notification emit failed', err))
+
+      onSaved()
+      onClose()
+    } catch (e) {
+      setError(e.message || 'Failed to record price reduction')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="plan-modal__overlay" onClick={onClose}>
+      <div className="plan-modal plan-modal--wide" onClick={e => e.stopPropagation()}>
+        <div className="plan-modal__header">
+          <h3>Record Price Reduction</h3>
+          <button className="plan-modal__close" onClick={onClose}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div className="plan-modal__body">
+          {/* Property context */}
+          <div className="plan-modal__context-card">
+            <div className="plan-modal__context-item">
+              <span className="plan-modal__context-key">Property</span>
+              <span>{listing.address}, {listing.city}</span>
+            </div>
+            <div className="plan-modal__context-item">
+              <span className="plan-modal__context-key">Original List</span>
+              <span>${originalPrice.toLocaleString()}</span>
+            </div>
+            <div className="plan-modal__context-item">
+              <span className="plan-modal__context-key">Current Price</span>
+              <span>${currentPrice.toLocaleString()}</span>
+            </div>
+            <div className="plan-modal__context-item">
+              <span className="plan-modal__context-key">DOM</span>
+              <span>{listing.dom || 0}</span>
+            </div>
+          </div>
+
+          {/* New price input */}
+          <label className="plan-modal__label">
+            New Price ($)
+            <input
+              className="plan-modal__input"
+              type="number"
+              value={newPrice}
+              onChange={e => setNewPrice(e.target.value)}
+              placeholder={`e.g. ${Math.round(currentPrice * 0.95).toLocaleString()}`}
+              autoFocus
+            />
+          </label>
+
+          {/* Live calculation preview */}
+          {newPriceNum > 0 && (
+            <div className="price-reduction-preview">
+              <div className="price-reduction-preview__row">
+                <span>This reduction</span>
+                <span className={reductionAmount > 0 ? 'price-reduction-preview__negative' : 'price-reduction-preview__positive'}>
+                  {reductionAmount > 0 ? '-' : '+'}${Math.abs(reductionAmount).toLocaleString()} ({Math.abs(reductionPct).toFixed(1)}%)
+                </span>
+              </div>
+              {originalPrice !== currentPrice && (
+                <div className="price-reduction-preview__row">
+                  <span>Total from original list</span>
+                  <span className="price-reduction-preview__negative">
+                    -${(originalPrice - newPriceNum).toLocaleString()} ({cumulativePct.toFixed(1)}%)
+                  </span>
+                </div>
+              )}
+              <div className="price-reduction-preview__row price-reduction-preview__row--highlight">
+                <span>New price</span>
+                <span>${newPriceNum.toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Reason */}
+          <label className="plan-modal__label">
+            Reason
+            <select className="plan-modal__select" value={reason} onChange={e => setReason(e.target.value)}>
+              {REDUCTION_REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+          </label>
+
+          {/* Notes */}
+          <label className="plan-modal__label">
+            Notes (optional)
+            <textarea
+              className="plan-modal__textarea"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Market feedback, seller discussion notes, comp details..."
+            />
+          </label>
+
+          {/* Content update toggle */}
+          {unpublishedCount > 0 && (
+            <div className="price-reduction-content-flag">
+              <label className="buyer-checkbox-label">
+                <input type="checkbox" checked={updateContent} onChange={e => setUpdateContent(e.target.checked)} />
+                Flag {unpublishedCount} unpublished content piece{unpublishedCount !== 1 ? 's' : ''} for price update
+              </label>
+              <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                Draft and scheduled posts referencing this property will be flagged for review.
+              </p>
+            </div>
+          )}
+
+          {error && <p style={{ fontSize: '0.8rem', color: 'var(--color-danger)' }}>{error}</p>}
+        </div>
+
+        <div className="plan-modal__footer">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" size="sm" onClick={handleSave} disabled={!newPriceNum || newPriceNum <= 0 || saving}>
+            {saving ? 'Saving…' : 'Record Price Reduction'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Price History Timeline ─────────────────────────────────────────────────
+function PriceHistoryTimeline({ listingId, listPrice }) {
+  const { data: history, loading } = usePriceHistory(listingId)
+  if (loading || !history?.length) return null
+
+  const fmtDate = (iso) => {
+    if (!iso) return '—'
+    const d = new Date(iso)
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+
+  return (
+    <div className="price-history-timeline">
+      <p className="panel-section-label" style={{ marginBottom: 8 }}>Price History</p>
+      <div className="price-history-timeline__list">
+        {/* Original list price */}
+        <div className="price-history-timeline__item price-history-timeline__item--original">
+          <div className="price-history-timeline__dot price-history-timeline__dot--original" />
+          <div className="price-history-timeline__content">
+            <span className="price-history-timeline__price">${Number(listPrice).toLocaleString()}</span>
+            <span className="price-history-timeline__label">Original List Price</span>
+          </div>
+        </div>
+
+        {/* Each price change (sorted newest first, but we reverse for timeline) */}
+        {[...history].reverse().map((entry, i) => {
+          const isReduction = entry.new_price < entry.previous_price
+          return (
+            <div key={entry.id} className={`price-history-timeline__item ${isReduction ? 'price-history-timeline__item--reduction' : 'price-history-timeline__item--increase'}`}>
+              <div className={`price-history-timeline__dot ${isReduction ? 'price-history-timeline__dot--reduction' : 'price-history-timeline__dot--increase'}`} />
+              <div className="price-history-timeline__content">
+                <div className="price-history-timeline__header">
+                  <span className="price-history-timeline__price">${Number(entry.new_price).toLocaleString()}</span>
+                  <Badge variant={isReduction ? 'warning' : 'success'} size="sm">
+                    {isReduction ? '-' : '+'}${Math.abs(entry.previous_price - entry.new_price).toLocaleString()}
+                    {' '}({Math.abs(entry.reduction_pct || 0).toFixed(1)}%)
+                  </Badge>
+                </div>
+                <div className="price-history-timeline__meta">
+                  <span>{fmtDate(entry.changed_at)}</span>
+                  {entry.reason && (
+                    <span> · {REDUCTION_REASONS.find(r => r.value === entry.reason)?.label || entry.reason}</span>
+                  )}
+                </div>
+                {entry.notes && (
+                  <p className="price-history-timeline__notes">{entry.notes}</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -1568,6 +1835,7 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
   // Modals
   const [showAddTask, setShowAddTask] = useState(false)
   const [showAIPlan, setShowAIPlan] = useState(false)
+  const [showPriceReduction, setShowPriceReduction] = useState(false)
   const [showDeleted, setShowDeleted] = useState(false)
   const [showStrategy, setShowStrategy] = useState(false)
   const [copiedStrategy, setCopiedStrategy] = useState(false)
@@ -1796,6 +2064,9 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
           <Button variant="ghost" size="sm" onClick={() => setShowAddTask(true)}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}
           >Add Checklist Item</Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowPriceReduction(true)}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5 12 12 19 19 12"/></svg>}
+          >Price Reduction</Button>
           <Button variant="ghost" size="sm" onClick={handlePrint}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>}
           >Print</Button>
@@ -1918,6 +2189,34 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
           </div>
         )}
       </div>
+
+      {/* ── Price History Timeline ── */}
+      {isDbRow && listing.listPriceRaw && (
+        <Card style={{ marginTop: 16, padding: 16 }}>
+          <PriceHistoryTimeline listingId={listing.id} listPrice={listing.listPriceRaw} />
+          {/* Current price summary bar */}
+          {listing.currentPriceRaw && Number(listing.currentPriceRaw) < Number(listing.listPriceRaw) && (
+            <div className="price-summary-bar">
+              <div className="price-summary-bar__item">
+                <span className="price-summary-bar__label">Original</span>
+                <span className="price-summary-bar__value">${Number(listing.listPriceRaw).toLocaleString()}</span>
+              </div>
+              <div className="price-summary-bar__arrow">→</div>
+              <div className="price-summary-bar__item">
+                <span className="price-summary-bar__label">Current</span>
+                <span className="price-summary-bar__value price-summary-bar__value--current">${Number(listing.currentPriceRaw).toLocaleString()}</span>
+              </div>
+              <div className="price-summary-bar__item">
+                <span className="price-summary-bar__label">Total Reduction</span>
+                <Badge variant="warning" size="sm">
+                  -${(Number(listing.listPriceRaw) - Number(listing.currentPriceRaw)).toLocaleString()}
+                  {' '}({((1 - Number(listing.currentPriceRaw) / Number(listing.listPriceRaw)) * 100).toFixed(1)}%)
+                </Badge>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* ── Strategy Narrative (reusable for content) ── */}
       {isDbRow && listing.strategy && (
@@ -2159,6 +2458,13 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
           onGenerated={refetchTasks}
         />
       )}
+      {showPriceReduction && (
+        <PriceReductionModal
+          listing={listing}
+          onClose={() => setShowPriceReduction(false)}
+          onSaved={() => { refetchTasks(); onBack() }}
+        />
+      )}
 
       {/* Offscreen printable layout — used by both Print and Export PDF. */}
       <PrintablePlan
@@ -2290,6 +2596,8 @@ export default function Sellers() {
         status:      draft.status,
         source:      draft.source,
         list_price:  draft.listPrice ? Number(draft.listPrice) : null,
+        current_price: draft.currentPrice ? Number(draft.currentPrice) : (draft.listPrice ? Number(draft.listPrice) : null),
+        close_price: draft.closePrice ? Number(draft.closePrice) : null,
         list_date:   draft.listDate || null,
         dom:         draft.dom ? Number(draft.dom) : null,
         offers_count: draft.offers ? Number(draft.offers) : 0,
@@ -2418,6 +2726,26 @@ export default function Sellers() {
     }
   }
 
+  // ─── Put seller on Hold ──
+  const [onHoldModal, setOnHoldModal] = useState(false)
+  const [onHoldReason, setOnHoldReason] = useState('')
+  const handlePutOnHold = () => {
+    if (!editingListing?.contact_id) return
+    setOnHoldReason('')
+    setOnHoldModal(true)
+  }
+  const confirmPutOnHold = async () => {
+    try {
+      await DB.putContactOnHold(editingListing.contact_id, onHoldReason.trim())
+      await DB.logActivity('contact_on_hold', `Put seller on hold: ${editingListing.seller_name || editingListing.address}`, { contactId: editingListing.contact_id })
+      await refetch()
+      setOnHoldModal(false)
+      closePanel()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   if (loading && !listings.length) return <div className="page-loading">Loading listings…</div>
 
   if (selectedListing) {
@@ -2432,7 +2760,7 @@ export default function Sellers() {
         />
         <SlidePanel open={panelOpen} onClose={closePanel} title={editingListing ? 'Edit Listing' : 'Add Listing'} subtitle={editingListing?.address} width={460}>
           {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{error}</p>}
-          <ListingForm key={editingListing?.id || 'new'} listing={editingListing} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
+          <ListingForm key={editingListing?.id || 'new'} listing={editingListing} onSave={handleSave} onDelete={handleDelete} onPutOnHold={handlePutOnHold} onClose={closePanel} saving={saving} deleting={deleting} />
         </SlidePanel>
       </>
     )
@@ -2491,7 +2819,16 @@ export default function Sellers() {
           : <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>—</span>
       ),
     },
-    { key: 'listPrice', label: 'List Price' },
+    { key: 'listPrice', label: 'Price', render: (v, row) => {
+      const hasReduction = row.currentPriceRaw && Number(row.currentPriceRaw) < Number(row.listPriceRaw)
+      if (!hasReduction) return v
+      return (
+        <div>
+          <p style={{ fontWeight: 600, fontSize: '0.85rem' }}>{row.currentPrice}</p>
+          <p style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', textDecoration: 'line-through' }}>{v}</p>
+        </div>
+      )
+    }},
     { key: 'type', label: 'Type', render: v => <Badge variant={v === 'new' ? 'success' : 'warning'} size="sm">{v === 'new' ? 'New' : 'Expired'}</Badge> },
     { key: 'dom', label: 'DOM', render: v => `${v}d` },
     { key: 'offers', label: 'Offers', render: v => v > 0 ? <Badge variant="success" size="sm">{v}</Badge> : '—' },
@@ -2648,10 +2985,35 @@ export default function Sellers() {
 
       <SlidePanel open={panelOpen} onClose={closePanel} title={editingListing ? 'Edit Listing' : 'Add Listing'} subtitle={editingListing?.address} width={460}>
         {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{error}</p>}
-        <ListingForm key={editingListing?.id || 'new'} listing={editingListing} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
+        <ListingForm key={editingListing?.id || 'new'} listing={editingListing} onSave={handleSave} onDelete={handleDelete} onPutOnHold={handlePutOnHold} onClose={closePanel} saving={saving} deleting={deleting} />
       </SlidePanel>
 
       <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} contactType="seller" />
+
+      {/* On-Hold Reason Modal */}
+      {onHoldModal && (
+        <div className="on-hold-modal__overlay" onClick={() => setOnHoldModal(false)}>
+          <div className="on-hold-modal" onClick={e => e.stopPropagation()}>
+            <h3>Put Seller on Hold</h3>
+            <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginBottom: 12 }}>
+              {editingListing?.seller_name || editingListing?.address}
+            </p>
+            <div className="on-hold-modal__field">
+              <label>Reason (optional)</label>
+              <textarea
+                value={onHoldReason}
+                onChange={e => setOnHoldReason(e.target.value)}
+                placeholder="e.g. Market conditions, personal reasons, repairs needed..."
+                autoFocus
+              />
+            </div>
+            <div className="on-hold-modal__actions">
+              <Button variant="ghost" size="sm" onClick={() => setOnHoldModal(false)}>Cancel</Button>
+              <Button variant="warning" size="sm" onClick={confirmPutOnHold}>Confirm</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -13,7 +13,7 @@ const STAGES = [
   { value: 'pre_offer',       label: 'Pre-Offer',           color: '#8b8b8b',              desc: 'Preparing offer package' },
   { value: 'offer',           label: 'Offer Submitted',     color: 'var(--color-info)',     desc: 'Awaiting seller response' },
   { value: 'offer_declined',  label: 'Offer Declined',      color: '#c44040',               desc: 'Seller rejected the offer' },
-  { value: 'counter',         label: 'Counter / Negotiate', color: '#7ba1c7',               desc: 'Negotiating terms' },
+  { value: 'counter',         label: 'Counter / Negotiate', color: 'var(--brown-warm)',     desc: 'Negotiating terms' },
   { value: 'under_contract',  label: 'Under Contract',      color: 'var(--color-warning)',  desc: 'Executed purchase contract' },
   { value: 'earnest_money',   label: 'Earnest Money',       color: '#c9962e',               desc: '3 business days to deposit' },
   { value: 'inspection',      label: 'Inspection Period',   color: '#b07d62',               desc: '10-day inspection window' },
@@ -78,6 +78,12 @@ function addDays(dateStr, days) {
   const d = new Date(dateStr + 'T12:00:00')
   d.setDate(d.getDate() + days)
   return d.toISOString().slice(0, 10)
+}
+
+// ─── Brokerage Cap Settings (shared with ROIAnalytics) ───────────────────────
+function loadCapSettings() {
+  try { return JSON.parse(localStorage.getItem('brokerage_cap_settings')) || { splitPct: 15, capAmount: 12000 } }
+  catch { return { splitPct: 15, capAmount: 12000 } }
 }
 
 // ─── Stage History Tracker (localStorage) ────────────────────────────────────
@@ -391,7 +397,7 @@ function OfferHistoryTab({ contactId, currentDealId, onReOffer }) {
         {history.map(offer => {
           const outcomeColors = {
             rejected: '#c44040', withdrawn: '#8b8b8b', expired: '#b07d62',
-            accepted: 'var(--color-success)', countered: '#7ba1c7', active: 'var(--color-info)',
+            accepted: 'var(--color-success)', countered: 'var(--brown-warm)', active: 'var(--color-info)',
           }
           const outcomeLabel = offer.outcome
             ? offer.outcome.charAt(0).toUpperCase() + offer.outcome.slice(1)
@@ -461,6 +467,10 @@ export default function Pipeline() {
   const [detailTab, setDetailTab] = useState('overview') // 'overview' | 'sop' | 'docs' | 'notes'
   const [collapsedSections, setCollapsedSections] = useState({}) // { 'stageName': true }
 
+  // Merge modal state
+  const [mergeDeal, setMergeDeal] = useState(null) // the deal card user clicked "merge" on
+  const [merging, setMerging] = useState(false)
+
   // Rejection / outcome modal state
   const [rejectDeal, setRejectDeal] = useState(null)
   const [rejectReason, setRejectReason] = useState('')
@@ -506,6 +516,7 @@ export default function Pipeline() {
   const [offerPrice, setOfferPrice] = useState('')
   const [closingDate, setClosingDate] = useState('')
   const [contractDate, setContractDate] = useState('')
+  const [commissionPct, setCommissionPct] = useState('')
   const [expectedCommission, setExpectedCommission] = useState('')
   const [financingType, setFinancingType] = useState('conventional')
   const [lender, setLender] = useState('')
@@ -695,6 +706,15 @@ export default function Pipeline() {
     return map
   }, [activeDeals, BOARD_STAGES])
 
+  // Detect duplicate properties (same property_id in multiple active deals)
+  const duplicatePropertyIds = useMemo(() => {
+    const propCounts = {}
+    allActiveDeals.forEach(d => {
+      if (d.property_id) propCounts[d.property_id] = (propCounts[d.property_id] || 0) + 1
+    })
+    return new Set(Object.entries(propCounts).filter(([, c]) => c > 1).map(([id]) => id))
+  }, [allActiveDeals])
+
   // Drag-and-drop handlers
   const handleDragStart = useCallback((e, deal) => {
     setDragDeal(deal)
@@ -743,9 +763,31 @@ export default function Pipeline() {
     activeDeals.reduce((sum, d) => sum + (Number(d.property?.price) || Number(d.offer_price) || 0), 0)
   , [activeDeals])
 
+  const capSettings = useMemo(() => loadCapSettings(), [])
+
+  // Calculate GCI: if commission_pct is set, use price × pct; otherwise use flat expected_commission
+  const calcGrossCommission = useCallback((deal) => {
+    const pct = Number(deal.commission_pct)
+    const price = Number(deal.property?.price) || Number(deal.offer_price) || 0
+    if (pct > 0 && price > 0) return price * pct / 100
+    return Number(deal.expected_commission) || 0
+  }, [])
+
+  // Net commission after brokerage split (capped) and fees
+  const calcNetCommission = useCallback((deal) => {
+    const gross = calcGrossCommission(deal)
+    // Brokerage split (15% default, capped at capAmount)
+    const brokerSplit = Math.min(gross * (capSettings.splitPct / 100), capSettings.capAmount)
+    return gross - brokerSplit
+      - Number(deal.broker_fee || 0)
+      - Number(deal.referral_fee || 0)
+      - Number(deal.tc_fee || 0)
+      - Number(deal.lead_source_fee || 0)
+  }, [capSettings, calcGrossCommission])
+
   const expectedGCI = useMemo(() =>
-    activeDeals.reduce((sum, d) => sum + (Number(d.expected_commission) || 0), 0)
-  , [activeDeals])
+    activeDeals.reduce((sum, d) => sum + calcGrossCommission(d), 0)
+  , [activeDeals, calcGrossCommission])
 
   // Open new
   const openNew = () => {
@@ -753,7 +795,7 @@ export default function Pipeline() {
     setContactId(''); setPropertyId('')
     setDealType('buyer'); setStatus('pre_offer')
     setOfferPrice(''); setClosingDate(''); setContractDate('')
-    setExpectedCommission(''); setFinancingType('conventional')
+    setCommissionPct(''); setExpectedCommission(''); setFinancingType('conventional')
     setLender(''); setTitleCompany('')
     setLeadSource(''); setLeadSourceFee(''); setReferralFee(''); setReferralTo('')
     setTcFee(''); setBrokerFee(''); setNotes('')
@@ -770,6 +812,7 @@ export default function Pipeline() {
     setOfferPrice(deal.offer_price ?? '')
     setClosingDate(deal.closing_date ?? '')
     setContractDate(deal.contract_date ?? '')
+    setCommissionPct(deal.commission_pct ?? '')
     setExpectedCommission(deal.expected_commission ?? '')
     setFinancingType(deal.financing_type ?? 'conventional')
     setLender(deal.lender ?? '')
@@ -803,6 +846,7 @@ export default function Pipeline() {
         offer_price: offerPrice ? Number(offerPrice) : null,
         closing_date: closingDate || null,
         contract_date: contractDate || null,
+        commission_pct: commissionPct ? Number(commissionPct) : null,
         expected_commission: expectedCommission ? Number(expectedCommission) : null,
         financing_type: financingType || null,
         lender: lender.trim() || null,
@@ -892,6 +936,27 @@ export default function Pipeline() {
       refetch()
     } catch (err) {
       alert('Error creating new offer: ' + err.message)
+    }
+  }
+
+  // ─── Merge duplicate deals ──────────────────────────────────────────────
+  const getDuplicatesFor = useCallback((deal) => {
+    if (!deal?.property_id) return []
+    return allActiveDeals.filter(d => d.property_id === deal.property_id && d.id !== deal.id)
+  }, [allActiveDeals])
+
+  const confirmMerge = async (primaryId, secondaryId) => {
+    setMerging(true)
+    try {
+      await DB.mergeDeals(primaryId, secondaryId)
+      setMergeDeal(null)
+      setDetailDeal(null)
+      setPanelOpen(false)
+      refetch()
+    } catch (err) {
+      alert('Error merging deals: ' + err.message)
+    } finally {
+      setMerging(false)
     }
   }
 
@@ -1001,15 +1066,27 @@ export default function Pipeline() {
                     const days = daysUntil(deal.closing_date)
                     const sc = stagesCompleted(deal.id)
                     const fin = FINANCING_TYPES.find(f => f.value === deal.financing_type)?.label
+                    const isDuplicate = deal.property_id && duplicatePropertyIds.has(deal.property_id)
+                    const missingContact = !deal.contact?.name
                     return (
                       <div
                         key={deal.id}
-                        className="pipe__card"
+                        className={`pipe__card ${isDuplicate ? 'pipe__card--duplicate' : ''} ${missingContact ? 'pipe__card--warning' : ''}`}
                         draggable
                         onDragStart={(e) => handleDragStart(e, deal)}
                         onDragEnd={handleDragEnd}
                         onClick={() => openDetail(deal)}
                       >
+                        {isDuplicate && (
+                          <div className="pipe__card-alert pipe__card-alert--duplicate">
+                            Duplicate property — <button className="pipe__merge-link" onClick={e => { e.stopPropagation(); setMergeDeal(deal) }}>Merge deals</button>
+                          </div>
+                        )}
+                        {missingContact && (
+                          <div className="pipe__card-alert pipe__card-alert--missing">
+                            Missing contact — every deal needs a buyer or seller
+                          </div>
+                        )}
                         <div className="pipe__card-top">
                           <span className="pipe__card-name">{deal.contact?.name ?? '—'}</span>
                           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -1219,10 +1296,13 @@ export default function Pipeline() {
                         <span>{deal.lead_source}{deal.lead_source_fee ? ` (${fmtDollar(deal.lead_source_fee)} fee)` : ' (no fee)'}</span>
                       </div>
                     )}
-                    {deal.expected_commission && (
+                    {(deal.commission_pct || deal.expected_commission) && (
                       <div className="pipe__detail-row">
                         <span className="pipe__detail-label">Commission</span>
-                        <span>{fmtDollar(deal.expected_commission)}</span>
+                        <span>
+                          {deal.commission_pct ? `${deal.commission_pct}%` : ''}{deal.commission_pct && deal.expected_commission ? ' — ' : ''}
+                          {deal.expected_commission ? fmtDollar(deal.expected_commission) : ''}
+                        </span>
                       </div>
                     )}
                     {deal.contact?.phone && (
@@ -1340,51 +1420,58 @@ export default function Pipeline() {
                   )}
 
                   {/* Fee Breakdown */}
-                  {deal.expected_commission && (
-                    <div className="pipe__detail-section">
-                      <h4 className="pipe__detail-section-title">Fee Breakdown & Net Commission</h4>
-                      <div className="pipe__fees">
-                        <div className="pipe__fee-row">
-                          <span className="pipe__fee-label">Gross Commission</span>
-                          <span className="pipe__fee-value">{fmtDollar(deal.expected_commission)}</span>
-                        </div>
-                        {deal.broker_fee > 0 && (
+                  {(deal.expected_commission || deal.commission_pct) && (() => {
+                    const gross = calcGrossCommission(deal)
+                    const brokerageSplit = Math.min(gross * (capSettings.splitPct / 100), capSettings.capAmount)
+                    const netToYou = gross - brokerageSplit
+                      - Number(deal.broker_fee || 0)
+                      - Number(deal.referral_fee || 0)
+                      - Number(deal.tc_fee || 0)
+                      - Number(deal.lead_source_fee || 0)
+                    return (
+                      <div className="pipe__detail-section">
+                        <h4 className="pipe__detail-section-title">Fee Breakdown & Net Commission</h4>
+                        <div className="pipe__fees">
                           <div className="pipe__fee-row">
-                            <span className="pipe__fee-label">Broker Split / Fee</span>
-                            <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.broker_fee)})</span>
+                            <span className="pipe__fee-label">Gross Commission{deal.commission_pct ? ` (${deal.commission_pct}%)` : ''}</span>
+                            <span className="pipe__fee-value">{fmtDollar(gross)}</span>
                           </div>
-                        )}
-                        {deal.referral_fee > 0 && (
                           <div className="pipe__fee-row">
-                            <span className="pipe__fee-label">Referral Fee{deal.referral_to ? ` → ${deal.referral_to}` : ''}</span>
-                            <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.referral_fee)})</span>
+                            <span className="pipe__fee-label">Brokerage Split ({capSettings.splitPct}%, cap {fmtDollar(capSettings.capAmount)})</span>
+                            <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(brokerageSplit)})</span>
                           </div>
-                        )}
-                        {deal.tc_fee > 0 && (
-                          <div className="pipe__fee-row">
-                            <span className="pipe__fee-label">Transaction Coordinator</span>
-                            <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.tc_fee)})</span>
+                          {deal.broker_fee > 0 && (
+                            <div className="pipe__fee-row">
+                              <span className="pipe__fee-label">Broker Fee</span>
+                              <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.broker_fee)})</span>
+                            </div>
+                          )}
+                          {deal.referral_fee > 0 && (
+                            <div className="pipe__fee-row">
+                              <span className="pipe__fee-label">Referral Fee{deal.referral_to ? ` → ${deal.referral_to}` : ''}</span>
+                              <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.referral_fee)})</span>
+                            </div>
+                          )}
+                          {deal.tc_fee > 0 && (
+                            <div className="pipe__fee-row">
+                              <span className="pipe__fee-label">Transaction Coordinator</span>
+                              <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.tc_fee)})</span>
+                            </div>
+                          )}
+                          {deal.lead_source_fee > 0 && (
+                            <div className="pipe__fee-row">
+                              <span className="pipe__fee-label">Lead Source Fee ({deal.lead_source ?? 'Unknown'})</span>
+                              <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.lead_source_fee)})</span>
+                            </div>
+                          )}
+                          <div className="pipe__fee-row pipe__fee-total">
+                            <span className="pipe__fee-label">Net to You</span>
+                            <span className="pipe__fee-value">{fmtDollar(netToYou)}</span>
                           </div>
-                        )}
-                        {deal.lead_source_fee > 0 && (
-                          <div className="pipe__fee-row">
-                            <span className="pipe__fee-label">Lead Source Fee ({deal.lead_source ?? 'Unknown'})</span>
-                            <span className="pipe__fee-value pipe__fee-value--deduct">({fmtDollar(deal.lead_source_fee)})</span>
-                          </div>
-                        )}
-                        <div className="pipe__fee-row pipe__fee-total">
-                          <span className="pipe__fee-label">Net to You</span>
-                          <span className="pipe__fee-value">{fmtDollar(
-                            Number(deal.expected_commission || 0)
-                            - Number(deal.broker_fee || 0)
-                            - Number(deal.referral_fee || 0)
-                            - Number(deal.tc_fee || 0)
-                            - Number(deal.lead_source_fee || 0)
-                          )}</span>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )
+                  })()}
                 </>
               )}
 
@@ -1554,6 +1641,11 @@ export default function Pipeline() {
               <option value="">Select property...</option>
               {(properties ?? []).map(p => <option key={p.id} value={p.id}>{p.address}, {p.city}</option>)}
             </Select>
+            {propertyId && !editDeal && allActiveDeals.some(d => d.property_id === propertyId) && (
+              <div className="pipe__card-alert pipe__card-alert--duplicate" style={{ marginTop: -4 }}>
+                This property already has an active deal. Consider editing the existing deal instead.
+              </div>
+            )}
 
             <div className="pipe__form-row">
               <Select label="Deal Type" id="deal-type" value={dealType} onChange={e => setDealType(e.target.value)}>
@@ -1573,10 +1665,44 @@ export default function Pipeline() {
 
             <Input label="Title / Escrow Company" id="deal-title" value={titleCompany} onChange={e => setTitleCompany(e.target.value)} placeholder="e.g. Security Title Agency" />
 
+            <Input label="Offer Price" id="deal-price" type="number" value={offerPrice} onChange={e => {
+              setOfferPrice(e.target.value)
+              // Auto-recalculate commission when BBA % is set
+              const pct = Number(commissionPct)
+              const price = Number(e.target.value) || 0
+              if (pct > 0 && price > 0) setExpectedCommission(Math.round(price * pct / 100))
+            }} placeholder="450000" />
+
+            <span className="pipe__form-section">Commission</span>
             <div className="pipe__form-row">
-              <Input label="Offer Price" id="deal-price" type="number" value={offerPrice} onChange={e => setOfferPrice(e.target.value)} placeholder="450000" />
-              <Input label="Expected Commission" id="deal-commission" type="number" value={expectedCommission} onChange={e => setExpectedCommission(e.target.value)} placeholder="13500" />
+              <Input label="BBA Commission %" id="deal-commission-pct" type="number" value={commissionPct} onChange={e => {
+                setCommissionPct(e.target.value)
+                // Auto-calculate expected commission from price × %
+                const pct = Number(e.target.value)
+                const price = Number(offerPrice) || 0
+                if (pct > 0 && price > 0) setExpectedCommission(Math.round(price * pct / 100))
+              }} placeholder="e.g. 3" step="0.1" />
+              <Input label="Gross Commission ($)" id="deal-commission" type="number" value={expectedCommission} onChange={e => setExpectedCommission(e.target.value)} placeholder="Auto-calculated or manual" />
             </div>
+            {(commissionPct || expectedCommission) && (() => {
+              const gross = Number(expectedCommission) || 0
+              const brokerageSplit = Math.min(gross * (capSettings.splitPct / 100), capSettings.capAmount)
+              const netAfterBrokerage = gross - brokerageSplit
+              return (
+                <div className="pipe__form-commission-preview">
+                  <div className="pipe__form-comm-row">
+                    <span>Gross GCI</span><span>{fmtDollar(gross)}</span>
+                  </div>
+                  <div className="pipe__form-comm-row pipe__form-comm-row--deduct">
+                    <span>Brokerage ({capSettings.splitPct}%, cap {fmtDollar(capSettings.capAmount)})</span>
+                    <span>−{fmtDollar(brokerageSplit)}</span>
+                  </div>
+                  <div className="pipe__form-comm-row pipe__form-comm-row--total">
+                    <span>Net after brokerage</span><span>{fmtDollar(netAfterBrokerage)}</span>
+                  </div>
+                </div>
+              )
+            })()}
 
             <div className="pipe__form-row">
               <Input label="Contract Date" id="deal-contract" type="date" value={contractDate} onChange={e => setContractDate(e.target.value)} />
@@ -1654,6 +1780,57 @@ export default function Pipeline() {
           </div>
         </div>
       )}
+
+      {/* ─── Merge Deals Modal ─── */}
+      {mergeDeal && (() => {
+        const dupes = getDuplicatesFor(mergeDeal)
+        return (
+          <div className="pipe__modal-overlay" onClick={() => setMergeDeal(null)}>
+            <div className="pipe__modal pipe__modal--wide" onClick={e => e.stopPropagation()}>
+              <h3 className="pipe__modal-title">Merge Duplicate Deals</h3>
+              <p className="pipe__modal-subtitle">
+                {mergeDeal.property?.address ?? 'Unknown property'} has {dupes.length + 1} active deals
+              </p>
+
+              <div className="pipe__merge-cards">
+                <div className="pipe__merge-card pipe__merge-card--primary">
+                  <span className="pipe__merge-badge">Keep (primary)</span>
+                  <strong>{mergeDeal.contact?.name || '— no contact'}</strong>
+                  <span>{stageInfo(mergeDeal.status).label}</span>
+                  <span>{fmtDollar(mergeDeal.property?.price || mergeDeal.offer_price)}</span>
+                  {mergeDeal.commission_pct && <span>BBA: {mergeDeal.commission_pct}%</span>}
+                </div>
+
+                {dupes.map(d => (
+                  <div key={d.id} className="pipe__merge-card pipe__merge-card--secondary">
+                    <span className="pipe__merge-badge pipe__merge-badge--secondary">Will be merged in</span>
+                    <strong>{d.contact?.name || '— no contact'}</strong>
+                    <span>{stageInfo(d.status).label}</span>
+                    <span>{fmtDollar(d.property?.price || d.offer_price)}</span>
+                    {d.commission_pct && <span>BBA: {d.commission_pct}%</span>}
+                    <div className="pipe__merge-actions">
+                      <Button variant="primary" size="sm" onClick={() => confirmMerge(mergeDeal.id, d.id)} disabled={merging}>
+                        {merging ? 'Merging...' : 'Merge into primary'}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => confirmMerge(d.id, mergeDeal.id)} disabled={merging}>
+                        Keep this one instead
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <p className="pipe__modal-hint">
+                Primary deal keeps its data. Missing fields are filled from the other. Notes are combined. The secondary is deleted.
+              </p>
+
+              <div className="pipe__modal-actions">
+                <Button variant="ghost" size="sm" onClick={() => setMergeDeal(null)}>Cancel</Button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

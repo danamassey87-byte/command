@@ -8,7 +8,7 @@ import * as DB from '../../lib/supabase'
 
 const TYPE_LABELS = {
   subject_line: { label: 'Subject Line', emoji: '✉️', color: '#c99a2e' },
-  email_body:   { label: 'Email Body',   emoji: '📝', color: '#5a87b4' },
+  email_body:   { label: 'Email Body',   emoji: '📝', color: 'var(--brown-mid)' },
   cta:          { label: 'CTA Button',   emoji: '🔘', color: '#6a9e72' },
   send_time:    { label: 'Send Time',    emoji: '🕐', color: '#8a7a9b' },
   step_order:   { label: 'Step Order',   emoji: '🔄', color: '#c0604a' },

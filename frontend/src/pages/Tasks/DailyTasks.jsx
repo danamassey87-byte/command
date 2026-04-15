@@ -13,7 +13,7 @@ const WEEK_END = (() => { const d = new Date(); d.setDate(d.getDate() + 7); retu
 const CATEGORIES = [
   { value: 'general',     label: 'General',     color: 'var(--brown-mid)',       icon: '/' },
   { value: 'email',       label: 'Email',       color: 'var(--color-info)',      icon: '\u2709' },
-  { value: 'sms',         label: 'SMS',         color: '#7ba1c7',               icon: '\u{1F4AC}' },
+  { value: 'sms',         label: 'SMS',         color: 'var(--brown-warm)',      icon: '\u{1F4AC}' },
   { value: 'transaction', label: 'Transaction', color: 'var(--color-success)',   icon: '\u{1F3E0}' },
   { value: 'prospecting', label: 'Prospecting', color: 'var(--color-warning)',   icon: '\u{1F4DE}' },
   { value: 'admin',       label: 'Admin',       color: '#8b8b8b',               icon: '\u{1F4CB}' },

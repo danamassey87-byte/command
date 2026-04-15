@@ -85,11 +85,11 @@ export default function PublishTab() {
             const content = pp?.content || {}
             const statusColor = {
               published: '#137333', scheduled: '#b8860b', failed: '#c5221f',
-              publishing: '#5a87b4', draft: 'var(--color-text-muted)',
+              publishing: 'var(--brown-mid)', draft: 'var(--color-text-muted)',
             }[item.status] || 'var(--color-text-muted)'
             const statusBg = {
               published: '#e6f4ea', scheduled: '#fef7e0', failed: '#fce8e6',
-              publishing: '#eef4fa', draft: '#f5f0eb',
+              publishing: 'var(--color-info-bg)', draft: '#f5f0eb',
             }[item.status] || '#f5f0eb'
 
             return (

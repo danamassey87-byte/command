@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { SectionHeader, Card, TabBar, Badge } from '../../components/ui/index.jsx'
-import { useContacts, useTransactions, useOpenHouses, useLeads, useAllIncomeEntries, useAllExpenses, useListingAppointments, useShowingSessions } from '../../lib/hooks.js'
+import { useContacts, useTransactions, useOpenHouses, useLeads, useAllIncomeEntries, useAllExpenses, useListingAppointments, useShowingSessions, usePriceAnalytics, useListings } from '../../lib/hooks.js'
 import './PnL.css'
 
 const fmt = (v) => v < 0
@@ -64,7 +64,86 @@ export default function ROIAnalytics() {
   const allAppts    = listingAppts.data ?? []
 
   const allSessions = showingSessions.data ?? []
+  const priceAnalytics = usePriceAnalytics()
+  const listingsHook   = useListings()
+  const allPriceData = priceAnalytics.data ?? []
+  const allListings  = listingsHook.data ?? []
   const loading = contacts.loading || transactions.loading || openHouses.loading || leads.loading || income.loading
+
+  // ─── Price Reduction Analytics ──────────────────────────────────────────
+  const priceReductionStats = useMemo(() => {
+    if (!allPriceData.length) return null
+
+    const withReductions = allPriceData.filter(l => l.reduction_count > 0)
+    const closedListings = allPriceData.filter(l => l.status === 'closed')
+    const closedWithReductions = closedListings.filter(l => l.reduction_count > 0)
+    const closedWithSaleToList = closedListings.filter(l => l.sale_to_list_pct != null)
+
+    // Distribution of reduction counts
+    const reductionDistribution = {}
+    allPriceData.forEach(l => {
+      const key = l.reduction_count
+      reductionDistribution[key] = (reductionDistribution[key] || 0) + 1
+    })
+
+    // Avg reduction stats
+    const avgReductions = withReductions.length > 0
+      ? (withReductions.reduce((s, l) => s + l.reduction_count, 0) / withReductions.length)
+      : 0
+
+    const avgTotalReductionPct = withReductions.length > 0
+      ? (withReductions.reduce((s, l) => s + (l.total_reduction_pct || 0), 0) / withReductions.length)
+      : 0
+
+    const avgSaleToList = closedWithSaleToList.length > 0
+      ? (closedWithSaleToList.reduce((s, l) => s + l.sale_to_list_pct, 0) / closedWithSaleToList.length)
+      : 0
+
+    const pctSoldAtListPrice = closedListings.length > 0
+      ? ((closedListings.filter(l => l.reduction_count === 0).length / closedListings.length) * 100)
+      : 0
+
+    const avgDomNoReduction = closedListings.filter(l => l.reduction_count === 0 && l.dom != null).length > 0
+      ? (closedListings.filter(l => l.reduction_count === 0 && l.dom != null).reduce((s, l) => s + l.dom, 0)
+         / closedListings.filter(l => l.reduction_count === 0 && l.dom != null).length)
+      : 0
+
+    const avgDomWithReductions = closedWithReductions.filter(l => l.dom != null).length > 0
+      ? (closedWithReductions.filter(l => l.dom != null).reduce((s, l) => s + l.dom, 0)
+         / closedWithReductions.filter(l => l.dom != null).length)
+      : 0
+
+    const avgDaysBetweenReductions = withReductions.filter(l => l.avg_days_between_reductions != null).length > 0
+      ? (withReductions.filter(l => l.avg_days_between_reductions != null)
+          .reduce((s, l) => s + Number(l.avg_days_between_reductions), 0)
+         / withReductions.filter(l => l.avg_days_between_reductions != null).length)
+      : 0
+
+    // Total dollars reduced across portfolio
+    const totalDollarsReduced = withReductions.reduce((s, l) => s + (l.total_reduction_amount || 0), 0)
+
+    // Per-listing detail rows for the table
+    const listingRows = allPriceData
+      .filter(l => l.reduction_count > 0 || l.status === 'closed')
+      .sort((a, b) => (b.reduction_count || 0) - (a.reduction_count || 0))
+
+    return {
+      totalListings: allPriceData.length,
+      withReductions: withReductions.length,
+      closedCount: closedListings.length,
+      closedWithReductions: closedWithReductions.length,
+      avgReductions: avgReductions.toFixed(1),
+      avgTotalReductionPct: avgTotalReductionPct.toFixed(1),
+      avgSaleToList: avgSaleToList.toFixed(1),
+      pctSoldAtListPrice: pctSoldAtListPrice.toFixed(0),
+      avgDomNoReduction: Math.round(avgDomNoReduction),
+      avgDomWithReductions: Math.round(avgDomWithReductions),
+      avgDaysBetweenReductions: avgDaysBetweenReductions.toFixed(0),
+      totalDollarsReduced,
+      reductionDistribution,
+      listingRows,
+    }
+  }, [allPriceData])
 
   // ─── Profit Per Client ──────────────────────────────────────────────────
   const clientProfits = useMemo(() => {
@@ -559,6 +638,7 @@ export default function ROIAnalytics() {
           { value: 'oh',        label: 'Open House ROI' },
           { value: 'letters',   label: 'Letter ROI' },
           { value: 'sources',   label: 'Lead Sources' },
+          { value: 'pricing',   label: 'Price Reductions' },
         ]}
         active={tab}
         onChange={setTab}
@@ -1041,7 +1121,7 @@ export default function ROIAnalytics() {
                           <div key={src} className="pnl-bar">
                             <span className="pnl-bar__label">{src}</span>
                             <div className="pnl-bar__track">
-                              <div className="pnl-bar__fill" style={{ width: `${(count / max) * 100}%`, background: '#5a87b4' }} />
+                              <div className="pnl-bar__fill" style={{ width: `${(count / max) * 100}%`, background: 'var(--brown-mid)' }} />
                             </div>
                             <span className="pnl-bar__value">{count}</span>
                           </div>
@@ -1057,7 +1137,7 @@ export default function ROIAnalytics() {
                 <p className="pnl-bar-chart__title">Database by Type</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, textAlign: 'center', padding: '12px 0' }}>
                   <div>
-                    <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: '#5a87b4', margin: '0 0 2px' }}>{dbGrowth.byType.buyer}</p>
+                    <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--brown-mid)', margin: '0 0 2px' }}>{dbGrowth.byType.buyer}</p>
                     <p style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--brown-mid)', margin: 0 }}>Buyers</p>
                   </div>
                   <div>
@@ -1389,6 +1469,163 @@ export default function ROIAnalytics() {
                 </Card>
               )}
             </>
+          )}
+
+          {/* ═══ Price Reductions ═══ */}
+          {tab === 'pricing' && (
+            !priceReductionStats ? (
+              <Card>
+                <div className="pnl-empty">
+                  <div className="pnl-empty__icon">📉</div>
+                  <p className="pnl-empty__title">No price history data yet</p>
+                  <p className="pnl-empty__sub">Price reductions will be tracked automatically when you update listing prices. Run the migration_price_history.sql migration to enable this feature.</p>
+                </div>
+              </Card>
+            ) : (
+              <>
+                {/* KPI Cards */}
+                <div className="pnl-kpis" style={{ marginBottom: 12 }}>
+                  <Card className="pnl-kpi">
+                    <p className="pnl-kpi__label">Listings with Reductions</p>
+                    <p className="pnl-kpi__value">{priceReductionStats.withReductions}</p>
+                    <p className="pnl-kpi__sub">of {priceReductionStats.totalListings} total</p>
+                  </Card>
+                  <Card className="pnl-kpi">
+                    <p className="pnl-kpi__label">Avg Reductions Before Sale</p>
+                    <p className="pnl-kpi__value">{priceReductionStats.avgReductions}</p>
+                    <p className="pnl-kpi__sub">price changes per listing</p>
+                  </Card>
+                  <Card className="pnl-kpi">
+                    <p className="pnl-kpi__label">Avg Sale-to-List Ratio</p>
+                    <p className="pnl-kpi__value">{priceReductionStats.avgSaleToList}%</p>
+                    <p className="pnl-kpi__sub">of original list price</p>
+                  </Card>
+                  <Card className="pnl-kpi">
+                    <p className="pnl-kpi__label">Sold at List Price</p>
+                    <p className="pnl-kpi__value">{priceReductionStats.pctSoldAtListPrice}%</p>
+                    <p className="pnl-kpi__sub">no reductions needed</p>
+                  </Card>
+                </div>
+
+                <div className="pnl-kpis" style={{ marginBottom: 12 }}>
+                  <Card className="pnl-kpi">
+                    <p className="pnl-kpi__label">Avg Reduction (Total)</p>
+                    <p className="pnl-kpi__value">{priceReductionStats.avgTotalReductionPct}%</p>
+                    <p className="pnl-kpi__sub">from original list price</p>
+                  </Card>
+                  <Card className="pnl-kpi">
+                    <p className="pnl-kpi__label">Total $ Reduced (Portfolio)</p>
+                    <p className="pnl-kpi__value">{fmt(priceReductionStats.totalDollarsReduced)}</p>
+                    <p className="pnl-kpi__sub">across all listings</p>
+                  </Card>
+                  <Card className="pnl-kpi">
+                    <p className="pnl-kpi__label">Avg DOM (No Reduction)</p>
+                    <p className="pnl-kpi__value">{priceReductionStats.avgDomNoReduction}d</p>
+                    <p className="pnl-kpi__sub">sold at original price</p>
+                  </Card>
+                  <Card className="pnl-kpi">
+                    <p className="pnl-kpi__label">Avg DOM (With Reductions)</p>
+                    <p className="pnl-kpi__value">{priceReductionStats.avgDomWithReductions}d</p>
+                    <p className="pnl-kpi__sub">needed price adjustments</p>
+                  </Card>
+                </div>
+
+                {priceReductionStats.avgDaysBetweenReductions > 0 && (
+                  <Card style={{ marginBottom: 12, padding: 16 }}>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--brown-dark)' }}>
+                      Average <strong>{priceReductionStats.avgDaysBetweenReductions} days</strong> between price reductions.
+                      {Number(priceReductionStats.avgDomWithReductions) > Number(priceReductionStats.avgDomNoReduction) * 1.5 &&
+                        ' Listings with reductions take significantly longer to sell.'}
+                    </p>
+                  </Card>
+                )}
+
+                {/* Distribution bar chart */}
+                <Card padding style={{ marginBottom: 12 }}>
+                  <p className="pnl-bar-chart__title">Reduction Count Distribution</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--brown-mid)', margin: '-8px 0 12px' }}>
+                    How many price reductions do your listings typically need?
+                  </p>
+                  <div className="pnl-bars">
+                    {Object.entries(priceReductionStats.reductionDistribution)
+                      .sort((a, b) => Number(a[0]) - Number(b[0]))
+                      .map(([count, listings]) => {
+                        const max = Math.max(...Object.values(priceReductionStats.reductionDistribution), 1)
+                        return (
+                          <div key={count} className="pnl-bar">
+                            <span className="pnl-bar__label">{count === '0' ? 'No reductions' : `${count} reduction${count !== '1' ? 's' : ''}`}</span>
+                            <div className="pnl-bar__track">
+                              <div
+                                className="pnl-bar__fill"
+                                style={{
+                                  width: `${(listings / max) * 100}%`,
+                                  background: count === '0' ? '#6a9e72' : count === '1' ? '#c99a2e' : '#c25040',
+                                }}
+                              />
+                            </div>
+                            <span className="pnl-bar__value">{listings}</span>
+                          </div>
+                        )
+                      })}
+                  </div>
+                </Card>
+
+                {/* Per-listing detail table */}
+                {priceReductionStats.listingRows.length > 0 && (
+                  <Card padding={false}>
+                    <div style={{ padding: '16px 16px 8px' }}>
+                      <p className="pnl-bar-chart__title">Listing Price History Detail</p>
+                    </div>
+                    <table className="pnl-table">
+                      <thead>
+                        <tr>
+                          <th>Property</th>
+                          <th>Status</th>
+                          <th>Original Price</th>
+                          <th>Current Price</th>
+                          <th>Reductions</th>
+                          <th>Total Drop</th>
+                          <th>Sale-to-List</th>
+                          <th>DOM</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {priceReductionStats.listingRows.map(row => (
+                          <tr key={row.listing_id} style={{ cursor: 'default' }}>
+                            <td>
+                              <span className="pnl-table__vendor">{row.address || '—'}</span>
+                              {row.city && <span style={{ fontSize: '0.68rem', color: 'var(--brown-light)', display: 'block' }}>{row.city}</span>}
+                            </td>
+                            <td>
+                              <Badge
+                                variant={row.status === 'closed' ? 'default' : row.status === 'active' ? 'success' : 'info'}
+                                size="sm"
+                              >{row.status || '—'}</Badge>
+                            </td>
+                            <td className="pnl-table__amount">{row.original_list_price ? fmt(num(row.original_list_price)) : '—'}</td>
+                            <td className="pnl-table__amount" style={{ color: row.reduction_count > 0 ? '#c25040' : 'inherit' }}>
+                              {row.current_price ? fmt(num(row.current_price)) : '—'}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              {row.reduction_count > 0 ? (
+                                <Badge variant="warning" size="sm">{row.reduction_count}</Badge>
+                              ) : '—'}
+                            </td>
+                            <td className="pnl-table__amount" style={{ color: '#c25040' }}>
+                              {row.total_reduction_pct > 0 ? `-${row.total_reduction_pct}%` : '—'}
+                            </td>
+                            <td className="pnl-table__amount" style={{ fontWeight: 600 }}>
+                              {row.sale_to_list_pct ? `${row.sale_to_list_pct}%` : '—'}
+                            </td>
+                            <td>{row.dom != null ? `${row.dom}d` : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </Card>
+                )}
+              </>
+            )
           )}
         </>
       )}

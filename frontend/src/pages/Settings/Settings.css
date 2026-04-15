@@ -648,13 +648,13 @@
   color: #fff;
 }
 
-.tpl-type-badge--email         { background: #5a87b4; }
+.tpl-type-badge--email         { background: var(--color-info); }
 .tpl-type-badge--sms           { background: #6a9e72; }
 .tpl-type-badge--call_script   { background: #c99a2e; }
 .tpl-type-badge--objection     { background: #c0604a; }
 .tpl-type-badge--talking_points { background: #8e7cc3; }
 .tpl-type-badge--sms_template  { background: #6a9e72; }
-.tpl-type-badge--email_snippet { background: #5a87b4; }
+.tpl-type-badge--email_snippet { background: var(--color-info); }
 .tpl-type-badge--other         { background: #9a8e85; }
 
 .tpl-modified-badge {

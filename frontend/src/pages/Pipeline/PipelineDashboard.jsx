@@ -40,10 +40,18 @@ export default function PipelineDashboard() {
   const closedYTD = closed.filter(x => x.closing_date?.startsWith(String(now.getFullYear())))
 
   const pipelineValue = active.reduce((s, x) => s + (Number(x.property?.price) || 0), 0)
+
+  // Cap settings (shared with ROIAnalytics)
+  let capSettings = { splitPct: 15, capAmount: 12000 }
+  try { capSettings = JSON.parse(localStorage.getItem('brokerage_cap_settings')) || capSettings } catch {}
+
   const commissionForecast = active.reduce((s, x) => {
     const price = Number(x.property?.price) || 0
-    const pct = Number(x.commission_percent) || 3
-    return s + (price * pct / 100)
+    const pct = Number(x.commission_pct) || Number(x.commission_percent) || 3
+    const gross = x.expected_commission ? Number(x.expected_commission) : (price * pct / 100)
+    // Subtract brokerage split (capped)
+    const brokerageSplit = Math.min(gross * (capSettings.splitPct / 100), capSettings.capAmount)
+    return s + (gross - brokerageSplit)
   }, 0)
 
   // Avg days in current stage
@@ -121,7 +129,7 @@ export default function PipelineDashboard() {
         <StatCard label="Active Deals" value={active.length} accent />
         <StatCard label="Pipeline Value" value={fmtDollar(pipelineValue)} />
         <StatCard label="Avg Days in Stage" value={avgDays} />
-        <StatCard label="Commission Forecast" value={fmtDollar(commissionForecast)} />
+        <StatCard label="Net Commission Forecast" value={fmtDollar(commissionForecast)} />
         <StatCard label="Closed YTD" value={closedYTD.length} />
       </div>
 
@@ -148,7 +156,13 @@ export default function PipelineDashboard() {
             {topDeals.map(d => (
               <div key={d.id} className="pl-deal-row">
                 <span className="pl-deal-row__addr">{d.property?.address ?? '—'}</span>
-                <span className="pl-deal-row__val">{fmtDollar((Number(d.property?.price) || 0) * (Number(d.commission_percent) || 3) / 100)}</span>
+                <span className="pl-deal-row__val">{fmtDollar((() => {
+                  const price = Number(d.property?.price) || 0
+                  const pct = Number(d.commission_pct) || Number(d.commission_percent) || 3
+                  const gross = d.expected_commission ? Number(d.expected_commission) : (price * pct / 100)
+                  const split = Math.min(gross * (capSettings.splitPct / 100), capSettings.capAmount)
+                  return gross - split
+                })())}</span>
               </div>
             ))}
           </div>

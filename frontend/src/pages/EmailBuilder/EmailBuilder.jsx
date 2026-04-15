@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Button } from '../../components/ui/index.jsx'
 import { useBrand } from '../../lib/BrandContext'
 import { BrandColorPicker, BorderRadiusControl, FontPicker, FontSizeControl, SpacingControl } from '../../components/ui/StyleControls'
@@ -18,7 +19,7 @@ const BRAND = {
 }
 
 // ─── Email templates for real estate ───
-const STARTER_TEMPLATES = [
+export const STARTER_TEMPLATES = [
   {
     id: 'buyer-followup',
     name: 'Buyer Follow-Up',
@@ -125,7 +126,7 @@ const CATEGORY_COLORS = {
   NURTURE: '#6a9e72',
   LISTINGS: '#c99a2e',
   EVENTS: '#c0604a',
-  AUTHORITY: '#5a87b4',
+  AUTHORITY: 'var(--brown-mid)',
   CUSTOM: '#b79782',
 }
 
@@ -982,6 +983,7 @@ export const EMAIL_SOCIAL_CHANNELS = [
 
 export default function EmailBuilder() {
   const { brand } = useBrand()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [view, setView] = useState('templates')
   const [drafts, setDrafts] = useState(loadDrafts)
   const [savedTemplates, setSavedTemplates] = useState(loadTemplates)
@@ -993,8 +995,58 @@ export default function EmailBuilder() {
   const [emailSettings, setEmailSettings] = useState({ bgColor: '#e8e4de', emailBgColor: '#ffffff', fontFamily: '', borderRadius: 6 })
   const previewRef = useRef(null)
 
+  // AI content generation state
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiResult, setAiResult] = useState('')
+  const [aiTarget, setAiTarget] = useState('selected') // 'selected' | 'subject' | 'full'
+  const [aiAvatarId, setAiAvatarId] = useState('')
+  const [aiTone, setAiTone] = useState('default')
+  const [avatars, setAvatars] = useState([])
+
+  // Fetch client avatars for AI targeting
+  useEffect(() => {
+    import('../../lib/supabase.js').then(async ({ query }) => {
+      try {
+        const data = await query('client_avatars', { order: ['name', { ascending: true }] })
+        setAvatars(data || [])
+      } catch {}
+    })
+  }, [])
+
   const socialChannels = brand?.social_channels ?? {}
   const connectedSocials = EMAIL_SOCIAL_CHANNELS.filter(c => socialChannels[c.key]?.trim())
+
+  // Auto-open template from URL query param (e.g. ?template=buyer-followup)
+  const templateAutoLoaded = useRef(false)
+  useEffect(() => {
+    if (templateAutoLoaded.current) return
+    const tplId = searchParams.get('template')
+    if (tplId) {
+      const template = STARTER_TEMPLATES.find(t => t.id === tplId)
+      if (template) {
+        templateAutoLoaded.current = true
+        // Delay to let brand context load
+        setTimeout(() => {
+          const sig = brand?.signature ?? {}
+          const _fill = (b) => fillSigBlock(b, sig)
+          const email = {
+            draftId: crypto.randomUUID(),
+            templateId: template.id,
+            subject: template.subject,
+            blocks: template.blocks.map(b => _fill({ ...b, id: crypto.randomUUID() })),
+            createdAt: new Date().toISOString(),
+          }
+          setActiveEmail(email)
+          setSelectedBlockIdx(null)
+          setView('editor')
+          // Clean URL
+          setSearchParams({}, { replace: true })
+        }, 100)
+      }
+    }
+  }, [searchParams, brand])
 
   // ─── Validation ───
   const validateEmail = () => {
@@ -1124,6 +1176,111 @@ export default function EmailBuilder() {
     navigator.clipboard.writeText(previewRef.current.innerHTML)
   }
 
+  // ─── AI Content Generation ───
+  const generateAIContent = async () => {
+    if (!aiPrompt.trim()) return
+    setAiLoading(true)
+    setAiResult('')
+
+    try {
+      const { supabaseUrl, supabaseKey } = await import('../../lib/supabase.js').then(m => ({
+        supabaseUrl: m.default?.supabaseUrl || '',
+        supabaseKey: m.default?.supabaseKey || '',
+      }))
+
+      // Build context about what's currently in the email
+      const emailContext = activeEmail ? [
+        `Subject line: "${activeEmail.subject || '(empty)'}"`,
+        `Blocks: ${activeEmail.blocks.map(b => b.type).join(', ')}`,
+        ...(selectedBlockIdx !== null && activeEmail.blocks[selectedBlockIdx]?.type === 'text'
+          ? [`Currently selected text block content: "${activeEmail.blocks[selectedBlockIdx].content || '(empty)'}"`]
+          : []),
+      ].join('\n') : ''
+
+      const toneMap = {
+        default: '',
+        warm: 'Write in an especially warm, friendly, and personal tone.',
+        professional: 'Write in a polished, professional tone.',
+        casual: 'Write in a casual, conversational tone — like texting a friend.',
+        urgent: 'Write with urgency and excitement — create FOMO.',
+        educational: 'Write in an educational, informative tone — position Dana as a market expert.',
+      }
+
+      const body = {
+        type: 'email_content',
+        prompt: [
+          aiPrompt,
+          toneMap[aiTone] || '',
+          emailContext ? `\nCURRENT EMAIL CONTEXT:\n${emailContext}` : '',
+          aiTarget === 'subject' ? '\nGenerate ONLY a subject line. Return just the subject text, nothing else.' : '',
+          aiTarget === 'full' ? '\nGenerate a complete email body. Use short paragraphs, be personable, and end with a clear call to action. Return plain text (no HTML).' : '',
+          aiTarget === 'selected' ? '\nGenerate email copy for one section/paragraph. Return plain text.' : '',
+        ].filter(Boolean).join('\n'),
+        avatar_id: aiAvatarId || undefined,
+      }
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL || 'https://kbbnsgkuqxfikvdzvhon.supabase.co'}/functions/v1/generate-content`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtiYm5zZ2t1cXhmaWt2ZHp2aG9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk5MjM2NjYsImV4cCI6MjA1NTQ5OTY2Nn0.KGlszMbPsHcxpwKmediZOhD_kBzCWHk1JFEBl6byvVE'}`,
+          },
+          body: JSON.stringify(body),
+        }
+      )
+
+      const data = await res.json()
+      if (data.error) {
+        setAiResult(`Error: ${data.error}`)
+      } else {
+        setAiResult(data.content || data.text || JSON.stringify(data))
+      }
+    } catch (err) {
+      setAiResult(`Error: ${err.message}`)
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const applyAIContent = () => {
+    if (!aiResult || !activeEmail) return
+
+    if (aiTarget === 'subject') {
+      setActiveEmail({ ...activeEmail, subject: aiResult.trim() })
+    } else if (aiTarget === 'selected' && selectedBlockIdx !== null) {
+      const block = activeEmail.blocks[selectedBlockIdx]
+      if (block?.type === 'text') {
+        updateBlock(selectedBlockIdx, { ...block, content: aiResult.trim() })
+      }
+    } else if (aiTarget === 'full') {
+      // Split AI result into paragraphs and populate text blocks
+      const paragraphs = aiResult.trim().split(/\n\n+/)
+      const textBlocks = activeEmail.blocks.filter(b => b.type === 'text')
+      const blocks = [...activeEmail.blocks]
+      let paraIdx = 0
+      for (let i = 0; i < blocks.length && paraIdx < paragraphs.length; i++) {
+        if (blocks[i].type === 'text') {
+          blocks[i] = { ...blocks[i], content: paragraphs[paraIdx] }
+          paraIdx++
+        }
+      }
+      // If more paragraphs than text blocks, add new ones
+      while (paraIdx < paragraphs.length) {
+        blocks.splice(blocks.length - 1, 0, {
+          ...newBlock('text'),
+          content: paragraphs[paraIdx],
+        })
+        paraIdx++
+      }
+      setActiveEmail({ ...activeEmail, blocks })
+    }
+    setAiResult('')
+    setAiPrompt('')
+    setAiOpen(false)
+  }
+
   // ─── Templates View ───
   if (view === 'templates') {
     return (
@@ -1193,6 +1350,9 @@ export default function EmailBuilder() {
         </div>
         <div className="eb__header-actions">
           <Button size="sm" variant="secondary" onClick={() => setView('templates')}>← Templates</Button>
+          <Button size="sm" variant={aiOpen ? 'primary' : 'secondary'} onClick={() => setAiOpen(!aiOpen)}>
+            {aiOpen ? '✕ Close AI' : '✨ AI Writer'}
+          </Button>
           <Button size="sm" variant="secondary" onClick={saveDraft}>Save Draft</Button>
           <Button size="sm" variant="secondary" onClick={saveAsTemplate}>Save as Template</Button>
           <Button size="sm" variant="secondary" onClick={() => handleExport('copy')}>Copy HTML</Button>
@@ -1209,6 +1369,117 @@ export default function EmailBuilder() {
           placeholder="Write your subject line..."
         />
       </div>
+
+      {/* AI Writer Panel */}
+      {aiOpen && (
+        <div className="eb__ai-panel">
+          <div className="eb__ai-panel-header">
+            <span className="eb__ai-panel-icon">✨</span>
+            <h3 className="eb__ai-panel-title">AI Email Writer</h3>
+            <span className="eb__ai-panel-sub">Powered by Claude — knows your brand, voice, and ideal clients</span>
+          </div>
+
+          <div className="eb__ai-panel-body">
+            <div className="eb__ai-controls">
+              <div className="eb__ai-control-row">
+                <div className="eb__ai-control">
+                  <label className="eb__field-label">APPLY TO</label>
+                  <select className="eb__input" value={aiTarget} onChange={e => setAiTarget(e.target.value)}>
+                    <option value="selected">Selected Block</option>
+                    <option value="subject">Subject Line</option>
+                    <option value="full">Full Email Body</option>
+                  </select>
+                </div>
+
+                <div className="eb__ai-control">
+                  <label className="eb__field-label">TONE</label>
+                  <select className="eb__input" value={aiTone} onChange={e => setAiTone(e.target.value)}>
+                    <option value="default">Default (Brand Voice)</option>
+                    <option value="warm">Warm & Friendly</option>
+                    <option value="professional">Professional</option>
+                    <option value="casual">Casual</option>
+                    <option value="urgent">Urgent / FOMO</option>
+                    <option value="educational">Educational</option>
+                  </select>
+                </div>
+
+                <div className="eb__ai-control">
+                  <label className="eb__field-label">TARGET AUDIENCE</label>
+                  <select className="eb__input" value={aiAvatarId} onChange={e => setAiAvatarId(e.target.value)}>
+                    <option value="">General audience</option>
+                    {avatars.map(a => (
+                      <option key={a.id} value={a.id}>{a.name} — {a.type}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="eb__ai-prompt-area">
+                <label className="eb__field-label">WHAT DO YOU WANT TO WRITE?</label>
+                <textarea
+                  className="eb__textarea eb__ai-prompt-input"
+                  value={aiPrompt}
+                  onChange={e => setAiPrompt(e.target.value)}
+                  placeholder="e.g. Write a warm follow-up email for a buyer who just toured 3 homes in Gilbert..."
+                  rows={3}
+                  onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) generateAIContent() }}
+                />
+                <div className="eb__ai-prompt-actions">
+                  <Button size="sm" variant="primary" onClick={generateAIContent} disabled={aiLoading || !aiPrompt.trim()}>
+                    {aiLoading ? 'Generating...' : 'Generate'}
+                  </Button>
+                  <span className="eb__ai-hint">Cmd+Enter to generate</span>
+                </div>
+              </div>
+            </div>
+
+            {aiResult && (
+              <div className="eb__ai-result">
+                <label className="eb__field-label">AI OUTPUT</label>
+                <div className="eb__ai-result-text">
+                  <textarea
+                    className="eb__textarea"
+                    value={aiResult}
+                    onChange={e => setAiResult(e.target.value)}
+                    rows={6}
+                  />
+                </div>
+                <div className="eb__ai-result-actions">
+                  <Button size="sm" variant="primary" onClick={applyAIContent}>
+                    Apply to {aiTarget === 'subject' ? 'Subject' : aiTarget === 'full' ? 'Email' : 'Block'}
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => navigator.clipboard.writeText(aiResult)}>Copy</Button>
+                  <Button size="sm" variant="secondary" onClick={() => { setAiResult(''); setAiPrompt('') }}>Clear</Button>
+                </div>
+              </div>
+            )}
+
+            <div className="eb__ai-quick-prompts">
+              <label className="eb__field-label">QUICK PROMPTS</label>
+              <div className="eb__ai-quick-grid">
+                {[
+                  { label: 'Buyer follow-up', prompt: 'Write a warm follow-up email for a buyer after showing them homes. Keep it personal and offer next steps.' },
+                  { label: 'New listing blast', prompt: 'Write an exciting new listing announcement email. Highlight the key features and create urgency.' },
+                  { label: 'Open house invite', prompt: 'Write a friendly open house invitation that makes people want to come. Include a clear RSVP call to action.' },
+                  { label: 'Market update', prompt: 'Write a brief market update email for the East Valley AZ area. Include insights and what it means for buyers/sellers.' },
+                  { label: 'Just sold!', prompt: 'Write a celebratory just-sold email. Use social proof and subtly offer a home valuation CTA.' },
+                  { label: 'Price reduction', prompt: 'Write a price reduction announcement that creates urgency without sounding desperate. Position it as an opportunity.' },
+                  { label: 'Nurture / check-in', prompt: 'Write a casual check-in email for a past client or warm lead. Keep it short, personal, and value-driven.' },
+                  { label: 'Referral ask', prompt: 'Write a natural referral request email that doesn\'t feel pushy. Remind them of the great experience.' },
+                ].map(qp => (
+                  <button
+                    key={qp.label}
+                    className="eb__ai-quick-btn"
+                    onClick={() => { setAiPrompt(qp.prompt); setAiTarget('full') }}
+                  >
+                    {qp.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Validation Warnings */}
       {showWarnings && warnings.length > 0 && (

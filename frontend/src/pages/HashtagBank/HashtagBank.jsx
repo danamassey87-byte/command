@@ -6,7 +6,7 @@ import './HashtagBank.css'
 
 const CATEGORIES = ['all', 'niche', 'location', 'listing', 'general', 'trending', 'seasonal']
 const CAT_COLORS = {
-  niche: '#6a9e72', location: '#5a87b4', listing: '#c99a2e',
+  niche: '#6a9e72', location: 'var(--brown-mid)', listing: '#c99a2e',
   general: '#b79782', trending: '#c0604a', seasonal: '#9b72aa',
 }
 

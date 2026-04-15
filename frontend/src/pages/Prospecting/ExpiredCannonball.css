@@ -511,7 +511,7 @@ a.ec-detail__field-val:hover { text-decoration: underline; }
   color: var(--color-text-muted);
   border: 1px solid rgba(0,0,0,0.05);
 }
-.ec-opip--done.ec-opip--call { background: #5a87b4; color: #fff; border-color: transparent; }
+.ec-opip--done.ec-opip--call { background: var(--color-info); color: #fff; border-color: transparent; }
 .ec-opip--done.ec-opip--text { background: #2ecc71; color: #fff; border-color: transparent; }
 .ec-opip--done.ec-opip--email { background: #e67e22; color: #fff; border-color: transparent; }
 
@@ -563,11 +563,11 @@ a.ec-detail__field-val:hover { text-decoration: underline; }
   white-space: nowrap;
 }
 .ec-outreach-action--call {
-  background: rgba(90, 135, 180, 0.12);
-  color: #5a87b4;
+  background: rgba(183, 151, 130, 0.12);
+  color: var(--color-info);
 }
 .ec-outreach-action--call:hover {
-  background: #5a87b4;
+  background: var(--color-info);
   color: #fff;
 }
 .ec-outreach-action--text {
@@ -640,7 +640,7 @@ a.ec-detail__field-val:hover { text-decoration: underline; }
   letter-spacing: 0.5px;
   color: #fff;
 }
-.ec-script-editor__badge--call { background: #5a87b4; }
+.ec-script-editor__badge--call { background: var(--color-info); }
 .ec-script-editor__badge--text { background: #27ae60; }
 .ec-script-editor__badge--email { background: #e67e22; }
 
@@ -707,7 +707,7 @@ a.ec-detail__field-val:hover { text-decoration: underline; }
 }
 .ec-se-tab:hover { color: var(--brown-dark); }
 .ec-se-tab--active { color: var(--brown-dark); }
-.ec-se-tab--active.ec-se-tab--call { border-bottom-color: #5a87b4; }
+.ec-se-tab--active.ec-se-tab--call { border-bottom-color: var(--color-info); }
 .ec-se-tab--active.ec-se-tab--text { border-bottom-color: #27ae60; }
 .ec-se-tab--active.ec-se-tab--email { border-bottom-color: #e67e22; }
 .ec-se-tab--active.ec-se-tab--sixmo { border-bottom-color: #8e44ad; }
@@ -874,7 +874,7 @@ a.ec-detail__field-val:hover { text-decoration: underline; }
   text-transform: uppercase;
   color: #fff;
 }
-.ec-script-popup__type--call { background: #5a87b4; }
+.ec-script-popup__type--call { background: var(--color-info); }
 .ec-script-popup__type--text { background: #27ae60; }
 .ec-script-popup__type--email { background: #e67e22; }
 .ec-script-popup__contact {

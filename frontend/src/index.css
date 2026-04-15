@@ -35,8 +35,8 @@
   --color-warning-bg:   #fdf6e3;
   --color-danger:       #c0604a;
   --color-danger-bg:    #fdf0ed;
-  --color-info:         #5a87b4;
-  --color-info-bg:      #eef4fa;
+  --color-info:         #B79782;  /* Camel — on-brand, replaces blue */
+  --color-info-bg:      #f5f0eb;
 
   /* Typography — Cormorant Garamond for display/headings, Nunito Sans for body */
   --font-display:  'Cormorant Garamond', Georgia, serif;

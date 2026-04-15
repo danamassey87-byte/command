@@ -10,7 +10,7 @@ const SELLER_SOP = [
   {
     id: 'initial_lead',
     label: 'Initial Lead',
-    color: '#5a87b4',
+    color: 'var(--brown-mid)',
     tasks: [
       { id: 'lead_in',            text: 'New lead comes in (website, lead magnet, referral, SOI)',                   hasTemplate: false },
       { id: 'lead_workflow',       text: 'Send New Lead Workflow email (auto-sets appointment)',                     hasTemplate: true, templateKey: 'new_lead_workflow' },
