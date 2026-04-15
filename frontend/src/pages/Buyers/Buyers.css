@@ -4,6 +4,80 @@
   gap: var(--space-lg);
 }
 
+/* ─── Pipeline Dashboard ─── */
+.buyer-dashboard {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-sm);
+}
+
+.buyer-dashboard__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md) var(--space-sm);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  text-align: center;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.buyer-dashboard__card:hover {
+  border-color: var(--brown-mid);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+.buyer-dashboard__card--primary {
+  border-left: 3px solid var(--brown-dark, #5c4033);
+}
+.buyer-dashboard__card--success {
+  border-left: 3px solid var(--color-success, #2d6a4f);
+}
+.buyer-dashboard__card--warning {
+  border-left: 3px solid var(--color-warning, #e09f3e);
+}
+.buyer-dashboard__card--danger {
+  border-left: 3px solid var(--color-danger, #c1292e);
+}
+
+.buyer-dashboard__value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+  line-height: 1.2;
+}
+
+.buyer-dashboard__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+
+.buyer-dashboard__sub {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.buyer-detail__stat-sub {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+}
+
+@media (max-width: 768px) {
+  .buyer-dashboard { grid-template-columns: repeat(2, 1fr); }
+  .buyer-dashboard__card:last-child { grid-column: span 2; }
+  .buyer-dashboard__value { font-size: 1.15rem; }
+}
+
 /* ─── Pipeline Strip (shared with LeadGen) ─── */
 .pipeline-strip {
   display: flex;

@@ -20,7 +20,9 @@ function mapClient(c) {
     email:               c.email ?? '',
     source:              c.source ?? 'Client',
     stage:               c.stage  ?? 'New Lead',
-    preApproved:         false,
+    preApproved:         !!c.pre_approval_amount,
+    pre_approval_amount: c.pre_approval_amount ?? '',
+    lender_name:         c.lender_name ?? '',
     repAgreement:        !!c.bba_signed,
     budget:              c.budget_min ? `$${Number(c.budget_min).toLocaleString()}${c.budget_max ? `–$${Number(c.budget_max).toLocaleString()}` : '+'}` : '—',
     budget_min:          c.budget_min ?? '',
@@ -40,12 +42,12 @@ function mapClient(c) {
 }
 
 
-const stages = ['New Lead', 'Pre-Approval', 'Active Search', 'Showing', 'Under Contract', 'Closed', 'Inactive']
+const stages = ['New Lead', 'Pre-Approval', 'Active Search', 'Showing', 'Under Contract', 'Closed', 'On Hold', 'Inactive']
 const sources = ['Referral', 'Open House', 'CertiLead', 'Expired Listing', 'Cannonball', 'Zillow', 'Realtor.com', 'Instagram', 'Facebook', 'Door Knocking', 'Sign Call', 'Sphere of Influence', 'Past Client', 'Website', 'Client', 'Other']
 
 const stageVariant = {
   'New Lead': 'default', 'Pre-Approval': 'warning', 'Active Search': 'info',
-  'Showing': 'info', 'Under Contract': 'accent', 'Closed': 'success', 'Inactive': 'danger',
+  'Showing': 'info', 'Under Contract': 'accent', 'Closed': 'success', 'On Hold': 'warning', 'Inactive': 'danger',
 }
 
 const showingStatusVariant = { 'scheduled': 'info', 'toured': 'default', 'offer-accepted': 'success' }
@@ -70,6 +72,8 @@ function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
     areas:               Array.isArray(buyer?.areas) ? buyer.areas.join(', ') : (buyer?.areas ?? ''),
     beds_min:            buyer?.beds ?? buyer?.beds_min ?? '',
     baths_min:           buyer?.baths ?? buyer?.baths_min ?? '',
+    pre_approval_amount: buyer?.pre_approval_amount ?? '',
+    lender_name:         buyer?.lender_name ?? '',
     bba_signed:          buyer?.bba_signed ?? buyer?.repAgreement ?? false,
     bba_signed_date:     buyer?.bba_signed_date ?? '',
     bba_expiration_date: buyer?.bba_expiration_date ?? '',
@@ -90,6 +94,8 @@ function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
       areas:               draft.areas ? draft.areas.split(',').map(a => a.trim()).filter(Boolean) : [],
       beds_min:            draft.beds_min !== '' ? Number(draft.beds_min) : null,
       baths_min:           draft.baths_min !== '' ? Number(draft.baths_min) : null,
+      pre_approval_amount: draft.pre_approval_amount !== '' ? Number(draft.pre_approval_amount) : null,
+      lender_name:         draft.lender_name.trim() || null,
       bba_signed:          draft.bba_signed,
       bba_signed_date:     draft.bba_signed && draft.bba_signed_date ? draft.bba_signed_date : null,
       bba_expiration_date: draft.bba_signed && draft.bba_expiration_date ? draft.bba_expiration_date : null,
@@ -126,6 +132,10 @@ function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
         <div className="panel-row">
           <Input label="Budget Min ($)" type="number" value={draft.budget_min} onChange={e => set('budget_min', e.target.value)} placeholder="450000" />
           <Input label="Budget Max ($)" type="number" value={draft.budget_max} onChange={e => set('budget_max', e.target.value)} placeholder="500000" />
+        </div>
+        <div className="panel-row">
+          <Input label="Pre-Approval Amount ($)" type="number" value={draft.pre_approval_amount} onChange={e => set('pre_approval_amount', e.target.value)} placeholder="500000" />
+          <Input label="Lender / Loan Officer" value={draft.lender_name} onChange={e => set('lender_name', e.target.value)} placeholder="Jane Smith – ABC Lending" />
         </div>
         <div className="panel-row">
           <Input label="Min Beds" type="number" value={draft.beds_min} onChange={e => set('beds_min', e.target.value)} min="0" />
@@ -266,6 +276,7 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
           <p className="buyer-detail__contact">{buyer.phone} &bull; {buyer.email}</p>
           <div className="buyer-detail__tags">
             <Badge variant={stageVariant[buyer.stage]}>{buyer.stage}</Badge>
+            {buyer.preApproved && <Badge variant="success" size="sm">Pre-Approved ✓</Badge>}
             {buyer.repAgreement && <Badge variant="accent" size="sm">BBA Signed ✓</Badge>}
           </div>
         </div>
@@ -273,6 +284,11 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
           <div className="buyer-detail__stat">
             <p className="buyer-detail__stat-value">{buyer.budget}</p>
             <p className="buyer-detail__stat-label">Budget</p>
+          </div>
+          <div className="buyer-detail__stat">
+            <p className="buyer-detail__stat-value">{buyer.pre_approval_amount ? `$${Number(buyer.pre_approval_amount).toLocaleString()}` : '—'}</p>
+            <p className="buyer-detail__stat-label">Pre-Approval</p>
+            {buyer.lender_name && <p className="buyer-detail__stat-sub">{buyer.lender_name}</p>}
           </div>
           <div className="buyer-detail__stat">
             <p className="buyer-detail__stat-value">{buyer.beds}bd / {buyer.baths}ba</p>
@@ -619,6 +635,15 @@ export default function Buyers() {
       ),
     },
     { key: 'budget', label: 'Budget' },
+    {
+      key: 'pre_approval_amount', label: 'Pre-Approval',
+      render: (v, row) => v ? (
+        <div>
+          <p style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--green-dark, #2d6a4f)' }}>${Number(v).toLocaleString()}</p>
+          {row.lender_name && <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{row.lender_name}</p>}
+        </div>
+      ) : <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>—</span>,
+    },
     { key: 'areas', label: 'Target Areas', render: v => Array.isArray(v) ? v.join(', ') : v },
     {
       key: 'stage', label: 'Stage',
@@ -717,6 +742,17 @@ export default function Buyers() {
 
   const pipelineCounts = stages.reduce((acc, s) => { acc[s] = buyers.filter(b => b.stage === s).length; return acc }, {})
 
+  // Dashboard stats — use budget_max (or budget_min) as the value per buyer
+  const buyerValue = (b) => Number(b.budget_max) || Number(b.budget_min) || 0
+  const activeStages = ['New Lead', 'Pre-Approval', 'Active Search', 'Showing', 'Under Contract']
+  const activeBuyers = buyers.filter(b => activeStages.includes(b.stage))
+  const totalPipeline = activeBuyers.reduce((sum, b) => sum + buyerValue(b), 0)
+  const closedValue   = buyers.filter(b => b.stage === 'Closed').reduce((sum, b) => sum + buyerValue(b), 0)
+  const onHoldValue   = buyers.filter(b => b.stage === 'On Hold').reduce((sum, b) => sum + buyerValue(b), 0)
+  const lostValue     = buyers.filter(b => b.stage === 'Inactive').reduce((sum, b) => sum + buyerValue(b), 0)
+  const preApprovedCount = activeBuyers.filter(b => b.preApproved).length
+  const fmtVal = (v) => v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : v > 0 ? `$${(v / 1000).toFixed(0)}K` : '$0'
+
   return (
     <div className="buyers">
       <SectionHeader
@@ -728,6 +764,35 @@ export default function Buyers() {
           >Add Buyer</Button>
         }
       />
+
+      {/* ── Pipeline Dashboard ── */}
+      <div className="buyer-dashboard">
+        <div className="buyer-dashboard__card buyer-dashboard__card--primary">
+          <p className="buyer-dashboard__value">{fmtVal(totalPipeline)}</p>
+          <p className="buyer-dashboard__label">Active Pipeline</p>
+          <p className="buyer-dashboard__sub">{activeBuyers.length} buyer{activeBuyers.length !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="buyer-dashboard__card buyer-dashboard__card--success">
+          <p className="buyer-dashboard__value">{fmtVal(closedValue)}</p>
+          <p className="buyer-dashboard__label">Closed Won</p>
+          <p className="buyer-dashboard__sub">{pipelineCounts['Closed'] ?? 0} buyer{(pipelineCounts['Closed'] ?? 0) !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="buyer-dashboard__card buyer-dashboard__card--warning">
+          <p className="buyer-dashboard__value">{fmtVal(onHoldValue)}</p>
+          <p className="buyer-dashboard__label">On Hold</p>
+          <p className="buyer-dashboard__sub">{pipelineCounts['On Hold'] ?? 0} buyer{(pipelineCounts['On Hold'] ?? 0) !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="buyer-dashboard__card buyer-dashboard__card--danger">
+          <p className="buyer-dashboard__value">{fmtVal(lostValue)}</p>
+          <p className="buyer-dashboard__label">Lost / Inactive</p>
+          <p className="buyer-dashboard__sub">{pipelineCounts['Inactive'] ?? 0} buyer{(pipelineCounts['Inactive'] ?? 0) !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="buyer-dashboard__card">
+          <p className="buyer-dashboard__value">{preApprovedCount}/{activeBuyers.length}</p>
+          <p className="buyer-dashboard__label">Pre-Approved</p>
+          <p className="buyer-dashboard__sub">{activeBuyers.length > 0 ? Math.round((preApprovedCount / activeBuyers.length) * 100) : 0}% of active</p>
+        </div>
+      </div>
 
       <div className="pipeline-strip">
         {stages.map(stage => (
