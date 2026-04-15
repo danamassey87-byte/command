@@ -337,15 +337,10 @@ export default function OHSignIn() {
           )}
         </div>
 
-        {signInCount > 0 && (
-          <div style={{ textAlign: 'center', marginTop: 12, fontSize: '0.75rem', color: '#B79782' }}>
-            {signInCount} guest{signInCount !== 1 ? 's' : ''} signed in today
-          </div>
-        )}
       </div>
 
       <div className="oh-kiosk__footer">
-        Dana Massey · REAL Broker · East Valley, Arizona · 480.818.7554
+        Dana Massey · REAL Broker · East Valley, Arizona
       </div>
     </div>
   )
