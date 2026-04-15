@@ -649,6 +649,32 @@ function OHDetail({ oh, onBack, onEdit }) {
         <div className="oh-detail__stat"><p className="oh-detail__stat-value">{oh.leads_converted}</p><p className="oh-detail__stat-label">→ Sales</p></div>
         <div className="oh-detail__stat"><p className="oh-detail__stat-value">{oh.signIn}</p><p className="oh-detail__stat-label">Sign-ins</p></div>
       </div>
+      {/* Sign-In Kiosk Link */}
+      {typeof oh.id === 'string' && (
+        <div className="oh-detail__links" style={{ marginBottom: oh.lofty_landing_page ? 0 : 12 }}>
+          <a
+            href={`${window.location.origin}/oh-signin/${oh.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="oh-detail__link"
+            style={{ background: 'var(--brown-dark)', color: '#fff', padding: '8px 14px', borderRadius: 8, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            📋 Open Sign-In Kiosk
+          </a>
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}/oh-signin/${oh.id}`
+              navigator.clipboard.writeText(url)
+              alert('Sign-in link copied!\n\n' + url)
+            }}
+            className="oh-detail__link"
+            style={{ background: 'none', border: '1px solid #e0dbd6', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem' }}
+          >
+            Copy Link
+          </button>
+        </div>
+      )}
+
       {oh.lofty_landing_page && (
         <div className="oh-detail__links">
           <a href={oh.lofty_landing_page} target="_blank" rel="noreferrer" className="oh-detail__link">

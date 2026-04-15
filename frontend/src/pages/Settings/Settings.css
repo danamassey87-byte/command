@@ -10,6 +10,7 @@
 
 .settings-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   border-bottom: 1px solid var(--cream, #efede8);
   padding-bottom: 0;

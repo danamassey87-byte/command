@@ -268,6 +268,14 @@ export const createOpenHouse  = (d)      => query(supabase.from('open_houses').i
 export const updateOpenHouse  = (id, d)  => query(supabase.from('open_houses').update(d).eq('id', id).select().single())
 export const deleteOpenHouse  = (id)     => query(supabase.from('open_houses').delete().eq('id', id))
 
+// ─── OH Sign-Ins ─────────────────────────────────────────────────────────────
+export const getOHSignIns = (ohId) =>
+  query(supabase.from('oh_sign_ins').select('*').eq('open_house_id', ohId).order('created_at', { ascending: false }))
+export const getAllOHSignIns = () =>
+  query(supabase.from('oh_sign_ins').select('*, open_house:open_houses(id, date, property:properties(id, address, city))').order('created_at', { ascending: false }))
+export const deleteOHSignIn = (id) =>
+  query(supabase.from('oh_sign_ins').delete().eq('id', id))
+
 // ─── Seller Showings (other agents showing your listings) ─────────────────────
 export const getSellerShowings  = async () => {
   try { return await query(supabase.from('seller_showings').select('*').order('showing_date', { ascending: false })) }

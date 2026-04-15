@@ -31,6 +31,7 @@ import EmailBuilder from './pages/EmailBuilder/EmailBuilder'
 import NewslettersPage from './pages/Newsletters/Newsletters'
 import IntakeForms from './pages/IntakeForms/IntakeForms'
 import PublicForm from './pages/PublicForm/PublicForm'
+import OHSignIn from './pages/OHSignIn/OHSignIn'
 import Notifications from './pages/Notifications/Notifications'
 import CalendarSchedule from './pages/Calendar/CalendarSchedule'
 import TodayShowings from './pages/Calendar/TodayShowings'
@@ -133,8 +134,9 @@ export default function App() {
     <AuthProvider>
     <BrowserRouter>
       <Routes>
-        {/* Public client-facing form (unauthed) */}
+        {/* Public client-facing pages (unauthed) */}
         <Route path="/form/:slug" element={<PublicForm />} />
+        <Route path="/oh-signin/:openHouseId" element={<OHSignIn />} />
 
         <Route path="/login" element={<LoginGate />} />
         <Route element={<ProtectedRoute><BrandProvider><NotesProvider><FavoritesProvider><Layout /></FavoritesProvider></NotesProvider></BrandProvider></ProtectedRoute>}>
