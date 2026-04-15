@@ -20,21 +20,27 @@ const NAV_ICONS = {
   people: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="7" r="3"/><path d="M15 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="17" cy="7" r="2.5"/><path d="M22 21v-1.5a3.5 3.5 0 00-2.5-3.36"/></svg>,
   deals: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>,
   content: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/></svg>,
+  email: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg>,
+  campaigns: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
+  biolink: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>,
   money: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><path d="M16 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H7"/></svg>,
   toolkit: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
 }
 
 const DEFAULT_NAV_ITEMS = [
-  { id: 'home',     label: 'Home',     icon: NAV_ICONS.home,     path: '/',            activePaths: ['/', '/dashboard', '/goals', '/calendar', '/tasks'] },
-  { id: 'prospect', label: 'Prospect', icon: NAV_ICONS.prospect, path: '/prospecting', activePaths: ['/prospecting', '/open-houses'] },
-  { id: 'people',   label: 'People',   icon: NAV_ICONS.people,   path: '/crm',         activePaths: ['/crm', '/vendors'] },
-  { id: 'deals',    label: 'Deals',    icon: NAV_ICONS.deals,    path: '/pipeline',    activePaths: ['/pipeline'] },
-  { id: 'content',  label: 'Content',  icon: NAV_ICONS.content,  path: '/content',     activePaths: ['/content', '/campaigns', '/email', '/bio-link'] },
-  { id: 'money',    label: 'Money',    icon: NAV_ICONS.money,    path: '/pnl',         activePaths: ['/pnl', '/net-sheet', '/market'] },
-  { id: 'toolkit',  label: 'Toolkit',  icon: NAV_ICONS.toolkit,  path: '/resources',   activePaths: ['/resources', '/settings', '/pipeline/buyer-sop', '/pipeline/seller-sop'] },
+  { id: 'home',      label: 'Home',      icon: NAV_ICONS.home,      path: '/',            activePaths: ['/', '/dashboard', '/goals', '/calendar', '/tasks'] },
+  { id: 'prospect',  label: 'Prospect',  icon: NAV_ICONS.prospect,  path: '/prospecting', activePaths: ['/prospecting', '/open-houses'] },
+  { id: 'people',    label: 'CRM',       icon: NAV_ICONS.people,    path: '/crm',         activePaths: ['/crm', '/vendors'] },
+  { id: 'deals',     label: 'Deals',     icon: NAV_ICONS.deals,     path: '/pipeline',    activePaths: ['/pipeline'] },
+  { id: 'content',   label: 'Content',   icon: NAV_ICONS.content,   path: '/content',     activePaths: ['/content'] },
+  { id: 'email',     label: 'Email',     icon: NAV_ICONS.email,     path: '/email',       activePaths: ['/email'] },
+  { id: 'campaigns', label: 'Campaigns', icon: NAV_ICONS.campaigns, path: '/campaigns',   activePaths: ['/campaigns'] },
+  { id: 'biolink',   label: 'Bio Link',  icon: NAV_ICONS.biolink,   path: '/bio-link',    activePaths: ['/bio-link'] },
+  { id: 'money',     label: 'Money',     icon: NAV_ICONS.money,     path: '/pnl',         activePaths: ['/pnl', '/net-sheet', '/market'] },
+  { id: 'toolkit',   label: 'Toolkit',   icon: NAV_ICONS.toolkit,   path: '/resources',   activePaths: ['/resources', '/settings', '/pipeline/buyer-sop', '/pipeline/seller-sop'] },
 ]
 
-const STORAGE_KEY = 'command_nav_order_v2'
+const STORAGE_KEY = 'command_nav_order_v3'
 
 function loadOrder() {
   try {

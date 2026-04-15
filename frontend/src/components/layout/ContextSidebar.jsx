@@ -50,7 +50,7 @@ const SECTIONS = {
     ],
   },
   people: {
-    title: 'People',
+    title: 'CRM',
     items: [
       { label: 'Overview',         path: '/crm',                 icon: 'users' },
       { label: 'Clients',          path: '/crm/buyers',          icon: 'user',          group: 'Buyers' },
@@ -78,23 +78,42 @@ const SECTIONS = {
   content: {
     title: 'Content',
     items: [
-      { label: 'Plan',          path: '/content/plan',       icon: 'calendar' },
-      { label: 'Create',        path: '/content/create',     icon: 'zap' },
-      { label: 'Publish',       path: '/content/publish',    icon: 'columns' },
-      { label: 'Measure',       path: '/content/measure',    icon: 'bar-chart' },
-      { label: 'Content Bank',  path: '/content/bank',       icon: 'database' },
+      { label: 'Plan',          path: '/content/plan',        icon: 'calendar' },
+      { label: 'Create',        path: '/content/create',      icon: 'zap' },
+      { label: 'Publish',       path: '/content/publish',     icon: 'columns' },
+      { label: 'Measure',       path: '/content/measure',     icon: 'bar-chart' },
+      { label: 'Content Bank',  path: '/content/bank',        icon: 'database' },
       { label: 'Ads Manager',   path: '/content/ads',         icon: 'target',        group: 'Ads' },
       { label: 'Ad Reports',    path: '/content/ads/reports', icon: 'bar-chart-2' },
-      { label: 'My Campaigns',  path: '/campaigns/manage',    icon: 'layers',        group: 'Campaigns' },
-      { label: 'Send Queue',    path: '/campaigns/queue',     icon: 'clock' },
-      { label: 'Enrollments',   path: '/campaigns/enrollments', icon: 'users' },
-      { label: 'History',       path: '/campaigns/history',   icon: 'clipboard' },
-      { label: 'Campaign Tpl',  path: '/campaigns/templates', icon: 'file-text' },
-      { label: 'Email Builder', path: '/email/builder',       icon: 'zap',           group: 'Email' },
-      { label: 'Email Tpl',     path: '/email/templates',     icon: 'file-text' },
-      { label: 'Email Sends',   path: '/email/campaigns',     icon: 'layers' },
+    ],
+  },
+  email: {
+    title: 'Email',
+    items: [
+      { label: 'Overview',      path: '/email',               icon: 'mail' },
+      { label: 'Email Builder', path: '/email/builder',       icon: 'zap' },
+      { label: 'Newsletters',   path: '/email/newsletters',   icon: 'file-text' },
+      { label: 'Templates',     path: '/email/templates',     icon: 'clipboard' },
+      { label: 'Campaigns',     path: '/email/campaigns',     icon: 'layers' },
       { label: 'Sent',          path: '/email/sent',          icon: 'check-circle' },
-      { label: 'My Page',       path: '/bio-link/page',       icon: 'link',          group: 'Link in Bio' },
+    ],
+  },
+  campaigns: {
+    title: 'Campaigns',
+    items: [
+      { label: 'Overview',      path: '/campaigns',              icon: 'layers' },
+      { label: 'My Campaigns',  path: '/campaigns/manage',       icon: 'zap' },
+      { label: 'Send Queue',    path: '/campaigns/queue',        icon: 'clock' },
+      { label: 'Enrollments',   path: '/campaigns/enrollments',  icon: 'users' },
+      { label: 'History',       path: '/campaigns/history',      icon: 'clipboard' },
+      { label: 'Templates',     path: '/campaigns/templates',    icon: 'file-text' },
+    ],
+  },
+  biolink: {
+    title: 'Bio Link',
+    items: [
+      { label: 'Overview',      path: '/bio-link',            icon: 'link' },
+      { label: 'My Page',       path: '/bio-link/page',       icon: 'columns' },
       { label: 'Links & Forms', path: '/bio-link/forms',      icon: 'clipboard' },
       { label: 'Guides',        path: '/bio-link/guides',     icon: 'file-text' },
       { label: 'Drip Campaigns',path: '/bio-link/drips',      icon: 'mail' },
@@ -167,7 +186,10 @@ export function getActiveSection(pathname) {
   // SOP/playbook routes live under toolkit, not deals
   if (pathname === '/pipeline/buyer-sop' || pathname === '/pipeline/seller-sop') return 'toolkit'
   if (pathname.startsWith('/pipeline'))    return 'deals'
-  if (pathname.startsWith('/content') || pathname.startsWith('/campaigns') || pathname.startsWith('/email') || pathname.startsWith('/bio-link')) return 'content'
+  if (pathname.startsWith('/content'))    return 'content'
+  if (pathname.startsWith('/email'))      return 'email'
+  if (pathname.startsWith('/campaigns'))  return 'campaigns'
+  if (pathname.startsWith('/bio-link'))   return 'biolink'
   if (pathname.startsWith('/pnl') || pathname.startsWith('/net-sheet') || pathname.startsWith('/market')) return 'money'
   if (pathname.startsWith('/resources') || pathname.startsWith('/settings')) return 'toolkit'
   return 'home'

@@ -97,7 +97,7 @@ export default function Layout() {
   })
 
   const section = getActiveSection(pathname)
-  const sidebarSections = ['home', 'prospect', 'people', 'deals', 'content', 'money', 'toolkit']
+  const sidebarSections = ['home', 'prospect', 'people', 'deals', 'content', 'email', 'campaigns', 'biolink', 'money', 'toolkit']
   const showSidebar = sidebarSections.includes(section)
 
   // Periodically scan for listings missing a content plan and emit reminders.
