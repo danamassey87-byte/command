@@ -332,6 +332,8 @@ export const getOHSignIns = (ohId) =>
   query(supabase.from('oh_sign_ins').select('*').eq('open_house_id', ohId).order('created_at', { ascending: false }))
 export const getAllOHSignIns = () =>
   query(supabase.from('oh_sign_ins').select('*, open_house:open_houses(id, date, property:properties(id, address, city))').order('created_at', { ascending: false }))
+export const updateOHSignIn = (id, d) =>
+  query(supabase.from('oh_sign_ins').update(d).eq('id', id).select().single())
 export const deleteOHSignIn = (id) =>
   query(supabase.from('oh_sign_ins').delete().eq('id', id))
 
@@ -545,9 +547,11 @@ export const getAiPrompt = (promptKey) =>
 export const updateAiPrompt = (id, d) =>
   query(supabase.from('ai_prompts').update({ ...d, is_default: false, updated_at: new Date().toISOString() }).eq('id', id).select().single())
 
-// ─── Inspo Bank ───────────────────────────────────────────────────────────────
+// ─── Inspo Bank / Library ────────────────────────────────────────────────────
 export const getInspoBank = () =>
   query(supabase.from('inspo_bank').select('*').order('created_at', { ascending: false }))
+export const getInspoFavorites = () =>
+  query(supabase.from('inspo_bank').select('*').eq('favorited', true).order('created_at', { ascending: false }))
 export const createInspoEntry = (d) =>
   query(supabase.from('inspo_bank').insert(d).select().single())
 export const updateInspoEntry = (id, d) =>
@@ -1504,8 +1508,9 @@ export const upsertDailyStreak = (d) =>
 // Used by the Vendors page AND by the Parties picker on listing pages.
 // Supports { roleGroup, search } filter args. Soft-deleted rows are excluded.
 export const getVendors = (opts = {}) => {
-  const { roleGroup, search } = opts
+  const { roleGroup, search, includeArchived } = opts
   let q = supabase.from('vendors').select('*').is('deleted_at', null)
+  if (!includeArchived) q = q.is('archived_at', null)
   if (roleGroup) q = q.eq('role_group', roleGroup)
   if (search) {
     const s = search.toLowerCase().trim().replace(/[%,]/g, '')
@@ -1514,6 +1519,9 @@ export const getVendors = (opts = {}) => {
   }
   return query(q.order('preferred', { ascending: false }).order('name'))
 }
+
+export const getArchivedVendors = () =>
+  query(supabase.from('vendors').select('*').is('deleted_at', null).not('archived_at', 'is', null).order('name'))
 
 export const getVendorById = (id) =>
   query(supabase.from('vendors').select('*').eq('id', id).maybeSingle())
@@ -1533,6 +1541,12 @@ export const restoreVendor = (id) =>
 
 export const hardDeleteVendor = (id) =>
   query(supabase.from('vendors').delete().eq('id', id))
+
+export const archiveVendor = (id) =>
+  query(supabase.from('vendors').update({ archived_at: new Date().toISOString() }).eq('id', id))
+
+export const unarchiveVendor = (id) =>
+  query(supabase.from('vendors').update({ archived_at: null }).eq('id', id))
 
 export const toggleVendorPreferred = (id, preferred) =>
   query(supabase.from('vendors').update({ preferred }).eq('id', id).select().single())

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { createClient } from '@supabase/supabase-js'
 import './OHSignIn.css'
@@ -74,6 +74,71 @@ export default function OHSignIn() {
     })()
   }, [openHouseId])
 
+  // ─── Partial capture: save whatever they've typed if they abandon ─────────
+  const partialSavedRef = useRef(null) // tracks the partial record ID
+
+  async function savePartial() {
+    // Only save if they've entered at least a first name and haven't submitted
+    if (submitted || !firstName.trim() || partialSavedRef.current) return
+
+    try {
+      const hasEmail = !!email.trim()
+      const hasPhone = !!phone.trim()
+      const needsSkipTrace = !hasEmail && !hasPhone // name only = need to look them up
+
+      const { data } = await supabase
+        .from('oh_sign_ins')
+        .insert({
+          open_house_id: openHouseId,
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          email: email.trim().toLowerCase() || null,
+          phone: phone.trim() || null,
+          working_with_agent: workingWithAgent,
+          agent_name: workingWithAgent ? agentName.trim() : '',
+          pre_approved: preApproved,
+          lender_name: preApproved ? lenderName.trim() : '',
+          timeframe: timeframe || null,
+          need_to_sell: needToSell,
+          source: 'kiosk',
+          is_partial: true,
+          skip_trace_needed: needsSkipTrace,
+        })
+        .select('id')
+        .single()
+
+      if (data?.id) {
+        partialSavedRef.current = data.id
+      }
+    } catch {
+      // Silent fail — don't interrupt the guest
+    }
+  }
+
+  // Save partial on page unload (guest walks away mid-form)
+  useEffect(() => {
+    function handleBeforeUnload() {
+      if (firstName.trim() && !submitted && !partialSavedRef.current) {
+        // Use sendBeacon for reliable unload saves
+        const body = JSON.stringify({
+          open_house_id: openHouseId,
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          email: email.trim().toLowerCase() || null,
+          phone: phone.trim() || null,
+          source: 'kiosk',
+          is_partial: true,
+          skip_trace_needed: !email.trim() && !phone.trim(),
+        })
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/oh_sign_ins`
+        navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }))
+      }
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [firstName, lastName, email, phone, submitted, openHouseId])
+
+  // ─── Full submit ───────────────────────────────────────────────────────────
   async function handleSubmit(e) {
     e.preventDefault()
     if (!firstName.trim()) return
@@ -81,41 +146,75 @@ export default function OHSignIn() {
     setSubmitError('')
 
     try {
-      const signInData = {
-        open_house_id: openHouseId,
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone.trim(),
-        working_with_agent: workingWithAgent,
-        agent_name: workingWithAgent ? agentName.trim() : '',
-        pre_approved: preApproved,
-        lender_name: preApproved ? lenderName.trim() : '',
-        timeframe: timeframe || null,
-        need_to_sell: needToSell,
-        source: 'kiosk',
+      const hasEmail = !!email.trim()
+      const hasPhone = !!phone.trim()
+      const needsSkipTrace = !hasEmail && !hasPhone
+
+      // If we saved a partial earlier, upgrade it to full
+      if (partialSavedRef.current) {
+        const { error } = await supabase
+          .from('oh_sign_ins')
+          .update({
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            email: email.trim().toLowerCase() || null,
+            phone: phone.trim() || null,
+            working_with_agent: workingWithAgent,
+            agent_name: workingWithAgent ? agentName.trim() : '',
+            pre_approved: preApproved,
+            lender_name: preApproved ? lenderName.trim() : '',
+            timeframe: timeframe || null,
+            need_to_sell: needToSell,
+            is_partial: false,
+            skip_trace_needed: needsSkipTrace,
+          })
+          .eq('id', partialSavedRef.current)
+
+        if (error) throw error
+
+        // Merge into contacts
+        supabase.functions.invoke('merge-oh-signin', {
+          body: { sign_in_id: partialSavedRef.current },
+        }).catch(() => {})
+
+      } else {
+        // Fresh insert
+        const { data: inserted, error } = await supabase
+          .from('oh_sign_ins')
+          .insert({
+            open_house_id: openHouseId,
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            email: email.trim().toLowerCase() || null,
+            phone: phone.trim() || null,
+            working_with_agent: workingWithAgent,
+            agent_name: workingWithAgent ? agentName.trim() : '',
+            pre_approved: preApproved,
+            lender_name: preApproved ? lenderName.trim() : '',
+            timeframe: timeframe || null,
+            need_to_sell: needToSell,
+            source: 'kiosk',
+            is_partial: false,
+            skip_trace_needed: needsSkipTrace,
+          })
+          .select('id')
+          .single()
+
+        if (error) throw error
+
+        // Merge into contacts
+        if (inserted?.id) {
+          supabase.functions.invoke('merge-oh-signin', {
+            body: { sign_in_id: inserted.id },
+          }).catch(() => {})
+        }
       }
-
-      const { data: inserted, error } = await supabase
-        .from('oh_sign_ins')
-        .insert(signInData)
-        .select('id')
-        .single()
-
-      if (error) throw error
 
       // Update sign-in count on the open house
       await supabase
         .from('open_houses')
         .update({ sign_in_count: (oh?.sign_in_count || 0) + 1 })
         .eq('id', openHouseId)
-
-      // Auto-merge into contacts (fire and forget — don't block the guest)
-      if (inserted?.id) {
-        supabase.functions.invoke('merge-oh-signin', {
-          body: { sign_in_id: inserted.id },
-        }).catch(() => {}) // non-blocking
-      }
 
       setSubmitted(true)
       setSignInCount(prev => prev + 1)
@@ -142,6 +241,7 @@ export default function OHSignIn() {
     setNeedToSell(false)
     setSubmitted(false)
     setSubmitError('')
+    partialSavedRef.current = null
   }
 
   // Format time display
@@ -260,6 +360,7 @@ export default function OHSignIn() {
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
+                    onBlur={savePartial}
                     placeholder="email@example.com"
                     autoComplete="email"
                   />
@@ -272,6 +373,7 @@ export default function OHSignIn() {
                     type="tel"
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
+                    onBlur={savePartial}
                     placeholder="(480) 555-1234"
                     autoComplete="tel"
                   />

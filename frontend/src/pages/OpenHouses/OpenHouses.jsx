@@ -732,53 +732,103 @@ function AttendeesPanel({ ohId }) {
 
   const fmtTime = (d) => d ? new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''
 
+  const skipTraceCount = attendees.filter(a => a.skip_trace_needed && !a.skip_trace_completed).length
+  const partialCount = attendees.filter(a => a.is_partial).length
+
+  async function markSkipTraced(id) {
+    await DB.updateOHSignIn(id, { skip_trace_completed: true })
+    setAttendees(prev => prev.map(a => a.id === id ? { ...a, skip_trace_completed: true } : a))
+  }
+
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', color: 'var(--brown-dark)', margin: 0 }}>
           Sign-Ins ({attendees.length})
         </h3>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {skipTraceCount > 0 && (
+            <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: '#fef7e0', color: '#b8860b' }}>
+              {skipTraceCount} need skip trace
+            </span>
+          )}
+          {partialCount > 0 && (
+            <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: '#fce8e6', color: '#c5221f' }}>
+              {partialCount} partial
+            </span>
+          )}
+        </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {attendees.map(a => (
-          <div key={a.id} style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: '8px 12px', background: '#faf8f5', borderRadius: 8,
-            fontSize: '0.82rem',
-          }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: '50%',
-              background: a.working_with_agent ? 'var(--brown-light)' : 'var(--sage-green)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '0.72rem', fontWeight: 700, color: '#fff', flexShrink: 0,
+        {attendees.map(a => {
+          const needsTrace = a.skip_trace_needed && !a.skip_trace_completed
+          const isPartial = a.is_partial
+
+          return (
+            <div key={a.id} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 12px', borderRadius: 8, fontSize: '0.82rem',
+              background: needsTrace ? '#fef7e0' : isPartial ? '#fce8e6' : '#faf8f5',
+              border: needsTrace ? '1px solid #e8d48a' : isPartial ? '1px solid #f0c0b8' : '1px solid transparent',
             }}>
-              {(a.first_name?.[0] || '').toUpperCase()}{(a.last_name?.[0] || '').toUpperCase()}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, color: 'var(--brown-dark)' }}>
-                {a.first_name} {a.last_name}
-                {a.working_with_agent && (
-                  <span style={{ fontSize: '0.68rem', fontWeight: 400, color: 'var(--color-text-muted)', marginLeft: 6 }}>
-                    has agent{a.agent_name ? `: ${a.agent_name}` : ''}
-                  </span>
+              <div style={{
+                width: 32, height: 32, borderRadius: '50%',
+                background: needsTrace ? '#c99a2e' : a.working_with_agent ? 'var(--brown-light)' : 'var(--sage-green)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.72rem', fontWeight: 700, color: '#fff', flexShrink: 0,
+              }}>
+                {(a.first_name?.[0] || '').toUpperCase()}{(a.last_name?.[0] || '').toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, color: 'var(--brown-dark)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {a.first_name} {a.last_name}
+                  {isPartial && (
+                    <span style={{ fontSize: '0.62rem', fontWeight: 600, padding: '1px 5px', borderRadius: 3, background: '#c5221f', color: '#fff' }}>
+                      PARTIAL
+                    </span>
+                  )}
+                  {needsTrace && (
+                    <span style={{ fontSize: '0.62rem', fontWeight: 600, padding: '1px 5px', borderRadius: 3, background: '#b8860b', color: '#fff' }}>
+                      SKIP TRACE
+                    </span>
+                  )}
+                  {a.skip_trace_completed && (
+                    <span style={{ fontSize: '0.62rem', fontWeight: 600, padding: '1px 5px', borderRadius: 3, background: 'var(--sage-green)', color: '#fff' }}>
+                      TRACED
+                    </span>
+                  )}
+                  {a.working_with_agent && (
+                    <span style={{ fontSize: '0.68rem', fontWeight: 400, color: 'var(--color-text-muted)' }}>
+                      has agent{a.agent_name ? `: ${a.agent_name}` : ''}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {a.email ? <span>{a.email}</span> : <span style={{ color: '#c5221f', fontStyle: 'italic' }}>no email</span>}
+                  {a.phone ? <span>{a.phone}</span> : <span style={{ color: '#c5221f', fontStyle: 'italic' }}>no phone</span>}
+                  {a.timeframe && <span>Timeframe: {a.timeframe}</span>}
+                </div>
+              </div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                {fmtTime(a.created_at)}
+              </div>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                {a.pre_approved && <span title="Pre-approved" style={{ fontSize: '0.75rem' }}>✅</span>}
+                {a.need_to_sell && <span title="Needs to sell" style={{ fontSize: '0.75rem' }}>🏠</span>}
+                {!a.working_with_agent && <span title="No agent — hot lead!" style={{ fontSize: '0.75rem' }}>🔥</span>}
+                {needsTrace && (
+                  <button
+                    onClick={() => markSkipTraced(a.id)}
+                    title="Mark as skip traced"
+                    style={{ background: 'none', border: '1px solid #e0dbd6', borderRadius: 4, padding: '2px 6px', fontSize: '0.65rem', cursor: 'pointer', color: 'var(--brown-dark)' }}
+                  >
+                    Done
+                  </button>
                 )}
               </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {a.email && <span>{a.email}</span>}
-                {a.phone && <span>{a.phone}</span>}
-                {a.timeframe && <span>Timeframe: {a.timeframe}</span>}
-              </div>
             </div>
-            <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
-              {fmtTime(a.created_at)}
-            </div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {a.pre_approved && <span title="Pre-approved" style={{ fontSize: '0.75rem' }}>✅</span>}
-              {a.need_to_sell && <span title="Needs to sell" style={{ fontSize: '0.75rem' }}>🏠</span>}
-              {!a.working_with_agent && <span title="No agent — hot lead!" style={{ fontSize: '0.75rem' }}>🔥</span>}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
