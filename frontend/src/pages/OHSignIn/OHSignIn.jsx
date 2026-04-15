@@ -96,9 +96,11 @@ export default function OHSignIn() {
         source: 'kiosk',
       }
 
-      const { error } = await supabase
+      const { data: inserted, error } = await supabase
         .from('oh_sign_ins')
         .insert(signInData)
+        .select('id')
+        .single()
 
       if (error) throw error
 
@@ -107,6 +109,13 @@ export default function OHSignIn() {
         .from('open_houses')
         .update({ sign_in_count: (oh?.sign_in_count || 0) + 1 })
         .eq('id', openHouseId)
+
+      // Auto-merge into contacts (fire and forget — don't block the guest)
+      if (inserted?.id) {
+        supabase.functions.invoke('merge-oh-signin', {
+          body: { sign_in_id: inserted.id },
+        }).catch(() => {}) // non-blocking
+      }
 
       setSubmitted(true)
       setSignInCount(prev => prev + 1)
