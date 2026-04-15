@@ -12,6 +12,7 @@ import './Pipeline.css'
 const STAGES = [
   { value: 'pre_offer',       label: 'Pre-Offer',           color: '#8b8b8b',              desc: 'Preparing offer package' },
   { value: 'offer',           label: 'Offer Submitted',     color: 'var(--color-info)',     desc: 'Awaiting seller response' },
+  { value: 'offer_declined',  label: 'Offer Declined',      color: '#c44040',               desc: 'Seller rejected the offer' },
   { value: 'counter',         label: 'Counter / Negotiate', color: '#7ba1c7',               desc: 'Negotiating terms' },
   { value: 'under_contract',  label: 'Under Contract',      color: 'var(--color-warning)',  desc: 'Executed purchase contract' },
   { value: 'earnest_money',   label: 'Earnest Money',       color: '#c9962e',               desc: '3 business days to deposit' },
@@ -67,7 +68,10 @@ function fmtDollar(v) {
 }
 function stageInfo(status) {
   const s = (status ?? '').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z_]/g, '')
-  return STAGES.find(st => s.includes(st.value)) ?? STAGES[1]
+  // Try exact match first, then longest substring match to avoid 'offer' matching before 'offer_declined'
+  return STAGES.find(st => st.value === s)
+    ?? [...STAGES].sort((a, b) => b.value.length - a.value.length).find(st => s.includes(st.value))
+    ?? STAGES[1]
 }
 function addDays(dateStr, days) {
   if (!dateStr) return null
@@ -191,6 +195,11 @@ export const STAGE_EMAILS = {
     label: 'Offer Submitted Notification',
     subject: 'Offer Submitted — {property}',
     body: `Hi everyone,\n\nI wanted to let you know that we have submitted an offer on behalf of {contact} for the following property:\n\n• Property: {property}\n• Offer Price: {price}\n• Financing: {financing}\n• Target Close: {closing}\n\nWe'll update everyone as soon as we hear back from the listing agent. Fingers crossed!\n\nBest regards,\n{agent_name}\n{brokerage}`,
+  },
+  offer_declined: {
+    label: 'Offer Declined — Next Steps',
+    subject: 'Offer Update — {property}',
+    body: `Hi {contact},\n\nI wanted to let you know that unfortunately the seller has declined our offer on {property}.\n\nHere's what we know:\n• Property: {property}\n• Our Offer: {price}\n\nThis is not uncommon and does not mean we're out of options. Here are our next steps:\n1. We can submit a revised offer if you'd like to come up at a different price or terms\n2. We can continue searching for other properties that fit your criteria\n3. We can keep an eye on this property in case the situation changes\n\nLet's connect to discuss how you'd like to proceed. I'm here for you every step of the way.\n\nBest regards,\n{agent_name}\n{brokerage}`,
   },
   counter: {
     label: 'Counter Offer Update',

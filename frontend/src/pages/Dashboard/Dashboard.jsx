@@ -198,6 +198,7 @@ function PipelineCard({ transactions, listings, pipelineValue, listingValue, avg
                 variant={
                   item.type === 'listing' ? 'warning' :
                   item.status.toLowerCase().includes('clos') ? 'success' :
+                  item.status.toLowerCase().includes('declined') ? 'danger' :
                   item.status.toLowerCase().includes('offer') ? 'accent' : 'info'
                 }
                 size="sm"

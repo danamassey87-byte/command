@@ -186,7 +186,7 @@ export default function EscrowTracker() {
   const escrowDeals = useMemo(() =>
     (transactions ?? []).filter(t => {
       const s = (t.status ?? '').toLowerCase()
-      return !s.includes('offer') && !s.includes('pre') && !s.includes('counter')
+      return !s.includes('offer') && !s.includes('pre') && !s.includes('counter') && !s.includes('declined')
         && !s.includes('closed') && !s.includes('cancelled') && !s.includes('withdrawn') && !s.includes('dead')
     }).sort((a, b) => {
       const dA = daysUntil(a.closing_date)

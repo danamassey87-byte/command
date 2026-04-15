@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
 import LeadSourcePicker from '../../components/ui/LeadSourcePicker.jsx'
 import { TagPicker, TagBadge } from '../../components/ui/TagPicker.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
-import { useBuyers, useShowingSessionsForContact, useContactTags, useNotesForContact } from '../../lib/hooks.js'
+import { useBuyers, useTransactions, useShowingSessionsForContact, useContactTags, useNotesForContact } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
@@ -192,10 +193,17 @@ function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
 
 // ─── Buyer Detail ─────────────────────────────────────────────────────────────
 function BuyerDetail({ buyer, onBack, onEdit }) {
+  const navigate = useNavigate()
+  const { data: allTransactions } = useTransactions()
   const { data: sessionsData, refetch: refetchSessions } = useShowingSessionsForContact(buyer.id)
   const { data: linkedNotes, refetch: refetchNotes } = useNotesForContact(buyer.id)
   const { openNote, createAndOpen } = useNotesContext()
   const sessions = sessionsData ?? []
+
+  // Find deals linked to this buyer
+  const buyerDeals = useMemo(() =>
+    (allTransactions ?? []).filter(t => t.contact_id === buyer.id)
+  , [allTransactions, buyer.id])
 
   const [editingShowingId, setEditingShowingId] = useState(null)
   const [showingDraft, setShowingDraft]         = useState({})
@@ -276,6 +284,45 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
           </div>
         </div>
       </div>
+
+      {/* ── Active Deals ── */}
+      {buyerDeals.length > 0 && (
+        <div className="buyer-detail__showings-section">
+          <div className="buyer-detail__showings-header">
+            <h3>Deals ({buyerDeals.length})</h3>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/pipeline')}>View Pipeline</Button>
+          </div>
+          {buyerDeals.map(deal => {
+            const stg = (deal.status ?? '').replace(/_/g, ' ')
+            const isClosed = stg.includes('closed')
+            const isDeclined = stg.includes('declined')
+            return (
+              <Card key={deal.id} style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--brown-dark)' }}>
+                      {deal.property?.address ?? 'No address'}
+                    </p>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                      {deal.property?.city ?? ''}{deal.property?.price ? ` · $${Number(deal.property.price).toLocaleString()}` : ''}
+                    </p>
+                    {deal.closing_date && (
+                      <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                        {isClosed ? 'Closed' : 'Target close'}: {new Date(deal.closing_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
+                  <Badge variant={isClosed ? 'success' : isDeclined ? 'danger' : 'accent'} size="sm" style={{ textTransform: 'capitalize' }}>
+                    {stg || 'Active'}
+                  </Badge>
+                </div>
+                {deal.lender && <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 4 }}>Lender: {deal.lender}</p>}
+                {deal.title_company && <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Title: {deal.title_company}</p>}
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
       {Array.isArray(buyer.related_people) && buyer.related_people.length > 0 && (
         <Card>

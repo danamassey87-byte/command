@@ -213,7 +213,7 @@ export function useDashboardData() {
     activeClients:       c.length,
     bbaSignedCount:      c.filter(x => x.bba_signed).length,
     openTransactions:    t.length,
-    offerSubmitted:      t.filter(x => (x.status ?? '').toLowerCase().includes('offer')).length,
+    offerSubmitted:      t.filter(x => { const s = (x.status ?? '').toLowerCase(); return s.includes('offer') && !s.includes('declined') && !s.includes('pre') }).length,
     activeListings:      l.length,
     totalInvestors:      iv.length,
     totalLeads:          ld.length,
