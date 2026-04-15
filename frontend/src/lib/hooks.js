@@ -28,6 +28,7 @@ function useQuery(fetcher, deps = []) {
 export const useContacts      = () => useQuery(DB.getContacts)
 export const useBuyers        = () => useQuery(DB.getBuyers)
 export const useSellers       = () => useQuery(DB.getSellers)
+export const useOnHoldContacts = () => useQuery(DB.getOnHoldContacts)
 export const useProperties    = () => useQuery(DB.getProperties)
 export const useListings      = () => useQuery(DB.getListings)
 export const useTransactions  = () => useQuery(DB.getTransactions)
@@ -74,6 +75,10 @@ export const useShowingSessionsForContact = (cid)  => useQuery(() => DB.getShowi
 export const useAutoStats     = (date)  => useQuery(() => DB.getAutoStatsForDate(date), [date])
 export const useGoalTargets   = ()      => useQuery(DB.getGoalTargets)
 export const useMarketStats   = ()      => useQuery(DB.getMarketStats)
+
+// ─── Price History hooks ──────────────────────────────────────────────────────
+export const usePriceHistory   = (listingId) => useQuery(() => listingId ? DB.getPriceHistory(listingId) : Promise.resolve([]), [listingId])
+export const usePriceAnalytics = ()          => useQuery(DB.getPriceAnalytics)
 
 // ─── Content Calendar hooks ────────────────────────────────────────────────────
 export const useClientAvatars   = ()             => useQuery(DB.getClientAvatars)
@@ -123,6 +128,48 @@ export const useNotesForContact     = (cid) => useQuery(() => DB.getNotesForCont
 export const useNotesForTransaction = (tid) => useQuery(() => DB.getNotesForTransaction(tid), [tid])
 export const useAllNoteTags         = ()    => useQuery(DB.getAllNoteTags)
 export const useFavorites           = ()    => useQuery(DB.getFavorites)
+
+// ─── Gmail Reply Detection hooks ──────────────────────────────────────────────
+export const useGmailReplyLog        = ()    => useQuery(DB.getGmailReplyLog)
+export const useReplyDetectedContacts = ()   => useQuery(DB.getReplyDetectedContacts)
+export const useReplyLogForContact   = (cid) => useQuery(() => cid ? DB.getReplyLogForContact(cid) : Promise.resolve([]), [cid])
+
+// ─── Weather hooks (NOAA Weather.gov API — free, no key needed) ──────────────
+// Fetches the 7-day forecast for given lat/lng via the NWS two-step endpoint.
+export function useWeatherForecast(lat, lng) {
+  return useQuery(async () => {
+    if (!lat || !lng) return null
+    // Step 1: Get the forecast URL for this point
+    const pointRes = await fetch(`https://api.weather.gov/points/${lat},${lng}`, {
+      headers: { 'User-Agent': 'AntigravityRE/1.0 (dana@antigravityre.com)' },
+    })
+    if (!pointRes.ok) throw new Error(`Weather point lookup failed: ${pointRes.status}`)
+    const pointData = await pointRes.json()
+    const forecastUrl = pointData.properties?.forecast
+    if (!forecastUrl) throw new Error('No forecast URL in point response')
+
+    // Step 2: Fetch the actual forecast
+    const fcRes = await fetch(forecastUrl, {
+      headers: { 'User-Agent': 'AntigravityRE/1.0 (dana@antigravityre.com)' },
+    })
+    if (!fcRes.ok) throw new Error(`Weather forecast failed: ${fcRes.status}`)
+    const fcData = await fcRes.json()
+    return fcData.properties || null
+  }, [lat, lng])
+}
+
+// Fetches active NWS weather alerts for a given lat/lng.
+export function useWeatherAlerts(lat, lng) {
+  return useQuery(async () => {
+    if (!lat || !lng) return []
+    const res = await fetch(`https://api.weather.gov/alerts/active?point=${lat},${lng}`, {
+      headers: { 'User-Agent': 'AntigravityRE/1.0 (dana@antigravityre.com)' },
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    return data.features || []
+  }, [lat, lng])
+}
 
 // ─── Cost Tracker localStorage helper ──────────────────────────────────────────
 function loadCostTrackerItems() {

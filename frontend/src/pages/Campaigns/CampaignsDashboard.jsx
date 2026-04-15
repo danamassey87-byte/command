@@ -148,15 +148,15 @@ export default function CampaignsDashboard() {
       </div>
 
       <div className="sd-row sd-row--33-33-33">
-        <Link to="/campaigns/manage" className="camp-quick-link">
+        <Link to="/email/campaigns" className="camp-quick-link">
           <span className="camp-quick-link__icon">🚀</span>
           <span>Manage Campaigns</span>
         </Link>
-        <Link to="/campaigns/enrollments" className="camp-quick-link">
+        <Link to="/email/campaigns/enrollments" className="camp-quick-link">
           <span className="camp-quick-link__icon">👥</span>
           <span>Enrollments</span>
         </Link>
-        <Link to="/campaigns/templates" className="camp-quick-link">
+        <Link to="/email/campaigns/templates" className="camp-quick-link">
           <span className="camp-quick-link__icon">📋</span>
           <span>Templates</span>
         </Link>

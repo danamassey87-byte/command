@@ -10,13 +10,14 @@ function DashCard({ title, children, className = '' }) {
   )
 }
 
+// Map quick-start names → EmailBuilder STARTER_TEMPLATES ids
 const TEMPLATES = [
-  { name: 'Welcome Email', desc: 'New client onboarding', icon: '👋' },
-  { name: 'Listing Alert', desc: 'New listing notification', icon: '🏠' },
-  { name: 'Open House Invite', desc: 'OH invitation blast', icon: '🏡' },
-  { name: 'Price Reduction', desc: 'Listing price update', icon: '📉' },
-  { name: 'Closed Deal', desc: 'Congratulations email', icon: '🎉' },
-  { name: 'Market Update', desc: 'Monthly market recap', icon: '📊' },
+  { name: 'Welcome Email', desc: 'New client onboarding', icon: '👋', templateId: 'buyer-followup' },
+  { name: 'Listing Alert', desc: 'New listing notification', icon: '🏠', templateId: 'new-listing' },
+  { name: 'Open House Invite', desc: 'OH invitation blast', icon: '🏡', templateId: 'open-house-invite' },
+  { name: 'Price Reduction', desc: 'Listing price update', icon: '📉', templateId: 'blank' },
+  { name: 'Closed Deal', desc: 'Congratulations email', icon: '🎉', templateId: 'just-sold' },
+  { name: 'Market Update', desc: 'Monthly market recap', icon: '📊', templateId: 'market-update' },
 ]
 
 export default function EmailDashboard() {
@@ -32,7 +33,7 @@ export default function EmailDashboard() {
         <DashCard title="Quick Start Templates">
           <div className="em-templates">
             {TEMPLATES.map(t => (
-              <Link to="/email/builder" key={t.name} className="em-template-card">
+              <Link to={`/email/builder?template=${t.templateId}`} key={t.name} className="em-template-card">
                 <span className="em-template-card__icon">{t.icon}</span>
                 <div className="em-template-card__text">
                   <span className="em-template-card__name">{t.name}</span>
@@ -69,8 +70,8 @@ export default function EmailDashboard() {
             <Link to="/email/campaigns" className="em-tool-link">
               <span className="em-tool-link__icon">📬</span>
               <div>
-                <span className="em-tool-link__name">Email Campaigns</span>
-                <span className="em-tool-link__desc">Bulk sends and campaign management</span>
+                <span className="em-tool-link__name">Smart Campaigns</span>
+                <span className="em-tool-link__desc">Automated email sequences</span>
               </div>
             </Link>
             <Link to="/email/sent" className="em-tool-link">

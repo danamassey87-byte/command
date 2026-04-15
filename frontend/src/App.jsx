@@ -64,6 +64,8 @@ import ProspectingDashboard from './pages/Prospecting/ProspectingDashboard'
 import ContentDashboard from './pages/Content/ContentDashboard'
 import CalendarDashboard from './pages/Calendar/CalendarDashboard'
 import EmailDashboard from './pages/Email/EmailDashboard'
+import EmailTemplates from './pages/Email/EmailTemplates'
+import SentHistory from './pages/Email/SentHistory'
 import CampaignsDashboard from './pages/Campaigns/CampaignsDashboard'
 import ResourcesDashboard from './pages/Resources/ResourcesDashboard'
 import AppraiserPackage from './pages/Resources/AppraiserPackage'
@@ -98,6 +100,7 @@ import SmartCampaigns from './pages/Campaigns/SmartCampaigns'
 
 // ─── Database (Contact Hub) ──────────────────────────────────────────────────
 import Database from './pages/Database/Database'
+import OnHoldContacts from './pages/OnHoldContacts/OnHoldContacts'
 
 // ─── Net Sheet ──────────────────────────────────────────────────────────────
 import NetSheet from './pages/NetSheet/NetSheet'
@@ -173,6 +176,7 @@ export default function App() {
           <Route path="/crm/properties"       element={<Properties />} />
           <Route path="/crm/intake-forms"    element={<IntakeForms />} />
           <Route path="/crm/database"       element={<Database />} />
+          <Route path="/crm/on-hold"       element={<OnHoldContacts />} />
 
           {/* ─── Pipeline ─── */}
           <Route path="/pipeline"            element={<PipelineDashboard />} />
@@ -255,21 +259,25 @@ export default function App() {
           <Route path="/bio-link/drips"    element={<ComingSoon title="Drip Campaigns" />} />
           <Route path="/bio-link/leads"    element={<ComingSoon title="Leads Captured" />} />
 
-          {/* ─── Smart Campaigns ─── */}
-          <Route path="/campaigns"            element={<CampaignsDashboard />} />
-          <Route path="/campaigns/manage"     element={<SmartCampaigns />} />
-          <Route path="/campaigns/queue"      element={<SmartCampaigns />} />
-          <Route path="/campaigns/enrollments" element={<SmartCampaigns />} />
-          <Route path="/campaigns/history"    element={<SmartCampaigns />} />
-          <Route path="/campaigns/templates"  element={<SmartCampaigns />} />
-
-          {/* ─── Email ─── */}
+          {/* ─── Email (includes Smart Campaigns) ─── */}
           <Route path="/email"             element={<EmailDashboard />} />
           <Route path="/email/builder"     element={<EmailBuilder />} />
           <Route path="/email/newsletters" element={<NewslettersPage />} />
-          <Route path="/email/templates"   element={<ComingSoon title="Email Templates" />} />
-          <Route path="/email/campaigns"   element={<ComingSoon title="Campaigns" />} />
-          <Route path="/email/sent"        element={<ComingSoon title="Sent Emails" />} />
+          <Route path="/email/templates"   element={<EmailTemplates />} />
+          <Route path="/email/campaigns"       element={<SmartCampaigns />} />
+          <Route path="/email/campaigns/queue" element={<SmartCampaigns />} />
+          <Route path="/email/campaigns/enrollments" element={<SmartCampaigns />} />
+          <Route path="/email/campaigns/history" element={<SmartCampaigns />} />
+          <Route path="/email/campaigns/templates" element={<SmartCampaigns />} />
+          <Route path="/email/sent"        element={<SentHistory />} />
+
+          {/* ─── Legacy campaign redirects ─── */}
+          <Route path="/campaigns"            element={<Navigate to="/email/campaigns" replace />} />
+          <Route path="/campaigns/manage"     element={<Navigate to="/email/campaigns" replace />} />
+          <Route path="/campaigns/queue"      element={<Navigate to="/email/campaigns/queue" replace />} />
+          <Route path="/campaigns/enrollments" element={<Navigate to="/email/campaigns/enrollments" replace />} />
+          <Route path="/campaigns/history"    element={<Navigate to="/email/campaigns/history" replace />} />
+          <Route path="/campaigns/templates"  element={<Navigate to="/email/campaigns/templates" replace />} />
 
           {/* ─── Vendors ─── */}
           <Route path="/vendors"           element={<Vendors />} />

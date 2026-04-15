@@ -753,11 +753,18 @@ export default function SmartCampaigns() {
                       </div>
                       <span className="sc-enrollment-row__step-label">{completedSteps}/{totalSteps} steps</span>
                     </div>
-                    <Badge variant={
-                      e.status === 'active' ? 'success' :
-                      e.status === 'paused' ? 'warning' :
-                      e.status === 'completed' ? 'default' : 'danger'
-                    }>{e.status}</Badge>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Badge variant={
+                        e.status === 'active' ? 'success' :
+                        e.status === 'paused' ? 'warning' :
+                        e.status === 'completed' ? 'default' : 'danger'
+                      }>{e.status}</Badge>
+                      {(e.reply_count > 0) && (
+                        <Badge variant="info" size="sm" title={`${e.reply_count} reply${e.reply_count !== 1 ? 'ies' : ''} detected`}>
+                          Replied{e.reply_count > 1 ? ` (${e.reply_count})` : ''}
+                        </Badge>
+                      )}
+                    </div>
                     <div className="sc-enrollment-row__actions" onClick={ev => ev.stopPropagation()}>
                       {e.status === 'active' && <Button size="sm" variant="ghost" onClick={() => pauseEnrollment(e.id)}>Pause</Button>}
                       {e.status === 'paused' && <Button size="sm" variant="ghost" onClick={() => resumeEnrollment(e.id)}>Resume</Button>}
@@ -1248,6 +1255,14 @@ function EnrollmentDetail({ enrollment, campaign, history, onPause, onResume, on
         )}
         {enrollment.completed_at && <div><strong>Completed:</strong> {fmtDateTime(enrollment.completed_at)}</div>}
         {enrollment.stopped_at && <div><strong>Stopped:</strong> {fmtDateTime(enrollment.stopped_at)}</div>}
+        {enrollment.reply_count > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+            <Badge variant="info" size="sm">Replied</Badge>
+            <span style={{ fontSize: '0.78rem', color: '#4a6d8c' }}>
+              {enrollment.reply_count} reply{enrollment.reply_count !== 1 ? 'ies' : ''} detected via Gmail
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="sc-detail__actions">
@@ -1270,6 +1285,11 @@ function EnrollmentDetail({ enrollment, campaign, history, onPause, onResume, on
                 </div>
                 {step.subject && <div className="sc-detail__step-subject">{step.subject}</div>}
                 {sent && <div className="sc-detail__step-sent-at">Sent {fmtDateTime(sent.sent_at)}</div>}
+                {sent?.reply_detected && (
+                  <div style={{ fontSize: '0.72rem', color: '#4a6d8c', fontWeight: 600, marginTop: 2 }}>
+                    Replied {sent.replied_at ? fmtDateTime(sent.replied_at) : ''}
+                  </div>
+                )}
               </div>
               <div className="sc-detail__step-actions">
                 {sent ? (

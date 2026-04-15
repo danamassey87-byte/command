@@ -652,6 +652,33 @@
   box-shadow: var(--shadow-xs);
 }
 
+/* ─── On-Hold Modal (shared with On Hold page) ─── */
+.on-hold-modal__overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+  display: flex; align-items: center; justify-content: center; z-index: 9999;
+}
+.on-hold-modal {
+  background: var(--color-surface); border-radius: var(--radius-lg);
+  padding: 28px; width: 420px; max-width: 92vw; box-shadow: var(--shadow-lg);
+}
+.on-hold-modal h3 {
+  font-family: var(--font-display); font-size: 1.1rem; color: var(--brown-dark); margin-bottom: 16px;
+}
+.on-hold-modal__field {
+  display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px;
+}
+.on-hold-modal__field label {
+  font-size: 0.78rem; font-weight: 600; color: var(--color-text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.on-hold-modal__field textarea {
+  font-family: var(--font-body); font-size: 0.85rem; padding: 10px 12px;
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  resize: vertical; min-height: 80px; outline: none;
+}
+.on-hold-modal__field textarea:focus { border-color: var(--brown-medium); }
+.on-hold-modal__actions { display: flex; justify-content: flex-end; gap: 8px; }
+
 /* ─── Mobile ─── */
 @media (max-width: 768px) {
   .showing-edit-grid { grid-template-columns: 1fr; }

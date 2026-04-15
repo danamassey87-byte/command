@@ -15,6 +15,7 @@ export const NOTIFICATION_TYPES = {
   oh_briefing_sent:  { label: 'OH Briefing Sent',  icon: '📨', color: '#7c6350' },
   oh_reminder_sent:  { label: 'OH Reminder Sent',  icon: '🔁', color: '#c8a05a' },
   oh_report_overdue: { label: 'OH Report Overdue', icon: '⚠️', color: '#b91c1c' },
+  campaign_reply:    { label: 'Campaign Reply',   icon: '💌', color: '#7a93b7' },
 }
 
 export function typeMeta(type) {

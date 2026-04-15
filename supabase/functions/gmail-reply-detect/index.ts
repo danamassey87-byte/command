@@ -2,9 +2,16 @@
 // gmail-reply-detect — Scans Gmail for replies to campaign emails.
 //
 // Searches Gmail for replies to emails sent from dana@danamassey.com or Resend
-// domains. Flags matching contacts in the contacts table with a 'replied' tag.
+// domains. When a reply is found:
+//   1. Logs it to gmail_reply_log
+//   2. Updates campaign_step_history with replied_at + reply_detected
+//   3. Updates campaign_enrollments reply_count
+//   4. Updates contacts with last_reply_scan_at + reply_count + 'replied' tag
+//   5. Writes campaign_audit_log entry (action = 'replied')
+//   6. Creates a notification (type = 'campaign_reply')
 //
 // Uses tokens from user_settings 'google_tokens'. Includes token refresh logic.
+// Deduplicates by checking gmail_reply_log.thread_id before inserting.
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
@@ -109,14 +116,22 @@ serve(async (req) => {
 
     const authHeader = { 'Authorization': `Bearer ${tokens.access_token}` }
 
+    // ─── Load existing reply thread IDs for dedup ───────────────────────────
+    const { data: existingReplies } = await supabase
+      .from('gmail_reply_log')
+      .select('thread_id, reply_from_email')
+
+    const seenThreadEmails = new Set(
+      (existingReplies || []).map(r => `${r.thread_id}::${r.reply_from_email?.toLowerCase()}`)
+    )
+
     // ─── Build Gmail search query ─────────────────────────────────────────────
-    // Search for threads where we sent a message AND there's a reply from someone else
     const afterDate = new Date(Date.now() - days_back * 24 * 60 * 60 * 1000)
     const afterStr = `${afterDate.getFullYear()}/${String(afterDate.getMonth() + 1).padStart(2, '0')}/${String(afterDate.getDate()).padStart(2, '0')}`
 
-    // Gmail query: find threads that have a reply (in:inbox) to messages from our sender addresses
-    const fromQueries = SENDER_ADDRESSES.map(a => `from:${a}`).join(' OR ')
-    const searchQuery = `in:inbox is:unread OR is:read after:${afterStr} (${fromQueries})`
+    // Gmail query: find threads in inbox after the date
+    // We look for threads where we sent something, which Gmail keeps as threads
+    const searchQuery = `in:inbox after:${afterStr}`
 
     const searchParams = new URLSearchParams({
       q: searchQuery,
@@ -138,21 +153,89 @@ serve(async (req) => {
     const searchData = await searchResp.json()
     const threads = searchData.threads || []
 
+    // ─── Load contacts + campaign data for matching ─────────────────────────
+    const { data: contacts } = await supabase
+      .from('contacts')
+      .select('id, name, email, tags, reply_count')
+      .is('deleted_at', null)
+
+    const contactsByEmail = new Map<string, any>()
+    for (const c of (contacts || [])) {
+      if (c.email) {
+        contactsByEmail.set(c.email.toLowerCase(), c)
+      }
+    }
+
+    // Load campaign step history with subject lines for matching
+    const { data: stepHistory } = await supabase
+      .from('campaign_step_history')
+      .select('id, enrollment_id, subject, sent_at, reply_detected')
+      .gte('sent_at', afterDate.toISOString())
+      .order('sent_at', { ascending: false })
+
+    // Load enrollments to link step history to contacts + campaigns
+    const enrollmentIds = [...new Set((stepHistory || []).map(s => s.enrollment_id).filter(Boolean))]
+    let enrollmentMap: Record<string, any> = {}
+    if (enrollmentIds.length > 0) {
+      const { data: enrollments } = await supabase
+        .from('campaign_enrollments')
+        .select('id, campaign_id, contact_id')
+        .in('id', enrollmentIds)
+
+      for (const e of (enrollments || [])) {
+        enrollmentMap[e.id] = e
+      }
+    }
+
+    // Load campaign names
+    const campaignIds = [...new Set(Object.values(enrollmentMap).map((e: any) => e.campaign_id).filter(Boolean))]
+    let campaignNames: Record<string, string> = {}
+    if (campaignIds.length > 0) {
+      const { data: campaigns } = await supabase
+        .from('campaigns')
+        .select('id, name')
+        .in('id', campaignIds)
+      for (const c of (campaigns || [])) {
+        campaignNames[c.id] = c.name
+      }
+    }
+
+    // Build a map: contact_email → [{stepHistory, enrollment}] for subject matching
+    const stepsByContactEmail = new Map<string, Array<{ step: any; enrollment: any }>>()
+    for (const step of (stepHistory || [])) {
+      const enrollment = enrollmentMap[step.enrollment_id]
+      if (!enrollment) continue
+      const contact = (contacts || []).find(c => c.id === enrollment.contact_id)
+      if (!contact?.email) continue
+      const email = contact.email.toLowerCase()
+      if (!stepsByContactEmail.has(email)) stepsByContactEmail.set(email, [])
+      stepsByContactEmail.get(email)!.push({ step, enrollment })
+    }
+
     // ─── Process each thread to find replies ──────────────────────────────────
-    const replies: Array<{
+    interface ReplyRecord {
       thread_id: string
       subject: string
       reply_from_email: string
       reply_from_name: string
       reply_date: string
       snippet: string
-    }> = []
+      contact_id: string | null
+      contact_name: string
+      matched_step_id: string | null
+      matched_enrollment_id: string | null
+      matched_campaign_id: string | null
+      matched_campaign_name: string | null
+    }
+
+    const newReplies: ReplyRecord[] = []
 
     for (const thread of threads) {
       try {
-        const threadResp = await fetch(`${GMAIL_API}/threads/${thread.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`, {
-          headers: authHeader,
-        })
+        const threadResp = await fetch(
+          `${GMAIL_API}/threads/${thread.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=To`,
+          { headers: authHeader }
+        )
 
         if (!threadResp.ok) continue
 
@@ -160,6 +243,22 @@ serve(async (req) => {
         const messages = threadData.messages || []
 
         if (messages.length < 2) continue // No reply if only 1 message
+
+        // Check if at least one message in the thread is FROM us (our sender)
+        let hasOurMessage = false
+        for (const msg of messages) {
+          const fromHeader = msg.payload?.headers?.find((h: any) => h.name.toLowerCase() === 'from')
+          const fromValue = fromHeader?.value || ''
+          const fromEmail = extractEmail(fromValue)
+          const fromDomain = fromEmail.split('@')[1] || ''
+          if (SENDER_ADDRESSES.includes(fromEmail.toLowerCase()) ||
+              SENDER_DOMAINS.includes(fromDomain.toLowerCase())) {
+            hasOurMessage = true
+            break
+          }
+        }
+
+        if (!hasOurMessage) continue
 
         // Get the subject from the first message
         const firstMsg = messages[0]
@@ -181,63 +280,196 @@ serve(async (req) => {
 
           if (isOurMessage) continue
 
+          // Deduplicate: skip if we already logged this thread+email pair
+          const dedupeKey = `${thread.id}::${fromEmail.toLowerCase()}`
+          if (seenThreadEmails.has(dedupeKey)) continue
+
           // This is a reply from someone external
           const fromName = extractName(fromValue)
           const replyDate = dateHeader?.value || ''
 
-          replies.push({
+          // Match to a contact
+          const contact = contactsByEmail.get(fromEmail.toLowerCase())
+
+          // Try to match to a campaign step by subject line
+          let matchedStep: any = null
+          let matchedEnrollment: any = null
+          let matchedCampaignId: string | null = null
+          let matchedCampaignName: string | null = null
+
+          if (contact) {
+            const steps = stepsByContactEmail.get(fromEmail.toLowerCase()) || []
+            // Match by subject line (strip Re: prefix for comparison)
+            const cleanSubject = subject.replace(/^(Re:\s*)+/i, '').toLowerCase().trim()
+            for (const { step, enrollment } of steps) {
+              const stepSubject = (step.subject || '').toLowerCase().trim()
+              if (stepSubject && cleanSubject.includes(stepSubject)) {
+                matchedStep = step
+                matchedEnrollment = enrollment
+                matchedCampaignId = enrollment.campaign_id
+                matchedCampaignName = campaignNames[enrollment.campaign_id] || null
+                break
+              }
+            }
+            // If no subject match, take the most recent step sent to this contact
+            if (!matchedStep && steps.length > 0) {
+              const { step, enrollment } = steps[0] // already sorted desc by sent_at
+              matchedStep = step
+              matchedEnrollment = enrollment
+              matchedCampaignId = enrollment.campaign_id
+              matchedCampaignName = campaignNames[enrollment.campaign_id] || null
+            }
+          }
+
+          newReplies.push({
             thread_id: thread.id,
             subject,
             reply_from_email: fromEmail,
             reply_from_name: fromName,
             reply_date: replyDate,
             snippet: msg.snippet || '',
+            contact_id: contact?.id || null,
+            contact_name: contact?.name || fromName,
+            matched_step_id: matchedStep?.id || null,
+            matched_enrollment_id: matchedEnrollment?.id || null,
+            matched_campaign_id: matchedCampaignId,
+            matched_campaign_name: matchedCampaignName,
           })
+
+          // Mark as seen so we don't duplicate within this batch
+          seenThreadEmails.add(dedupeKey)
         }
       } catch (e) {
         console.error(`Error processing thread ${thread.id}:`, e)
       }
     }
 
-    // ─── Flag matching contacts ───────────────────────────────────────────────
+    // ─── Write results to database ──────────────────────────────────────────
     const flaggedContacts: Array<{ email: string; contact_id: string | null; name: string }> = []
+    let repliesLogged = 0
+    let stepsUpdated = 0
+    let notificationsCreated = 0
 
-    // Get unique reply emails
-    const replyEmails = [...new Set(replies.map(r => r.reply_from_email.toLowerCase()).filter(Boolean))]
+    for (const reply of newReplies) {
+      try {
+        // 1. Insert into gmail_reply_log
+        await supabase.from('gmail_reply_log').insert({
+          contact_id: reply.contact_id,
+          enrollment_id: reply.matched_enrollment_id,
+          step_history_id: reply.matched_step_id,
+          thread_id: reply.thread_id,
+          reply_from_email: reply.reply_from_email,
+          reply_from_name: reply.reply_from_name,
+          subject: reply.subject,
+          snippet: reply.snippet,
+          reply_date: reply.reply_date ? new Date(reply.reply_date).toISOString() : new Date().toISOString(),
+          campaign_id: reply.matched_campaign_id,
+          campaign_name: reply.matched_campaign_name,
+        })
+        repliesLogged++
 
-    if (replyEmails.length > 0) {
-      // Load all contacts to match by email
-      const { data: contacts } = await supabase
-        .from('contacts')
-        .select('id, name, email, tags')
-        .is('deleted_at', null)
-
-      const contactsByEmail = new Map<string, any>()
-      for (const c of (contacts || [])) {
-        if (c.email) {
-          contactsByEmail.set(c.email.toLowerCase(), c)
+        // 2. Update campaign_step_history with replied_at
+        if (reply.matched_step_id && !reply.matched_step_id) {
+          // Already handled below
         }
-      }
+        if (reply.matched_step_id) {
+          const { error: stepErr } = await supabase
+            .from('campaign_step_history')
+            .update({
+              replied_at: new Date().toISOString(),
+              reply_detected: true,
+            })
+            .eq('id', reply.matched_step_id)
 
-      for (const replyEmail of replyEmails) {
-        const contact = contactsByEmail.get(replyEmail)
-        if (contact) {
-          // Add 'replied' tag if not already present
-          const currentTags = Array.isArray(contact.tags) ? contact.tags : []
-          if (!currentTags.includes('replied')) {
-            const updatedTags = [...currentTags, 'replied']
+          if (!stepErr) stepsUpdated++
+        }
+
+        // 3. Increment reply_count on campaign_enrollments
+        if (reply.matched_enrollment_id) {
+          // Use RPC-style increment — fetch current, increment, update
+          const { data: enrollment } = await supabase
+            .from('campaign_enrollments')
+            .select('reply_count')
+            .eq('id', reply.matched_enrollment_id)
+            .maybeSingle()
+
+          if (enrollment) {
+            await supabase
+              .from('campaign_enrollments')
+              .update({ reply_count: (enrollment.reply_count || 0) + 1 })
+              .eq('id', reply.matched_enrollment_id)
+          }
+        }
+
+        // 4. Update contact — tags, reply_count, last_reply_scan_at
+        if (reply.contact_id) {
+          const contact = contactsByEmail.get(reply.reply_from_email.toLowerCase())
+          if (contact) {
+            const currentTags = Array.isArray(contact.tags) ? contact.tags : []
+            const updates: any = {
+              last_reply_scan_at: new Date().toISOString(),
+              reply_count: (contact.reply_count || 0) + 1,
+              updated_at: new Date().toISOString(),
+            }
+            if (!currentTags.includes('replied')) {
+              updates.tags = [...currentTags, 'replied']
+            }
             await supabase
               .from('contacts')
-              .update({ tags: updatedTags, updated_at: new Date().toISOString() })
-              .eq('id', contact.id)
+              .update(updates)
+              .eq('id', reply.contact_id)
 
-            flaggedContacts.push({ email: replyEmail, contact_id: contact.id, name: contact.name })
-          } else {
-            flaggedContacts.push({ email: replyEmail, contact_id: contact.id, name: contact.name })
+            // Update local cache for subsequent iterations
+            contact.reply_count = updates.reply_count
+            if (updates.tags) contact.tags = updates.tags
           }
+
+          flaggedContacts.push({
+            email: reply.reply_from_email,
+            contact_id: reply.contact_id,
+            name: reply.contact_name,
+          })
         } else {
-          flaggedContacts.push({ email: replyEmail, contact_id: null, name: replies.find(r => r.reply_from_email.toLowerCase() === replyEmail)?.reply_from_name || '' })
+          flaggedContacts.push({
+            email: reply.reply_from_email,
+            contact_id: null,
+            name: reply.contact_name,
+          })
         }
+
+        // 5. Write to campaign_audit_log
+        if (reply.matched_campaign_id) {
+          await supabase.from('campaign_audit_log').insert({
+            enrollment_id: reply.matched_enrollment_id,
+            campaign_id: reply.matched_campaign_id,
+            contact_id: reply.contact_id,
+            contact_name: reply.contact_name,
+            campaign_name: reply.matched_campaign_name,
+            action: 'replied',
+            detail: `Reply detected from ${reply.reply_from_email}: "${(reply.snippet || '').slice(0, 120)}"`,
+          })
+        }
+
+        // 6. Create notification
+        const notifTitle = reply.contact_name
+          ? `${reply.contact_name} replied to your email`
+          : `Reply from ${reply.reply_from_email}`
+        const notifBody = reply.matched_campaign_name
+          ? `Campaign: ${reply.matched_campaign_name} — Subject: ${reply.subject}\n"${(reply.snippet || '').slice(0, 200)}"`
+          : `Subject: ${reply.subject}\n"${(reply.snippet || '').slice(0, 200)}"`
+
+        await supabase.from('notifications').insert({
+          type: 'campaign_reply',
+          title: notifTitle,
+          body: notifBody,
+          link: reply.contact_id ? `/database?contact=${reply.contact_id}` : '/email/sent-history',
+          source_table: 'gmail_reply_log',
+          source_id: reply.thread_id,
+        })
+        notificationsCreated++
+
+      } catch (e) {
+        console.error(`Error processing reply from ${reply.reply_from_email}:`, e)
       }
     }
 
@@ -245,9 +477,21 @@ serve(async (req) => {
       JSON.stringify({
         ok: true,
         threads_checked: threads.length,
-        replies_found: replies.length,
+        replies_found: newReplies.length,
+        replies_logged: repliesLogged,
+        steps_updated: stepsUpdated,
         contacts_flagged: flaggedContacts.length,
-        replies,
+        notifications_created: notificationsCreated,
+        replies: newReplies.map(r => ({
+          thread_id: r.thread_id,
+          subject: r.subject,
+          reply_from_email: r.reply_from_email,
+          reply_from_name: r.reply_from_name,
+          reply_date: r.reply_date,
+          snippet: r.snippet,
+          contact_name: r.contact_name,
+          campaign_name: r.matched_campaign_name,
+        })),
         flagged_contacts: flaggedContacts,
       }),
       { headers: { ...CORS, 'Content-Type': 'application/json' } }

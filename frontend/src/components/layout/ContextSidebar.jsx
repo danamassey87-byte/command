@@ -13,9 +13,6 @@ const COMING_SOON = new Set([
   '/bio-link/guides',
   '/bio-link/drips',
   '/bio-link/leads',
-  '/email/templates',
-  '/email/campaigns',
-  '/email/sent',
 ])
 
 /* ─── Section definitions (consolidated 7-tab nav) ─── */
@@ -61,7 +58,8 @@ const SECTIONS = {
       { label: 'Listings',         path: '/crm/sellers',         icon: 'home' },
       { label: 'Listing Showings', path: '/crm/seller-showings', icon: 'eye' },
       { label: 'Listing Plan',     path: '/crm/listing-plan',    icon: 'zap' },
-      { label: 'Intake Forms',     path: '/crm/intake-forms',    icon: 'clipboard',     group: 'Tools' },
+      { label: 'On Hold',           path: '/crm/on-hold',         icon: 'clock',         group: 'Tools' },
+      { label: 'Intake Forms',     path: '/crm/intake-forms',    icon: 'clipboard' },
       { label: 'Contact Database', path: '/crm/database',        icon: 'database' },
       { label: 'Vendors',          path: '/vendors',             icon: 'users',         group: 'Vendors' },
     ],
@@ -94,19 +92,11 @@ const SECTIONS = {
       { label: 'Email Builder', path: '/email/builder',       icon: 'zap' },
       { label: 'Newsletters',   path: '/email/newsletters',   icon: 'file-text' },
       { label: 'Templates',     path: '/email/templates',     icon: 'clipboard' },
-      { label: 'Campaigns',     path: '/email/campaigns',     icon: 'layers' },
-      { label: 'Sent',          path: '/email/sent',          icon: 'check-circle' },
-    ],
-  },
-  campaigns: {
-    title: 'Campaigns',
-    items: [
-      { label: 'Overview',      path: '/campaigns',              icon: 'layers' },
-      { label: 'My Campaigns',  path: '/campaigns/manage',       icon: 'zap' },
-      { label: 'Send Queue',    path: '/campaigns/queue',        icon: 'clock' },
-      { label: 'Enrollments',   path: '/campaigns/enrollments',  icon: 'users' },
-      { label: 'History',       path: '/campaigns/history',      icon: 'clipboard' },
-      { label: 'Templates',     path: '/campaigns/templates',    icon: 'file-text' },
+      { label: 'Smart Campaigns', path: '/email/campaigns',   icon: 'layers',        group: 'Campaigns' },
+      { label: 'Send Queue',    path: '/email/campaigns/queue',       icon: 'clock' },
+      { label: 'Enrollments',   path: '/email/campaigns/enrollments', icon: 'users' },
+      { label: 'History',       path: '/email/campaigns/history',     icon: 'file-text' },
+      { label: 'Sent',          path: '/email/sent',          icon: 'check-circle',  group: 'Tracking' },
     ],
   },
   biolink: {
@@ -188,7 +178,7 @@ export function getActiveSection(pathname) {
   if (pathname.startsWith('/pipeline'))    return 'deals'
   if (pathname.startsWith('/content'))    return 'content'
   if (pathname.startsWith('/email'))      return 'email'
-  if (pathname.startsWith('/campaigns'))  return 'campaigns'
+  if (pathname.startsWith('/campaigns'))  return 'email'
   if (pathname.startsWith('/bio-link'))   return 'biolink'
   if (pathname.startsWith('/pnl') || pathname.startsWith('/net-sheet') || pathname.startsWith('/market')) return 'money'
   if (pathname.startsWith('/resources') || pathname.startsWith('/settings')) return 'toolkit'
@@ -212,7 +202,7 @@ export default function ContextSidebar() {
   // Determine which paths need "end" matching (dashboard-level overview routes)
   const endPaths = new Set([
     '/', '/crm', '/pipeline', '/calendar', '/content', '/pnl',
-    '/prospecting', '/bio-link', '/campaigns', '/email', '/resources',
+    '/prospecting', '/bio-link', '/email', '/email/campaigns', '/resources',
     '/goals', '/tasks', '/open-houses', '/net-sheet', '/market', '/settings',
   ])
 

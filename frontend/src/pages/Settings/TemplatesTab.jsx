@@ -10,7 +10,6 @@ const CATEGORIES = [
   { key: 'pipeline',      label: 'Pipeline Emails' },
   { key: 'buyer_sop',     label: 'Buyer Workflow' },
   { key: 'seller_sop',    label: 'Seller Workflow' },
-  { key: 'ai_plans',      label: 'AI Plan Prompts' },
   { key: 'oh_checklist',  label: 'OH Checklist' },
   { key: 'scripts',       label: 'My Scripts' },
 ]
@@ -321,18 +320,13 @@ export default function TemplatesTab() {
         </div>
       )}
 
-      {/* ── AI Plan Prompts (four scenarios, localStorage-backed) ── */}
-      {category === 'ai_plans' && (
-        <AIPlanPromptsEditor search={search} />
-      )}
-
       {/* ── OH Checklist editor ── */}
       {category === 'oh_checklist' && (
         <OHChecklistEditor search={search} />
       )}
 
       {/* ── Template list ── */}
-      {category !== 'scripts' && category !== 'ai_plans' && category !== 'oh_checklist' && filtered.map(t => (
+      {category !== 'scripts' && category !== 'oh_checklist' && filtered.map(t => (
         <div key={t.key} className={`tpl-card${editing === t.key ? ' tpl-card--editing' : ''}`}>
           {editing === t.key ? (
             <div className="tpl-edit-form">
@@ -425,7 +419,7 @@ export default function TemplatesTab() {
       ))}
 
       {/* ── Empty search state ── */}
-      {category !== 'scripts' && category !== 'ai_plans' && category !== 'oh_checklist' && filtered.length === 0 && search && (
+      {category !== 'scripts' && category !== 'oh_checklist' && filtered.length === 0 && search && (
         <p className="tpl-empty__desc" style={{ textAlign: 'center', padding: 24 }}>No templates match "{search}"</p>
       )}
     </div>
@@ -437,7 +431,7 @@ export default function TemplatesTab() {
 // templates used by Sellers → Generate Plan with AI. Editing any scenario
 // here also updates the inline editor in the Sellers modal (same storage).
 // ═════════════════════════════════════════════════════════════════════════════
-function AIPlanPromptsEditor({ search }) {
+export function AIPlanPromptsEditor({ search }) {
   const [editingKey, setEditingKey] = useState(null)
   const [draftBody, setDraftBody] = useState('')
   const [savedTick, setSavedTick] = useState(null)

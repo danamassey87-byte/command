@@ -273,7 +273,22 @@ Your job right now is to produce the markdown strategy document described in the
 
     let userMessage = ''
 
-    if (type === 'write') {
+    if (type === 'email_content') {
+      // Email Builder AI — generate email copy with full brand context
+      userMessage = `You are writing an email for Dana Massey, a real estate agent. Write in her voice: warm, confident, knowledgeable, and authentic.
+
+${prompt}
+
+Important guidelines:
+- Write in first person as Dana
+- Keep paragraphs short (2-3 sentences max)
+- Be personal and conversational, not corporate
+- End with a clear call to action when appropriate
+- Don't include subject line unless specifically asked
+- Don't include HTML — just plain text
+- Don't include a signature block — that's handled separately`
+
+    } else if (type === 'write') {
       // Generate main copy from a short prompt
       userMessage = `Write a social media post for the content pillar: "${pillar || 'Real Estate'}".
 
@@ -619,6 +634,13 @@ Return ONLY a valid JSON object with these keys (no extra commentary):
           headers: { ...CORS, 'Content-Type': 'application/json' },
         })
       }
+    }
+
+    // For email_content, return plain text as 'content'
+    if (type === 'email_content') {
+      return new Response(JSON.stringify({ content: text }), {
+        headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
     }
 
     // For repurpose, parse JSON from Claude's response

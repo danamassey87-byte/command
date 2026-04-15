@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { SectionHeader, Badge, Card, SlidePanel, Input, Select, Textarea, EmptyState, TabBar } from '../../components/ui/index.jsx'
 import { TagPicker, TagBadge, TagManager } from '../../components/ui/TagPicker.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople } from '../../components/related-people/RelatedPeopleSection.jsx'
-import { useContactsWithTags, useTags, useListings, useTransactions } from '../../lib/hooks.js'
+import { useContactsWithTags, useTags, useListings, useTransactions, useReplyLogForContact } from '../../lib/hooks.js'
 import { useNavigate } from 'react-router-dom'
 import * as DB from '../../lib/supabase.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
@@ -321,7 +321,12 @@ export default function Database() {
                   <tbody>
                     {filtered.map(c => (
                       <tr key={c.id} className="db-table__row" onClick={() => openContact(c)}>
-                        <td className="db-table__name">{c.name || '—'}</td>
+                        <td className="db-table__name">
+                          {c.name || '—'}
+                          {c.last_reply_scan_at && (
+                            <span className="db-replied-badge" title={`Replied to campaign email${c.reply_count > 1 ? ` (${c.reply_count}x)` : ''}`}>Replied</span>
+                          )}
+                        </td>
                         <td className="db-table__contact">
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <div>
@@ -447,6 +452,7 @@ export default function Database() {
 /* ─── Contact Detail / Edit ─── */
 function ContactDetail({ contact, onSave, onTagsChange, saving }) {
   const { data: allTransactions } = useTransactions()
+  const { data: replyLog } = useReplyLogForContact(contact.id)
   const contactDeals = useMemo(() =>
     (allTransactions ?? []).filter(t => t.contact_id === contact.id)
   , [allTransactions, contact.id])
@@ -526,6 +532,44 @@ function ContactDetail({ contact, onSave, onTagsChange, saving }) {
               </Card>
             )
           })}
+        </div>
+      )}
+
+      {(replyLog ?? []).length > 0 && (
+        <div className="contact-detail__section">
+          <h4 className="contact-detail__heading" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            Campaign Replies ({replyLog.length})
+            <Badge variant="info" size="sm">Replied</Badge>
+          </h4>
+          {replyLog.slice(0, 5).map(reply => (
+            <Card key={reply.id} style={{ marginBottom: 8, padding: '10px 12px' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <p style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--brown-dark)', margin: 0 }}>
+                    {reply.subject || '(No subject)'}
+                  </p>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+                    {reply.reply_date ? new Date(reply.reply_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                  </span>
+                </div>
+                {reply.campaign_name && (
+                  <p style={{ fontSize: '0.72rem', color: '#7a93b7', margin: '2px 0 0' }}>
+                    Campaign: {reply.campaign_name}
+                  </p>
+                )}
+                {reply.snippet && (
+                  <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', margin: '4px 0 0', fontStyle: 'italic', lineHeight: 1.4 }}>
+                    &ldquo;{reply.snippet.slice(0, 150)}{reply.snippet.length > 150 ? '...' : ''}&rdquo;
+                  </p>
+                )}
+              </div>
+            </Card>
+          ))}
+          {replyLog.length > 5 && (
+            <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+              + {replyLog.length - 5} more replies
+            </p>
+          )}
         </div>
       )}
 

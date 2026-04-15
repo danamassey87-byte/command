@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { SectionHeader, Button, Input, Textarea } from '../../components/ui/index.jsx'
 import { useBrand } from '../../lib/BrandContext'
 import * as DB from '../../lib/supabase'
-import TemplatesTab from './TemplatesTab'
+import TemplatesTab, { AIPlanPromptsEditor } from './TemplatesTab'
 import Recovery from '../Recovery/Recovery'
 import './Settings.css'
 
@@ -36,7 +36,7 @@ const SOCIAL_CHANNELS = [
   { key: 'linktree',     label: 'Linktree / Bio', icon: '🔗', placeholder: 'https://linktr.ee/yourlink' },
 ]
 
-const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'connected', 'ai_prompts', 'lists', 'notifications', 'recovery']
+const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'connected', 'ai_prompts', 'lists', 'notifications', 'tech_stack', 'recovery']
 
 // Each entry = one user-managed dropdown list shown in the Lists tab.
 const DROPDOWN_LISTS_META = [
@@ -76,7 +76,7 @@ export default function Settings() {
             className={`settings-tab${tab === t ? ' settings-tab--active' : ''}`}
             onClick={() => setTab(t)}
           >
-            {{ signature: 'Signature', templates: 'Templates & Scripts', guidelines: 'Brand Guidelines', assets: 'Logos & Headshots', social: 'Social Channels', connected: 'Connected Accounts', ai_prompts: 'AI Prompts', lists: 'Lists & Tags', notifications: 'Notifications', recovery: 'Trash & Archive' }[t] || t}
+            {{ signature: 'Signature', templates: 'Templates & Scripts', guidelines: 'Brand Guidelines', assets: 'Logos & Headshots', social: 'Social Channels', connected: 'Connected Accounts', ai_prompts: 'AI Prompts', lists: 'Lists & Tags', notifications: 'Notifications', tech_stack: 'Tech Stack', recovery: 'Trash & Archive' }[t] || t}
           </button>
         ))}
       </div>
@@ -90,6 +90,7 @@ export default function Settings() {
       {tab === 'ai_prompts' && <AiPromptsTab />}
       {tab === 'lists'      && <ListsTab />}
       {tab === 'notifications' && <NotificationsTab />}
+      {tab === 'tech_stack'    && <TechStackTab />}
       {tab === 'recovery'   && <Recovery />}
     </div>
   )
@@ -1094,9 +1095,13 @@ function GoogleAccountCard() {
       const { data, error } = await DB.scanGmailReplies()
       if (error) throw new Error(error)
       if (data?.error) throw new Error(data.error)
+      const parts = [`Found ${data.replies_found || 0} new replies`]
+      if (data.contacts_flagged) parts.push(`flagged ${data.contacts_flagged} contacts`)
+      if (data.steps_updated) parts.push(`updated ${data.steps_updated} campaign steps`)
+      if (data.notifications_created) parts.push(`created ${data.notifications_created} notifications`)
       setReplyStatus({
         ok: true,
-        message: `Found ${data.replies_found || 0} replies, flagged ${data.contacts_flagged || 0} contacts.`,
+        message: parts.join(', ') + '.',
       })
     } catch (err) {
       setReplyStatus({ ok: false, message: err.message })
@@ -1459,6 +1464,316 @@ function AiPromptsTab() {
             No AI prompts configured yet. Run the migration to seed defaults.
           </p>
         )}
+      </div>
+
+      {/* ── AI Plan Prompts (listing scenario templates) ── */}
+      <div style={{ marginTop: 32, borderTop: '1px solid #e8e3de', paddingTop: 24 }}>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--brown-dark)', margin: '0 0 4px' }}>Listing Plan Prompts</h3>
+        <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', margin: '0 0 16px' }}>
+          Customize the prompts used by Generate Plan with AI on your listings. Each listing source scenario has its own prompt.
+        </p>
+        <AIPlanPromptsEditor search="" />
+      </div>
+    </div>
+  )
+}
+
+// ─── Tech Stack Tab ─────────────────────────────────────────────────────────
+const TECH_ACTIVE_SERVICES = [
+  { name: 'Supabase', icon: '⚡', desc: 'Database, auth, edge functions, storage', plan: 'Free', cost: '$0', detail: 'Project: Client Tracker. 500MB DB, 1GB storage, 500K edge invocations/mo' },
+  { name: 'Vercel', icon: '▲', desc: 'Frontend hosting & CDN', plan: 'Hobby (Free)', cost: '$0', detail: 'Deploys from GitHub → command-theta.vercel.app' },
+  { name: 'Resend', icon: '✉️', desc: 'Email sending for campaigns', plan: 'Pro', cost: '$20/mo', detail: '2 verified domains: danamassey.com (warm) + mail.danamassey.com (cold). Up to 50K emails/mo' },
+  { name: 'Google Cloud', icon: '☁️', desc: 'Maps, Calendar sync, Gmail, OAuth', plan: 'Pay-as-you-go', cost: '~$2-5/mo', detail: 'Project: real-estate-tracker-485118. Most APIs have 28,500 free calls/mo' },
+  { name: 'Anthropic / Claude', icon: '🧠', desc: 'AI content generation, listing plans, campaign optimizer', plan: 'Pay-per-token', cost: '~$5-15/mo', detail: '~$0.02-0.05 per generation at current volume' },
+  { name: 'Cloudflare', icon: '🛡️', desc: 'DNS for danamassey.com', plan: 'Free', cost: '$0', detail: '' },
+  { name: 'GitHub', icon: '🐙', desc: 'Code repository (private)', plan: 'Free', cost: '$0', detail: 'danamassey87-byte/command.git' },
+  { name: 'Blotato', icon: '🍌', desc: 'AI content engine & multi-platform publisher', plan: 'Connected', cost: 'Included', detail: 'Publish to all social platforms' },
+  { name: 'Canva Connect', icon: '🎨', desc: 'Design generation & brand kit integration', plan: 'API', cost: 'Included', detail: 'Uses "Dana" brand kit for all templates' },
+]
+
+const TECH_API_CONNECTIONS = [
+  { name: 'Google OAuth', scope: 'Calendar, Gmail (read-only)', status: 'connected', detail: 'Two-way calendar sync + reply detection' },
+  { name: 'Resend API', scope: 'Email sending', status: 'connected', detail: 'Warm + cold domain sending' },
+  { name: 'Blotato API', scope: 'Social publishing', status: 'connected', detail: 'Multi-platform content distribution' },
+  { name: 'Canva Connect API', scope: 'Design automation', status: 'connected', detail: 'Brand-kit template generation' },
+  { name: 'Anthropic API', scope: 'Claude AI', status: 'connected', detail: 'Content generation, hashtags, SEO, campaign optimizer' },
+  { name: 'Google Maps Platform', scope: 'Places, Geocoding, Maps JS', status: 'connected', detail: 'Address autocomplete, map views, geocoding' },
+  { name: 'Weather.gov (NOAA)', scope: 'Weather data', status: 'connected', detail: 'Free, no key required. Used for showing day briefings' },
+]
+
+const TECH_GOOGLE_APIS = [
+  { group: 'Location / Mapping', apis: ['Places API (New)', 'Geocoding API', 'Maps JavaScript API', 'Route Optimization API', 'Distance Matrix API', 'Directions API', 'Address Validation API', 'Street View Static API'] },
+  { group: 'Google Workspace', apis: ['Gmail API', 'Google Calendar API', 'Google Docs API', 'Google Drive API', 'Google Sheets API', 'People API'] },
+  { group: 'Content / Marketing', apis: ['YouTube Data API v3', 'YouTube Analytics API', 'Google Ads API'] },
+]
+
+const TECH_COSTS = {
+  current: { min: 27, max: 40, label: 'Today (single user, free tiers)' },
+  phase2: { min: 52, max: 65, label: 'After Auth + Supabase Pro' },
+  full: { min: 100, max: 150, label: 'Full stack (all queued features)' },
+}
+
+const TECH_QUEUED = [
+  { name: 'Lofty CRM', desc: 'Webhook or Zapier auto-sync contacts into Buyers/LeadGen', status: 'queued', note: 'Already paying — existing cost' },
+  { name: 'ARMLS / Trestle MLS', desc: 'RESO Web API feed for active listings', status: 'needs_approval', note: 'Needs broker co-sign. Typically $0' },
+  { name: 'Gamma Pro', desc: 'AI listing presentations + single property websites', status: 'queued', note: 'Est. $15-20/mo' },
+  { name: 'Google Drive OAuth', desc: 'Auto-create client folders, share with TCs, photo sync', status: 'queued', note: 'High priority after Gamma' },
+  { name: 'Twilio', desc: 'SMS auto-send for showing reminders, OH confirmations', status: 'queued', note: 'Est. $20-50/mo' },
+  { name: 'Supabase Pro', desc: 'Upgrade when Auth + RLS multi-user goes live', status: 'queued', note: '+$25/mo' },
+  { name: 'Canva Pro', desc: 'Full design automation via Canva Connect API', status: 'queued', note: 'Est. $13/mo' },
+  { name: 'Google Business Profile', desc: 'Automate GMB listing, Q&A, photos, insights', status: 'queued', note: 'Free API' },
+  { name: 'Cloud Vision API', desc: 'Photo auto-tagging, OCR, face detection warnings', status: 'queued', note: 'Free tier available' },
+  { name: 'Cloud Translation API', desc: 'Bilingual listings for Spanish-speaking market', status: 'queued', note: 'Free tier available' },
+  { name: 'Cloud Document AI', desc: 'Smart parsing of contracts, disclosures, closing docs', status: 'queued', note: 'Pay-per-page' },
+]
+
+function TechStackTab() {
+  const cardStyle = {
+    background: '#fff',
+    border: '1px solid #e8e3de',
+    borderRadius: 12,
+    padding: '18px 20px',
+    marginBottom: 16,
+  }
+  const sectionTitleStyle = {
+    fontFamily: 'var(--font-display)',
+    fontSize: '1.1rem',
+    color: 'var(--brown-dark)',
+    margin: '0 0 4px',
+  }
+  const sectionDescStyle = {
+    fontSize: '0.82rem',
+    color: 'var(--color-text-muted)',
+    margin: '0 0 16px',
+  }
+  const labelStyle = {
+    fontSize: '0.72rem',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    color: 'var(--color-text-muted)',
+    marginBottom: 10,
+  }
+
+  function StatusBadge({ status }) {
+    const styles = {
+      connected:      { color: '#137333', bg: '#e6f4ea', label: 'Connected' },
+      queued:         { color: '#e65100', bg: '#fff3e0', label: 'Queued' },
+      needs_approval: { color: '#b45309', bg: '#fef3cd', label: 'Needs Approval' },
+      not_connected:  { color: '#9a8e85', bg: '#f5f0eb', label: 'Not Connected' },
+    }
+    const s = styles[status] || styles.not_connected
+    return (
+      <span style={{
+        fontSize: '0.68rem', fontWeight: 600, padding: '3px 10px', borderRadius: 6,
+        color: s.color, background: s.bg, whiteSpace: 'nowrap',
+      }}>
+        {s.label}
+      </span>
+    )
+  }
+
+  function CostBadge({ cost }) {
+    const isFree = cost === '$0' || cost === 'Included'
+    return (
+      <span style={{
+        fontSize: '0.72rem', fontWeight: 600, padding: '2px 8px', borderRadius: 5,
+        color: isFree ? '#137333' : 'var(--brown-dark)',
+        background: isFree ? '#e6f4ea' : '#f5f0eb',
+        whiteSpace: 'nowrap', fontFamily: 'var(--font-body)',
+      }}>
+        {cost}
+      </span>
+    )
+  }
+
+  // Compute current total
+  const totalMin = TECH_COSTS.current.min
+  const totalMax = TECH_COSTS.current.max
+
+  return (
+    <div className="settings-section">
+      <h3 style={sectionTitleStyle}>Tech Stack</h3>
+      <p style={sectionDescStyle}>
+        Full breakdown of every service, API, and integration powering Command Center.
+      </p>
+
+      {/* ── Active Services ── */}
+      <div style={cardStyle}>
+        <div style={labelStyle}>Active Services</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {TECH_ACTIVE_SERVICES.map(svc => (
+            <div key={svc.name} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '10px 14px', background: '#faf8f5', borderRadius: 10,
+              border: '1px solid #eee9e3',
+            }}>
+              <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>{svc.icon}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.9rem' }}>{svc.name}</span>
+                  <span style={{
+                    fontSize: '0.68rem', fontWeight: 500, color: 'var(--color-text-muted)',
+                    background: '#eee9e3', padding: '1px 7px', borderRadius: 4,
+                  }}>{svc.plan}</span>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 2 }}>{svc.desc}</div>
+                {svc.detail && (
+                  <div style={{ fontSize: '0.72rem', color: '#9a8e85', marginTop: 2 }}>{svc.detail}</div>
+                )}
+              </div>
+              <CostBadge cost={svc.cost} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── APIs & OAuth Connections ── */}
+      <div style={cardStyle}>
+        <div style={labelStyle}>APIs & OAuth Connections</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {TECH_API_CONNECTIONS.map(api => (
+            <div key={api.name} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '9px 14px', background: '#faf8f5', borderRadius: 10,
+              border: '1px solid #eee9e3',
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.88rem' }}>{api.name}</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{api.scope}</span>
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#9a8e85', marginTop: 2 }}>{api.detail}</div>
+              </div>
+              <StatusBadge status={api.status} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Google Cloud APIs (enabled) ── */}
+      <div style={cardStyle}>
+        <div style={labelStyle}>Google Cloud APIs Enabled</div>
+        <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', margin: '-4px 0 12px' }}>
+          GCP Project: <code style={{ fontSize: '0.75rem', background: '#f5f0eb', padding: '1px 6px', borderRadius: 3 }}>real-estate-tracker-485118</code>
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {TECH_GOOGLE_APIS.map(group => (
+            <div key={group.group}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 6 }}>{group.group}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {group.apis.map(api => (
+                  <span key={api} style={{
+                    padding: '4px 10px', borderRadius: 6, fontSize: '0.74rem',
+                    border: '1px solid #e0dbd6', color: 'var(--brown-dark)', background: '#faf8f5',
+                  }}>
+                    {api}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Monthly Costs ── */}
+      <div style={cardStyle}>
+        <div style={labelStyle}>Monthly Costs</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Current breakdown */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px',
+            background: 'linear-gradient(135deg, #edf4ee 0%, #faf8f5 100%)',
+            borderRadius: 10, border: '1px solid #d4e6d8',
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.9rem' }}>{TECH_COSTS.current.label}</div>
+              <div style={{ fontSize: '0.72rem', color: '#9a8e85', marginTop: 2 }}>
+                Resend $20 + Google Cloud ~$2-5 + Anthropic ~$5-15
+              </div>
+            </div>
+            <span style={{
+              fontWeight: 700, fontSize: '1.1rem', color: '#137333',
+              fontFamily: 'var(--font-body)',
+            }}>
+              ~${totalMin}-{totalMax}
+            </span>
+          </div>
+
+          {/* Phase 2 */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px',
+            background: '#fdf6e3', borderRadius: 10, border: '1px solid #ede0c0',
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.9rem' }}>{TECH_COSTS.phase2.label}</div>
+              <div style={{ fontSize: '0.72rem', color: '#9a8e85', marginTop: 2 }}>
+                + Supabase Pro $25/mo
+              </div>
+            </div>
+            <span style={{
+              fontWeight: 700, fontSize: '1.1rem', color: '#b45309',
+              fontFamily: 'var(--font-body)',
+            }}>
+              ~${TECH_COSTS.phase2.min}-{TECH_COSTS.phase2.max}
+            </span>
+          </div>
+
+          {/* Full stack */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px',
+            background: '#f5f0eb', borderRadius: 10, border: '1px solid #e0dbd6',
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.9rem' }}>{TECH_COSTS.full.label}</div>
+              <div style={{ fontSize: '0.72rem', color: '#9a8e85', marginTop: 2 }}>
+                + Gamma $15-20, Twilio $20-50, Canva $13, Supabase Pro $25
+              </div>
+            </div>
+            <span style={{
+              fontWeight: 700, fontSize: '1.1rem', color: 'var(--brown-dark)',
+              fontFamily: 'var(--font-body)',
+            }}>
+              ~${TECH_COSTS.full.min}-{TECH_COSTS.full.max}
+            </span>
+          </div>
+
+          {/* Context note */}
+          <p style={{
+            fontSize: '0.75rem', color: '#9a8e85', fontStyle: 'italic',
+            padding: '8px 14px', background: '#faf8f5', borderRadius: 8, lineHeight: 1.5,
+          }}>
+            Full CRM + campaigns + AI content + email marketing for less than most agents pay for a single tool like Boomtown ($300-500/mo) or Follow Up Boss ($200-400/mo).
+          </p>
+        </div>
+      </div>
+
+      {/* ── Queued Integrations ── */}
+      <div style={cardStyle}>
+        <div style={labelStyle}>Queued Integrations</div>
+        <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', margin: '-4px 0 12px' }}>
+          Not yet connected — planned for future phases.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {TECH_QUEUED.map(item => (
+            <div key={item.name} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '10px 14px', background: '#faf8f5', borderRadius: 10,
+              border: '1px solid #eee9e3', opacity: 0.85,
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.88rem' }}>{item.name}</span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 2 }}>{item.desc}</div>
+                {item.note && (
+                  <div style={{ fontSize: '0.68rem', color: '#9a8e85', marginTop: 2, fontStyle: 'italic' }}>{item.note}</div>
+                )}
+              </div>
+              <StatusBadge status={item.status} />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

@@ -1,0 +1,189 @@
+/* ─── PropertyMap ────────────────────────────────────────────────────────── */
+.pmap {
+  background: var(--white, #fff);
+  border: 1px solid var(--brown-light);
+  border-radius: var(--radius-md, 14px);
+  overflow: hidden;
+  position: relative;
+}
+
+.pmap__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 10px;
+}
+
+.pmap__title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+  margin: 0;
+}
+
+.pmap__count {
+  font-size: 0.75rem;
+  color: var(--brown-warm);
+  background: var(--cream);
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.pmap__container {
+  width: 100%;
+  position: relative;
+}
+
+.pmap__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 260px;
+  color: var(--brown-warm);
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+}
+
+.pmap__error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 260px;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  padding: 24px;
+  text-align: center;
+}
+
+.pmap__controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+}
+
+.pmap__toggle {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 0.7rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--brown-dark);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.pmap__toggle:hover {
+  background: var(--brown-dark);
+  color: var(--white);
+}
+
+.pmap__toggle--active {
+  background: var(--brown-dark);
+  color: var(--white);
+}
+
+/* ─── InfoWindow tooltip ────────────────────────────────────────────────── */
+.pmap-info {
+  text-align: left;
+  padding: 2px;
+  min-width: 160px;
+  max-width: 220px;
+  font-family: var(--font-body, 'Nunito Sans', sans-serif);
+}
+
+.pmap-info__address {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #3A2A1E;
+  line-height: 1.3;
+}
+
+.pmap-info__price {
+  margin: 0 0 2px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #5A4136;
+}
+
+.pmap-info__detail {
+  margin: 0;
+  font-size: 0.65rem;
+  color: #8a7e72;
+  line-height: 1.3;
+}
+
+.pmap-info__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.pmap-info__link {
+  font-size: 0.65rem;
+  color: #B79782;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.15s;
+}
+
+.pmap-info__link:hover {
+  color: #3A2A1E;
+}
+
+/* ─── Google InfoWindow overrides (scoped to pmap) ──────────────────────── */
+.pmap .gm-style-iw-c {
+  padding: 8px !important;
+  border-radius: 10px !important;
+  box-shadow: 0 2px 12px rgba(58, 42, 30, 0.15) !important;
+}
+.pmap .gm-style-iw-d {
+  overflow: hidden !important;
+}
+.pmap .gm-style-iw-tc::after {
+  background: #fff !important;
+}
+
+/* ─── Empty state ───────────────────────────────────────────────────────── */
+.pmap__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: var(--brown-warm);
+  gap: 8px;
+}
+
+.pmap__empty-icon {
+  font-size: 2rem;
+  opacity: 0.4;
+}
+
+.pmap__empty-text {
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+}
+
+/* ─── Responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .pmap__header {
+    padding: 10px 14px 8px;
+  }
+  .pmap__title {
+    font-size: 1rem;
+  }
+}

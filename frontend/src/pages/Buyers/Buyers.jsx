@@ -142,7 +142,7 @@ function LenderPicker({ value, onChange }) {
 }
 
 // ─── Buyer Edit Form ───────────────────────────────────────────────────────────
-function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
+function BuyerForm({ buyer, onSave, onDelete, onPutOnHold, onClose, saving, deleting }) {
   const isNew = !buyer?.id || typeof buyer.id === 'number'
   const { data: tagData } = useContactTags(buyer?.id)
   const [contactTags, setContactTags] = useState([])
@@ -281,9 +281,14 @@ function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
           {saving ? 'Saving…' : isNew ? 'Add Buyer' : 'Save Changes'}
         </Button>
         {!isNew && (
-          <Button variant="danger" size="sm" onClick={onDelete} disabled={deleting}>
-            {deleting ? 'Removing…' : 'Delete'}
-          </Button>
+          <>
+            <Button variant="warning" size="sm" onClick={onPutOnHold} disabled={saving}
+              icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>}
+            >Put on Hold</Button>
+            <Button variant="danger" size="sm" onClick={onDelete} disabled={deleting}>
+              {deleting ? 'Removing…' : 'Delete'}
+            </Button>
+          </>
         )}
       </div>
     </>
@@ -644,6 +649,26 @@ export default function Buyers() {
     }
   }
 
+  // ─── Put on Hold ──
+  const [onHoldModal, setOnHoldModal] = useState(false)
+  const [onHoldReason, setOnHoldReason] = useState('')
+  const handlePutOnHold = () => {
+    if (!editingBuyer || typeof editingBuyer.id !== 'string') return
+    setOnHoldReason('')
+    setOnHoldModal(true)
+  }
+  const confirmPutOnHold = async () => {
+    try {
+      await DB.putContactOnHold(editingBuyer.id, onHoldReason.trim())
+      await DB.logActivity('contact_on_hold', `Put on hold: ${editingBuyer.name}`, { contactId: editingBuyer.id })
+      await refetch()
+      setOnHoldModal(false)
+      closePanel()
+    } catch (e) {
+      setError(e.message)
+    }
+  }
+
   // Inline field update — saves a single field without opening the panel
   const [savingInline, setSavingInline] = useState({})
   const inlineUpdate = async (id, field, value) => {
@@ -705,7 +730,7 @@ export default function Buyers() {
           width={460}
         >
           {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{error}</p>}
-          <BuyerForm key={editingBuyer?.id || 'new'} buyer={editingBuyer} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
+          <BuyerForm key={editingBuyer?.id || 'new'} buyer={editingBuyer} onSave={handleSave} onDelete={handleDelete} onPutOnHold={handlePutOnHold} onClose={closePanel} saving={saving} deleting={deleting} />
         </SlidePanel>
       </>
     )
@@ -913,10 +938,32 @@ export default function Buyers() {
         width={460}
       >
         {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{error}</p>}
-        <BuyerForm key={editingBuyer?.id || 'new'} buyer={editingBuyer} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
+        <BuyerForm key={editingBuyer?.id || 'new'} buyer={editingBuyer} onSave={handleSave} onDelete={handleDelete} onPutOnHold={handlePutOnHold} onClose={closePanel} saving={saving} deleting={deleting} />
       </SlidePanel>
 
       <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} contactType="buyer" />
+
+      {/* On-Hold Reason Modal */}
+      {onHoldModal && (
+        <div className="on-hold-modal__overlay" onClick={() => setOnHoldModal(false)}>
+          <div className="on-hold-modal" onClick={e => e.stopPropagation()}>
+            <h3>Put {editingBuyer?.name} on Hold</h3>
+            <div className="on-hold-modal__field">
+              <label>Reason (optional)</label>
+              <textarea
+                value={onHoldReason}
+                onChange={e => setOnHoldReason(e.target.value)}
+                placeholder="e.g. Waiting on lease to end, market timing, personal reasons..."
+                autoFocus
+              />
+            </div>
+            <div className="on-hold-modal__actions">
+              <Button variant="ghost" size="sm" onClick={() => setOnHoldModal(false)}>Cancel</Button>
+              <Button variant="warning" size="sm" onClick={confirmPutOnHold}>Confirm</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

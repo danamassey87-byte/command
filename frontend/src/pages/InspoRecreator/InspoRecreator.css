@@ -318,6 +318,49 @@
   border-top: 1px solid #e8e3de; margin-top: 20px;
 }
 
+/* ─── Recreate for Me button (on cards) ───────────────────────────────────── */
+.ir-recreate-btn {
+  font-size: 0.68rem; font-weight: 600; padding: 3px 10px;
+  border-radius: 5px; border: 1px solid var(--brown-warm, #b79782);
+  background: #faf8f5; color: var(--brown-warm, #b79782);
+  cursor: pointer; transition: all 0.15s ease; white-space: nowrap;
+}
+.ir-recreate-btn:hover { background: var(--brown-warm, #b79782); color: #fff; }
+.ir-recreate-btn:disabled { opacity: 0.6; cursor: wait; }
+
+/* ─── Quick result (inline in detail panel) ───────────────────────────────── */
+.ir-quick-result {
+  margin-top: 16px; padding: 16px; background: #f9f7f4;
+  border: 1px solid #e8e3de; border-radius: 12px;
+  animation: ir-fade-in 0.3s ease;
+}
+.ir-quick-result__hook {
+  font-size: 0.85rem; font-weight: 600; color: var(--brown-dark);
+  margin-bottom: 8px; font-style: italic;
+}
+.ir-quick-result__text {
+  font-size: 0.85rem; line-height: 1.65; color: var(--brown-dark);
+  white-space: pre-wrap; word-break: break-word; margin-bottom: 8px;
+}
+.ir-quick-result__hashtags {
+  font-size: 0.78rem; color: #5b8fa8; margin-bottom: 8px;
+}
+.ir-quick-result__analysis {
+  margin-bottom: 12px; font-size: 0.78rem; color: var(--color-text-muted);
+}
+.ir-quick-result__analysis summary {
+  cursor: pointer; font-weight: 600; font-size: 0.72rem;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--color-text-muted); margin-bottom: 4px;
+}
+.ir-quick-result__analysis div {
+  padding: 8px 0; line-height: 1.6;
+}
+.ir-quick-result__actions {
+  display: flex; gap: 8px; padding-top: 10px;
+  border-top: 1px solid #e8e3de;
+}
+
 /* ─── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 700px) {
   .ir-results { grid-template-columns: 1fr; }

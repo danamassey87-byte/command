@@ -1,0 +1,356 @@
+/* ─── Day Briefing Card ─────────────────────────────────────────────────── */
+.briefing {
+  background: var(--white, #fff);
+  border: 1px solid var(--brown-light);
+  border-radius: var(--radius-md, 14px);
+  overflow: hidden;
+  animation: briefingSlideIn 0.5s ease both;
+}
+
+@keyframes briefingSlideIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Header ────────────────────────────────────────────────────────────── */
+.briefing__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--color-border-light, #e8e4de);
+}
+
+.briefing__date-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.briefing__day {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 500;
+  font-style: italic;
+  color: var(--brown-dark);
+  line-height: 1.2;
+}
+
+.briefing__date {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--brown-warm);
+}
+
+.briefing__label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--brown-mid);
+  background: var(--cream);
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+
+/* ─── Weather Section ───────────────────────────────────────────────────── */
+.briefing__weather {
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--color-border-light, #e8e4de);
+}
+
+.briefing__weather-icon {
+  font-size: 2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.briefing__weather-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.briefing__temp {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 500;
+  color: var(--brown-dark);
+  line-height: 1;
+}
+
+.briefing__conditions {
+  font-size: 0.78rem;
+  color: var(--brown-warm);
+  margin-top: 2px;
+}
+
+.briefing__weather-details {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.briefing__weather-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.briefing__weather-stat-label {
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--brown-light);
+}
+
+.briefing__weather-stat-value {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--brown-warm);
+}
+
+/* ─── Heat Warning ──────────────────────────────────────────────────────── */
+.briefing__heat-warn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: var(--color-warning-bg, #fdf6e3);
+  border-bottom: 1px solid var(--color-border-light, #e8e4de);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-warning, #c99a2e);
+}
+
+.briefing__heat-warn--severe {
+  background: var(--color-danger-bg, #fdf0ed);
+  color: var(--color-danger, #c0604a);
+}
+
+.briefing__heat-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+/* ─── NWS Alerts ────────────────────────────────────────────────────────── */
+.briefing__alerts {
+  padding: 0 20px;
+}
+
+.briefing__alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border-light, #e8e4de);
+  font-size: 0.72rem;
+  color: var(--color-danger, #c0604a);
+  font-weight: 600;
+}
+
+.briefing__alert:last-child {
+  border-bottom: none;
+}
+
+/* ─── Schedule Timeline ─────────────────────────────────────────────────── */
+.briefing__schedule {
+  padding: 14px 20px 16px;
+}
+
+.briefing__schedule-title {
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--brown-mid);
+  margin: 0 0 10px;
+}
+
+.briefing__timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+/* Timeline connector line */
+.briefing__timeline::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 10px;
+  bottom: 10px;
+  width: 2px;
+  background: var(--color-border-light, #e8e4de);
+  border-radius: 1px;
+}
+
+.briefing__event {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 8px 0;
+  position: relative;
+}
+
+/* Timeline dot */
+.briefing__event-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 2px;
+  z-index: 1;
+  border: 2px solid var(--white);
+}
+
+.briefing__event-dot--showing    { background: var(--brown-mid); }
+.briefing__event-dot--open_house { background: var(--sage-green); }
+.briefing__event-dot--photoshoot { background: var(--color-warning); }
+.briefing__event-dot--listing_appt { background: var(--brown-dark); }
+.briefing__event-dot--closing    { background: var(--color-success); }
+.briefing__event-dot--default    { background: var(--brown-light); }
+
+.briefing__event-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.briefing__event-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.briefing__event-time {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--brown-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.briefing__event-badge {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 10px;
+  line-height: 1.3;
+}
+
+.briefing__event-badge--showing    { background: rgba(183, 151, 130, 0.15); color: var(--brown-mid); }
+.briefing__event-badge--open_house { background: rgba(139, 154, 123, 0.15); color: var(--sage-green); }
+.briefing__event-badge--photoshoot { background: var(--color-warning-bg); color: var(--color-warning); }
+.briefing__event-badge--listing_appt { background: rgba(58, 42, 30, 0.1); color: var(--brown-dark); }
+.briefing__event-badge--closing    { background: var(--color-success-bg); color: var(--color-success); }
+.briefing__event-badge--default    { background: var(--cream); color: var(--brown-warm); }
+
+.briefing__event-address {
+  font-size: 0.78rem;
+  color: var(--brown-warm);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.briefing__event-contact {
+  font-size: 0.7rem;
+  color: var(--brown-light);
+  margin-top: 1px;
+}
+
+.briefing__event-meta {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.briefing__event-meta-item {
+  font-size: 0.65rem;
+  color: var(--brown-mid);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.briefing__event-meta-icon {
+  font-size: 0.7rem;
+}
+
+/* ─── Traffic link ──────────────────────────────────────────────────────── */
+.briefing__traffic {
+  padding: 10px 20px 14px;
+  border-top: 1px solid var(--color-border-light, #e8e4de);
+}
+
+.briefing__traffic-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--brown-mid);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.briefing__traffic-link:hover {
+  color: var(--brown-dark);
+}
+
+/* ─── Empty state ───────────────────────────────────────────────────────── */
+.briefing__empty {
+  padding: 24px 20px;
+  text-align: center;
+  color: var(--brown-warm);
+  font-size: 0.82rem;
+}
+
+.briefing__empty-icon {
+  font-size: 1.8rem;
+  display: block;
+  margin-bottom: 6px;
+  opacity: 0.4;
+}
+
+/* ─── Loading ───────────────────────────────────────────────────────────── */
+.briefing__weather--loading {
+  justify-content: center;
+  color: var(--brown-warm);
+  font-size: 0.8rem;
+  min-height: 60px;
+}
+
+/* ─── Responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .briefing__header {
+    padding: 12px 14px 10px;
+  }
+  .briefing__weather {
+    padding: 10px 14px;
+    flex-wrap: wrap;
+  }
+  .briefing__weather-details {
+    width: 100%;
+    justify-content: flex-start;
+    margin-top: 6px;
+  }
+  .briefing__schedule {
+    padding: 10px 14px 14px;
+  }
+  .briefing__event-address {
+    white-space: normal;
+  }
+}
