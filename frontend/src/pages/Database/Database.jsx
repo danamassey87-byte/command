@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { SectionHeader, Badge, Card, SlidePanel, Input, Select, Textarea, EmptyState, TabBar } from '../../components/ui/index.jsx'
 import { TagPicker, TagBadge, TagManager } from '../../components/ui/TagPicker.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople } from '../../components/related-people/RelatedPeopleSection.jsx'
-import { useContactsWithTags, useTags, useListings } from '../../lib/hooks.js'
+import { useContactsWithTags, useTags, useListings, useTransactions } from '../../lib/hooks.js'
 import { useNavigate } from 'react-router-dom'
 import * as DB from '../../lib/supabase.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
@@ -446,6 +446,11 @@ export default function Database() {
 
 /* ─── Contact Detail / Edit ─── */
 function ContactDetail({ contact, onSave, onTagsChange, saving }) {
+  const { data: allTransactions } = useTransactions()
+  const contactDeals = useMemo(() =>
+    (allTransactions ?? []).filter(t => t.contact_id === contact.id)
+  , [allTransactions, contact.id])
+
   const [draft, setDraft] = useState({
     name:  contact.name ?? '',
     email: contact.email ?? '',
@@ -499,6 +504,30 @@ function ContactDetail({ contact, onSave, onTagsChange, saving }) {
           onChange={v => set('related_people', v)}
         />
       </div>
+
+      {contactDeals.length > 0 && (
+        <div className="contact-detail__section">
+          <h4 className="contact-detail__heading">Deals ({contactDeals.length})</h4>
+          {contactDeals.map(deal => {
+            const stg = (deal.status ?? '').replace(/_/g, ' ')
+            const isClosed = stg.includes('closed')
+            const isDeclined = stg.includes('declined')
+            return (
+              <Card key={deal.id} style={{ marginBottom: 8, padding: '10px 12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <div>
+                    <p style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--brown-dark)' }}>{deal.property?.address ?? 'No address'}</p>
+                    <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+                      {deal.property?.city ?? ''}{deal.property?.price ? ` · $${Number(deal.property.price).toLocaleString()}` : ''}
+                    </p>
+                  </div>
+                  <Badge variant={isClosed ? 'success' : isDeclined ? 'danger' : 'accent'} size="sm" style={{ textTransform: 'capitalize' }}>{stg || 'Active'}</Badge>
+                </div>
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
       <button
         className="db-save-btn"

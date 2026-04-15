@@ -77,6 +77,7 @@ const pageTitles = {
   '/email':              'Email',
   '/email/builder':      'Email Builder',
   '/email/templates':    'Email Templates',
+  '/email/newsletters':  'Newsletters',
   '/email/campaigns':    'Campaigns',
   '/email/sent':         'Sent Emails',
   '/resources':          'Resource Hub',
