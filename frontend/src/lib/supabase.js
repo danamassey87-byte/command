@@ -247,6 +247,65 @@ export const getTransactions = () =>
 export const createTransaction  = (d)      => query(supabase.from('transactions').insert(d).select().single())
 export const updateTransaction  = (id, d)  => query(supabase.from('transactions').update(d).eq('id', id).select().single())
 
+// Get all offers for a specific contact (offer history across all properties)
+export const getOfferHistory = (contactId) =>
+  query(supabase.from('transactions').select(`
+    *, contact:contacts(id,name,email,phone), property:properties(id,address,city,price)
+  `).eq('contact_id', contactId).order('created_at', { ascending: false }))
+
+// Get all offers for a specific contact+property combo
+export const getOffersForProperty = (contactId, propertyId) =>
+  query(supabase.from('transactions').select(`
+    *, contact:contacts(id,name,email,phone), property:properties(id,address,city,price)
+  `).eq('contact_id', contactId).eq('property_id', propertyId).order('offer_number', { ascending: false }))
+
+// Archive/reject an offer (mark inactive, set outcome)
+export const archiveOffer = (id, outcome, notes, rejectionReason) =>
+  query(supabase.from('transactions').update({
+    is_active_offer: false,
+    outcome,
+    outcome_date: new Date().toISOString(),
+    outcome_notes: notes || null,
+    rejection_reason: rejectionReason || null,
+  }).eq('id', id).select().single())
+
+// Create a new offer attempt for the same contact+property (re-offer after rejection)
+export const createReOffer = async (previousDeal) => {
+  // Get highest offer_number for this contact+property
+  const { data: prev } = await supabase.from('transactions')
+    .select('offer_number')
+    .eq('contact_id', previousDeal.contact_id)
+    .eq('property_id', previousDeal.property_id)
+    .order('offer_number', { ascending: false })
+    .limit(1)
+  const nextNum = ((prev?.[0]?.offer_number) ?? 0) + 1
+  return query(supabase.from('transactions').insert({
+    contact_id: previousDeal.contact_id,
+    property_id: previousDeal.property_id,
+    deal_type: previousDeal.deal_type,
+    financing_type: previousDeal.financing_type,
+    lender: previousDeal.lender,
+    title_company: previousDeal.title_company,
+    lead_source: previousDeal.lead_source,
+    lead_source_fee: previousDeal.lead_source_fee,
+    expected_commission: previousDeal.expected_commission,
+    offer_number: nextNum,
+    previous_offer_id: previousDeal.id,
+    status: 'Offer Submitted',
+    offer_submitted_at: new Date().toISOString(),
+    is_active_offer: true,
+    outcome: 'active',
+  }).select(`
+    *, contact:contacts(id,name,email,phone), property:properties(id,address,city,price)
+  `).single())
+}
+
+// Get status change log for a transaction
+export const getStatusLog = (transactionId) =>
+  query(supabase.from('transaction_status_log').select('*')
+    .eq('transaction_id', transactionId)
+    .order('changed_at', { ascending: false }))
+
 // ─── Showing Sessions ────────────────────────────────────────────────────────
 export const getShowingSessions = () =>
   query(supabase.from('showing_sessions').select(`

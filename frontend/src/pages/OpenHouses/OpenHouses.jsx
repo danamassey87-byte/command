@@ -1,4 +1,4 @@
-import React, { useState, useMemo, Component } from 'react'
+import React, { useState, useEffect, useMemo, Component } from 'react'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, SlidePanel, Input, Select, Textarea, InfoTip, AddressLink } from '../../components/ui/index.jsx'
 import { useOpenHouses, useOHOutreach, useOHTasksForOH, useHostReports, useProperties, useListings } from '../../lib/hooks.js'
 import { useBrandSignature } from '../../lib/BrandContext'
@@ -694,12 +694,91 @@ function OHDetail({ oh, onBack, onEdit }) {
         <Card className="oh-detail__notes"><p className="oh-detail__notes-label">Notes</p><p>{oh.notes}</p></Card>
       )}
 
+      {/* Sign-In Attendees */}
+      {typeof oh.id === 'string' && <AttendeesPanel ohId={oh.id} />}
+
       <div className="oh-detail__tasks-section">
         <h3 className="oh-detail__tasks-title">Process Checklist</h3>
         {typeof oh.id === 'string'
           ? <TasksPanel ohId={oh.id} />
           : <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>Save this open house to DB to track tasks.</p>
         }
+      </div>
+    </div>
+  )
+}
+
+/* ─── Attendees Panel (admin view of sign-ins) ──────────────────────────── */
+function AttendeesPanel({ ohId }) {
+  const [attendees, setAttendees] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    DB.getOHSignIns(ohId).then(({ data }) => {
+      setAttendees(data || [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [ohId])
+
+  if (loading) return null
+  if (attendees.length === 0 && !expanded) return (
+    <div style={{ marginBottom: 16 }}>
+      <button onClick={() => setExpanded(true)} style={{ background: 'none', border: 'none', fontSize: '0.78rem', color: 'var(--brown-mid)', cursor: 'pointer', padding: 0 }}>
+        📋 No sign-ins yet
+      </button>
+    </div>
+  )
+
+  const fmtTime = (d) => d ? new Date(d).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', color: 'var(--brown-dark)', margin: 0 }}>
+          Sign-Ins ({attendees.length})
+        </h3>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {attendees.map(a => (
+          <div key={a.id} style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '8px 12px', background: '#faf8f5', borderRadius: 8,
+            fontSize: '0.82rem',
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%',
+              background: a.working_with_agent ? 'var(--brown-light)' : 'var(--sage-green)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '0.72rem', fontWeight: 700, color: '#fff', flexShrink: 0,
+            }}>
+              {(a.first_name?.[0] || '').toUpperCase()}{(a.last_name?.[0] || '').toUpperCase()}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, color: 'var(--brown-dark)' }}>
+                {a.first_name} {a.last_name}
+                {a.working_with_agent && (
+                  <span style={{ fontSize: '0.68rem', fontWeight: 400, color: 'var(--color-text-muted)', marginLeft: 6 }}>
+                    has agent{a.agent_name ? `: ${a.agent_name}` : ''}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {a.email && <span>{a.email}</span>}
+                {a.phone && <span>{a.phone}</span>}
+                {a.timeframe && <span>Timeframe: {a.timeframe}</span>}
+              </div>
+            </div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
+              {fmtTime(a.created_at)}
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {a.pre_approved && <span title="Pre-approved" style={{ fontSize: '0.75rem' }}>✅</span>}
+              {a.need_to_sell && <span title="Needs to sell" style={{ fontSize: '0.75rem' }}>🏠</span>}
+              {!a.working_with_agent && <span title="No agent — hot lead!" style={{ fontSize: '0.75rem' }}>🔥</span>}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   )

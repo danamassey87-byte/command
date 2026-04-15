@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Button, Badge, Card, SlidePanel, Input, Select, Textarea, EmptyState } from '../../components/ui/index.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
-import { useTransactions, useContacts, useProperties, useContactTags, useNotesForContact } from '../../lib/hooks.js'
+import { useTransactions, useContacts, useProperties, useContactTags, useNotesForContact, useOfferHistory, useStatusLog } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import { useBrandSignature } from '../../lib/BrandContext'
@@ -385,6 +385,13 @@ export default function Pipeline() {
   const [detailTab, setDetailTab] = useState('overview') // 'overview' | 'sop' | 'docs' | 'notes'
   const [collapsedSections, setCollapsedSections] = useState({}) // { 'stageName': true }
 
+  // Rejection / outcome modal state
+  const [rejectDeal, setRejectDeal] = useState(null)
+  const [rejectReason, setRejectReason] = useState('')
+  const [rejectNotes, setRejectNotes] = useState('')
+  const [rejectOutcome, setRejectOutcome] = useState('rejected') // 'rejected' | 'withdrawn' | 'expired'
+  const [rejecting, setRejecting] = useState(false)
+
   // Transaction links (dotloop, SkySlope, etc.)
   const [dealLinks, setDealLinksRaw] = useState(() => loadDealLinks())
   const updateDealLink = useCallback((dealId, url) => {
@@ -571,12 +578,20 @@ export default function Pipeline() {
   const [dragDeal, setDragDeal] = useState(null)
   const [dropStage, setDropStage] = useState(null)
 
-  // Filter active deals
+  // Filter active deals — ONLY show deals with active offers (is_active_offer !== false)
   const allActiveDeals = useMemo(() =>
     (transactions ?? []).filter(t => {
       const s = (t.status ?? '').toLowerCase()
-      return !s.includes('closed') && !s.includes('cancelled') && !s.includes('withdrawn') && !s.includes('dead')
+      if (s.includes('closed') || s.includes('cancelled') || s.includes('withdrawn') || s.includes('dead')) return false
+      // Exclude archived/rejected offers — only show active offers on the board
+      if (t.is_active_offer === false) return false
+      return true
     })
+  , [transactions])
+
+  // Archived/rejected offers (for history view)
+  const archivedDeals = useMemo(() =>
+    (transactions ?? []).filter(t => t.is_active_offer === false || t.outcome === 'rejected' || t.outcome === 'withdrawn' || t.outcome === 'expired')
   , [transactions])
 
   // Separate pre-offer leads from board deals
@@ -723,6 +738,13 @@ export default function Pipeline() {
       if (editDeal) {
         await DB.updateTransaction(editDeal.id, payload)
       } else {
+        // New deal: set offer tracking fields
+        payload.is_active_offer = true
+        payload.outcome = 'active'
+        payload.offer_number = 1
+        if (status !== 'pre_offer') {
+          payload.offer_submitted_at = new Date().toISOString()
+        }
         await DB.createTransaction(payload)
       }
       refetch()
@@ -744,6 +766,47 @@ export default function Pipeline() {
       refetch()
     } catch (err) {
       alert('Error: ' + err.message)
+    }
+  }
+
+  // ─── Reject / Archive an offer ────────────────────────────────────────────
+  const openRejectModal = (deal) => {
+    setRejectDeal(deal)
+    setRejectReason('')
+    setRejectNotes('')
+    setRejectOutcome('rejected')
+  }
+
+  const confirmRejectOffer = async () => {
+    if (!rejectDeal) return
+    setRejecting(true)
+    try {
+      await DB.archiveOffer(rejectDeal.id, rejectOutcome, rejectNotes, rejectReason)
+      // Also update the status label to reflect rejection
+      const statusLabel = rejectOutcome === 'rejected' ? 'Offer Declined'
+        : rejectOutcome === 'withdrawn' ? 'Withdrawn'
+        : 'Expired'
+      await DB.updateTransaction(rejectDeal.id, { status: statusLabel })
+      setRejectDeal(null)
+      setDetailDeal(null)
+      setPanelOpen(false)
+      refetch()
+    } catch (err) {
+      alert('Error archiving offer: ' + err.message)
+    } finally {
+      setRejecting(false)
+    }
+  }
+
+  // ─── Re-submit a new offer (after rejection) ─────────────────────────────
+  const resubmitOffer = async (previousDeal) => {
+    try {
+      const newDeal = await DB.createReOffer(previousDeal)
+      setDetailDeal(null)
+      setPanelOpen(false)
+      refetch()
+    } catch (err) {
+      alert('Error creating new offer: ' + err.message)
     }
   }
 
@@ -1017,6 +1080,7 @@ export default function Pipeline() {
                   SOP {sopTotal > 0 && <span className="pipe__detail-tab-count">{sopDone}/{sopTotal}</span>}
                 </button>
                 <button className={`pipe__detail-tab ${detailTab === 'notes' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('notes')}>Notes</button>
+                <button className={`pipe__detail-tab ${detailTab === 'history' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('history')}>History</button>
                 <button className={`pipe__detail-tab ${detailTab === 'docs' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('docs')}>
                   Docs {dl.length > 0 && <span className="pipe__detail-tab-count">{completed}/{dl.length}</span>}
                 </button>
@@ -1095,11 +1159,55 @@ export default function Pipeline() {
                     </div>
                   )}
 
+                  {/* Timestamps */}
+                  <div className="pipe__detail-section" style={{ marginTop: 8 }}>
+                    <h4 className="pipe__detail-section-title">Timeline</h4>
+                    <div className="pipe__timestamps">
+                      <div className="pipe__timestamp-row">
+                        <span className="pipe__timestamp-label">Created</span>
+                        <span className="pipe__timestamp-value">{fmtTimestamp(deal.created_at)}</span>
+                      </div>
+                      {deal.offer_submitted_at && (
+                        <div className="pipe__timestamp-row">
+                          <span className="pipe__timestamp-label">Offer Submitted</span>
+                          <span className="pipe__timestamp-value">{fmtTimestamp(deal.offer_submitted_at)}</span>
+                        </div>
+                      )}
+                      {deal.status_changed_at && (
+                        <div className="pipe__timestamp-row">
+                          <span className="pipe__timestamp-label">Last Status Change</span>
+                          <span className="pipe__timestamp-value">{fmtTimestamp(deal.status_changed_at)}</span>
+                        </div>
+                      )}
+                      {deal.outcome_date && (
+                        <div className="pipe__timestamp-row">
+                          <span className="pipe__timestamp-label">Outcome Date</span>
+                          <span className="pipe__timestamp-value">{fmtTimestamp(deal.outcome_date)}</span>
+                        </div>
+                      )}
+                      {deal.updated_at && (
+                        <div className="pipe__timestamp-row">
+                          <span className="pipe__timestamp-label">Last Updated</span>
+                          <span className="pipe__timestamp-value">{fmtTimestamp(deal.updated_at)}</span>
+                        </div>
+                      )}
+                      {deal.offer_number > 1 && (
+                        <div className="pipe__timestamp-row">
+                          <span className="pipe__timestamp-label">Offer Attempt</span>
+                          <span className="pipe__timestamp-value">#{deal.offer_number}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Action buttons */}
                   <div className="pipe__detail-actions">
                     <Button variant="ghost" size="sm" onClick={() => { setDetailDeal(null); openEdit(deal) }}>Edit Deal</Button>
                     <Button variant="primary" size="sm" onClick={() => { advanceStage(deal); setDetailDeal({ ...deal, status: STAGES[STAGES.findIndex(s => s.value === si.value) + 1]?.label ?? deal.status }) }}>
                       Advance Stage
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={() => openRejectModal(deal)}>
+                      Reject / Archive
                     </Button>
                   </div>
 
@@ -1247,6 +1355,9 @@ export default function Pipeline() {
                 const cid = deal.contact_id ?? deal.contact?.id
                 return <DealNotesTab contactId={cid} dealId={deal.id} />
               })()}
+
+              {/* ═══ OFFER HISTORY TAB ═══ */}
+              {detailTab === 'history' && <OfferHistoryTab contactId={deal.contact_id ?? deal.contact?.id} currentDealId={deal.id} onReOffer={resubmitOffer} />}
 
               {detailTab === 'docs' && (
                 <>
