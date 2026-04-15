@@ -199,18 +199,21 @@ export default function App() {
             <Route path="bank" element={<ContentBank />} />
           </Route>
 
-          {/* ─── Content sub-pages (still accessible, redirect later) ─── */}
-          <Route path="/content/calendar"  element={<ContentCalendar />} />
-          <Route path="/content/planning"  element={<ContentPlanner />} />
-          <Route path="/content/ai-studio" element={<AIStudio />} />
-          <Route path="/content/composer"  element={<PostComposer />} />
-          <Route path="/content/composer/:pieceId" element={<PostComposer />} />
-          <Route path="/content/hashtags" element={<HashtagBank />} />
-          <Route path="/content/seo"      element={<KeywordTracker />} />
-          <Route path="/content/inspo"    element={<InspoRecreator />} />
+          {/* ─── Legacy content redirects ─── */}
+          <Route path="/content/calendar"  element={<Navigate to="/content/plan" replace />} />
+          <Route path="/content/planning"  element={<Navigate to="/content/plan" replace />} />
+          <Route path="/content/ai-studio" element={<Navigate to="/content/create" replace />} />
+          <Route path="/content/composer"  element={<Navigate to="/content/create" replace />} />
+          <Route path="/content/composer/:pieceId" element={<Navigate to="/content/create" replace />} />
+          <Route path="/content/hashtags"  element={<Navigate to="/content/measure" replace />} />
+          <Route path="/content/seo"       element={<Navigate to="/content/measure" replace />} />
+          <Route path="/content/inspo"     element={<Navigate to="/content/create" replace />} />
+          <Route path="/content/social"    element={<Navigate to="/content/measure" replace />} />
+          <Route path="/content/stats"     element={<Navigate to="/content/measure" replace />} />
+          <Route path="/content/templates" element={<Navigate to="/content/create" replace />} />
+          {/* Video + Gamma still have their own full pages (linked from Create tab modes) */}
           <Route path="/content/gamma"   element={<GammaPresentations />} />
           <Route path="/content/video"   element={<VideoStudio />} />
-          <Route path="/content/social"    element={<SocialDashboard />} />
           <Route path="/content/ads"       element={<AdsManager />} />
           <Route path="/content/ads/reports" element={<AdReports />} />
 

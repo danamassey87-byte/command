@@ -467,8 +467,8 @@ export default function PostComposer() {
       {/* ─── Header ─── */}
       <div className="pc-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link to="/content/calendar" style={{ color: 'var(--brown-mid)', fontSize: '0.82rem', textDecoration: 'none' }}>
-            &larr; Calendar
+          <Link to="/content/plan" style={{ color: 'var(--brown-mid)', fontSize: '0.82rem', textDecoration: 'none' }}>
+            &larr; Plan
           </Link>
           <h1 className="pc-header__title">
             {piece ? 'Edit Post' : 'New Post'}
@@ -787,7 +787,7 @@ export default function PostComposer() {
             })()}
           </div>
 
-          {/* Platform previews */}
+          {/* Platform previews — phone mockup style */}
           <div className="pc-sidebar-card">
             <div className="pc-sidebar-card__title">Live Previews</div>
             <div className="pc-previews">
@@ -795,28 +795,58 @@ export default function PostComposer() {
                 const text = getTextForPlatform(p.id)
                 const info = getCharInfo(p.id)
                 const truncated = p.limit && text.length > p.limit
+                const previewImg = mediaFiles[0]?.preview || mediaFiles[0]?.url || null
                 return (
-                  <div key={p.id} className="pc-preview-card">
-                    <div className="pc-preview-card__header">
-                      <span className="pc-preview-card__icon">{p.icon}</span>
-                      {p.label}
-                      <span className={`pc-char-count pc-char-count--${info.status}`} style={{ marginLeft: 'auto', fontSize: '0.72rem' }}>
-                        {info.count}{p.limit ? `/${p.limit}` : ''}
-                      </span>
-                    </div>
-                    <div className="pc-preview-card__body">
-                      {truncated ? text.slice(0, p.limit) + '...' : text || 'No content yet'}
-                    </div>
-                    {hashtags && (
-                      <div className="pc-preview-card__hashtags">
-                        {hashtags.slice(0, 120)}{hashtags.length > 120 ? '...' : ''}
+                  <div key={p.id} className="pc-mockup" onClick={() => setActiveTab(p.id)}>
+                    {/* Device frame */}
+                    <div className="pc-mockup__device">
+                      {/* Platform header bar */}
+                      <div className="pc-mockup__bar">
+                        <div className="pc-mockup__bar-left">
+                          <span className="pc-mockup__avatar-dot" />
+                          <div>
+                            <div className="pc-mockup__username">Dana Massey</div>
+                            <div className="pc-mockup__platform-label">{p.label}</div>
+                          </div>
+                        </div>
+                        <span className={`pc-char-badge pc-char-badge--${info.status}`}>
+                          {info.count}{p.limit ? `/${p.limit}` : ''}
+                        </span>
                       </div>
-                    )}
-                    {truncated && (
-                      <div className="pc-preview-card__truncated">
-                        Over limit by {text.length - p.limit} chars
+
+                      {/* Image area */}
+                      {previewImg && (
+                        <div className="pc-mockup__image">
+                          <img src={previewImg} alt="" />
+                        </div>
+                      )}
+
+                      {/* Caption */}
+                      <div className="pc-mockup__caption">
+                        {text ? (
+                          <>
+                            <span className="pc-mockup__caption-name">danamassey_re </span>
+                            {truncated ? text.slice(0, Math.min(p.limit || 180, 180)) + '...' : text.slice(0, 180)}{text.length > 180 ? '...' : ''}
+                          </>
+                        ) : (
+                          <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No content yet</span>
+                        )}
                       </div>
-                    )}
+
+                      {/* Hashtags */}
+                      {hashtags && (
+                        <div className="pc-mockup__hashtags">
+                          {hashtags.slice(0, 80)}{hashtags.length > 80 ? '...' : ''}
+                        </div>
+                      )}
+
+                      {/* Warning */}
+                      {truncated && (
+                        <div className="pc-mockup__warning">
+                          Over limit by {text.length - p.limit} chars
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )
               })}

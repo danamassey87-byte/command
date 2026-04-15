@@ -422,6 +422,71 @@
   background: #fff;
 }
 
+/* ─── Phone Mockup Previews ─── */
+.pc-mockup {
+  margin-bottom: 12px; cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.pc-mockup:hover { transform: scale(1.01); }
+
+.pc-mockup__device {
+  background: #fff; border: 2px solid #e8e3de; border-radius: 14px;
+  overflow: hidden; font-size: 0.72rem;
+  box-shadow: 0 2px 8px rgba(58,42,30,0.06);
+}
+
+.pc-mockup__bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; border-bottom: 1px solid #f0ece6;
+}
+.pc-mockup__bar-left {
+  display: flex; align-items: center; gap: 7px;
+}
+.pc-mockup__avatar-dot {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--brown-mid) 0%, var(--brown-dark) 100%);
+  flex-shrink: 0;
+}
+.pc-mockup__username {
+  font-weight: 600; font-size: 0.72rem; color: var(--brown-dark); line-height: 1.1;
+}
+.pc-mockup__platform-label {
+  font-size: 0.62rem; color: var(--color-text-muted); text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pc-char-badge {
+  font-size: 0.62rem; font-weight: 600; padding: 2px 6px; border-radius: 4px;
+}
+.pc-char-badge--ok { background: #edf4ee; color: var(--sage-green); }
+.pc-char-badge--warning { background: #fef7e0; color: #b8860b; }
+.pc-char-badge--over { background: #fce8e6; color: #c5221f; }
+
+.pc-mockup__image {
+  width: 100%; aspect-ratio: 1; overflow: hidden; background: #f5f0eb;
+}
+.pc-mockup__image img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+
+.pc-mockup__caption {
+  padding: 8px 10px 4px; font-size: 0.72rem; color: var(--brown-dark);
+  line-height: 1.5; word-break: break-word;
+}
+.pc-mockup__caption-name {
+  font-weight: 700; color: var(--brown-dark);
+}
+
+.pc-mockup__hashtags {
+  padding: 0 10px 6px; font-size: 0.65rem; color: var(--brown-mid);
+  line-height: 1.4;
+}
+
+.pc-mockup__warning {
+  padding: 4px 10px 6px; font-size: 0.62rem; color: #c5221f;
+  font-weight: 600;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 860px) {
   .pc-layout {
