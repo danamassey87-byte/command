@@ -152,6 +152,7 @@ export const BLOCK_PALETTE = [
   { type: 'property-card', label: 'Property Card', emoji: '🏠' },
   { type: 'event-card', label: 'Event Card', emoji: '📅' },
   { type: 'stats-row', label: 'Stats Row', emoji: '📊' },
+  { type: 'video', label: 'Video', emoji: '🎬' },
   { type: 'divider', label: 'Divider', emoji: '➖' },
   { type: 'greeting', label: 'Greeting', emoji: '👋' },
   { type: 'signature', label: 'Signature', emoji: '✍️' },
@@ -180,6 +181,8 @@ export function newBlock(type) {
         { label: 'Stat 2', value: '—', delta: '' },
         { label: 'Stat 3', value: '—', delta: '' },
       ], borderRadius: 8 }
+    case 'video':
+      return { id, type, videoUrl: '', thumbnailUrl: '', caption: '', alt: 'Video', borderRadius: 8 }
     case 'divider':
       return { id, type, color: BRAND.mid, thickness: 1, dividerStyle: 'solid' }
     case 'signature':
@@ -291,6 +294,34 @@ export function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, i
                 <label className="eb__field-label">LINE HEIGHT</label>
                 <input className="eb__input" type="number" value={block.lineHeight ?? 1.65} onChange={e => set('lineHeight', +e.target.value)} min={1} max={3} step={0.1} style={{ width: 70 }} />
               </div>
+              <div>
+                <label className="eb__field-label">ALIGNMENT</label>
+                <select className="eb__input" value={block.textAlign || 'left'} onChange={e => set('textAlign', e.target.value)} style={{ width: 90 }}>
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
+                </select>
+              </div>
+            </div>
+            <div className="eb__field-row">
+              <div>
+                <label className="eb__field-label">STYLE</label>
+                <select className="eb__input" value={block.fontStyle || 'normal'} onChange={e => set('fontStyle', e.target.value)} style={{ width: 90 }}>
+                  <option value="normal">Normal</option>
+                  <option value="italic">Italic</option>
+                </select>
+              </div>
+              <div>
+                <label className="eb__field-label">WEIGHT</label>
+                <select className="eb__input" value={block.fontWeight || ''} onChange={e => set('fontWeight', e.target.value)} style={{ width: 90 }}>
+                  <option value="">Default</option>
+                  <option value="300">Light</option>
+                  <option value="400">Regular</option>
+                  <option value="500">Medium</option>
+                  <option value="600">Semi-Bold</option>
+                  <option value="700">Bold</option>
+                </select>
+              </div>
             </div>
           </StyleSection>
         </div>
@@ -371,6 +402,7 @@ export function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, i
           <StyleSection title="Colors" defaultOpen>
             <BrandColorPicker label="Button Color" value={block.bgColor} onChange={v => set('bgColor', v)} showMixes />
             <BrandColorPicker label="Text Color" value={block.textColor} onChange={v => set('textColor', v)} />
+            <BrandColorPicker label="Border Color (outline style)" value={block.borderColor || ''} onChange={v => set('borderColor', v)} />
           </StyleSection>
 
           <StyleSection title="Typography">
@@ -476,6 +508,34 @@ export function BlockEditor({ block, onChange, onDelete, onMoveUp, onMoveDown, i
               </div>
             </div>
           ))}
+
+          <StyleSection title="Style">
+            <BorderRadiusControl label="Corner Radius" value={block.borderRadius ?? 8} onChange={v => set('borderRadius', v)} showPill={false} />
+          </StyleSection>
+        </div>
+      )}
+
+      {block.type === 'video' && (
+        <div className="eb__block-fields">
+          <label className="eb__field-label">VIDEO URL</label>
+          <input className="eb__input" value={block.videoUrl || ''} onChange={e => set('videoUrl', e.target.value)} placeholder="https://youtube.com/watch?v=... or Vimeo link" />
+          <p className="eb__field-hint">YouTube, Vimeo, or any video link — clicking the thumbnail opens it</p>
+
+          <label className="eb__field-label">THUMBNAIL IMAGE</label>
+          <input type="file" accept="image/*" className="eb__file-input" onChange={e => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            const reader = new FileReader()
+            reader.onload = () => set('thumbnailUrl', reader.result)
+            reader.readAsDataURL(file)
+          }} />
+          {block.thumbnailUrl && <img src={block.thumbnailUrl} alt="" className="eb__image-thumb" style={{ marginTop: 4 }} />}
+
+          <label className="eb__field-label">CAPTION</label>
+          <input className="eb__input" value={block.caption || ''} onChange={e => set('caption', e.target.value)} placeholder="Here is our video marketing" />
+
+          <label className="eb__field-label">ALT TEXT</label>
+          <input className="eb__input" value={block.alt || ''} onChange={e => set('alt', e.target.value)} placeholder="Listing video tour" />
 
           <StyleSection title="Style">
             <BorderRadiusControl label="Corner Radius" value={block.borderRadius ?? 8} onChange={v => set('borderRadius', v)} showPill={false} />
@@ -656,6 +716,9 @@ export function PreviewBlock({ block, onChange, isSelected, onSelect, socialChan
               fontFamily: block.fontFamily || emailSettings.fontFamily || undefined,
               lineHeight: block.lineHeight ?? 1.65,
               color: block.color || '#444',
+              textAlign: block.textAlign || 'left',
+              fontStyle: block.fontStyle || undefined,
+              fontWeight: block.fontWeight || undefined,
             }}
             value={block.content}
             onChange={v => set('content', v)}
@@ -718,6 +781,7 @@ export function PreviewBlock({ block, onChange, isSelected, onSelect, socialChan
               fontSize: block.fontSize || 14,
               fontFamily: block.fontFamily || emailSettings.fontFamily || undefined,
               padding: `${block.padding ?? 12}px ${(block.padding ?? 12) * 2.5}px`,
+              border: block.borderColor ? `2px solid ${block.borderColor}` : undefined,
             }}>
               <InlineEdit
                 tag="span"
@@ -777,6 +841,50 @@ export function PreviewBlock({ block, onChange, isSelected, onSelect, socialChan
             ))}
           </div>
         )
+      case 'video': {
+        const hasThumb = block.thumbnailUrl && block.thumbnailUrl.trim()
+
+        const handleThumbUpload = (e) => {
+          const file = e.target.files?.[0]
+          if (!file) return
+          const reader = new FileReader()
+          reader.onload = () => onChange({ ...block, thumbnailUrl: reader.result })
+          reader.readAsDataURL(file)
+        }
+
+        return (
+          <div className="ep__video-wrap">
+            {hasThumb ? (
+              <div className="ep__video-thumb" style={{ borderRadius: block.borderRadius ?? 8 }}>
+                <img src={block.thumbnailUrl} alt={block.alt || 'Video'} className="ep__video-img" style={{ borderRadius: block.borderRadius ?? 8 }} />
+                <div className="ep__video-play">
+                  <svg viewBox="0 0 24 24" fill="white" width="32" height="32"><polygon points="8,5 19,12 8,19" /></svg>
+                </div>
+                {isSelected && (
+                  <label className="ep__image-replace">
+                    Replace
+                    <input type="file" accept="image/*" onChange={handleThumbUpload} hidden />
+                  </label>
+                )}
+              </div>
+            ) : (
+              <label className="ep__video-empty" style={{ borderRadius: block.borderRadius ?? 8 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="1.5" width="32" height="32"><polygon points="8,5 19,12 8,19" /></svg>
+                <span>Drop video thumbnail here</span>
+                <input type="file" accept="image/*" onChange={handleThumbUpload} hidden />
+              </label>
+            )}
+            {(block.caption || isSelected) && (
+              <InlineEdit
+                className="ep__video-caption"
+                value={block.caption || ''}
+                onChange={v => set('caption', v)}
+                placeholder="Video caption..."
+              />
+            )}
+          </div>
+        )
+      }
       case 'divider':
         return <hr className="ep__divider" style={{
           borderColor: block.color,

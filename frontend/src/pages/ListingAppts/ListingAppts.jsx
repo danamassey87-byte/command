@@ -54,6 +54,8 @@ function ApptForm({ appt, contacts, onSave, onDelete, onClose, saving, deleting,
     notes:                   appt?.notes                   ?? '',
   })
   const [contactSearch, setContactSearch] = useState('')
+  const [addingNew, setAddingNew] = useState(false)
+  const [newContact, setNewContact] = useState({ name: '', phone: '', email: '' })
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
 
   const filteredContacts = useMemo(() => {
@@ -64,6 +66,16 @@ function ApptForm({ appt, contacts, onSave, onDelete, onClose, saving, deleting,
 
   const selectedContact = (contacts ?? []).find(c => c.id === draft.contact_id)
 
+  const startAddNew = () => {
+    setAddingNew(true)
+    setNewContact({ name: contactSearch.trim(), phone: '', email: '' })
+  }
+
+  const cancelAddNew = () => {
+    setAddingNew(false)
+    setNewContact({ name: '', phone: '', email: '' })
+  }
+
   return (
     <>
       <div className="panel-section">
@@ -72,6 +84,22 @@ function ApptForm({ appt, contacts, onSave, onDelete, onClose, saving, deleting,
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
             <Badge variant="success">{selectedContact.name}</Badge>
             <Button variant="ghost" size="sm" onClick={() => set('contact_id', '')}>Change</Button>
+          </div>
+        ) : addingNew ? (
+          <div className="la-new-contact-form">
+            <div className="la-new-contact-header">
+              <span className="la-new-contact-title">New Contact</span>
+              <Button variant="ghost" size="sm" onClick={cancelAddNew}>Cancel</Button>
+            </div>
+            <Input label="Name *" value={newContact.name}
+              onChange={e => setNewContact(p => ({ ...p, name: e.target.value }))}
+              placeholder="Jane Smith" autoFocus />
+            <Input label="Phone" value={newContact.phone} type="tel"
+              onChange={e => setNewContact(p => ({ ...p, phone: e.target.value }))}
+              placeholder="(480) 555-1234" />
+            <Input label="Email" value={newContact.email} type="email"
+              onChange={e => setNewContact(p => ({ ...p, email: e.target.value }))}
+              placeholder="jane@email.com" />
           </div>
         ) : (
           <>
@@ -82,7 +110,7 @@ function ApptForm({ appt, contacts, onSave, onDelete, onClose, saving, deleting,
               placeholder="Type a name…"
               autoFocus={isNew}
             />
-            {contactSearch.trim() && filteredContacts.length > 0 && (
+            {contactSearch.trim() && (
               <div className="la-contact-results">
                 {filteredContacts.map(c => (
                   <button key={c.id} className="la-contact-result" onClick={() => { set('contact_id', c.id); setContactSearch('') }}>
@@ -90,6 +118,14 @@ function ApptForm({ appt, contacts, onSave, onDelete, onClose, saving, deleting,
                     <span className="la-contact-result-meta">{c.type} {c.phone ? `· ${c.phone}` : ''}</span>
                   </button>
                 ))}
+                <button className="la-contact-result la-contact-add-new" onClick={startAddNew}>
+                  <span className="la-contact-result-name">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ verticalAlign:'middle', marginRight:6 }}>
+                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Add "{contactSearch.trim()}" as new contact
+                  </span>
+                </button>
               </div>
             )}
           </>
@@ -120,7 +156,9 @@ function ApptForm({ appt, contacts, onSave, onDelete, onClose, saving, deleting,
       {error && <p style={{ color:'var(--color-danger)', fontSize:'0.82rem', marginTop:8 }}>{error}</p>}
       <div className="panel-footer">
         <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-        <Button variant="primary" size="sm" onClick={() => onSave(draft)} disabled={saving || !draft.contact_id}>
+        <Button variant="primary" size="sm"
+          onClick={() => onSave(draft, addingNew ? newContact : null)}
+          disabled={saving || (!draft.contact_id && !addingNew) || (addingNew && !newContact.name.trim())}>
           {saving ? 'Saving…' : isNew ? 'Add Appointment' : 'Save Changes'}
         </Button>
         {!isNew && (
@@ -254,7 +292,7 @@ function ApptDetail({ appt, onEdit, onClose, onCreateListing }) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function ListingAppts() {
   const { data, loading, refetch } = useListingAppointments()
-  const { data: contactsData } = useContacts()
+  const { data: contactsData, refetch: refetchContacts } = useContacts()
   const appts = data ?? []
   const contacts = contactsData ?? []
 
@@ -271,9 +309,22 @@ export default function ListingAppts() {
   const openEdit   = (appt) => { setEditingAppt(appt); setPanelMode('form') }
   const closePanel = () => { setPanelMode(null); setEditingAppt(null); setSelectedAppt(null); setError(null) }
 
-  const handleSave = async (draft) => {
+  const handleSave = async (draft, newContactData) => {
     setSaving(true); setError(null)
     try {
+      // If adding a new contact inline, create it first
+      let contactId = draft.contact_id
+      if (newContactData && !contactId) {
+        const created = await DB.createContact({
+          name:  newContactData.name.trim(),
+          phone: newContactData.phone?.trim() || null,
+          email: newContactData.email?.trim() || null,
+          type:  'seller',
+        })
+        contactId = created.id
+        refetchContacts()
+      }
+
       // Build scheduled_at from date + time
       let scheduled_at = null
       if (draft.scheduled_date) {
@@ -282,7 +333,7 @@ export default function ListingAppts() {
       }
 
       const row = {
-        contact_id:              draft.contact_id || null,
+        contact_id:              contactId || null,
         scheduled_at,
         listing_price_discussed: draft.listing_price_discussed ? Number(draft.listing_price_discussed) : null,
         outcome:                 draft.outcome,
@@ -299,7 +350,7 @@ export default function ListingAppts() {
         await DB.bulkCreateApptChecklist(
           PREP_TASKS.map((task_name, i) => ({ appointment_id: saved.id, task_name, sort_order: i }))
         )
-        await DB.logActivity('appt_created', `New listing appointment: ${contacts.find(c => c.id === draft.contact_id)?.name ?? 'Client'}`)
+        await DB.logActivity('appt_created', `New listing appointment: ${newContactData?.name?.trim() || contacts.find(c => c.id === contactId)?.name || 'Client'}`)
       }
       await refetch()
       // Open detail after create

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
-import { Badge, EmptyState, TabBar } from '../../components/ui/index.jsx'
+import { Badge, EmptyState, TabBar, Button } from '../../components/ui/index.jsx'
 import { useTransactions } from '../../lib/hooks.js'
+import SendEmailModal from '../../components/email/SendEmailModal'
 import './EscrowTracker.css'
 
 function fmtDate(d) {
@@ -22,6 +23,7 @@ function fmtDollar(v) {
 const BUYER_CHECKLIST = [
   { section: 'Contract Execution', items: [
     'Purchase contract fully executed (AAR)',
+    'Under Contract email sent to buyer',
     'Buyer Advisory signed',
     'Wire Fraud Advisory signed',
     'Lead-Based Paint Disclosure (if pre-1978)',
@@ -97,6 +99,8 @@ const BUYER_CHECKLIST = [
     'Keys, garage remotes, codes delivered to buyer',
     'Move-in coordination complete',
     'Closing gift delivered',
+    'Post-close thank you + gift card email sent',
+    'Review request email sent (Google + Zillow)',
   ]},
 ]
 
@@ -141,6 +145,7 @@ const SELLER_CHECKLIST = [
     'Appraisal received — at or above price (or renegotiated)',
   ]},
   { section: 'Pre-Closing', items: [
+    'Pre-close next steps email sent to seller',
     'Loan payoff confirmed with lender',
     'Outstanding HOA balance confirmed',
     'Utility final reads scheduled',
@@ -160,6 +165,8 @@ const SELLER_CHECKLIST = [
     'Mail forwarding set up',
     'Seller proceeds disbursed (wire or check)',
     'Closing gift delivered',
+    'Post-close thank you + gift card email sent',
+    'Review request email sent (Google + Zillow)',
   ]},
 ]
 
@@ -174,6 +181,7 @@ export default function EscrowTracker() {
   const { data: transactions, loading } = useTransactions()
   const [checklists, setChecklists] = useState(() => loadChecklists())
   const [expandedId, setExpandedId] = useState(null)
+  const [emailContact, setEmailContact] = useState(null)
 
   const escrowDeals = useMemo(() =>
     (transactions ?? []).filter(t => {
@@ -239,7 +247,14 @@ export default function EscrowTracker() {
           <div key={deal.id} className="escrow__deal">
             <button className="escrow__deal-header" onClick={() => setExpandedId(isExpanded ? null : deal.id)}>
               <div className="escrow__deal-info">
-                <span className="escrow__deal-name">{deal.contact?.name ?? '—'}</span>
+                <span className="escrow__deal-name">
+                  {deal.contact?.name ?? '—'}
+                  {deal.contact?.email && (
+                    <span className="escrow__email-btn" title="Send email" onClick={e => { e.stopPropagation(); setEmailContact({ id: deal.contact.id, name: deal.contact.name, email: deal.contact.email }) }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    </span>
+                  )}
+                </span>
                 <span className="escrow__deal-addr">{deal.property?.address ?? '—'}, {deal.property?.city ?? ''}</span>
               </div>
               <div className="escrow__deal-meta">
@@ -302,6 +317,8 @@ export default function EscrowTracker() {
           </div>
         )
       })}
+
+      <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} />
     </div>
   )
 }

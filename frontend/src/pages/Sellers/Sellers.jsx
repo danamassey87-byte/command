@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, CheckItem, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
+import LeadSourcePicker from '../../components/ui/LeadSourcePicker.jsx'
 import PartiesSection from '../../components/parties/PartiesSection.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
@@ -9,6 +10,7 @@ import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
 import { emit as emitNotification, emitListingContentReminder } from '../../lib/notifications.js'
+import SendEmailModal from '../../components/email/SendEmailModal'
 import './Sellers.css'
 
 // ─── Checklist definitions ────────────────────────────────────────────────────
@@ -567,25 +569,7 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
           <Input label="Phone" value={draft.seller_phone} onChange={e => set('seller_phone', e.target.value)} placeholder="(480) 555-0000" />
           <Input label="Email" value={draft.seller_email} onChange={e => set('seller_email', e.target.value)} placeholder="email@example.com" />
         </div>
-        <Select label="Lead Source" value={draft.seller_lead_source} onChange={e => set('seller_lead_source', e.target.value)}>
-          <option value="">— Select Lead Source —</option>
-          <option value="Referral">Referral</option>
-          <option value="Open House">Open House</option>
-          <option value="Expired Listing">Expired Listing</option>
-          <option value="Cannonball">Cannonball</option>
-          <option value="CertiLead">CertiLead</option>
-          <option value="Sphere of Influence">Sphere of Influence</option>
-          <option value="Past Client">Past Client</option>
-          <option value="FSBO">FSBO</option>
-          <option value="Door Knocking">Door Knocking</option>
-          <option value="Sign Call">Sign Call</option>
-          <option value="Zillow">Zillow</option>
-          <option value="Realtor.com">Realtor.com</option>
-          <option value="Instagram">Instagram</option>
-          <option value="Facebook">Facebook</option>
-          <option value="Website">Website</option>
-          <option value="Other">Other</option>
-        </Select>
+        <LeadSourcePicker label="Lead Source" value={draft.seller_lead_source} onChange={v => set('seller_lead_source', v)} />
         <RelatedPeopleSection
           value={draft.related_people}
           onChange={v => set('related_people', v)}
@@ -2228,6 +2212,7 @@ export default function Sellers() {
   const [saving, setSaving]               = useState(false)
   const [deleting, setDeleting]           = useState(false)
   const [error, setError]                 = useState(null)
+  const [emailContact, setEmailContact]   = useState(null)
 
   const openCreate = () => { setEditingListing(null); setPanelOpen(true) }
   const openEdit   = (l) => { setEditingListing(l); setPanelOpen(true) }
@@ -2597,6 +2582,11 @@ export default function Sellers() {
       key: 'actions', label: '',
       render: (_, row) => (
         <div style={{ display: 'flex', gap: 6 }}>
+          {row.seller_email && (
+            <Button size="sm" variant="ghost" title="Send email" onClick={e => { e.stopPropagation(); setEmailContact({ id: row.contact_id, name: row.contact_name, email: row.seller_email }) }}
+              icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>}
+            />
+          )}
           <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); setSelectedListing(row) }}>
             {row.type === 'new' ? 'Launch Plan' : 'Relaunch Plan'}
           </Button>
@@ -2660,6 +2650,8 @@ export default function Sellers() {
         {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{error}</p>}
         <ListingForm key={editingListing?.id || 'new'} listing={editingListing} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
       </SlidePanel>
+
+      <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} />
     </div>
   )
 }

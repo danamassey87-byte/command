@@ -1,11 +1,13 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
+import LeadSourcePicker from '../../components/ui/LeadSourcePicker.jsx'
 import { TagPicker, TagBadge } from '../../components/ui/TagPicker.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { useBuyers, useShowingSessionsForContact, useContactTags, useNotesForContact } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
+import SendEmailModal from '../../components/email/SendEmailModal'
 import './Buyers.css'
 
 // Map Supabase contact row → internal buyer shape
@@ -38,7 +40,7 @@ function mapClient(c) {
 
 
 const stages = ['New Lead', 'Pre-Approval', 'Active Search', 'Showing', 'Under Contract', 'Closed', 'Inactive']
-const sources = ['Referral', 'Open House', 'Zillow', 'Realtor.com', 'Instagram', 'Facebook', 'Website', 'Client', 'Other']
+const sources = ['Referral', 'Open House', 'CertiLead', 'Expired Listing', 'Cannonball', 'Zillow', 'Realtor.com', 'Instagram', 'Facebook', 'Door Knocking', 'Sign Call', 'Sphere of Influence', 'Past Client', 'Website', 'Client', 'Other']
 
 const stageVariant = {
   'New Lead': 'default', 'Pre-Approval': 'warning', 'Active Search': 'info',
@@ -110,9 +112,7 @@ function BuyerForm({ buyer, onSave, onDelete, onClose, saving, deleting }) {
             <option value="seller">Seller</option>
             <option value="both">Buyer & Seller</option>
           </Select>
-          <Select label="Source" value={draft.source} onChange={e => set('source', e.target.value)}>
-            {sources.map(s => <option key={s}>{s}</option>)}
-          </Select>
+          <LeadSourcePicker label="Source" value={draft.source} onChange={v => set('source', v)} />
         </div>
         <Select label="Stage" value={draft.stage} onChange={e => set('stage', e.target.value)}>
           {stages.map(s => <option key={s}>{s}</option>)}
@@ -449,6 +449,7 @@ export default function Buyers() {
   const [saving, setSaving]               = useState(false)
   const [deleting, setDeleting]           = useState(false)
   const [error, setError]                 = useState(null)
+  const [emailContact, setEmailContact]   = useState(null)
 
   const openCreate = () => { setEditingBuyer(null); setPanelOpen(true) }
   const openEdit   = (buyer) => { setEditingBuyer(buyer); setPanelOpen(true) }
@@ -653,9 +654,16 @@ export default function Buyers() {
     {
       key: 'edit', label: '',
       render: (_, row) => (
-        <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openEdit(row) }}
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
-        >Edit</Button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {row.email && (
+            <Button size="sm" variant="ghost" title="Send email" onClick={e => { e.stopPropagation(); setEmailContact({ id: row.id, name: row.name, email: row.email }) }}
+              icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>}
+            />
+          )}
+          <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openEdit(row) }}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
+          >Edit</Button>
+        </div>
       ),
     },
   ]
@@ -706,6 +714,8 @@ export default function Buyers() {
         {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{error}</p>}
         <BuyerForm key={editingBuyer?.id || 'new'} buyer={editingBuyer} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
       </SlidePanel>
+
+      <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} />
     </div>
   )
 }

@@ -135,6 +135,7 @@ const BUILT_IN_FONTS = [
   { name: 'Poppins', value: "'Poppins', sans-serif" },
   { name: 'Playfair Display', value: "'Playfair Display', Georgia, serif" },
   { name: 'Cormorant Garamond', value: "'Cormorant Garamond', Georgia, serif" },
+  { name: 'Cormorant (Script)', value: "'Cormorant', 'Cormorant Garamond', Georgia, serif" },
   { name: 'Georgia', value: "Georgia, serif" },
   { name: 'Arial', value: "Arial, sans-serif" },
   { name: 'Helvetica', value: "Helvetica, Arial, sans-serif" },

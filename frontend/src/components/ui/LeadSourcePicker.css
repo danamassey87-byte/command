@@ -1,0 +1,78 @@
+/* ─── Lead Source Picker ─── */
+.lsp { position: relative; }
+
+.lsp__input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.lsp__input-wrap .field__input {
+  padding-right: 28px;
+}
+
+.lsp__clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--brown-light);
+  cursor: pointer;
+  padding: 0 4px;
+}
+.lsp__clear:hover { color: var(--color-danger); }
+
+.lsp__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--brown-light);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.lsp__option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--brown-dark);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.lsp__option:hover {
+  background: rgba(239,237,232,0.6);
+}
+.lsp__option--selected {
+  background: rgba(124,99,80,0.08);
+  font-weight: 600;
+}
+.lsp__option--add {
+  color: var(--brown-mid);
+  font-weight: 500;
+  border-top: 1px solid var(--cream);
+}
+.lsp__option--add:hover {
+  background: rgba(90,135,180,0.08);
+  color: #5a87b4;
+}
+
+.lsp__empty {
+  padding: 12px;
+  font-size: 0.78rem;
+  color: var(--brown-light);
+  text-align: center;
+}

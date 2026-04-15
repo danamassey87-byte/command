@@ -156,6 +156,7 @@ export default function BlockComposer({
                 {block.type === 'property-card' && (block.address || 'Property card')}
                 {block.type === 'event-card' && (block.title || 'Event card')}
                 {block.type === 'stats-row' && 'Stats row'}
+                {block.type === 'video' && (block.caption || 'Video')}
                 {block.type === 'divider' && '—'}
               </span>
             </div>

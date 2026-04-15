@@ -183,6 +183,9 @@ export function useDashboardData() {
     return a.outcome !== 'cancelled' && new Date(a.scheduled_at) <= now
   }).length
   const ytdListingsTaken = la.filter(a => a.outcome === 'won' && a.scheduled_at?.startsWith(yearStr)).length
+  const ytdListingApptsLost = la.filter(a => a.outcome === 'lost' && a.scheduled_at?.startsWith(yearStr)).length
+  const ytdListingWinRate = (ytdListingsTaken + ytdListingApptsLost) > 0
+    ? (ytdListingsTaken / (ytdListingsTaken + ytdListingApptsLost)) * 100 : 0
   const closedDeals = t.filter(x => (x.status ?? '').toLowerCase().includes('closed'))
   const ytdClosedDeals = closedDeals.filter(d => d.closing_date?.startsWith(yearStr))
   const ytdListingsSold = ytdClosedDeals.filter(d => (d.deal_type ?? '').toLowerCase() === 'seller').length
@@ -229,6 +232,8 @@ export function useDashboardData() {
     // Auto-computed production KPIs
     ytdListingApptsSet,
     ytdListingApptsHeld,
+    ytdListingApptsLost,
+    ytdListingWinRate,
     ytdListingsTaken,
     ytdListingsSold,
     ytdBuyerSales,
