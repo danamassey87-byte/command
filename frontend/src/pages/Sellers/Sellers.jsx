@@ -13,6 +13,8 @@ import './Sellers.css'
 
 // ─── Checklist definitions ────────────────────────────────────────────────────
 const launchChecklist = [
+  { label: 'Pre-listing appointment email sent (what to expect)', phase: 'prep' },
+  { label: 'Post listing appointment follow-up email sent', phase: 'prep' },
   { label: 'Professional photography scheduled',           phase: 'prep' },
   { label: 'Pre-listing walkthrough complete',             phase: 'prep' },
   { label: 'Comparable market analysis delivered',         phase: 'prep' },
@@ -21,6 +23,7 @@ const launchChecklist = [
   { label: 'Coming Soon status activated in MLS',          phase: 'mls' },
   { label: 'Yard sign & lockbox installed',                phase: 'mls' },
   { label: 'Listing goes Active in MLS',                   phase: 'mls' },
+  { label: "We're Live email sent to seller",               phase: 'mls' },
   { label: 'Syndication to Zillow, Realtor.com confirmed', phase: 'mls' },
   { label: 'Social media announcement posted',             phase: 'marketing' },
   { label: 'Just Listed postcards mailed to neighborhood', phase: 'marketing' },
@@ -336,6 +339,7 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
     seller_name:  listing?.contact?.name  ?? listing?.contact_name  ?? '',
     seller_email: listing?.contact?.email ?? listing?.contact_email ?? '',
     seller_phone: listing?.contact?.phone ?? listing?.contact_phone ?? '',
+    seller_lead_source: listing?.contact?.source ?? '',
     related_people: Array.isArray(listing?.related_people) ? listing.related_people : [],
     notes:        listing?.notes         ?? '',
     // Seller tracking
@@ -563,6 +567,25 @@ function ListingForm({ listing, onSave, onDelete, onClose, saving, deleting }) {
           <Input label="Phone" value={draft.seller_phone} onChange={e => set('seller_phone', e.target.value)} placeholder="(480) 555-0000" />
           <Input label="Email" value={draft.seller_email} onChange={e => set('seller_email', e.target.value)} placeholder="email@example.com" />
         </div>
+        <Select label="Lead Source" value={draft.seller_lead_source} onChange={e => set('seller_lead_source', e.target.value)}>
+          <option value="">— Select Lead Source —</option>
+          <option value="Referral">Referral</option>
+          <option value="Open House">Open House</option>
+          <option value="Expired Listing">Expired Listing</option>
+          <option value="Cannonball">Cannonball</option>
+          <option value="CertiLead">CertiLead</option>
+          <option value="Sphere of Influence">Sphere of Influence</option>
+          <option value="Past Client">Past Client</option>
+          <option value="FSBO">FSBO</option>
+          <option value="Door Knocking">Door Knocking</option>
+          <option value="Sign Call">Sign Call</option>
+          <option value="Zillow">Zillow</option>
+          <option value="Realtor.com">Realtor.com</option>
+          <option value="Instagram">Instagram</option>
+          <option value="Facebook">Facebook</option>
+          <option value="Website">Website</option>
+          <option value="Other">Other</option>
+        </Select>
         <RelatedPeopleSection
           value={draft.related_people}
           onChange={v => set('related_people', v)}
@@ -2267,8 +2290,12 @@ export default function Sellers() {
           phone: draft.seller_phone.trim() || null,
           email: draft.seller_email.trim() || null,
           type: 'seller',
+          source: draft.seller_lead_source || null,
         })
         contact_id = contact.id
+      } else if (contact_id && draft.seller_lead_source) {
+        // Update existing seller contact's lead source if changed
+        await DB.updateContact(contact_id, { source: draft.seller_lead_source })
       }
 
       const dbRow = {

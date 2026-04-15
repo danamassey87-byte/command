@@ -104,24 +104,56 @@
   margin-top: 4px;
 }
 
-/* ─── Phase Cards ─── */
-.sellers-plan__phases {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--space-md);
+/* ─── Two-Column Body (checklist left, docs right) ─── */
+.sellers-plan__body {
+  display: flex;
+  gap: var(--space-lg);
+  align-items: flex-start;
 }
 
-.sellers-plan__phase-card {
+.sellers-plan__checklist-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.sellers-plan__docs-col {
+  width: 260px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 16px;
+}
+
+.sellers-plan__docs-sidebar {
   padding: var(--space-md) !important;
 }
 
-.sellers-plan__phase-header {
+.sellers-plan__checklist-card {
+  padding: var(--space-md) !important;
+}
+
+/* ─── Collapsible Phase Sections ─── */
+.sellers-plan__phase-section {
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.sellers-plan__phase-section:last-child {
+  border-bottom: none;
+}
+
+.sellers-plan__phase-toggle {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  margin-bottom: var(--space-sm);
-  padding-bottom: var(--space-sm);
-  border-bottom: 1px solid var(--color-border-light);
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 10px 4px;
+  text-align: left;
+}
+
+.sellers-plan__phase-toggle:hover {
+  background: rgba(183, 151, 130, 0.04);
 }
 
 .sellers-plan__phase-dot {
@@ -136,6 +168,7 @@
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--brown-dark);
+  margin: 0;
 }
 
 .sellers-plan__phase-count {
@@ -145,6 +178,21 @@
   background: rgba(183, 151, 130, 0.12);
   padding: 2px 8px;
   border-radius: var(--radius-full);
+}
+
+.sellers-plan__phase-chevron {
+  color: var(--color-text-muted);
+  transition: transform var(--transition-fast);
+  transform: rotate(-90deg);
+  flex-shrink: 0;
+}
+
+.sellers-plan__phase-chevron--open {
+  transform: rotate(0deg);
+}
+
+.sellers-plan__phase-items {
+  padding: 0 4px 8px 22px;
 }
 
 /* ─── Table Cells ─── */
@@ -591,6 +639,8 @@
   .seller-features-grid { grid-template-columns: 1fr; }
   .plan-modal { width: 95vw; }
   .plan-modal--wide { width: 95vw; }
+  .sellers-plan__body { flex-direction: column; }
+  .sellers-plan__docs-col { width: 100%; position: static; }
 }
 
 /* ─── Print / PDF export styles ──────────────────────────────────────────── */

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
-import { SectionHeader, Card, TabBar, Button, SlidePanel, Input, InfoTip } from '../../components/ui/index.jsx'
-import { useWeeklyStats, useGoalTargets } from '../../lib/hooks.js'
+import { SectionHeader, Card, TabBar, Button, SlidePanel, Input, InfoTip, Badge } from '../../components/ui/index.jsx'
+import { useWeeklyStats, useGoalTargets, useListingAppointments, useTransactions, useOpenHouses, useLeads, useContacts, useAllIncomeEntries } from '../../lib/hooks.js'
 import { createWeeklyStats, updateWeeklyStats, updateGoalTargets } from '../../lib/supabase.js'
 import KpiHeatmap from './KpiHeatmap.jsx'
 import './Goals.css'
@@ -109,14 +109,20 @@ function HeroKPIs({ stats, weekNum, fields }) {
   return (
     <div className="hero-kpis">
       {heroFields.map(f => {
-        const ytd = totals[f.key] || 0
+        const manualYtd = totals[f.key] || 0
+        // Use the higher of manual log total or auto-computed value
+        const ytd = f.autoValue != null ? Math.max(manualYtd, f.autoValue) : manualYtd
         const shouldBe = Math.round(f.annualGoal * weekNum / 52)
         const p = pct(ytd, f.annualGoal)
         const isAhead = ytd >= shouldBe
+        const isAuto = f.autoValue != null && f.autoValue > manualYtd
 
         return (
           <div key={f.key} className="hero-kpi">
-            <span className="hero-kpi__label">{f.label}</span>
+            <span className="hero-kpi__label">
+              {f.label}
+              {isAuto && <span style={{ fontSize: '0.55rem', color: 'var(--color-info)', marginLeft: 4, fontWeight: 500, letterSpacing: 0 }}>AUTO</span>}
+            </span>
             <span className={`hero-kpi__value ${ytd > 0 ? (isAhead ? 'hero-kpi__value--ahead' : 'hero-kpi__value--behind') : ''}`}>
               {fmtN(ytd, f.isCurrency)}
             </span>
@@ -145,7 +151,9 @@ function ScoreboardCard({ stats, weekNum, fields }) {
   const weeksScheduledRemaining = Math.max(1, PLANNED_WEEKS * (52 - weekNum) / 52)
 
   const totals = fields.reduce((acc, f) => {
-    acc[f.key] = stats.reduce((sum, w) => sum + (Number(w[f.key]) || 0), 0)
+    const manualTotal = stats.reduce((sum, w) => sum + (Number(w[f.key]) || 0), 0)
+    // Use auto-computed value if it's higher than the manual total
+    acc[f.key] = f.autoValue != null ? Math.max(manualTotal, f.autoValue) : manualTotal
     return acc
   }, {})
 
@@ -156,7 +164,7 @@ function ScoreboardCard({ stats, weekNum, fields }) {
       <div className="scoreboard__header">
         <div>
           <h3 className="scoreboard__title">2026 Annual Scoreboard</h3>
-          <p className="scoreboard__sub">Based on {PLANNED_WEEKS} planned working weeks</p>
+          <p className="scoreboard__sub">Based on {PLANNED_WEEKS} planned working weeks · auto-populated from your data</p>
         </div>
         <span className="scoreboard__week-badge">
           Week {weekNum} of 52 &nbsp;·&nbsp; {weeksLogged} week{weeksLogged !== 1 ? 's' : ''} logged
@@ -245,7 +253,8 @@ function ScoreboardCard({ stats, weekNum, fields }) {
 // ─── Planning Ratios ──────────────────────────────────────────────────────────
 function RatiosCard({ stats, fields }) {
   const t = fields.reduce((acc, f) => {
-    acc[f.key] = stats.reduce((sum, w) => sum + (Number(w[f.key]) || 0), 0)
+    const manualTotal = stats.reduce((sum, w) => sum + (Number(w[f.key]) || 0), 0)
+    acc[f.key] = f.autoValue != null ? Math.max(manualTotal, f.autoValue) : manualTotal
     return acc
   }, {})
 
@@ -572,14 +581,51 @@ export default function Goals() {
   const stats = rawStats ?? []
   const weekNum = getWeekOfYear()
 
+  // Auto-computed data from real DB tables
+  const listingAppts  = useListingAppointments()
+  const transactions  = useTransactions()
+  const openHouses    = useOpenHouses()
+  const leads         = useLeads()
+  const contacts      = useContacts()
+  const incomeEntries = useAllIncomeEntries()
+
+  const autoKPIs = useMemo(() => {
+    const yearStr = String(new Date().getFullYear())
+    const now = new Date()
+    const la = listingAppts.data ?? []
+    const t  = transactions.data ?? []
+    const oh = openHouses.data ?? []
+    const ld = leads.data ?? []
+    const c  = contacts.data ?? []
+    const inc = incomeEntries.data ?? []
+
+    const closedDeals = t.filter(x => (x.status ?? '').toLowerCase().includes('closed') && x.closing_date?.startsWith(yearStr))
+
+    return {
+      listing_appts_set:  la.filter(a => a.scheduled_at?.startsWith(yearStr)).length,
+      listing_appts_held: la.filter(a => a.scheduled_at?.startsWith(yearStr) && a.outcome !== 'cancelled' && new Date(a.scheduled_at) <= now).length,
+      listings_taken:     la.filter(a => a.outcome === 'won' && a.scheduled_at?.startsWith(yearStr)).length,
+      listings_sold:      closedDeals.filter(d => (d.deal_type ?? '').toLowerCase() === 'seller').length,
+      buyer_sales:        closedDeals.filter(d => (d.deal_type ?? '').toLowerCase() === 'buyer').length,
+      buyer_reps_signed:  c.filter(x => x.bba_signed && x.bba_signed_date?.startsWith(yearStr)).length,
+      open_house_events:  oh.filter(x => x.date?.startsWith(yearStr)).length,
+      new_leads:          ld.filter(x => x.created_at?.startsWith(yearStr)).length,
+      sales_closed:       closedDeals.length,
+      earned_income:      inc.filter(i => i.date?.startsWith(yearStr)).reduce((s, i) => s + (Number(i.amount) || 0), 0),
+      paid_income:        inc.filter(i => i.date?.startsWith(yearStr) && (i.status === 'received' || i.status === 'deposited')).reduce((s, i) => s + (Number(i.amount) || 0), 0),
+      live_contacts:      c.length,
+    }
+  }, [listingAppts.data, transactions.data, openHouses.data, leads.data, contacts.data, incomeEntries.data])
+
   // Merge saved goals with FIELDS defaults
   const effectiveFields = useMemo(() => {
     const overrides = savedGoals?.value ?? {}
     return FIELDS.map(f => ({
       ...f,
       annualGoal: overrides[f.key] != null ? Number(overrides[f.key]) : f.annualGoal,
+      autoValue: autoKPIs[f.key] ?? null,  // attach auto-computed value
     }))
-  }, [savedGoals])
+  }, [savedGoals, autoKPIs])
 
   const [showModal, setShowModal]       = useState(false)
   const [editRecord, setEditRecord]     = useState(null)
@@ -637,6 +683,36 @@ export default function Goals() {
       )}
 
       <HeroKPIs stats={stats} weekNum={weekNum} fields={effectiveFields} />
+
+      {/* Auto-Populated Production Stats */}
+      <Card style={{ padding: '16px 20px', marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--brown-dark)', margin: 0 }}>
+              Auto-Populated from Your Data
+            </h3>
+            <p style={{ fontSize: '0.72rem', color: 'var(--brown-mid)', margin: '2px 0 0' }}>
+              These numbers update automatically — no manual entry needed. The higher of your manual log or auto-computed value is used.
+            </p>
+          </div>
+          <Badge variant="info" size="sm">LIVE</Badge>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 }}>
+          {effectiveFields.filter(f => f.autoValue != null).map(f => {
+            const manualYtd = stats.reduce((sum, w) => sum + (Number(w[f.key]) || 0), 0)
+            const isAutoHigher = f.autoValue > manualYtd
+            return (
+              <div key={f.key} style={{ textAlign: 'center', padding: '8px 4px', background: isAutoHigher ? 'rgba(90, 135, 180, 0.06)' : 'var(--cream)', borderRadius: 'var(--radius-sm)' }}>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, color: isAutoHigher ? '#5a87b4' : 'var(--brown-dark)', margin: '0 0 2px' }}>
+                  {f.isCurrency ? `$${Math.round(f.autoValue).toLocaleString()}` : f.autoValue}
+                </p>
+                <p style={{ fontSize: '0.56rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--brown-mid)', margin: 0, lineHeight: 1.3 }}>{f.label}</p>
+                {isAutoHigher && <p style={{ fontSize: '0.5rem', color: '#5a87b4', margin: '2px 0 0' }}>auto</p>}
+              </div>
+            )
+          })}
+        </div>
+      </Card>
 
       <KpiHeatmap
         stats={stats}

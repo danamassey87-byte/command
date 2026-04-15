@@ -742,6 +742,68 @@ function ExecutiveSummary({ kpis, loading, pipelineValue, listingValue }) {
   )
 }
 
+// ─── ROI Snapshot ────────────────────────────────────────────────────────────
+function ROISnapshotCard({ kpis, loading }) {
+  if (loading) return <Skeleton height={200} />
+  const metrics = [
+    { label: 'Marketing Spend', value: fmtDollar(kpis.totalCostTrackerSpend || 0), color: 'var(--color-danger)' },
+    { label: 'Avg Cost / Listing', value: fmtDollar(kpis.avgCostPerListing || 0), color: 'var(--brown-dark)' },
+    { label: 'OH → Client', value: `${(kpis.ohConversionRate || 0).toFixed(1)}%`, color: 'var(--color-success)' },
+    { label: 'Letter Conversion', value: `${(kpis.letterConversionRate || 0).toFixed(1)}%`, color: '#b5703b' },
+  ]
+
+  return (
+    <DbCard title="ROI Snapshot" tip="Key return-on-investment metrics from your Cost Tracker. Marketing spend, average cost per listing, and conversion rates from open houses and letter campaigns.">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+        {metrics.map(m => (
+          <div key={m.label} style={{ textAlign: 'center', padding: '10px 0' }}>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: m.color, margin: '0 0 2px' }}>{m.value}</p>
+            <p style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--brown-mid)', margin: 0 }}>{m.label}</p>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginTop: 8, padding: '10px 0', borderTop: '1px solid var(--cream)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-success)', margin: '0 0 2px' }}>{kpis.ytdSalesClosed || 0}</p>
+          <p style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--brown-mid)', margin: 0 }}>Sales Closed YTD</p>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--brown-dark)', margin: '0 0 2px' }}>{kpis.ytdOHEvents || 0}</p>
+          <p style={{ fontSize: '0.62rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--brown-mid)', margin: 0 }}>Open Houses YTD</p>
+        </div>
+      </div>
+    </DbCard>
+  )
+}
+
+// ─── Production Auto-KPIs ────────────────────────────────────────────────────
+function ProductionCard({ kpis, loading }) {
+  if (loading) return <Skeleton height={200} />
+  const items = [
+    { label: 'Listing Appts Set',   value: kpis.ytdListingApptsSet },
+    { label: 'Listing Appts Held',  value: kpis.ytdListingApptsHeld },
+    { label: 'Listings Won',        value: kpis.ytdListingsTaken },
+    { label: 'Listings Lost',       value: kpis.ytdListingApptsLost, isNeg: true },
+    { label: 'Win Rate',            value: kpis.ytdListingWinRate > 0 ? `${kpis.ytdListingWinRate.toFixed(0)}%` : '—', raw: true },
+    { label: 'Listings Sold',       value: kpis.ytdListingsSold },
+    { label: 'Buyer Reps Signed',   value: kpis.ytdBuyerRepsSigned },
+    { label: 'Buyer Sales',         value: kpis.ytdBuyerSales },
+  ]
+
+  return (
+    <DbCard title="Production (Auto)" tip="These numbers are auto-calculated from your actual listing appointments, transactions, and contacts — no manual entry needed. Set = scheduled, Held = not cancelled and date passed, Taken = outcome 'won'.">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        {items.map(m => (
+          <div key={m.label} style={{ textAlign: 'center', padding: '8px 0' }}>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 700, color: m.isNeg ? 'var(--color-danger)' : (m.raw ? 'var(--brown-dark)' : ((m.value || 0) > 0 ? 'var(--brown-dark)' : 'var(--brown-light)')), margin: '0 0 2px' }}>{m.raw ? m.value : (m.value || 0)}</p>
+            <p style={{ fontSize: '0.58rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--brown-mid)', margin: 0, lineHeight: 1.3 }}>{m.label}</p>
+          </div>
+        ))}
+      </div>
+    </DbCard>
+  )
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const {
@@ -819,6 +881,12 @@ export default function Dashboard() {
           <ThisWeekCard latestWeek={latestWeek} />
           <ShowingsCard showingSessions={showingSessions} interestLevels={interestLevels} topProperties={topProperties} />
         </>}
+      </div>
+
+      {/* Production Auto-KPIs + ROI Snapshot */}
+      <div className="db-row db-row--50-50">
+        <ProductionCard kpis={kpis} loading={loading} />
+        <ROISnapshotCard kpis={kpis} loading={loading} />
       </div>
 
       {/* Buyer Pipeline + Open Houses stacked + Leads stacked */}

@@ -113,6 +113,8 @@ const SECTIONS = {
       { label: 'Mileage Log',   path: '/pnl/mileage',     icon: 'map-pin' },
       { label: 'Budget',        path: '/pnl/budget',       icon: 'target' },
       { label: 'Tax Summary',   path: '/pnl/tax',          icon: 'bar-chart' },
+      { label: 'Cost Tracker',  path: '/pnl/costs',       icon: 'clipboard',     group: 'Tracking' },
+      { label: 'ROI Analytics', path: '/pnl/roi',         icon: 'trending-up' },
       { label: 'Net Sheet',     path: '/net-sheet',        icon: 'clipboard',     group: 'Tools' },
       { label: 'Market Stats',  path: '/market',           icon: 'bar-chart' },
     ],
