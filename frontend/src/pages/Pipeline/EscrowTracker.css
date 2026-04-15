@@ -51,6 +51,18 @@
 }
 .escrow__chevron--open { transform: rotate(180deg); }
 
+.escrow__email-btn {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  color: var(--brown-mid);
+  cursor: pointer;
+  vertical-align: middle;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.escrow__email-btn:hover { opacity: 1; }
+
 /* Checklist container */
 .escrow__checklist {
   padding: 0 var(--space-lg) var(--space-lg);

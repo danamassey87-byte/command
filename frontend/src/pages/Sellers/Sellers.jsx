@@ -2651,7 +2651,7 @@ export default function Sellers() {
         <ListingForm key={editingListing?.id || 'new'} listing={editingListing} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
       </SlidePanel>
 
-      <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} />
+      <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} contactType="seller" />
     </div>
   )
 }

@@ -715,7 +715,7 @@ export default function Buyers() {
         <BuyerForm key={editingBuyer?.id || 'new'} buyer={editingBuyer} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} />
       </SlidePanel>
 
-      <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} />
+      <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} contactType="buyer" />
     </div>
   )
 }

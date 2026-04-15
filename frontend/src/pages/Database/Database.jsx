@@ -5,6 +5,7 @@ import RelatedPeopleSection, { cleanRelatedPeople } from '../../components/relat
 import { useContactsWithTags, useTags, useListings } from '../../lib/hooks.js'
 import { useNavigate } from 'react-router-dom'
 import * as DB from '../../lib/supabase.js'
+import SendEmailModal from '../../components/email/SendEmailModal'
 import './Database.css'
 
 // Buyer stages that indicate an active buy-side engagement
@@ -52,6 +53,7 @@ export default function Database() {
   const [showManager, setShowManager] = useState(false)
   const [selected, setSelected] = useState(null) // contact being edited
   const [dualRolePicker, setDualRolePicker] = useState(null) // contact triggered by dual-role click
+  const [emailContact, setEmailContact] = useState(null)
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState('database') // 'database' | 'tags'
   const navigate = useNavigate()
@@ -321,8 +323,17 @@ export default function Database() {
                       <tr key={c.id} className="db-table__row" onClick={() => openContact(c)}>
                         <td className="db-table__name">{c.name || '—'}</td>
                         <td className="db-table__contact">
-                          {c.email && <span className="db-table__email">{c.email}</span>}
-                          {c.phone && <span className="db-table__phone">{c.phone}</span>}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div>
+                              {c.email && <span className="db-table__email">{c.email}</span>}
+                              {c.phone && <span className="db-table__phone">{c.phone}</span>}
+                            </div>
+                            {c.email && (
+                              <span className="db-table__email-btn" title="Send email" onClick={e => { e.stopPropagation(); setEmailContact({ id: c.id, name: c.name, email: c.email, type: c.type }) }}>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td>
                           <Badge variant={TYPE_VARIANTS[c.type] || 'default'} size="sm">
@@ -427,6 +438,8 @@ export default function Database() {
           />
         )}
       </SlidePanel>
+
+      <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} contactType={emailContact?.type} />
     </div>
   )
 }

@@ -250,7 +250,7 @@ export default function EscrowTracker() {
                 <span className="escrow__deal-name">
                   {deal.contact?.name ?? '—'}
                   {deal.contact?.email && (
-                    <span className="escrow__email-btn" title="Send email" onClick={e => { e.stopPropagation(); setEmailContact({ id: deal.contact.id, name: deal.contact.name, email: deal.contact.email }) }}>
+                    <span className="escrow__email-btn" title="Send email" onClick={e => { e.stopPropagation(); setEmailContact({ id: deal.contact.id, name: deal.contact.name, email: deal.contact.email, type: deal.deal_type }) }}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                     </span>
                   )}
@@ -318,7 +318,7 @@ export default function EscrowTracker() {
         )
       })}
 
-      <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} />
+      <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} contactType={emailContact?.type} />
     </div>
   )
 }

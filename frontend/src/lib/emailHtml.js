@@ -171,6 +171,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_clean',
     name: 'Clean & Simple',
     emoji: '✨',
+    category: 'general',
     blocks: [
       { id: '1', type: 'header', logoUrl: '', bgColor: '#3A2A1E', textColor: '#ffffff', borderRadius: 0, padding: 28 },
       { id: '2', type: 'greeting', text: 'Hi {first_name},', fontSize: 15, fontFamily: '' },
@@ -184,6 +185,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_warm',
     name: 'Warm & Personal',
     emoji: '🤝',
+    category: 'general',
     blocks: [
       { id: '1', type: 'header', logoUrl: '', bgColor: '#b79782', textColor: '#ffffff', borderRadius: 0, padding: 24 },
       { id: '2', type: 'greeting', text: 'Hey {first_name}!', fontSize: 16, fontFamily: '' },
@@ -196,6 +198,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_listing',
     name: 'Property Showcase',
     emoji: '🏠',
+    category: 'general',
     blocks: [
       { id: '1', type: 'header', logoUrl: '', bgColor: '#3A2A1E', textColor: '#ffffff', borderRadius: 0, padding: 28 },
       { id: '2', type: 'greeting', text: 'Hi {first_name},', fontSize: 15, fontFamily: '' },
@@ -210,6 +213,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_market',
     name: 'Market Update',
     emoji: '📊',
+    category: 'general',
     blocks: [
       { id: '1', type: 'header', logoUrl: '', bgColor: '#3A2A1E', textColor: '#ffffff', borderRadius: 0, padding: 28 },
       { id: '2', type: 'greeting', text: 'Hi {first_name},', fontSize: 15, fontFamily: '' },
@@ -229,6 +233,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_were_live',
     name: "We're Live — Seller Listing Launch",
     emoji: '🏡',
+    category: 'seller',
     blocks: [
       // Logo header — REAL brokerage white logo on dark espresso
       { id: '1', type: 'header', logoUrl: '/assets/branding/real-logo-white.png', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
@@ -259,6 +264,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_offer_received',
     name: 'Offer Received — Seller Notification',
     emoji: '📩',
+    category: 'seller',
     blocks: [
       // Logo header — REAL brokerage white logo on dark espresso
       { id: '1', type: 'header', logoUrl: '/assets/branding/real-logo-white.png', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
@@ -295,6 +301,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_post_listing_appt',
     name: 'Post Listing Appointment — Next Steps',
     emoji: '📋',
+    category: 'seller',
     blocks: [
       // Hero section — side-by-side: image left, script text right
       // (Using image block for the property photo, then the script headline)
@@ -350,6 +357,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_weekly_activity',
     name: 'Weekly Listing Activity Update',
     emoji: '📊',
+    category: 'seller',
     blocks: [
       // Logo header
       { id: '1', type: 'header', logoUrl: '/assets/branding/real-logo-white.png', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
@@ -395,6 +403,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_buyer_under_contract',
     name: 'Buyer Under Contract — Next Steps',
     emoji: '🎉',
+    category: 'buyer',
     blocks: [
       // Logo header
       { id: '1', type: 'header', logoUrl: '/assets/branding/real-logo-white.png', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
@@ -449,6 +458,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_seller_pre_close',
     name: 'Seller Pre-Close — Week Before Closing',
     emoji: '🔑',
+    category: 'seller',
     blocks: [
       // Logo header
       { id: '1', type: 'header', logoUrl: '/assets/branding/real-logo-white.png', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
@@ -495,6 +505,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_pre_listing_appt',
     name: 'Pre-Listing Appointment — What to Expect',
     emoji: '🤝',
+    category: 'seller',
     blocks: [
       // Logo header
       { id: '1', type: 'header', logoUrl: '/assets/branding/real-logo-white.png', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
@@ -535,6 +546,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_post_close_thankyou_buyer',
     name: 'Post Close Thank You + Gift — Buyer',
     emoji: '☕',
+    category: 'buyer',
     blocks: [
       // Logo header
       { id: '1', type: 'header', logoUrl: '/assets/branding/real-logo-white.png', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
@@ -563,6 +575,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_post_close_thankyou_seller',
     name: 'Post Close Thank You + Gift — Seller',
     emoji: '☕',
+    category: 'seller',
     blocks: [
       // Logo header
       { id: '1', type: 'header', logoUrl: '/assets/branding/real-logo-white.png', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
@@ -591,6 +604,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_reverse_prospecting',
     name: 'Open House — Reverse Prospecting / SOI',
     emoji: '📣',
+    category: 'seller',
     blocks: [
       // Property hero image
       { id: '1', type: 'image', images: [''], alt: 'Listing hero photo', layout: 'full', shape: 'box', borderRadius: 0 },
@@ -623,6 +637,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_price_drop_open_house',
     name: 'Price Drop + Open House Announcement',
     emoji: '💰',
+    category: 'seller',
     blocks: [
       // Logo header
       { id: '1', type: 'header', logoUrl: '/assets/branding/real-logo-white.png', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
@@ -651,6 +666,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_newest_listing',
     name: 'Our Newest Listing — Property Showcase',
     emoji: '🏠',
+    category: 'seller',
     blocks: [
       // Logo header
       { id: '1', type: 'header', logoUrl: '/assets/branding/real-logo-white.png', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
@@ -681,6 +697,7 @@ export const CAMPAIGN_EMAIL_TEMPLATES = [
     id: 'campaign_review_request',
     name: 'Post Close — Review Request',
     emoji: '⭐',
+    category: 'general',
     blocks: [
       // Logo header
       { id: '1', type: 'header', logoUrl: '/assets/branding/real-logo-white.png', bgColor: BRAND.dark, textColor: BRAND.white, borderRadius: 0, padding: 28 },
