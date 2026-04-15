@@ -61,6 +61,7 @@ export default function InspoRecreator() {
   const [targetPlatform, setTargetPlatform] = useState('instagram')
   const [avatarId, setAvatarId] = useState('')
   const [pillarId, setPillarId] = useState('')
+  const [loadedInspoNotes, setLoadedInspoNotes] = useState('') // notes from the library item being recreated
   const [aiLoading, setAiLoading] = useState(false)
   const [analysis, setAnalysis] = useState('')
   const [recreated, setRecreated] = useState('')
@@ -162,8 +163,74 @@ export default function InspoRecreator() {
     setPillarId(item.pillar_id || '')
     setAnalysis(item.ai_analysis || '')
     setRecreated(item.recreated_text || '')
+    setLoadedInspoNotes(item.notes || '')
     setDetailItem(null)
     setTab('recreate')
+  }
+
+  // One-click recreate directly from library card or detail panel
+  const [quickRecreating, setQuickRecreating] = useState(null) // item id being recreated
+  const [quickResult, setQuickResult] = useState(null) // { analysis, recreated_text, suggested_hashtags, suggested_hook }
+
+  async function recreateForMe(e, item) {
+    if (e) e.stopPropagation()
+    const caption = item.source_caption || item.source_url || ''
+    if (!caption.trim()) { alert('This inspo has no caption or URL to recreate from.'); return }
+    setQuickRecreating(item.id)
+    setQuickResult(null)
+    try {
+      const pillarName = item.pillar_id ? pillarList.find(p => p.id === item.pillar_id)?.name : undefined
+      const result = await DB.generateContent({
+        type: 'recreate_inspo',
+        prompt: caption,
+        platform: item.source_platform || 'instagram',
+        avatar_id: item.avatar_id || undefined,
+        pillar: pillarName || undefined,
+        inspo_notes: item.notes || undefined,
+      })
+      // Parse result
+      let parsed = {}
+      if (result.text) {
+        try { parsed = JSON.parse(result.text) } catch { parsed = { recreated_text: result.text } }
+      } else if (result.recreated_text) {
+        parsed = result
+      }
+      setQuickResult({
+        analysis: parsed.analysis || '',
+        recreated_text: parsed.recreated_text || parsed.recreated || '',
+        suggested_hashtags: Array.isArray(parsed.suggested_hashtags) ? parsed.suggested_hashtags.map(h => `#${h}`).join(' ') : (parsed.suggested_hashtags || ''),
+        suggested_hook: parsed.suggested_hook || '',
+      })
+      // Update the item in the bank as "used"
+      await DB.updateInspoEntry(item.id, { used: true, recreated_text: parsed.recreated_text || parsed.recreated || '' })
+      await refetchInspo()
+    } catch (err) {
+      console.error('Quick recreate error:', err)
+      alert('Error: ' + err.message)
+      setQuickResult(null)
+    } finally {
+      setQuickRecreating(null)
+    }
+  }
+
+  function copyQuickResult(text) {
+    navigator.clipboard.writeText(text)
+    setCopied('quick')
+    setTimeout(() => setCopied(null), 1500)
+  }
+
+  async function quickResultToComposer() {
+    if (!quickResult?.recreated_text) return
+    try {
+      const { data: piece } = await DB.createContentPiece({
+        title: (quickResult.suggested_hook || quickResult.recreated_text).slice(0, 80),
+        body_text: quickResult.recreated_text,
+        content_date: new Date().toISOString().slice(0, 10),
+        status: 'draft',
+        notes: quickResult.suggested_hashtags || '',
+      })
+      if (piece?.id) navigate(`/content/composer/${piece.id}`)
+    } catch (err) { alert('Error: ' + err.message) }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -180,6 +247,7 @@ export default function InspoRecreator() {
         platform: targetPlatform,
         avatar_id: avatarId || undefined,
         pillar: pillarList.find(p => p.id === pillarId)?.name || undefined,
+        inspo_notes: loadedInspoNotes || undefined,
       })
       if (result.text) {
         try {
@@ -461,7 +529,16 @@ export default function InspoRecreator() {
 
                     <div className="ir-lib-card__footer">
                       <span>{new Date(item.created_at).toLocaleDateString()}</span>
-                      {item.used && <span className="ir-lib-card__used">Used</span>}
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        {item.used && <span className="ir-lib-card__used">Used</span>}
+                        <button
+                          className="ir-recreate-btn"
+                          onClick={e => recreateForMe(e, item)}
+                          disabled={quickRecreating === item.id}
+                        >
+                          {quickRecreating === item.id ? 'Working...' : 'Recreate for Me'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -567,8 +644,11 @@ export default function InspoRecreator() {
 
                 {/* Actions */}
                 <div className="ir-detail-actions">
-                  <Button size="sm" onClick={() => loadToRecreate(detailItem)}>
-                    Recreate This
+                  <Button size="sm" onClick={e => recreateForMe(e, detailItem)} disabled={quickRecreating === detailItem.id}>
+                    {quickRecreating === detailItem.id ? 'Recreating...' : 'Recreate for Me'}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => loadToRecreate(detailItem)}>
+                    Customize & Recreate
                   </Button>
                   <Button size="sm" variant="ghost" onClick={e => toggleFavorite(e, detailItem)}>
                     {detailItem.favorited ? '\u2605 Favorited' : '\u2606 Favorite'}
@@ -577,6 +657,33 @@ export default function InspoRecreator() {
                     Delete
                   </Button>
                 </div>
+
+                {/* Quick recreate result */}
+                {quickResult && (
+                  <div className="ir-quick-result">
+                    {quickResult.suggested_hook && (
+                      <div className="ir-quick-result__hook">{quickResult.suggested_hook}</div>
+                    )}
+                    <div className="ir-quick-result__text">{quickResult.recreated_text}</div>
+                    {quickResult.suggested_hashtags && (
+                      <div className="ir-quick-result__hashtags">{quickResult.suggested_hashtags}</div>
+                    )}
+                    {quickResult.analysis && (
+                      <details className="ir-quick-result__analysis">
+                        <summary>Structure Analysis</summary>
+                        <div>{quickResult.analysis}</div>
+                      </details>
+                    )}
+                    <div className="ir-quick-result__actions">
+                      <Button size="sm" onClick={quickResultToComposer}>
+                        Send to Composer
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => copyQuickResult(quickResult.recreated_text)}>
+                        {copied === 'quick' ? 'Copied!' : 'Copy'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

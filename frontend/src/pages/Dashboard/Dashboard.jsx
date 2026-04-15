@@ -4,6 +4,7 @@ import { StatCard, Card, Badge, InfoTip, AddressLink } from '../../components/ui
 import { useDashboardData, useAllDailyTasks, useDailyStreaks } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 import StaleRecordsWidget from '../../components/StaleRecordsWidget'
+import ClosedDealsMap from '../../components/ClosedDealsMap'
 import './Dashboard.css'
 
 const PLANNED_WEEKS = 43
@@ -621,6 +622,7 @@ function DailyTasksWidget() {
             <circle cx="18" cy="18" r="15.5" fill="none"
               stroke={pct >= 100 ? 'var(--color-success)' : 'var(--brown-mid)'}
               strokeWidth="3" strokeDasharray={`${pct} 100`}
+              strokeDashoffset={pct} style={{ animation: `dashDraw 1.2s ease-out 0.3s forwards` }}
               strokeLinecap="round" transform="rotate(-90 18 18)" />
           </svg>
           <span className="dtw-progress__pct">{pct}%</span>
@@ -867,6 +869,9 @@ export default function Dashboard() {
 
       {/* Stale records — surfaces cold leads, overdue appts, overdue closings */}
       <StaleRecordsWidget />
+
+      {/* Closed Deals Map */}
+      {!loading && <ClosedDealsMap transactions={transactions} />}
 
       {/* Pipeline + Funnel */}
       <div className="db-row db-row--60-40">

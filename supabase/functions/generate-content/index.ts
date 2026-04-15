@@ -29,7 +29,54 @@ serve(async (req) => {
       )
     }
 
-    const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property, source, avatar_id, framework } = await req.json()
+    const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property, source, avatar_id, framework, inspo_notes } = await req.json()
+
+    // ─── Brand guidelines injection ──────────────────────────────────────
+    // Pull brand profile from user_settings so Claude knows Dana's brand voice,
+    // colors, tagline, and tone before generating any content.
+    let brandContext = ''
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      )
+      const { data: brandRow } = await supabase
+        .from('user_settings')
+        .select('value')
+        .eq('key', 'brand_profile')
+        .maybeSingle()
+      if (brandRow?.value) {
+        const b = brandRow.value
+        const parts: string[] = []
+
+        // Signature / identity
+        if (b.signature) {
+          const sig = b.signature
+          if (sig.full_name) parts.push(`Agent name: ${sig.full_name}`)
+          if (sig.brokerage) parts.push(`Brokerage: ${sig.brokerage}`)
+          if (sig.title) parts.push(`Title: ${sig.title}`)
+          if (sig.phone) parts.push(`Phone: ${sig.phone}`)
+          if (sig.designations) parts.push(`Designations: ${sig.designations}`)
+          if (sig.usp) parts.push(`Unique Selling Proposition: ${sig.usp}`)
+          if (sig.service_areas) parts.push(`Service areas: ${sig.service_areas}`)
+        }
+
+        // Guidelines
+        if (b.guidelines) {
+          const gl = b.guidelines
+          if (gl.tagline) parts.push(`Brand tagline: "${gl.tagline}"`)
+          if (gl.tone_of_voice) parts.push(`Brand voice / tone: ${gl.tone_of_voice}`)
+          if (gl.primary_color) parts.push(`Brand colors: primary ${gl.primary_color}, secondary ${gl.secondary_color || 'N/A'}, accent ${gl.accent_color || 'N/A'}`)
+          if (gl.fonts) parts.push(`Brand fonts: ${gl.fonts}`)
+        }
+
+        if (parts.length > 0) {
+          brandContext = '\n\nBRAND IDENTITY & GUIDELINES:\n' + parts.join('\n') + '\n\nAlways write in alignment with these brand guidelines. Use the brand voice and tone described above.'
+        }
+      }
+    } catch (e) {
+      console.error('Brand profile lookup failed (non-fatal):', e)
+    }
 
     // ─── Framework injection ─────────────────────────────────────────────
     // When a copywriting framework is specified, fetch it from ai_prompts and
@@ -393,18 +440,46 @@ Return ONLY a valid JSON array of objects. No extra commentary. Example:
 
     } else if (type === 'recreate_inspo') {
       // Analyze and recreate inspiration content in Dana's voice
+      // Pull Dana's style preferences from her inspo library notes
+      let styleContext = ''
+      try {
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        )
+        const { data: recentInspo } = await supabase
+          .from('inspo_bank')
+          .select('notes, source_platform, content_type, tags')
+          .not('notes', 'is', null)
+          .neq('notes', '')
+          .order('created_at', { ascending: false })
+          .limit(20)
+        if (recentInspo?.length) {
+          const noteLines = recentInspo.map((item: any, i: number) => {
+            const tags = item.tags?.length ? ` [${item.tags.join(', ')}]` : ''
+            return `${i + 1}. "${item.notes}"${tags} (${item.content_type || item.source_platform || 'general'})`
+          }).join('\n')
+          styleContext = `\n\nDANA'S STYLE PREFERENCES — she has saved these notes about content she likes. Use these to understand her taste and what resonates with her. Mirror these preferences in what you create:\n${noteLines}\n`
+        }
+      } catch (e) {
+        console.error('Inspo notes lookup failed (non-fatal):', e)
+      }
+
+      // If the caller passed notes from the specific inspo item being recreated
+      const itemNotes = inspo_notes ? `\n\nNOTES ON THIS SPECIFIC PIECE — what Dana liked about it:\n"${inspo_notes}"\nMake sure the recreation captures these specific qualities she called out.\n` : ''
+
       userMessage = `I found this content that I'd like to recreate in my own voice and style:
 
 "${prompt || body_text}"
 
 ${platform ? `Target platform: ${platform}` : ''}
 ${pillar ? `Content pillar: ${pillar}` : ''}
-
+${styleContext}${itemNotes}
 Please do TWO things:
 
 1. **ANALYZE** the structure: What hook type is used? What's the emotional arc? What's the CTA pattern? What format/structure makes it effective?
 
-2. **RECREATE** it in Dana's voice — warm, confident, authentic East Valley real estate agent. Same structure and intent, completely different words. Make it sound like Dana wrote it from scratch.
+2. **RECREATE** it in Dana's voice — warm, confident, authentic East Valley real estate agent. Same structure and intent, completely different words. Make it sound like Dana wrote it from scratch. Pay attention to her style preferences above — she's told you what she likes.
 
 Return ONLY a valid JSON object with these keys (no extra commentary):
 {
@@ -430,7 +505,7 @@ Return ONLY a valid JSON object with these keys (no extra commentary):
       body: JSON.stringify({
         model,
         max_tokens: maxTokens,
-        system: SYSTEM_PROMPT + frameworkContext + avatarContext,
+        system: SYSTEM_PROMPT + brandContext + frameworkContext + avatarContext,
         messages: [{ role: 'user', content: userMessage }],
       }),
     })

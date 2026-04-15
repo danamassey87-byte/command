@@ -1,0 +1,86 @@
+/* ─── Closed Deals Map ──────────────────────────────────────────────────── */
+.cdm {
+  background: var(--white, #fff);
+  border: 1px solid var(--brown-light);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.cdm__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 10px;
+}
+
+.cdm__title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--brown-dark);
+  margin: 0;
+}
+
+.cdm__count {
+  font-size: 0.75rem;
+  color: var(--brown-warm);
+  background: var(--cream);
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.cdm__map {
+  width: 100%;
+  height: 340px;
+}
+
+/* ─── Hover Tooltip (inside Google InfoWindow) ─────────────────────────── */
+.cdm-tooltip {
+  text-align: center;
+  padding: 0;
+  min-width: 140px;
+  max-width: 160px;
+}
+
+.cdm-tooltip__img {
+  width: 100%;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+  margin-bottom: 5px;
+  background: var(--cream, #EFEDE8);
+}
+
+.cdm-tooltip__name {
+  margin: 0;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #3A2A1E;
+  line-height: 1.2;
+}
+
+.cdm-tooltip__date {
+  margin: 1px 0 0;
+  font-size: 0.58rem;
+  color: #5A4136;
+  line-height: 1.2;
+}
+
+/* Override Google InfoWindow chrome */
+.gm-style-iw-c {
+  padding: 6px !important;
+  border-radius: 10px !important;
+  box-shadow: 0 2px 12px rgba(58, 42, 30, 0.15) !important;
+}
+.gm-style-iw-d {
+  overflow: hidden !important;
+}
+.gm-style-iw-tc::after {
+  background: #fff !important;
+}
+/* Hide close button on hover tooltips */
+.gm-style-iw-c button.gm-ui-hover-effect {
+  display: none !important;
+}
