@@ -113,3 +113,16 @@
   text-transform: uppercase; letter-spacing: 0.04em;
   color: var(--color-text-muted); margin-bottom: 4px;
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 600px) {
+  .hb-page { padding: 16px 12px 60px; }
+  .hb-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .hb-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .hb-tabs::-webkit-scrollbar { display: none; }
+  .hb-tab { white-space: nowrap; flex-shrink: 0; min-height: 44px; }
+  .hb-group { padding: 12px 14px; }
+  .hb-group__header { flex-wrap: wrap; }
+  .hb-group__actions { margin-left: 0; }
+  .hb-perf-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}

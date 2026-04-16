@@ -261,9 +261,9 @@
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px;
-  width: 32px;
-  height: 32px;
+  padding: 8px; /* Mobile: enlarged touch target */
+  width: 44px; /* Mobile: 44px minimum tap target */
+  height: 44px;
   flex-shrink: 0;
 }
 .topnav__hamburger-line {
@@ -386,6 +386,34 @@
 
   .topnav__mobile-link--active .topnav__tab-icon {
     opacity: 1;
+  }
+
+  /* Settings + logout touch targets on mobile */
+  .topnav__settings-link {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px;
+  }
+  .topnav__logout-btn {
+    min-height: 44px;
+    padding: 8px 14px;
+  }
+}
+
+/* ─── Small mobile ─── */
+@media (max-width: 480px) {
+  .topnav__header-row {
+    padding: 6px var(--space-sm) 6px;
+  }
+  .topnav__name {
+    font-size: 0.88rem;
+  }
+  .topnav__time {
+    font-size: 0.72rem;
+  }
+  .topnav__mobile-menu {
+    width: 260px;
+    max-width: 85vw;
   }
 }
 

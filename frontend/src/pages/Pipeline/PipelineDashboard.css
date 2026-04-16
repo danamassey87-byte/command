@@ -205,3 +205,8 @@
 }
 .pl-quick-link:hover { background: var(--brown-mid); color: #fff; }
 .pl-quick-link__icon { font-size: 1.4rem; }
+
+/* ─── Mobile ─── */
+@media (max-width: 480px) {
+  .pl-stage-row { grid-template-columns: 80px 1fr 30px; }
+}

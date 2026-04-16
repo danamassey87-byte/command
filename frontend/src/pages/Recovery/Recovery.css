@@ -124,3 +124,9 @@
   gap: 6px;
   flex-wrap: wrap;
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 600px) {
+  .recovery__table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .recovery__label { max-width: 100%; }
+}

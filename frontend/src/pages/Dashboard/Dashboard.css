@@ -825,12 +825,22 @@
   .widget-grid { grid-template-columns: 1fr; }
   .prod-grid { grid-template-columns: repeat(3, 1fr); }
   .floating-buttons { bottom: 14px; right: 14px; }
-  .fab { width: 40px; height: 40px; }
+  .fab { width: 44px; height: 44px; } /* Touch target: 44px minimum */
+  .campaigns-mini__stats { grid-template-columns: repeat(2, 1fr); } /* 4-col → 2-col */
+  .tasks-overlay__panel { width: 100%; max-width: 100%; } /* Full width on mobile */
+  .funnel-widget { flex-direction: column; align-items: stretch; }
+  .clients-widget { flex-direction: column; }
+  .investor-mini { flex-direction: column; }
 }
 @media (max-width: 480px) {
   .greeting-bar__hello { font-size: 1.3rem; }
   .greeting-bar { flex-direction: column; align-items: flex-start; gap: 4px; }
   .prod-grid { grid-template-columns: repeat(2, 1fr); }
+  .eod-overlay__card { padding: var(--space-md); }
+  .floating-buttons { bottom: 10px; right: 10px; }
+  .widget { padding: 12px 14px; }
+  .hero-card { padding: 10px 12px; }
+  .hero-card__value { font-size: 1.3rem; }
 }
 
 /* ─── Smart Campaigns Widget ─── */

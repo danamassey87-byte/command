@@ -600,4 +600,21 @@
   .pipe__list-header, .pipe__list-row { grid-template-columns: 1fr 1fr; }
   .pipe__list-th:nth-child(n+3), .pipe__list-td:nth-child(n+3) { display: none; }
   .pipe__form-row { grid-template-columns: 1fr; }
+  .pipe__stats { flex-wrap: wrap; gap: var(--space-sm); }
+  .pipe__view-tabs { flex-wrap: nowrap; }
+  .pipe__view-tab { padding: 5px 10px; font-size: 0.7rem; min-width: 44px; min-height: 44px; }
+  .pipe__board { gap: 6px; }
+  .pipe__col { min-width: 180px; width: 180px; }
+  .pipe__detail-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; }
+  .pipe__detail-tab { white-space: nowrap; flex-shrink: 0; min-height: 44px; }
+  .pipe__modal { padding: 16px; max-width: calc(100vw - 32px); }
+}
+
+@media (max-width: 480px) {
+  .pipe__list-header, .pipe__list-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .pipe__list-th:nth-child(n+2), .pipe__list-td:nth-child(n+2) { display: none; }
+  .pipe__pre-offer-list { grid-template-columns: 1fr; }
 }

@@ -210,3 +210,11 @@
     flex: none;
   }
 }
+
+@media (max-width: 480px) {
+  .dock-panel {
+    width: 100vw; /* Full width on small phones */
+  }
+  .dock-panel__close { width: 44px; height: 44px; } /* Touch target */
+  .dock-panel__btn { min-width: 44px; min-height: 44px; }
+}

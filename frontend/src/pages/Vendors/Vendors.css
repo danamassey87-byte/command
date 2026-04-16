@@ -250,3 +250,10 @@
 .vendors-chip--archive {
   margin-left: auto;
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 600px) {
+  .vendors-toolbar { flex-direction: column; }
+  .vendors-search { min-width: 0; width: 100%; }
+  .vendors-grid { grid-template-columns: 1fr !important; }
+}

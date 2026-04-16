@@ -56,3 +56,11 @@
 }
 .camp-quick-link:hover { background: var(--brown-mid); color: #fff; }
 .camp-quick-link__icon { font-size: 1.4rem; }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .camp-overview { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .camp-overview { grid-template-columns: 1fr; }
+}

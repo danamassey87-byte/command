@@ -100,4 +100,13 @@
 @media (max-width: 768px) {
   .fav-tray { padding: var(--space-xs) var(--space-sm); }
   .fav-tray__item-label { max-width: 60px; }
+  /* Make remove button always visible on touch (no hover) */
+  .fav-tray__item-remove { opacity: 0.6; }
+  .fav-tray__toggle { min-width: 44px; min-height: 44px; }
+  .fav-tray__item { min-height: 36px; padding: 6px 10px 6px 8px; }
+}
+
+@media (max-width: 480px) {
+  .fav-tray__item-label { max-width: 48px; font-size: 0.65rem; }
+  .fav-tray__toggle { padding: 4px 8px; font-size: 0.65rem; }
 }

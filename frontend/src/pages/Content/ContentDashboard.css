@@ -644,3 +644,13 @@
   color: var(--color-info);
   font-weight: 500;
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 768px) {
+  .ct-monthly { grid-template-columns: 1fr !important; }
+  .ct-kw-header, .ct-kw-row { grid-template-columns: 1fr 1fr; }
+  .ct-kw-header > *:nth-child(n+3), .ct-kw-row > *:nth-child(n+3) { display: none; }
+}
+@media (max-width: 480px) {
+  .ct-platform-row { grid-template-columns: 60px 1fr 28px; }
+}

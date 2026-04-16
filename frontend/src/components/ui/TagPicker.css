@@ -216,6 +216,17 @@
   color: var(--brown-dark);
 }
 
+/* ─── Mobile ─── */
+@media (max-width: 480px) {
+  .tag-picker__dropdown {
+    min-width: 0;
+    max-width: calc(100vw - 32px); /* Prevent overflow */
+    left: auto;
+    right: 0;
+  }
+  .tag-picker__option { min-height: 44px; } /* Touch target */
+}
+
 /* ─── Tag Manager ─── */
 .tag-manager {
   background: white;

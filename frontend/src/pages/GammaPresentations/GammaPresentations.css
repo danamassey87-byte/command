@@ -124,3 +124,10 @@
   background: var(--brown-dark); color: #fff; font-size: 0.72rem;
   display: flex; align-items: center; justify-content: center; font-weight: 600;
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 600px) {
+  .gp-page { padding: 16px 12px 60px; }
+  .gp-grid { grid-template-columns: 1fr !important; }
+  .gp-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+}

@@ -185,3 +185,18 @@
   line-height: 1.5;
   margin: 0;
 }
+
+/* ─── Mobile ─── */
+@media (max-width: 600px) {
+  .pf-page { padding: 16px 8px; }
+  .pf-card { padding: 20px 16px; gap: 16px; }
+  .pf-title { font-size: 1.3rem; }
+  .pf-desc { font-size: 0.82rem; }
+  .pf-submit { padding: 12px 20px; font-size: 0.88rem; min-height: 48px; }
+  .pf-thanks { padding: 24px 12px; }
+  .pf-thanks__title { font-size: 1.3rem; }
+}
+
+@media (max-width: 380px) {
+  .pf-card { padding: 16px 12px; }
+}

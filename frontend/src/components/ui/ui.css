@@ -475,6 +475,56 @@
   background: var(--glass-bg-strong);
 }
 .panel-footer .btn--danger { margin-left: auto; }
+
+/* ─── Mobile Responsive ─── */
+@media (max-width: 768px) {
+  /* SlidePanel: full width on mobile */
+  .slide-panel {
+    width: 100vw !important;
+    max-width: 100vw;
+  }
+  .slide-panel__header { padding: 16px 16px 12px; }
+  .slide-panel__body { padding: 16px; }
+  .panel-footer { padding: 12px 16px; }
+  .slide-panel__close { width: 44px; height: 44px; } /* Touch target */
+  .panel-row { grid-template-columns: 1fr; }
+
+  /* Tab bar: horizontal scroll on mobile */
+  .tab-bar {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  .tab-bar__tab {
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-height: 44px; /* Touch target */
+  }
+
+  /* Section header stacks on mobile */
+  .section-header { flex-direction: column; gap: var(--space-sm); }
+  .section-header__actions { width: 100%; overflow-x: auto; }
+
+  /* Buttons: ensure minimum touch target */
+  .btn--sm { min-height: 44px; padding: 7px 14px; }
+
+  /* Data table: ensure container scrolls */
+  .data-table-wrap { -webkit-overflow-scrolling: touch; }
+
+  /* Check items: actions always visible on touch */
+  .check-item--has-actions .check-item__actions { opacity: 1; }
+  .check-item__action-btn { min-width: 36px; min-height: 36px; }
+}
+
+@media (max-width: 480px) {
+  .slide-panel__header { padding: 12px; }
+  .slide-panel__body { padding: 12px; gap: 12px; }
+  .panel-footer { padding: 10px 12px; flex-wrap: wrap; }
+  .stat-card { padding: var(--space-sm) var(--space-md); }
+  .stat-card__value { font-size: 1.15rem; }
+}
 .panel-timestamp {
   font-size: 0.7rem;
   color: var(--color-text-muted);

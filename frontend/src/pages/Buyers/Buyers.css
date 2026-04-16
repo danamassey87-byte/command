@@ -76,6 +76,17 @@
   .buyer-dashboard { grid-template-columns: repeat(2, 1fr); }
   .buyer-dashboard__card:last-child { grid-column: span 2; }
   .buyer-dashboard__value { font-size: 1.15rem; }
+  .buyer-detail__header { flex-direction: column; gap: var(--space-md); }
+  .buyer-detail__quick-stats { gap: var(--space-sm); }
+  .buyer-detail__stat { padding: var(--space-xs) var(--space-sm); }
+}
+
+@media (max-width: 480px) {
+  .buyer-dashboard { grid-template-columns: 1fr; }
+  .buyer-dashboard__card:last-child { grid-column: span 1; }
+  .buyer-dashboard__value { font-size: 1rem; }
+  .buyer-detail__name { font-size: 1.2rem; }
+  .showing-card { flex-direction: column; align-items: flex-start; gap: var(--space-sm); }
 }
 
 /* ─── Lender Picker ─── */

@@ -616,9 +616,19 @@
   .ai-studio__steps {
     gap: var(--space-sm);
     padding: var(--space-sm) var(--space-md);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .ai-studio__step-label { display: none; }
   .ai-studio__candidates {
     grid-template-columns: 1fr;
   }
+  .ai-studio__method-choice { grid-template-columns: 1fr; }
+  .ai-studio__header { flex-direction: column; gap: var(--space-sm); }
+  .ai-studio__manage-add-row { grid-template-columns: 1fr; }
+  .ai-studio__customize-header { flex-direction: column; text-align: center; }
+}
+
+@media (max-width: 380px) {
+  .ai-studio__grid { grid-template-columns: 1fr; }
 }

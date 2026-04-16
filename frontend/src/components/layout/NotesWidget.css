@@ -171,7 +171,18 @@
     height: 44px;
   }
   .notes-widget__popover {
-    width: 280px;
+    width: min(280px, calc(100vw - 32px)); /* Never exceed viewport */
     max-height: 360px;
+  }
+}
+
+@media (max-width: 380px) {
+  .notes-widget__popover {
+    /* Anchor to viewport edges on very small screens */
+    position: fixed;
+    bottom: 68px;
+    right: 8px;
+    left: 8px;
+    width: auto;
   }
 }

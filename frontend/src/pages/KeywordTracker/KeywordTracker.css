@@ -90,4 +90,15 @@
 
 @media (max-width: 700px) {
   .kt-stats { grid-template-columns: repeat(2, 1fr); }
+  .kt-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .kt-page { padding: 16px 12px 60px; }
+  /* Table scrolls horizontally within its container */
+  .kt-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .kt-table__actions { opacity: 1; } /* Always visible on touch */
+}
+
+@media (max-width: 480px) {
+  .kt-stats { grid-template-columns: 1fr; }
+  .kt-stat { padding: 10px 12px; }
+  .kt-stat__val { font-size: 1.2rem; }
 }

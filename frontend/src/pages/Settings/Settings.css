@@ -837,10 +837,33 @@
   }
   .settings-tabs {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+  }
+  .settings-tabs::-webkit-scrollbar { display: none; }
+  .settings-tab {
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-height: 44px;
+    padding: 10px 14px;
   }
   .brand-colors-row {
     flex-direction: column;
     gap: 12px;
+  }
+  .tpl-edit-row {
+    grid-template-columns: 1fr; /* Stack name + type vertically on small screens */
+  }
+  .tpl-toolbar {
+    flex-direction: column;
+  }
+  .tpl-search {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .sig-preview__block {
+    padding: 14px 16px;
   }
 }
 

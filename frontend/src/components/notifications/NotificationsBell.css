@@ -255,12 +255,28 @@
 }
 
 /* ─── Mobile ────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .notif-bell__btn {
+    width: 44px; /* Touch target */
+    height: 44px;
+  }
+  .notif-bell__panel {
+    width: min(380px, calc(100vw - 16px));
+  }
+  /* Make action buttons always visible on touch devices */
+  .notif-item__actions { opacity: 1; }
+  .notif-item__actions button { width: 36px; height: 36px; } /* Touch target */
+  .notif-item__snooze-menu { padding-left: 16px; } /* Remove deep left padding */
+  .notif-item__snooze-menu button { min-height: 36px; }
+}
+
 @media (max-width: 480px) {
   .notif-bell__panel {
     position: fixed;
-    top: 60px;
+    top: var(--topnav-height, 52px);
     right: 8px;
     left: 8px;
     width: auto;
+    max-height: calc(100vh - var(--topnav-height, 52px) - 16px);
   }
 }

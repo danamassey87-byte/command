@@ -169,3 +169,8 @@
   font-size: 0.85rem;
 }
 .notes-empty { display: flex; flex-direction: column; align-items: center; gap: var(--space-md); }
+
+/* ─── Mobile ─── */
+@media (max-width: 480px) {
+  .notes-grid { grid-template-columns: 1fr !important; }
+}
