@@ -5,7 +5,7 @@ import LeadSourcePicker from '../../components/ui/LeadSourcePicker.jsx'
 import PartiesSection from '../../components/parties/PartiesSection.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
-import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses, usePriceHistory } from '../../lib/hooks.js'
+import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses, usePriceHistory, usePlatformStats, usePlatformTotals, useOffersForListing, useStatTasksForListing, useAdCampaignsForListing } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
@@ -1803,7 +1803,1032 @@ const PrintablePlan = React.forwardRef(function PrintablePlan(
 })
 
 // ─── Plan View (real tasks from DB when available) ────────────────────────────
+// ─── Platform Analytics Tab ──���───────────────────────────────────────────────
+const PLATFORMS = [
+  { key: 'zillow_views',    label: 'Zillow Views' },
+  { key: 'zillow_saves',    label: 'Zillow Saves' },
+  { key: 'realtor_views',   label: 'Realtor.com Views' },
+  { key: 'realtor_leads',   label: 'Realtor.com Leads' },
+  { key: 'redfin_views',    label: 'Redfin Views' },
+  { key: 'redfin_favorites',label: 'Redfin Favorites' },
+  { key: 'homes_views',     label: 'Homes.com Views' },
+  { key: 'homes_leads',     label: 'Homes.com Leads' },
+  { key: 'mls_views',       label: 'MLS Views' },
+  { key: 'mls_inquiries',   label: 'MLS Inquiries' },
+  { key: 'property_website_views', label: 'Property Website' },
+  { key: 'showings_count',  label: 'Showings' },
+]
+
+function getMonday(d) {
+  const date = new Date(d)
+  const day = date.getDay()
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1)
+  return new Date(date.setDate(diff)).toISOString().slice(0, 10)
+}
+
+function PlatformAnalyticsTab({ listing }) {
+  const { data: stats, refetch } = usePlatformStats(listing.id)
+  const { data: totals, refetch: refetchTotals } = usePlatformTotals(listing.id)
+  const { data: tasks, refetch: refetchTasks } = useStatTasksForListing(listing.id)
+  const [weekOf, setWeekOf] = useState(getMonday(new Date()))
+  const [draft, setDraft] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [editingWeek, setEditingWeek] = useState(null)
+
+  // Load existing data when selecting a week
+  useEffect(() => {
+    const existing = (stats ?? []).find(s => s.week_of === weekOf)
+    if (existing) {
+      const d = {}
+      PLATFORMS.forEach(p => { d[p.key] = existing[p.key] ?? 0 })
+      d.notes = existing.notes || ''
+      setDraft(d)
+    } else {
+      const d = {}
+      PLATFORMS.forEach(p => { d[p.key] = 0 })
+      d.notes = ''
+      setDraft(d)
+    }
+  }, [weekOf, stats])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await DB.upsertPlatformStats({ listing_id: listing.id, week_of: weekOf, ...draft })
+      // Also mark the stat task as completed for this week
+      await DB.upsertStatTask({ listing_id: listing.id, week_of: weekOf, status: 'completed', completed_at: new Date().toISOString() })
+      await Promise.all([refetch(), refetchTotals(), refetchTasks()])
+      setEditingWeek(null)
+    } catch (e) {
+      alert(e.message)
+    } finally { setSaving(false) }
+  }
+
+  // Week-over-week delta
+  const currentWeekStats = (stats ?? []).find(s => s.week_of === weekOf)
+  const prevWeek = (stats ?? []).find(s => s.week_of < weekOf)
+  const getWoW = (key) => {
+    if (!currentWeekStats || !prevWeek) return null
+    const cur = currentWeekStats[key] ?? 0
+    const prev = prevWeek[key] ?? 0
+    if (prev === 0) return cur > 0 ? 100 : 0
+    return Math.round(((cur - prev) / prev) * 100)
+  }
+
+  return (
+    <div className="platform-analytics">
+      {/* ── Accumulated Totals ── */}
+      <div className="pa__totals-grid">
+        <div className="pa__total-card pa__total-card--highlight">
+          <span className="pa__total-label">Total Views</span>
+          <span className="pa__total-value">{(totals?.total_views ?? 0).toLocaleString()}</span>
+        </div>
+        <div className="pa__total-card pa__total-card--highlight">
+          <span className="pa__total-label">Total Engagement</span>
+          <span className="pa__total-value">{(totals?.total_engagement ?? 0).toLocaleString()}</span>
+          <span className="pa__total-sub">saves + leads + favorites</span>
+        </div>
+        <div className="pa__total-card">
+          <span className="pa__total-label">Showings</span>
+          <span className="pa__total-value">{(totals?.showings_count ?? 0).toLocaleString()}</span>
+        </div>
+        <div className="pa__total-card">
+          <span className="pa__total-label">Weeks Tracked</span>
+          <span className="pa__total-value">{totals?.weeks ?? 0}</span>
+        </div>
+      </div>
+
+      {/* ── Platform breakdown mini cards ── */}
+      <div className="pa__platform-breakdown">
+        {[
+          { label: 'Zillow', views: totals?.zillow_views, engagement: totals?.zillow_saves, engLabel: 'saves' },
+          { label: 'Realtor.com', views: totals?.realtor_views, engagement: totals?.realtor_leads, engLabel: 'leads' },
+          { label: 'Redfin', views: totals?.redfin_views, engagement: totals?.redfin_favorites, engLabel: 'favorites' },
+          { label: 'Homes.com', views: totals?.homes_views, engagement: totals?.homes_leads, engLabel: 'leads' },
+          { label: 'MLS', views: totals?.mls_views, engagement: totals?.mls_inquiries, engLabel: 'inquiries' },
+        ].map(p => (
+          <div key={p.label} className="pa__platform-mini">
+            <span className="pa__platform-name">{p.label}</span>
+            <span className="pa__platform-stat">{(p.views ?? 0).toLocaleString()} views</span>
+            <span className="pa__platform-stat pa__platform-stat--eng">{(p.engagement ?? 0).toLocaleString()} {p.engLabel}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Weekly Entry ── */}
+      <Card className="pa__weekly-entry">
+        <div className="pa__weekly-header">
+          <h3 className="pa__section-title">Weekly Stats Entry</h3>
+          <div className="pa__week-nav">
+            <button className="pa__week-btn" onClick={() => {
+              const d = new Date(weekOf + 'T12:00:00')
+              d.setDate(d.getDate() - 7)
+              setWeekOf(d.toISOString().slice(0, 10))
+            }}>←</button>
+            <input type="date" value={weekOf} onChange={e => setWeekOf(getMonday(new Date(e.target.value)))} className="pa__week-input" />
+            <button className="pa__week-btn" onClick={() => {
+              const d = new Date(weekOf + 'T12:00:00')
+              d.setDate(d.getDate() + 7)
+              const next = d.toISOString().slice(0, 10)
+              if (next <= getMonday(new Date())) setWeekOf(next)
+            }}>→</button>
+          </div>
+        </div>
+
+        <div className="pa__stats-grid">
+          {PLATFORMS.map(p => {
+            const wow = getWoW(p.key)
+            return (
+              <div key={p.key} className="pa__stat-field">
+                <label className="pa__stat-label">{p.label}</label>
+                <div className="pa__stat-input-row">
+                  <input
+                    type="number"
+                    min="0"
+                    className="pa__stat-input"
+                    value={draft[p.key] ?? 0}
+                    onChange={e => setDraft(prev => ({ ...prev, [p.key]: Number(e.target.value) || 0 }))}
+                  />
+                  {wow !== null && wow !== 0 && (
+                    <span className={`pa__wow ${wow > 0 ? 'pa__wow--up' : 'pa__wow--down'}`}>
+                      {wow > 0 ? '↑' : '↓'}{Math.abs(wow)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <Textarea
+          label="Notes for this week"
+          value={draft.notes ?? ''}
+          onChange={e => setDraft(prev => ({ ...prev, notes: e.target.value }))}
+          rows={2}
+          placeholder="e.g. Good showing feedback, multiple saves on Zillow..."
+        />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+          <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Week'}</Button>
+        </div>
+      </Card>
+
+      {/* ── History table ── */}
+      {(stats ?? []).length > 0 && (
+        <Card className="pa__history">
+          <h3 className="pa__section-title">Weekly History</h3>
+          <div className="pa__history-table-wrap">
+            <table className="pa__history-table">
+              <thead>
+                <tr>
+                  <th>Week</th>
+                  <th>Zillow</th>
+                  <th>Realtor</th>
+                  <th>Redfin</th>
+                  <th>Homes</th>
+                  <th>MLS</th>
+                  <th>Website</th>
+                  <th>Showings</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(stats ?? []).map(s => {
+                  const task = (tasks ?? []).find(t => t.week_of === s.week_of)
+                  return (
+                    <tr key={s.id} onClick={() => setWeekOf(s.week_of)} className="pa__history-row">
+                      <td>{new Date(s.week_of + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
+                      <td>{s.zillow_views}/{s.zillow_saves}</td>
+                      <td>{s.realtor_views}/{s.realtor_leads}</td>
+                      <td>{s.redfin_views}/{s.redfin_favorites}</td>
+                      <td>{s.homes_views}/{s.homes_leads}</td>
+                      <td>{s.mls_views}/{s.mls_inquiries}</td>
+                      <td>{s.property_website_views}</td>
+                      <td>{s.showings_count}</td>
+                      <td><Badge variant={task?.status === 'completed' ? 'success' : 'default'} size="sm">{task?.status ?? 'logged'}</Badge></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* ── Weekly Stat Tasks ── */}
+      <Card className="pa__tasks">
+        <h3 className="pa__section-title">Weekly Pull Tasks</h3>
+        <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: 8 }}>
+          Log into each platform weekly and enter stats above. Completed automatically when you save a week.
+        </p>
+        {(tasks ?? []).length === 0 ? (
+          <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+            No tasks yet — they'll be created as you save weekly stats.
+          </p>
+        ) : (
+          <div className="pa__task-list">
+            {(tasks ?? []).slice(0, 8).map(t => (
+              <div key={t.id} className="pa__task-row">
+                <span className={`pa__task-dot ${t.status === 'completed' ? 'pa__task-dot--done' : ''}`} />
+                <span className="pa__task-week">
+                  Week of {new Date(t.week_of + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </span>
+                <Badge variant={t.status === 'completed' ? 'success' : t.status === 'skipped' ? 'default' : 'warning'} size="sm">
+                  {t.status}
+                </Badge>
+                {t.completed_at && (
+                  <span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>
+                    {new Date(t.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* ── Meta Ad Campaigns ── */}
+      <AdCampaignsSection listing={listing} />
+    </div>
+  )
+}
+
+// ─── Ad Campaigns Section (inside Platform Analytics) ────────────────────────
+function AdCampaignsSection({ listing }) {
+  const { data: campaigns, refetch } = useAdCampaignsForListing(listing.id)
+  const [metaConfig, setMetaConfig] = useState(null)
+  const [metaCampaigns, setMetaCampaigns] = useState(null) // fetched from Meta API
+  const [syncing, setSyncing] = useState(false)
+  const [showPicker, setShowPicker] = useState(false)
+  const [showManual, setShowManual] = useState(false)
+  const [manualDraft, setManualDraft] = useState({ audience_label: '', meta_campaign_name: '', impressions: '', reach: '', clicks: '', spend: '', leads: '', ctr: '' })
+
+  useEffect(() => {
+    DB.getMetaAdsConfig().then(row => {
+      if (row?.value) setMetaConfig(row.value)
+    }).catch(() => {})
+  }, [])
+
+  const isConnected = !!metaConfig?.access_token
+  const reportStats = metaConfig?.report_stats || ['reach', 'clicks']
+
+  // Sync stats from Meta for all attributed campaigns
+  const syncStats = async () => {
+    if (!isConnected) return
+    setSyncing(true)
+    try {
+      for (const camp of (campaigns ?? []).filter(c => c.attributed)) {
+        const objectId = camp.meta_adset_id || camp.meta_campaign_id
+        const insights = await DB.fetchMetaInsights(metaConfig.access_token, objectId)
+        await DB.updateAdCampaign(camp.id, {
+          ...insights,
+          last_synced_at: new Date().toISOString(),
+        })
+      }
+      refetch()
+    } catch (e) {
+      alert('Sync failed: ' + e.message)
+    } finally { setSyncing(false) }
+  }
+
+  // Fetch campaigns from Meta for the picker
+  const loadMetaCampaigns = async () => {
+    if (!isConnected) return
+    try {
+      const data = await DB.fetchMetaCampaigns(metaConfig.access_token, metaConfig.ad_account_id)
+      setMetaCampaigns(data)
+      setShowPicker(true)
+    } catch (e) {
+      alert('Could not load campaigns: ' + e.message)
+    }
+  }
+
+  // Attribute a campaign/adset to this listing
+  const attributeCampaign = async (camp, adset, audienceLabel) => {
+    await DB.upsertAdCampaign({
+      listing_id: listing.id,
+      meta_campaign_id: camp.id,
+      meta_campaign_name: camp.name,
+      meta_adset_id: adset?.id || camp.id,
+      meta_adset_name: adset?.name || null,
+      audience_label: audienceLabel || adset?.name || camp.name,
+      attributed: true,
+    })
+    refetch()
+  }
+
+  // Toggle attribution
+  const toggleAttribution = async (camp) => {
+    await DB.updateAdCampaign(camp.id, { attributed: !camp.attributed })
+    refetch()
+  }
+
+  // Manual add (no Meta connection needed)
+  const handleManualSave = async () => {
+    if (!manualDraft.audience_label?.trim()) return alert('Audience label is required')
+    await DB.upsertAdCampaign({
+      listing_id: listing.id,
+      meta_campaign_id: `manual_${Date.now()}`,
+      meta_campaign_name: manualDraft.meta_campaign_name || manualDraft.audience_label,
+      meta_adset_id: `manual_${Date.now()}_adset`,
+      audience_label: manualDraft.audience_label,
+      attributed: true,
+      impressions: Number(manualDraft.impressions) || 0,
+      reach: Number(manualDraft.reach) || 0,
+      clicks: Number(manualDraft.clicks) || 0,
+      spend: Number(manualDraft.spend) || 0,
+      leads: Number(manualDraft.leads) || 0,
+      ctr: Number(manualDraft.ctr) || 0,
+      cpc: manualDraft.clicks > 0 ? (Number(manualDraft.spend) / Number(manualDraft.clicks)) : 0,
+      cpl: manualDraft.leads > 0 ? (Number(manualDraft.spend) / Number(manualDraft.leads)) : 0,
+      last_synced_at: new Date().toISOString(),
+    })
+    setManualDraft({ audience_label: '', meta_campaign_name: '', impressions: '', reach: '', clicks: '', spend: '', leads: '', ctr: '' })
+    setShowManual(false)
+    refetch()
+  }
+
+  const handleDeleteCampaign = async (camp) => {
+    if (!confirm(`Remove "${camp.audience_label}" from this listing?`)) return
+    await DB.deleteAdCampaign(camp.id)
+    refetch()
+  }
+
+  // Aggregated totals for attributed campaigns only
+  const attributed = (campaigns ?? []).filter(c => c.attributed)
+  const adTotals = attributed.reduce((acc, c) => ({
+    impressions: acc.impressions + (c.impressions || 0),
+    reach: acc.reach + (c.reach || 0),
+    clicks: acc.clicks + (c.clicks || 0),
+    spend: acc.spend + Number(c.spend || 0),
+    leads: acc.leads + (c.leads || 0),
+  }), { impressions: 0, reach: 0, clicks: 0, spend: 0, leads: 0 })
+  adTotals.ctr = adTotals.impressions > 0 ? ((adTotals.clicks / adTotals.impressions) * 100).toFixed(2) : 0
+
+  // Stat labels for display
+  const STAT_LABELS = {
+    reach: 'Reach', impressions: 'Impressions', clicks: 'Clicks',
+    ctr: 'CTR', leads: 'Leads', conversions: 'Conversions',
+  }
+
+  return (
+    <Card className="pa__ads-section">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h3 className="pa__section-title" style={{ margin: 0 }}>Ad Performance</h3>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Button variant="ghost" size="sm" onClick={() => setShowManual(true)}>+ Manual Entry</Button>
+          {isConnected && (
+            <>
+              <Button variant="ghost" size="sm" onClick={loadMetaCampaigns}>+ From Meta</Button>
+              {attributed.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={syncStats} disabled={syncing}>
+                  {syncing ? 'Syncing…' : 'Sync Stats'}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {!isConnected && (campaigns ?? []).length === 0 && (
+        <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: 8 }}>
+          Add ad campaigns manually, or connect Meta Ads in Settings → Connected Accounts to auto-pull stats.
+        </p>
+      )}
+
+      {/* Aggregated ad totals */}
+      {attributed.length > 0 && (
+        <div className="pa__totals-grid" style={{ marginBottom: 12 }}>
+          {reportStats.map(stat => (
+            <div key={stat} className="pa__total-card">
+              <span className="pa__total-label">{STAT_LABELS[stat] || stat}</span>
+              <span className="pa__total-value">
+                {stat === 'ctr' ? adTotals.ctr + '%' :
+                 stat === 'reach' || stat === 'impressions' ? (adTotals[stat] ?? 0).toLocaleString() :
+                 (adTotals[stat] ?? 0).toLocaleString()}
+              </span>
+              <span className="pa__total-sub">across {attributed.length} campaign{attributed.length !== 1 ? 's' : ''}</span>
+            </div>
+          ))}
+          {/* Always show spend to you (agent) but not in client reports */}
+          <div className="pa__total-card">
+            <span className="pa__total-label">Ad Spend (yours only)</span>
+            <span className="pa__total-value">${adTotals.spend.toLocaleString()}</span>
+            <span className="pa__total-sub">hidden from client reports</span>
+          </div>
+        </div>
+      )}
+
+      {/* Campaign cards */}
+      {(campaigns ?? []).map(camp => (
+        <div key={camp.id} className="pa__ad-campaign-card">
+          <div className="pa__ad-campaign-header">
+            <label className="offers__compare-check" title={camp.attributed ? 'Included in client report' : 'Excluded from client report'}>
+              <input type="checkbox" checked={!!camp.attributed} onChange={() => toggleAttribution(camp)} />
+            </label>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--brown-dark)' }}>{camp.audience_label || camp.meta_campaign_name}</span>
+              {camp.meta_adset_name && camp.meta_adset_name !== camp.audience_label && (
+                <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', display: 'block' }}>{camp.meta_campaign_name} → {camp.meta_adset_name}</span>
+              )}
+            </div>
+            {camp.last_synced_at && (
+              <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>
+                Synced {new Date(camp.last_synced_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+            )}
+            <Badge variant={camp.attributed ? 'success' : 'default'} size="sm">
+              {camp.attributed ? 'In Report' : 'Hidden'}
+            </Badge>
+            <button onClick={() => handleDeleteCampaign(camp)} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: 4 }} title="Remove">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div className="pa__ad-campaign-stats">
+            <div className="pa__ad-stat"><span className="pa__stat-label">Reach</span><span>{(camp.reach || 0).toLocaleString()}</span></div>
+            <div className="pa__ad-stat"><span className="pa__stat-label">Impressions</span><span>{(camp.impressions || 0).toLocaleString()}</span></div>
+            <div className="pa__ad-stat"><span className="pa__stat-label">Clicks</span><span>{(camp.clicks || 0).toLocaleString()}</span></div>
+            <div className="pa__ad-stat"><span className="pa__stat-label">CTR</span><span>{camp.ctr ? Number(camp.ctr).toFixed(2) + '%' : '—'}</span></div>
+            <div className="pa__ad-stat"><span className="pa__stat-label">Leads</span><span>{camp.leads || 0}</span></div>
+            <div className="pa__ad-stat"><span className="pa__stat-label">Spend</span><span>${Number(camp.spend || 0).toLocaleString()}</span></div>
+          </div>
+        </div>
+      ))}
+
+      {/* Manual Entry Form */}
+      {showManual && (
+        <Card style={{ marginTop: 12, padding: 16, background: 'var(--cream)' }}>
+          <h4 className="properties-panel__section-title">Add Ad Campaign Manually</h4>
+          <div className="properties-panel__grid">
+            <Input label="Audience / Label *" value={manualDraft.audience_label} onChange={e => setManualDraft({ ...manualDraft, audience_label: e.target.value })} placeholder="e.g. Buyers 30-55 Gilbert 10mi" />
+            <Input label="Campaign Name" value={manualDraft.meta_campaign_name} onChange={e => setManualDraft({ ...manualDraft, meta_campaign_name: e.target.value })} placeholder="e.g. 123 Main St - Just Listed" />
+            <Input label="Reach" type="number" value={manualDraft.reach} onChange={e => setManualDraft({ ...manualDraft, reach: e.target.value })} />
+            <Input label="Impressions" type="number" value={manualDraft.impressions} onChange={e => setManualDraft({ ...manualDraft, impressions: e.target.value })} />
+            <Input label="Clicks" type="number" value={manualDraft.clicks} onChange={e => setManualDraft({ ...manualDraft, clicks: e.target.value })} />
+            <Input label="Leads" type="number" value={manualDraft.leads} onChange={e => setManualDraft({ ...manualDraft, leads: e.target.value })} />
+            <Input label="Spend $" type="number" value={manualDraft.spend} onChange={e => setManualDraft({ ...manualDraft, spend: e.target.value })} />
+            <Input label="CTR %" type="number" step="0.01" value={manualDraft.ctr} onChange={e => setManualDraft({ ...manualDraft, ctr: e.target.value })} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+            <Button variant="ghost" size="sm" onClick={() => setShowManual(false)}>Cancel</Button>
+            <Button size="sm" onClick={handleManualSave}>Add Campaign</Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Meta Campaign Picker */}
+      {showPicker && metaCampaigns && (
+        <Card style={{ marginTop: 12, padding: 16, background: 'var(--cream)', maxHeight: 400, overflowY: 'auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <h4 className="properties-panel__section-title" style={{ margin: 0 }}>Select Campaigns to Attribute</h4>
+            <Button variant="ghost" size="sm" onClick={() => setShowPicker(false)}>Close</Button>
+          </div>
+          {metaCampaigns.length === 0 ? (
+            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>No campaigns found in your ad account.</p>
+          ) : metaCampaigns.map(camp => (
+            <div key={camp.id} style={{ marginBottom: 12 }}>
+              <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--brown-dark)', marginBottom: 4 }}>
+                {camp.name}
+                <Badge variant={camp.status === 'ACTIVE' ? 'success' : 'default'} size="sm" style={{ marginLeft: 6 }}>{camp.status}</Badge>
+              </div>
+              {camp.adsets?.length > 0 ? camp.adsets.map(adset => {
+                const alreadyLinked = (campaigns ?? []).some(c => c.meta_campaign_id === camp.id && c.meta_adset_id === adset.id)
+                return (
+                  <div key={adset.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0 4px 16px', fontSize: '0.82rem' }}>
+                    <span style={{ flex: 1 }}>{adset.name}</span>
+                    {alreadyLinked ? (
+                      <Badge variant="success" size="sm">Linked</Badge>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => attributeCampaign(camp, adset)}>
+                        + Attribute
+                      </Button>
+                    )}
+                  </div>
+                )
+              }) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0 4px 16px', fontSize: '0.82rem' }}>
+                  <span style={{ flex: 1, color: 'var(--color-text-muted)' }}>Campaign level (no ad sets)</span>
+                  {(campaigns ?? []).some(c => c.meta_campaign_id === camp.id) ? (
+                    <Badge variant="success" size="sm">Linked</Badge>
+                  ) : (
+                    <Button variant="ghost" size="sm" onClick={() => attributeCampaign(camp, null)}>
+                      + Attribute
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </Card>
+      )}
+    </Card>
+  )
+}
+
+// ─── Offers Tab ──────────────────────────────────────────────────────────────
+const OFFER_STATUS_OPTIONS = [
+  { value: 'pending',    label: 'Pending',    color: 'var(--color-warning)' },
+  { value: 'reviewing',  label: 'Reviewing',  color: 'var(--color-info)' },
+  { value: 'countered',  label: 'Countered',  color: 'var(--brown-warm)' },
+  { value: 'accepted',   label: 'Accepted',   color: 'var(--color-success)' },
+  { value: 'declined',   label: 'Declined',   color: 'var(--color-danger)' },
+  { value: 'withdrawn',  label: 'Withdrawn',  color: '#8b8b8b' },
+  { value: 'expired',    label: 'Expired',    color: '#8b8b8b' },
+]
+
+const FINANCING_OPTS = [
+  { value: 'conventional', label: 'Conventional' },
+  { value: 'fha', label: 'FHA' },
+  { value: 'va', label: 'VA' },
+  { value: 'usda', label: 'USDA' },
+  { value: 'cash', label: 'Cash' },
+  { value: 'hard_money', label: 'Hard Money' },
+  { value: 'other', label: 'Other' },
+]
+
+const EMPTY_OFFER = {
+  buyer_name: '', buyer_agent: '', buyer_brokerage: '', buyer_phone: '', buyer_email: '',
+  offer_price: '', earnest_money: '', down_payment_pct: '', financing_type: 'conventional',
+  lender_name: '', pre_approval: false, close_of_escrow: '', inspection_days: '10',
+  appraisal_contingency: true, financing_contingency: true, sale_contingency: false,
+  seller_concessions: '', home_warranty: false, escalation_clause: '', personal_letter: '',
+  other_terms: '', status: 'pending', notes: '', net_sheet_total: '',
+}
+
+// Title company net sheet calculator — opens in new tab
+const NET_SHEET_CALCULATOR_URL = 'https://wfgkeyapp.com'
+
+function OffersTab({ listing }) {
+  const { data: offers, refetch } = useOffersForListing(listing.id)
+  const [showForm, setShowForm] = useState(false)
+  const [editingOffer, setEditingOffer] = useState(null)
+  const [draft, setDraft] = useState(EMPTY_OFFER)
+  const [saving, setSaving] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [comparing, setComparing] = useState(false)
+  const [comparisonResult, setComparisonResult] = useState(null)
+  const [selectedForCompare, setSelectedForCompare] = useState([])
+  const [uploadingNetSheet, setUploadingNetSheet] = useState(null) // offer id being uploaded
+  const netSheetInputRef = useRef(null)
+  const [netSheetTargetId, setNetSheetTargetId] = useState(null)
+
+  const listPrice = listing.currentPriceRaw || listing.listPriceRaw || listing.list_price || listing.current_price
+
+  const openNew = () => {
+    setEditingOffer(null)
+    setDraft(EMPTY_OFFER)
+    setShowForm(true)
+  }
+
+  const openEdit = (offer) => {
+    setEditingOffer(offer)
+    const d = {}
+    Object.keys(EMPTY_OFFER).forEach(k => { d[k] = offer[k] ?? EMPTY_OFFER[k] })
+    setDraft(d)
+    setShowForm(true)
+  }
+
+  const handleSave = async () => {
+    if (!draft.buyer_name?.trim()) return alert('Buyer name is required')
+    setSaving(true)
+    try {
+      const payload = {
+        ...draft,
+        listing_id: listing.id,
+        offer_price: draft.offer_price ? Number(draft.offer_price) : null,
+        earnest_money: draft.earnest_money ? Number(draft.earnest_money) : null,
+        down_payment_pct: draft.down_payment_pct ? Number(draft.down_payment_pct) : null,
+        seller_concessions: draft.seller_concessions ? Number(draft.seller_concessions) : 0,
+        inspection_days: draft.inspection_days ? Number(draft.inspection_days) : null,
+        net_sheet_total: draft.net_sheet_total ? Number(draft.net_sheet_total) : null,
+      }
+      if (editingOffer) {
+        await DB.updateOffer(editingOffer.id, payload)
+      } else {
+        await DB.createOffer(payload)
+      }
+      await refetch()
+      setShowForm(false)
+      setEditingOffer(null)
+    } catch (e) {
+      alert(e.message)
+    } finally { setSaving(false) }
+  }
+
+  const handleDelete = async (offer) => {
+    if (!confirm(`Delete offer from ${offer.buyer_name}?`)) return
+    await DB.deleteOffer(offer.id)
+    refetch()
+  }
+
+  // AI Analysis for single offer
+  const analyzeOffer = async (offer) => {
+    setAnalyzing(offer.id)
+    try {
+      const prompt = `Analyze this real estate offer for my seller. Be concise and actionable.
+
+LISTING: ${listing.address}, ${listing.city} AZ — List Price: $${Number(listPrice).toLocaleString()}
+
+OFFER:
+- Buyer: ${offer.buyer_name} (Agent: ${offer.buyer_agent || 'N/A'})
+- Offer Price: $${Number(offer.offer_price).toLocaleString()} (${listPrice ? ((offer.offer_price / listPrice * 100).toFixed(1) + '% of list') : 'N/A'})
+- Financing: ${offer.financing_type}${offer.pre_approval ? ' (pre-approved)' : ''}${offer.lender_name ? ` via ${offer.lender_name}` : ''}
+- Earnest Money: $${Number(offer.earnest_money || 0).toLocaleString()}
+- Down Payment: ${offer.down_payment_pct || 'N/A'}%
+- Close of Escrow: ${offer.close_of_escrow || 'N/A'}
+- Inspection: ${offer.inspection_days || 10} days
+- Contingencies: ${[offer.appraisal_contingency && 'Appraisal', offer.financing_contingency && 'Financing', offer.sale_contingency && 'Sale of home'].filter(Boolean).join(', ') || 'None'}
+- Seller Concessions: $${Number(offer.seller_concessions || 0).toLocaleString()}
+- Home Warranty: ${offer.home_warranty ? 'Yes' : 'No'}
+${offer.net_sheet_total ? `- NET TO SELLER (from title company net sheet): $${Number(offer.net_sheet_total).toLocaleString()}` : ''}
+${offer.escalation_clause ? `- Escalation: ${offer.escalation_clause}` : ''}
+${offer.other_terms ? `- Other: ${offer.other_terms}` : ''}
+
+Provide:
+1. STRENGTH SCORE (1-10) and one-line summary
+2. KEY STRENGTHS (2-3 bullets)
+3. KEY CONCERNS (2-3 bullets)
+4. NET TO SELLER — use the title company net sheet figure ($${offer.net_sheet_total ? Number(offer.net_sheet_total).toLocaleString() : 'not provided'}) if available, otherwise estimate (price minus concessions)
+5. RECOMMENDATION for the seller (accept, counter, decline — with reasoning)`
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL || 'https://kbbnsgkuqxfikvdzvhon.supabase.co'}/functions/v1/generate-content`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ prompt, max_tokens: 800 }),
+        }
+      )
+      const json = await res.json()
+      const analysis = json.content || json.text || json.result || ''
+      await DB.updateOffer(offer.id, { ai_analysis: analysis })
+      refetch()
+    } catch (e) {
+      alert('AI analysis failed: ' + e.message)
+    } finally { setAnalyzing(null) }
+  }
+
+  // Multi-offer comparison
+  const compareOffers = async () => {
+    const toCompare = (offers ?? []).filter(o => selectedForCompare.includes(o.id))
+    if (toCompare.length < 2) return alert('Select at least 2 offers to compare')
+    setComparing(true)
+    try {
+      const offerSummaries = toCompare.map((o, i) => `
+OFFER ${i + 1}: ${o.buyer_name}
+- Price: $${Number(o.offer_price).toLocaleString()} (${listPrice ? ((o.offer_price / listPrice * 100).toFixed(1) + '% of list') : 'N/A'})
+- Financing: ${o.financing_type}${o.pre_approval ? ' (pre-approved)' : ''}
+- Earnest: $${Number(o.earnest_money || 0).toLocaleString()}
+- Close: ${o.close_of_escrow || 'TBD'}
+- Inspection: ${o.inspection_days || 10} days
+- Contingencies: ${[o.appraisal_contingency && 'Appraisal', o.financing_contingency && 'Financing', o.sale_contingency && 'Sale'].filter(Boolean).join(', ') || 'None'}
+- Concessions: $${Number(o.seller_concessions || 0).toLocaleString()}
+- Estimated Net: ~$${(Number(o.offer_price) - Number(o.seller_concessions || 0)).toLocaleString()}
+${o.net_sheet_total ? `- NET TO SELLER (from title company net sheet): $${Number(o.net_sheet_total).toLocaleString()}` : ''}
+${o.escalation_clause ? `- Escalation: ${o.escalation_clause}` : ''}
+${o.other_terms ? `- Other: ${o.other_terms}` : ''}`)
+
+      const prompt = `Compare these ${toCompare.length} offers for my seller on ${listing.address}, ${listing.city} AZ (List: $${Number(listPrice).toLocaleString()}).
+
+${offerSummaries.join('\n')}
+
+Provide a seller-friendly breakdown:
+1. SIDE-BY-SIDE COMPARISON TABLE (price, net to seller from net sheet if available, financing strength, timeline, risk level)
+2. RANKING from strongest to weakest with reasoning — use the title company net sheet figures when available as they are the most accurate net-to-seller numbers
+3. KEY DIFFERENTIATORS between offers
+4. RECOMMENDED STRATEGY (which to accept/counter, what counter terms to propose)
+5. TALKING POINTS for the seller conversation
+
+Format this so I can send it directly to my seller.`
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL || 'https://kbbnsgkuqxfikvdzvhon.supabase.co'}/functions/v1/generate-content`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ prompt, max_tokens: 1500 }),
+        }
+      )
+      const json = await res.json()
+      const result = json.content || json.text || json.result || ''
+      setComparisonResult(result)
+      // Update ai_compared_at on all compared offers
+      const now = new Date().toISOString()
+      await Promise.all(toCompare.map(o => DB.updateOffer(o.id, { ai_compared_at: now })))
+      refetch()
+    } catch (e) {
+      alert('Comparison failed: ' + e.message)
+    } finally { setComparing(false) }
+  }
+
+  const toggleCompare = (id) => {
+    setSelectedForCompare(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  // Net sheet upload
+  const triggerNetSheetUpload = (offerId) => {
+    setNetSheetTargetId(offerId)
+    setTimeout(() => netSheetInputRef.current?.click(), 0)
+  }
+
+  const handleNetSheetUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file || !netSheetTargetId) return
+    setUploadingNetSheet(netSheetTargetId)
+    try {
+      await DB.uploadOfferNetSheet(file, netSheetTargetId)
+      refetch()
+    } catch (err) {
+      alert('Upload failed: ' + err.message)
+    } finally {
+      setUploadingNetSheet(null)
+      setNetSheetTargetId(null)
+      if (netSheetInputRef.current) netSheetInputRef.current.value = ''
+    }
+  }
+
+  const offerCount = (offers ?? []).length
+  const pendingCount = (offers ?? []).filter(o => ['pending', 'reviewing'].includes(o.status)).length
+
+  return (
+    <div className="offers-tab">
+      {/* Hidden file input for net sheet uploads */}
+      <input ref={netSheetInputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" style={{ display: 'none' }} onChange={handleNetSheetUpload} />
+      {/* ── Summary Stats ── */}
+      <div className="offers__summary">
+        <div className="pa__total-card">
+          <span className="pa__total-label">Total Offers</span>
+          <span className="pa__total-value">{offerCount}</span>
+        </div>
+        <div className="pa__total-card">
+          <span className="pa__total-label">Active / Reviewing</span>
+          <span className="pa__total-value">{pendingCount}</span>
+        </div>
+        <div className="pa__total-card">
+          <span className="pa__total-label">Highest Offer</span>
+          <span className="pa__total-value">
+            {offerCount > 0 ? '$' + Math.max(...(offers ?? []).map(o => Number(o.offer_price) || 0)).toLocaleString() : '—'}
+          </span>
+        </div>
+        <div className="pa__total-card">
+          <span className="pa__total-label">List Price</span>
+          <span className="pa__total-value">{listPrice ? '$' + Number(listPrice).toLocaleString() : '—'}</span>
+        </div>
+      </div>
+
+      {/* ── Actions ── */}
+      <div className="offers__actions">
+        <Button onClick={openNew}>+ New Offer</Button>
+        <a href={NET_SHEET_CALCULATOR_URL} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
+          <Button variant="ghost" size="sm"
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="10" y2="10"/><line x1="14" y1="10" x2="16" y2="10"/><line x1="8" y1="14" x2="10" y2="14"/><line x1="14" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="16" y2="18"/></svg>}
+          >Net Sheet Calculator</Button>
+        </a>
+        {selectedForCompare.length >= 2 && (
+          <Button variant="ghost" onClick={compareOffers} disabled={comparing}>
+            {comparing ? 'Comparing…' : `Compare ${selectedForCompare.length} Offers`}
+          </Button>
+        )}
+        {selectedForCompare.length > 0 && selectedForCompare.length < 2 && (
+          <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', alignSelf: 'center' }}>
+            Select at least 2 to compare
+          </span>
+        )}
+      </div>
+
+      {/* ── Comparison Result ── */}
+      {comparisonResult && (
+        <Card className="offers__comparison-result">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <h3 className="pa__section-title">Offer Comparison</h3>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <Button variant="ghost" size="sm" onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(comparisonResult)
+                  alert('Copied to clipboard!')
+                } catch {}
+              }}>Copy</Button>
+              <Button variant="ghost" size="sm" onClick={() => setComparisonResult(null)}>Dismiss</Button>
+            </div>
+          </div>
+          <div style={{ fontSize: '0.82rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--brown-dark)' }}>
+            {comparisonResult}
+          </div>
+        </Card>
+      )}
+
+      {/* ── Offers List ── */}
+      {offerCount === 0 && !showForm ? (
+        <Card style={{ textAlign: 'center', padding: 32 }}>
+          <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: 12 }}>No offers yet for this listing.</p>
+          <Button onClick={openNew}>+ Add First Offer</Button>
+        </Card>
+      ) : (
+        <div className="offers__list">
+          {(offers ?? []).map(offer => {
+            const statusOpt = OFFER_STATUS_OPTIONS.find(s => s.value === offer.status)
+            const pctOfList = listPrice && offer.offer_price ? ((offer.offer_price / listPrice) * 100).toFixed(1) : null
+            const net = Number(offer.offer_price || 0) - Number(offer.seller_concessions || 0)
+            return (
+              <Card key={offer.id} className="offers__card" hover>
+                <div className="offers__card-header">
+                  <label className="offers__compare-check">
+                    <input type="checkbox" checked={selectedForCompare.includes(offer.id)} onChange={() => toggleCompare(offer.id)} />
+                  </label>
+                  <div className="offers__card-buyer">
+                    <span className="offers__buyer-name">{offer.buyer_name}</span>
+                    {offer.buyer_agent && <span className="offers__buyer-agent">{offer.buyer_agent}{offer.buyer_brokerage ? ` · ${offer.buyer_brokerage}` : ''}</span>}
+                  </div>
+                  <Badge variant={
+                    offer.status === 'accepted' ? 'success' :
+                    offer.status === 'declined' ? 'danger' :
+                    offer.status === 'countered' ? 'warning' : 'info'
+                  } size="sm">{statusOpt?.label ?? offer.status}</Badge>
+                </div>
+
+                <div className="offers__card-terms">
+                  <div className="offers__term">
+                    <span className="offers__term-label">Offer</span>
+                    <span className="offers__term-value">${Number(offer.offer_price || 0).toLocaleString()}</span>
+                    {pctOfList && <span className="offers__term-pct">{pctOfList}% of list</span>}
+                  </div>
+                  <div className="offers__term">
+                    <span className="offers__term-label">{offer.net_sheet_total ? 'Net (Net Sheet)' : 'Net (Est.)'}</span>
+                    <span className="offers__term-value" style={offer.net_sheet_total ? { color: 'var(--color-success)' } : {}}>
+                      ${offer.net_sheet_total ? Number(offer.net_sheet_total).toLocaleString() : net.toLocaleString()}
+                    </span>
+                    {offer.net_sheet_total && <span className="offers__term-pct">from title co.</span>}
+                  </div>
+                  <div className="offers__term">
+                    <span className="offers__term-label">Financing</span>
+                    <span className="offers__term-value">{offer.financing_type}{offer.pre_approval ? ' ✓' : ''}</span>
+                  </div>
+                  <div className="offers__term">
+                    <span className="offers__term-label">Close</span>
+                    <span className="offers__term-value">{offer.close_of_escrow ? new Date(offer.close_of_escrow + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</span>
+                  </div>
+                  <div className="offers__term">
+                    <span className="offers__term-label">Earnest</span>
+                    <span className="offers__term-value">${Number(offer.earnest_money || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="offers__term">
+                    <span className="offers__term-label">Contingencies</span>
+                    <span className="offers__term-value">{[offer.appraisal_contingency && 'Appr', offer.financing_contingency && 'Fin', offer.sale_contingency && 'Sale'].filter(Boolean).join(', ') || 'None'}</span>
+                  </div>
+                </div>
+
+                {offer.escalation_clause && (
+                  <div className="offers__escalation">
+                    <Badge variant="info" size="sm">Escalation</Badge>
+                    <span>{offer.escalation_clause}</span>
+                  </div>
+                )}
+
+                {offer.ai_analysis && (
+                  <div className="offers__ai-analysis">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <Badge variant="default" size="sm">AI Analysis</Badge>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'var(--brown-dark)' }}>
+                      {offer.ai_analysis}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Net Sheet ── */}
+                <div className="offers__net-sheet">
+                  <div className="offers__net-sheet-row">
+                    <span className="pa__stat-label">Net Sheet</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {offer.net_sheet_doc_url ? (
+                        <a href={offer.net_sheet_doc_url} target="_blank" rel="noopener noreferrer" className="offers__net-sheet-link">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                          {offer.net_sheet_doc_name || 'View Net Sheet'}
+                        </a>
+                      ) : (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>No net sheet uploaded</span>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => triggerNetSheetUpload(offer.id)} disabled={uploadingNetSheet === offer.id}>
+                        {uploadingNetSheet === offer.id ? 'Uploading…' : (offer.net_sheet_doc_url ? 'Replace' : 'Upload')}
+                      </Button>
+                    </div>
+                  </div>
+                  {offer.net_sheet_total && (
+                    <div className="offers__net-sheet-row">
+                      <span className="pa__stat-label">Net to Seller (from net sheet)</span>
+                      <span style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--brown-dark)' }}>${Number(offer.net_sheet_total).toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="offers__card-actions">
+                  <Button variant="ghost" size="sm" onClick={() => analyzeOffer(offer)} disabled={analyzing === offer.id}>
+                    {analyzing === offer.id ? 'Analyzing…' : (offer.ai_analysis ? 'Re-Analyze' : 'Analyze')}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(offer)}>Edit</Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(offer)} className="properties-panel__delete">Delete</Button>
+                </div>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ── Add / Edit Offer Form ── */}
+      <SlidePanel
+        open={showForm}
+        onClose={() => { setShowForm(false); setEditingOffer(null) }}
+        title={editingOffer ? 'Edit Offer' : 'New Offer'}
+        subtitle={listing.address}
+        width={520}
+      >
+        <div className="offers__form">
+          <h4 className="properties-panel__section-title">Buyer Info</h4>
+          <div className="properties-panel__grid">
+            <Input label="Buyer Name *" value={draft.buyer_name} onChange={e => setDraft({ ...draft, buyer_name: e.target.value })} />
+            <Input label="Buyer Agent" value={draft.buyer_agent} onChange={e => setDraft({ ...draft, buyer_agent: e.target.value })} />
+            <Input label="Brokerage" value={draft.buyer_brokerage} onChange={e => setDraft({ ...draft, buyer_brokerage: e.target.value })} />
+            <Input label="Phone" value={draft.buyer_phone} onChange={e => setDraft({ ...draft, buyer_phone: e.target.value })} />
+            <Input label="Email" value={draft.buyer_email} onChange={e => setDraft({ ...draft, buyer_email: e.target.value })} />
+          </div>
+
+          <h4 className="properties-panel__section-title">Offer Terms</h4>
+          <div className="properties-panel__grid">
+            <Input label="Offer Price" type="number" value={draft.offer_price} onChange={e => setDraft({ ...draft, offer_price: e.target.value })} placeholder="e.g. 425000" />
+            <Input label="Earnest Money" type="number" value={draft.earnest_money} onChange={e => setDraft({ ...draft, earnest_money: e.target.value })} />
+            <Input label="Down Payment %" type="number" step="0.5" value={draft.down_payment_pct} onChange={e => setDraft({ ...draft, down_payment_pct: e.target.value })} />
+            <Select label="Financing" value={draft.financing_type} onChange={e => setDraft({ ...draft, financing_type: e.target.value })}>
+              {FINANCING_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </Select>
+            <Input label="Lender" value={draft.lender_name} onChange={e => setDraft({ ...draft, lender_name: e.target.value })} />
+            <Input label="Close of Escrow" type="date" value={draft.close_of_escrow} onChange={e => setDraft({ ...draft, close_of_escrow: e.target.value })} />
+            <Input label="Inspection Days" type="number" value={draft.inspection_days} onChange={e => setDraft({ ...draft, inspection_days: e.target.value })} />
+            <Input label="Seller Concessions $" type="number" value={draft.seller_concessions} onChange={e => setDraft({ ...draft, seller_concessions: e.target.value })} />
+          </div>
+
+          <label className="properties-panel__check">
+            <input type="checkbox" checked={!!draft.pre_approval} onChange={e => setDraft({ ...draft, pre_approval: e.target.checked })} />
+            <span>Pre-Approval Letter</span>
+          </label>
+          <label className="properties-panel__check">
+            <input type="checkbox" checked={!!draft.appraisal_contingency} onChange={e => setDraft({ ...draft, appraisal_contingency: e.target.checked })} />
+            <span>Appraisal Contingency</span>
+          </label>
+          <label className="properties-panel__check">
+            <input type="checkbox" checked={!!draft.financing_contingency} onChange={e => setDraft({ ...draft, financing_contingency: e.target.checked })} />
+            <span>Financing Contingency</span>
+          </label>
+          <label className="properties-panel__check">
+            <input type="checkbox" checked={!!draft.sale_contingency} onChange={e => setDraft({ ...draft, sale_contingency: e.target.checked })} />
+            <span>Sale of Home Contingency</span>
+          </label>
+          <label className="properties-panel__check">
+            <input type="checkbox" checked={!!draft.home_warranty} onChange={e => setDraft({ ...draft, home_warranty: e.target.checked })} />
+            <span>Home Warranty</span>
+          </label>
+
+          <Textarea label="Escalation Clause" value={draft.escalation_clause} onChange={e => setDraft({ ...draft, escalation_clause: e.target.value })} rows={2} placeholder="e.g. Will increase up to $435,000 in $2,000 increments..." />
+          <Textarea label="Personal Letter / Other Terms" value={draft.other_terms} onChange={e => setDraft({ ...draft, other_terms: e.target.value })} rows={2} />
+
+          <h4 className="properties-panel__section-title">Status</h4>
+          <Select label="Offer Status" value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value })}>
+            {OFFER_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </Select>
+          {draft.status === 'countered' && (
+            <div className="properties-panel__grid">
+              <Input label="Counter Price" type="number" value={draft.counter_price ?? ''} onChange={e => setDraft({ ...draft, counter_price: e.target.value })} />
+              <Textarea label="Counter Terms" value={draft.counter_terms ?? ''} onChange={e => setDraft({ ...draft, counter_terms: e.target.value })} rows={2} />
+            </div>
+          )}
+
+          <h4 className="properties-panel__section-title">Net Sheet</h4>
+          <Input label="Net to Seller $ (from title company net sheet)" type="number" value={draft.net_sheet_total ?? ''} onChange={e => setDraft({ ...draft, net_sheet_total: e.target.value })} placeholder="e.g. 385000" />
+          <p style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', marginTop: -4 }}>
+            Enter the bottom-line net from your title company's net sheet. Upload the PDF on the offer card after saving.
+          </p>
+
+          <Textarea label="Notes" value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} rows={2} />
+
+          <div className="properties-panel__actions">
+            {editingOffer && (
+              <Button variant="ghost" className="properties-panel__delete" onClick={() => { handleDelete(editingOffer); setShowForm(false) }}>Delete</Button>
+            )}
+            <div style={{ flex: 1 }} />
+            <Button variant="ghost" onClick={() => { setShowForm(false); setEditingOffer(null) }}>Cancel</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : (editingOffer ? 'Save Changes' : 'Add Offer')}</Button>
+          </div>
+        </div>
+      </SlidePanel>
+    </div>
+  )
+}
+
 function PlanView({ listing, allListings, onBack, onEdit }) {
+  const [detailTab, setDetailTab] = useState('plan')
   const isNew   = listing.type === 'new'
   const isDbRow = typeof listing.id === 'string'
 
@@ -2076,12 +3101,33 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         </div>
       )}
 
-      {Array.isArray(listing.related_people) && listing.related_people.length > 0 && (
+      {/* ── Detail Tabs ── */}
+      {isDbRow && (
+        <TabBar
+          tabs={[
+            { label: 'Plan', value: 'plan' },
+            { label: 'Platform Analytics', value: 'analytics' },
+            { label: 'Offers', value: 'offers' },
+          ]}
+          active={detailTab}
+          onChange={setDetailTab}
+        />
+      )}
+
+      {/* ── Analytics Tab ── */}
+      {detailTab === 'analytics' && isDbRow && <PlatformAnalyticsTab listing={listing} />}
+
+      {/* ── Offers Tab ── */}
+      {detailTab === 'offers' && isDbRow && <OffersTab listing={listing} />}
+
+      {/* ── Plan Tab (default) ── */}
+      {detailTab === 'plan' && Array.isArray(listing.related_people) && listing.related_people.length > 0 && (
         <Card>
           <RelatedPeopleDisplay value={listing.related_people} title="Other Parties on This Transaction" />
         </Card>
       )}
 
+      {detailTab === 'plan' && <>
       <div className="sellers-plan__body">
         {/* ── Left: Unified Checklist ── */}
         <div className="sellers-plan__checklist-col">
@@ -2442,6 +3488,8 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         )}
       </div>
 
+      </>}
+
       {/* ── Modals ── */}
       {showAddTask && (
         <AddTaskModal
@@ -2668,6 +3716,14 @@ export default function Sellers() {
           clientName: draft.seller_name?.trim() || '',
         }).catch(e => console.error('Failed to emit listing content reminder:', e))
 
+        // Auto-create Slack channel for new listing
+        DB.ensureSlackChannel({
+          contactId: draft.contact_id,
+          contactType: 'seller',
+          listingId: newListing.id,
+          propertyAddress: draft.address,
+        }).catch(e => console.warn('Slack channel creation skipped:', e))
+
         // Trigger marketing pipeline if created as active
         if (draft.status === 'active') shouldTriggerMarketing = true
       }
@@ -2859,6 +3915,15 @@ export default function Sellers() {
             if (!next || next === v) return
             try {
               await DB.updateListing(row.id, { status: next })
+              // Ensure Slack channel when listing is signed or goes active
+              if (['signed', 'active', 'coming_soon'].includes(next)) {
+                DB.ensureSlackChannel({
+                  contactId: row.contact_id,
+                  contactType: 'seller',
+                  listingId: row.id,
+                  propertyAddress: row.address || row.property_address,
+                }).catch(() => {})
+              }
               refetch()
             } catch (err) {
               console.error('Failed to update listing status:', err)

@@ -43,6 +43,13 @@ export const useWeeklyStats   = () => useQuery(DB.getWeeklyStats)
 export const useGoals         = () => useQuery(DB.getGoals)
 export const useActivityLog   = () => useQuery(() => DB.getActivityLog(25))
 
+export const usePlatformStats     = (listingId) => useQuery(() => listingId ? DB.getPlatformStats(listingId) : Promise.resolve([]), [listingId])
+export const usePlatformTotals    = (listingId) => useQuery(() => listingId ? DB.getPlatformStatsTotals(listingId) : Promise.resolve(null), [listingId])
+export const useStatTasks         = () => useQuery(DB.getStatTasks)
+export const useStatTasksForListing = (listingId) => useQuery(() => listingId ? DB.getStatTasksForListing(listingId) : Promise.resolve([]), [listingId])
+export const useOffersForListing  = (listingId) => useQuery(() => listingId ? DB.getOffersForListing(listingId) : Promise.resolve([]), [listingId])
+export const useAdCampaignsForListing = (listingId) => useQuery(() => listingId ? DB.getAdCampaignsForListing(listingId) : Promise.resolve([]), [listingId])
+
 export const useTasksForListing = (listingId) =>
   useQuery(() => DB.getTasksForListing(listingId), [listingId])
 

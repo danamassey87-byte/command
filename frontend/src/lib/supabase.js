@@ -154,6 +154,169 @@ export const deleteListing  = async (id) => {
   return softDelete('listings', id)
 }
 
+// ─── Platform Analytics (weekly portal stats) ───────────────────────────────
+export const getPlatformStats = (listingId) =>
+  query(supabase.from('listing_platform_stats').select('*')
+    .eq('listing_id', listingId).order('week_of', { ascending: false }))
+
+export const upsertPlatformStats = (d) =>
+  query(supabase.from('listing_platform_stats').upsert(d, { onConflict: 'listing_id,week_of' }).select().single())
+
+export const deletePlatformStats = (id) =>
+  query(supabase.from('listing_platform_stats').delete().eq('id', id))
+
+// Accumulated totals across all weeks for a listing
+export const getPlatformStatsTotals = async (listingId) => {
+  const rows = await getPlatformStats(listingId)
+  const totals = { zillow_views: 0, zillow_saves: 0, realtor_views: 0, realtor_leads: 0,
+    redfin_views: 0, redfin_favorites: 0, homes_views: 0, homes_leads: 0,
+    mls_views: 0, mls_inquiries: 0, property_website_views: 0, showings_count: 0, weeks: rows.length }
+  rows.forEach(r => {
+    Object.keys(totals).forEach(k => { if (k !== 'weeks' && r[k]) totals[k] += r[k] })
+  })
+  totals.total_views = totals.zillow_views + totals.realtor_views + totals.redfin_views + totals.homes_views + totals.mls_views + totals.property_website_views
+  totals.total_engagement = totals.zillow_saves + totals.realtor_leads + totals.redfin_favorites + totals.homes_leads + totals.mls_inquiries
+  return totals
+}
+
+// ─── Stat-Pull Tasks ────────────────────────────────────────────────────────
+export const getStatTasks = () =>
+  query(supabase.from('listing_stat_tasks').select('*, listing:listings(id, property:properties(id,address,city))')
+    .order('week_of', { ascending: false }))
+
+export const getStatTasksForListing = (listingId) =>
+  query(supabase.from('listing_stat_tasks').select('*')
+    .eq('listing_id', listingId).order('week_of', { ascending: false }))
+
+export const upsertStatTask = (d) =>
+  query(supabase.from('listing_stat_tasks').upsert(d, { onConflict: 'listing_id,week_of' }).select().single())
+
+export const completeStatTask = (id) =>
+  query(supabase.from('listing_stat_tasks').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', id).select().single())
+
+// ─── Listing Offers ─────────────────────────────────────────────────────────
+export const getOffersForListing = (listingId) =>
+  query(supabase.from('listing_offers').select('*')
+    .eq('listing_id', listingId).order('submitted_at', { ascending: false }))
+
+export const createOffer = (d) =>
+  query(supabase.from('listing_offers').insert(d).select().single())
+
+export const updateOffer = async (id, d) => {
+  const { updateWithAudit } = await import('./safeguards')
+  return updateWithAudit('listing_offers', id, d)
+}
+
+export const deleteOffer = (id) =>
+  query(supabase.from('listing_offers').delete().eq('id', id))
+
+export async function uploadOfferNetSheet(file, offerId) {
+  const ext = file.name.split('.').pop()
+  const path = `net-sheets/${offerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+  const { error } = await supabase.storage.from('listing-documents').upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+  })
+  if (error) throw new Error(error.message)
+  const { data: { publicUrl } } = supabase.storage.from('listing-documents').getPublicUrl(path)
+  await query(supabase.from('listing_offers').update({
+    net_sheet_doc_url: publicUrl,
+    net_sheet_doc_path: path,
+    net_sheet_doc_name: file.name,
+  }).eq('id', offerId).select().single())
+  return publicUrl
+}
+
+// ─── Meta Ads Config (user_settings) ────────────────────────────────────────
+export const getMetaAdsConfig = () =>
+  query(supabase.from('user_settings').select('*').eq('key', 'meta_ads_config').maybeSingle())
+
+export const updateMetaAdsConfig = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'meta_ads_config', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())
+
+// ─── Listing Ad Campaigns (Meta attribution) ────────────────────────────────
+export const getAdCampaignsForListing = (listingId) =>
+  query(supabase.from('listing_ad_campaigns').select('*')
+    .eq('listing_id', listingId).order('created_at', { ascending: false }))
+
+export const upsertAdCampaign = (d) =>
+  query(supabase.from('listing_ad_campaigns')
+    .upsert(d, { onConflict: 'listing_id,meta_campaign_id,meta_adset_id' }).select().single())
+
+export const updateAdCampaign = (id, d) =>
+  query(supabase.from('listing_ad_campaigns').update(d).eq('id', id).select().single())
+
+export const deleteAdCampaign = (id) =>
+  query(supabase.from('listing_ad_campaigns').delete().eq('id', id))
+
+/** Fetch campaigns from Meta Marketing API.
+ *  Returns array of { id, name, status, adsets: [{ id, name, targeting }] }
+ */
+export async function fetchMetaCampaigns(accessToken, adAccountId) {
+  const baseUrl = 'https://graph.facebook.com/v21.0'
+  // Get campaigns
+  const campResp = await fetch(
+    `${baseUrl}/act_${adAccountId}/campaigns?fields=id,name,status,objective,start_time,stop_time&limit=50`,
+    { headers: { 'Authorization': `Bearer ${accessToken}` } }
+  )
+  if (!campResp.ok) {
+    const err = await campResp.json().catch(() => ({}))
+    throw new Error(err.error?.message || `Meta API error ${campResp.status}`)
+  }
+  const campData = await campResp.json()
+  const campaigns = campData.data || []
+
+  // Get ad sets for each campaign
+  for (const camp of campaigns) {
+    const adsetResp = await fetch(
+      `${baseUrl}/${camp.id}/adsets?fields=id,name,status,targeting&limit=50`,
+      { headers: { 'Authorization': `Bearer ${accessToken}` } }
+    )
+    if (adsetResp.ok) {
+      const adsetData = await adsetResp.json()
+      camp.adsets = adsetData.data || []
+    } else {
+      camp.adsets = []
+    }
+  }
+  return campaigns
+}
+
+/** Fetch insights (stats) for a specific campaign or ad set from Meta.
+ *  Returns { impressions, reach, clicks, spend, actions, ctr, cpc }
+ */
+export async function fetchMetaInsights(accessToken, objectId, datePreset = 'lifetime') {
+  const baseUrl = 'https://graph.facebook.com/v21.0'
+  const resp = await fetch(
+    `${baseUrl}/${objectId}/insights?fields=impressions,reach,clicks,spend,actions,ctr,cpc,cost_per_action_type&date_preset=${datePreset}`,
+    { headers: { 'Authorization': `Bearer ${accessToken}` } }
+  )
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}))
+    throw new Error(err.error?.message || `Meta API error ${resp.status}`)
+  }
+  const data = await resp.json()
+  const row = (data.data || [])[0] || {}
+  // Extract lead count from actions
+  const leadAction = (row.actions || []).find(a => a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead_grouped')
+  const leads = leadAction ? Number(leadAction.value) : 0
+  const conversions = (row.actions || []).reduce((sum, a) => sum + (Number(a.value) || 0), 0)
+  const cplAction = (row.cost_per_action_type || []).find(a => a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead_grouped')
+  return {
+    impressions: Number(row.impressions) || 0,
+    reach: Number(row.reach) || 0,
+    clicks: Number(row.clicks) || 0,
+    spend: Number(row.spend) || 0,
+    ctr: Number(row.ctr) || 0,
+    cpc: Number(row.cpc) || 0,
+    leads,
+    cpl: cplAction ? Number(cplAction.value) : (leads > 0 ? Number(row.spend) / leads : 0),
+    conversions,
+  }
+}
+
 // ─── Price History ───────────────────────────────────────────────────────────
 export const getPriceHistory = (listingId) =>
   query(supabase.from('listing_price_history').select('*')
@@ -1298,6 +1461,22 @@ export const validateAddress = async ({ address, city, state, zip }) => {
   })
   if (error) throw new Error(error.message || 'Address validation failed')
   return data
+}
+
+// ─── Slack Channel Management ───────────────────────────────────────────────
+// Ensures a Slack channel exists for a seller listing or buyer contact.
+// Fire-and-forget — Slack is a notification layer, failures don't block UI.
+export const ensureSlackChannel = async ({ contactId, contactType, listingId, propertyAddress }) => {
+  try {
+    const { data, error } = await supabase.functions.invoke('slack-channel-ensure', {
+      body: { contactId, contactType, listingId, propertyAddress },
+    })
+    if (error) console.warn('Slack channel ensure failed:', error.message)
+    return data
+  } catch (err) {
+    console.warn('Slack channel ensure failed:', err)
+    return null
+  }
 }
 
 // ─── Dropdown Lists (lookup values for sources, locations, etc.) ────────────

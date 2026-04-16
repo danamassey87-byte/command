@@ -1020,8 +1020,179 @@ function ConnectedAccountsTab() {
         </div>
       </div>
 
+      {/* Meta Ads */}
+      <MetaAdsConfigCard />
+
       {/* Google Calendar + Gmail */}
       <GoogleAccountCard />
+    </div>
+  )
+}
+
+// ─── Meta Ads Config Card (inside Connected Accounts) ───────────────────────
+function MetaAdsConfigCard() {
+  const [config, setConfig] = useState(null)
+  const [accessToken, setAccessToken] = useState('')
+  const [adAccountId, setAdAccountId] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+  const [testing, setTesting] = useState(false)
+  // Which stats to include in client weekly reports
+  const [reportStats, setReportStats] = useState(['reach', 'clicks'])
+
+  useEffect(() => {
+    DB.getMetaAdsConfig().then(row => {
+      if (row?.value) {
+        setConfig(row.value)
+        if (row.value.access_token) setAccessToken(row.value.access_token)
+        if (row.value.ad_account_id) setAdAccountId(row.value.ad_account_id)
+        if (row.value.report_stats) setReportStats(row.value.report_stats)
+      }
+    }).catch(() => {})
+  }, [])
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const value = { ...config, access_token: accessToken, ad_account_id: adAccountId, report_stats: reportStats }
+      await DB.updateMetaAdsConfig(value)
+      setConfig(value)
+      setEditing(false)
+      setTestResult({ ok: true, message: 'Saved!' })
+    } catch (err) {
+      setTestResult({ ok: false, message: err.message })
+    } finally { setSaving(false) }
+  }
+
+  async function handleTest() {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      if (!accessToken.trim() || !adAccountId.trim()) {
+        setTestResult({ ok: false, message: 'Enter both token and ad account ID' })
+        return
+      }
+      const campaigns = await DB.fetchMetaCampaigns(accessToken, adAccountId)
+      const value = { ...config, access_token: accessToken, ad_account_id: adAccountId, report_stats: reportStats, campaign_count: campaigns.length }
+      await DB.updateMetaAdsConfig(value)
+      setConfig(value)
+      setTestResult({ ok: true, message: `Connected! Found ${campaigns.length} campaign(s).` })
+    } catch (err) {
+      setTestResult({ ok: false, message: err.message })
+    } finally { setTesting(false) }
+  }
+
+  const isConnected = !!config?.access_token
+  const STAT_OPTIONS = [
+    { key: 'reach', label: 'Reach (people who saw it)' },
+    { key: 'impressions', label: 'Impressions (total views)' },
+    { key: 'clicks', label: 'Clicks' },
+    { key: 'ctr', label: 'CTR (click-through rate)' },
+    { key: 'leads', label: 'Leads' },
+    { key: 'conversions', label: 'Conversions' },
+  ]
+
+  const toggleStat = (key) => {
+    setReportStats(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <span style={{ fontSize: '1.3rem' }}>📊</span>
+        <div>
+          <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.95rem' }}>Meta Ads</div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>Auto-pull Facebook &amp; Instagram ad performance into listing reports</div>
+        </div>
+        {isConnected && !editing && (
+          <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 600, color: '#137333', background: '#e6f4ea', padding: '3px 10px', borderRadius: 6 }}>
+            Connected
+          </span>
+        )}
+      </div>
+
+      {(editing || !isConnected) ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div>
+            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 4, display: 'block' }}>
+              Long-Lived Access Token
+            </label>
+            <Input
+              value={accessToken}
+              onChange={e => setAccessToken(e.target.value)}
+              placeholder="Paste your Meta Marketing API token..."
+              type="password"
+            />
+            <p style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
+              Generate at developers.facebook.com → Tools → Access Token Tool → select your app → generate long-lived user token with ads_read permission
+            </p>
+          </div>
+          <div>
+            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 4, display: 'block' }}>
+              Ad Account ID
+            </label>
+            <Input
+              value={adAccountId}
+              onChange={e => setAdAccountId(e.target.value)}
+              placeholder="e.g. 1234567890 (without act_ prefix)"
+            />
+            <p style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
+              Find in Meta Business Suite → Settings → Ad Accounts → your account ID
+            </p>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 6, display: 'block' }}>
+              Stats to Show in Client Reports
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {STAT_OPTIONS.map(opt => (
+                <label key={opt.key} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.78rem', cursor: 'pointer', padding: '4px 8px', background: reportStats.includes(opt.key) ? 'var(--cream)' : 'transparent', border: '1px solid ' + (reportStats.includes(opt.key) ? 'var(--brown-light)' : 'var(--color-border-light)'), borderRadius: 6 }}>
+                  <input type="checkbox" checked={reportStats.includes(opt.key)} onChange={() => toggleStat(opt.key)} style={{ accentColor: 'var(--brown-dark)' }} />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+            <p style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', margin: '4px 0 0' }}>
+              Only selected stats appear in your seller's weekly report. Spend is never shown to clients.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button size="sm" onClick={handleTest} disabled={testing}>
+              {testing ? 'Testing...' : 'Test Connection'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
+            {isConnected && (
+              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--brown-dark)', marginBottom: 6 }}>
+            Ad Account: <strong>act_{adAccountId}</strong>
+            {config?.campaign_count != null && <span style={{ color: 'var(--color-text-muted)' }}> · {config.campaign_count} campaigns found</span>}
+          </div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: 8 }}>
+            Client report stats: <strong>{reportStats.join(', ')}</strong> · Spend is hidden from clients
+          </div>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>Edit Connection</Button>
+        </div>
+      )}
+
+      {testResult && (
+        <div style={{
+          padding: '8px 12px', borderRadius: 8, fontSize: '0.82rem', marginTop: 8,
+          background: testResult.ok ? '#e6f4ea' : '#fce8e6',
+          color: testResult.ok ? '#137333' : '#c5221f',
+        }}>
+          {testResult.message}
+        </div>
+      )}
     </div>
   )
 }
