@@ -385,9 +385,9 @@
 .slide-panel__backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(82, 65, 54, 0.3);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(52, 41, 34, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   z-index: 200;
   opacity: 0;
   pointer-events: none;

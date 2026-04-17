@@ -1417,11 +1417,26 @@ export default function Pipeline() {
                   {/* Action buttons */}
                   <div className="pipe__detail-actions">
                     <Button variant="ghost" size="sm" onClick={() => { setDetailDeal(null); openEdit(deal) }}>Edit Deal</Button>
-                    <Button variant="primary" size="sm" onClick={() => { advanceStage(deal); setDetailDeal({ ...deal, status: STAGES[STAGES.findIndex(s => s.value === si.value) + 1]?.label ?? deal.status }) }}>
+                    <Button variant="primary" size="sm" onClick={async () => {
+                      await advanceStage(deal)
+                      setPanelOpen(false)
+                      setDetailDeal(null)
+                    }}>
                       Advance Stage
                     </Button>
+                    <Button variant="warning" size="sm" onClick={async () => {
+                      if (!confirm(`Mark this offer as declined? The buyer (${deal.contact?.name}) will stay in your active pipeline.`)) return
+                      try {
+                        await DB.updateTransaction(deal.id, { status: 'Offer Declined', is_active_offer: false })
+                        setPanelOpen(false)
+                        setDetailDeal(null)
+                        refetch()
+                      } catch (e) { alert(e.message) }
+                    }}>
+                      Offer Declined
+                    </Button>
                     <Button variant="danger" size="sm" onClick={() => openRejectModal(deal)}>
-                      Reject / Archive
+                      Archive Deal
                     </Button>
                   </div>
 
