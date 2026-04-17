@@ -713,9 +713,12 @@ export default function Pipeline() {
     })
   , [transactions])
 
-  // Archived/rejected offers (for history view)
+  // Archived offers (for history view) — excludes declined offers (those only show in client's offer history)
   const archivedDeals = useMemo(() =>
-    (transactions ?? []).filter(t => t.is_active_offer === false || t.outcome === 'rejected' || t.outcome === 'withdrawn' || t.outcome === 'expired')
+    (transactions ?? []).filter(t => {
+      if (t.is_active_offer === false && (t.status ?? '').toLowerCase().includes('declined')) return false
+      return t.is_active_offer === false || t.outcome === 'rejected' || t.outcome === 'withdrawn' || t.outcome === 'expired'
+    })
   , [transactions])
 
   // Separate pre-offer leads from board deals
