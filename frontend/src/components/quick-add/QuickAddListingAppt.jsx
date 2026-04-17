@@ -137,7 +137,7 @@ export default function QuickAddListingAppt({ open, onClose }) {
           phone: form.clientPhone.trim() || null,
           type: 'seller',
           source: form.source.trim() || null,
-          client_request_id: requestIdRef.current + ':contact', // #2
+          // client_request_id omitted — UUID column can't accept string suffix
         })
         contactId = c.id
       }

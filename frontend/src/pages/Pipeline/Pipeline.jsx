@@ -449,6 +449,43 @@ function OfferHistoryTab({ contactId, currentDealId, onReOffer }) {
   )
 }
 
+function DealStageHistory({ dealId }) {
+  const [history, setHistory] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    DB.getTransactionStatusLog(dealId)
+      .then(data => setHistory(data ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [dealId])
+
+  if (loading) return <p style={{ padding: 16, fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>Loading history...</p>
+  if (history.length === 0) return <p style={{ padding: 16, fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>No stage changes recorded yet. Stage changes will appear here as this deal progresses.</p>
+
+  return (
+    <div style={{ padding: '12px 0' }}>
+      <h4 style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--brown-dark)', margin: '0 0 12px' }}>Stage History</h4>
+      <div style={{ position: 'relative', paddingLeft: 20 }}>
+        <div style={{ position: 'absolute', left: 7, top: 4, bottom: 4, width: 2, background: 'var(--color-border)' }} />
+        {history.map((h, i) => (
+          <div key={h.id} style={{ position: 'relative', paddingBottom: 16, paddingLeft: 16 }}>
+            <div style={{ position: 'absolute', left: -2, top: 4, width: 10, height: 10, borderRadius: '50%', background: i === 0 ? 'var(--brown-mid)' : 'var(--color-border)', border: '2px solid #fff' }} />
+            <div style={{ fontSize: '0.82rem' }}>
+              <span style={{ fontWeight: 600, color: 'var(--brown-dark)' }}>{(h.to_status ?? '').replace(/_/g, ' ')}</span>
+              {h.from_status && <span style={{ color: 'var(--color-text-muted)' }}> from {h.from_status.replace(/_/g, ' ')}</span>}
+            </div>
+            <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', margin: '2px 0 0' }}>
+              {new Date(h.changed_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+            </p>
+            {h.notes && <p style={{ fontSize: '0.78rem', color: 'var(--color-text)', margin: '4px 0 0', fontStyle: 'italic' }}>{h.notes}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Pipeline() {
   const { data: transactions, loading, error, refetch } = useTransactions()
   const { data: contacts } = useContacts()
@@ -995,6 +1032,14 @@ export default function Pipeline() {
             <button className={`pipe__view-tab ${viewMode === 'board' ? 'pipe__view-tab--active' : ''}`} onClick={() => setViewMode('board')}>Board</button>
             <button className={`pipe__view-tab ${viewMode === 'list' ? 'pipe__view-tab--active' : ''}`} onClick={() => setViewMode('list')}>List</button>
           </div>
+          <Button variant="ghost" size="sm" onClick={async () => {
+            if (!activeDeals.length) { alert('No active deals to archive.'); return }
+            if (!confirm(`Archive all ${activeDeals.length} active deals? This marks them as archived. You can still find them in the closed deals view.`)) return
+            try {
+              for (const d of activeDeals) await DB.archiveTransaction(d.id)
+              refetch()
+            } catch (e) { alert('Failed: ' + e.message) }
+          }}>Archive All</Button>
           <Button variant="primary" size="sm" icon="+" onClick={openNew}>New Deal</Button>
         </div>
       </div>
@@ -1241,6 +1286,7 @@ export default function Pipeline() {
               {/* ─── Tab Bar ─── */}
               <div className="pipe__detail-tabs">
                 <button className={`pipe__detail-tab ${detailTab === 'overview' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('overview')}>Overview</button>
+                <button className={`pipe__detail-tab ${detailTab === 'history' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('history')}>History</button>
                 <button className={`pipe__detail-tab ${detailTab === 'sop' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('sop')}>
                   SOP {sopTotal > 0 && <span className="pipe__detail-tab-count">{sopDone}/{sopTotal}</span>}
                 </button>
@@ -1473,6 +1519,11 @@ export default function Pipeline() {
                     )
                   })()}
                 </>
+              )}
+
+              {/* ═══ HISTORY TAB ═══ */}
+              {detailTab === 'history' && (
+                <DealStageHistory dealId={deal.id} />
               )}
 
               {/* ═══ SOP TAB ═══ */}

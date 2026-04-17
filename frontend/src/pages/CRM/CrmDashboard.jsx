@@ -147,14 +147,28 @@ export default function CrmDashboard() {
       </div>
 
       <div className="sd-row sd-row--33-33-33">
-        <DashCard title="Quick Actions">
+        <DashCard title="Sellers">
           <div className="crm-actions">
-            <Link to="/crm/buyers" className="crm-action-btn">Buyers</Link>
-            <Link to="/crm/sellers" className="crm-action-btn">Listings</Link>
-            <Link to="/crm/database" className="crm-action-btn">Database</Link>
-            <Link to="/crm/investors" className="crm-action-btn">Investors</Link>
-            <Link to="/crm/showings" className="crm-action-btn">Showings</Link>
-            <Link to="/crm/intake-forms" className="crm-action-btn">Intake Forms</Link>
+            <Link to="/listing-appts" className="crm-action-btn">Listing Appts</Link>
+            <Link to="/sellers" className="crm-action-btn">Listings</Link>
+            <Link to="/seller-showings" className="crm-action-btn">Listing Showings</Link>
+            <Link to="/listing-plan" className="crm-action-btn">Listing Plan</Link>
+          </div>
+        </DashCard>
+        <DashCard title="Buyers">
+          <div className="crm-actions">
+            <Link to="/buyers" className="crm-action-btn">Clients</Link>
+            <Link to="/buyer-showings" className="crm-action-btn">Showings</Link>
+            <Link to="/properties" className="crm-action-btn">Properties</Link>
+          </div>
+        </DashCard>
+        <DashCard title="Overall">
+          <div className="crm-actions">
+            <Link to="/database" className="crm-action-btn">Contact Database</Link>
+            <Link to="/on-hold" className="crm-action-btn">On Hold</Link>
+            <Link to="/vendors" className="crm-action-btn">Vendors</Link>
+            <Link to="/investors" className="crm-action-btn">Investors</Link>
+            <Link to="/settings/intake-forms" className="crm-action-btn">Intake Forms</Link>
           </div>
         </DashCard>
 

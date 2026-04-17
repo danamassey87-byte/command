@@ -64,8 +64,9 @@ import ProspectingDashboard from './pages/Prospecting/ProspectingDashboard'
 import ContentDashboard from './pages/Content/ContentDashboard'
 import CalendarDashboard from './pages/Calendar/CalendarDashboard'
 import EmailDashboard from './pages/Email/EmailDashboard'
-import EmailTemplates from './pages/Email/EmailTemplates'
+// EmailTemplates route now redirects to /email/builder
 import SentHistory from './pages/Email/SentHistory'
+import EmailReporting from './pages/Email/EmailReporting'
 import CampaignsDashboard from './pages/Campaigns/CampaignsDashboard'
 import ResourcesDashboard from './pages/Resources/ResourcesDashboard'
 import AppraiserPackage from './pages/Resources/AppraiserPackage'
@@ -178,6 +179,18 @@ export default function App() {
           <Route path="/crm/database"       element={<Database />} />
           <Route path="/crm/on-hold"       element={<OnHoldContacts />} />
 
+          {/* ─── Top-level nav aliases (sidebar shortcuts) ─── */}
+          <Route path="/listing-appts"    element={<ListingAppts />} />
+          <Route path="/sellers"          element={<Sellers />} />
+          <Route path="/seller-showings"  element={<SellerShowings />} />
+          <Route path="/listing-plan"     element={<ListingPlan />} />
+          <Route path="/buyers"           element={<Buyers />} />
+          <Route path="/buyer-showings"   element={<BuyerShowings />} />
+          <Route path="/properties"       element={<Properties />} />
+          <Route path="/database"         element={<Database />} />
+          <Route path="/on-hold"          element={<OnHoldContacts />} />
+          <Route path="/investors"        element={<Investors />} />
+
           {/* ─── Pipeline ─── */}
           <Route path="/pipeline"            element={<PipelineDashboard />} />
           <Route path="/pipeline/board"      element={<PipelineBoard />} />
@@ -247,29 +260,30 @@ export default function App() {
 
           {/* ─── Resources ─── */}
           <Route path="/resources"         element={<ResourcesDashboard />} />
-          <Route path="/resources/email"   element={<ComingSoon title="Email Templates" />} />
-          <Route path="/resources/sms"     element={<ComingSoon title="SMS Templates" />} />
+          <Route path="/resources/email"   element={<Navigate to="/email/builder" replace />} />
+          <Route path="/resources/sms"     element={<Navigate to="/email/builder" replace />} />
           <Route path="/resources/appraiser-package" element={<AppraiserPackage />} />
 
           {/* ─── Link in Bio ─── */}
           <Route path="/bio-link"          element={<BioLinkDashboard />} />
           <Route path="/bio-link/page"     element={<BioLinkBuilder />} />
-          <Route path="/bio-link/forms"    element={<ComingSoon title="Links & Forms" />} />
-          <Route path="/bio-link/guides"   element={<ComingSoon title="Guides" />} />
-          <Route path="/bio-link/drips"    element={<ComingSoon title="Drip Campaigns" />} />
-          <Route path="/bio-link/leads"    element={<ComingSoon title="Leads Captured" />} />
+          <Route path="/bio-link/forms"    element={<Navigate to="/bio-link/page" replace />} />
+          <Route path="/bio-link/guides"   element={<Navigate to="/bio-link/page" replace />} />
+          <Route path="/bio-link/drips"    element={<Navigate to="/email/campaigns" replace />} />
+          <Route path="/bio-link/leads"    element={<Navigate to="/database" replace />} />
 
           {/* ─── Email (includes Smart Campaigns) ─── */}
           <Route path="/email"             element={<EmailDashboard />} />
           <Route path="/email/builder"     element={<EmailBuilder />} />
           <Route path="/email/newsletters" element={<NewslettersPage />} />
-          <Route path="/email/templates"   element={<EmailTemplates />} />
+          <Route path="/email/templates"   element={<Navigate to="/email/builder" replace />} />
           <Route path="/email/campaigns"       element={<SmartCampaigns />} />
           <Route path="/email/campaigns/queue" element={<SmartCampaigns />} />
           <Route path="/email/campaigns/enrollments" element={<SmartCampaigns />} />
           <Route path="/email/campaigns/history" element={<SmartCampaigns />} />
           <Route path="/email/campaigns/templates" element={<SmartCampaigns />} />
           <Route path="/email/sent"        element={<SentHistory />} />
+          <Route path="/email/reporting"  element={<EmailReporting />} />
 
           {/* ─── Legacy campaign redirects ─── */}
           <Route path="/campaigns"            element={<Navigate to="/email/campaigns" replace />} />
@@ -288,6 +302,7 @@ export default function App() {
           {/* ─── Settings ─── */}
           <Route path="/settings"          element={<Settings />} />
           <Route path="/settings/recovery" element={<Recovery />} />
+          <Route path="/settings/intake-forms" element={<IntakeForms />} />
         </Route>
       </Routes>
     </BrowserRouter>

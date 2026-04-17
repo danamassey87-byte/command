@@ -538,6 +538,10 @@ export default function SmartCampaigns() {
           <span className="sc-stat-num">{dueTasks.length}</span>
           <span className="sc-stat-label">Due Today</span>
         </div>
+        <a href="/email/reporting" className="sc-stat-card" style={{ textDecoration: 'none', cursor: 'pointer', background: 'var(--color-bg-subtle, #faf8f5)', border: '1px dashed var(--color-border)' }}>
+          <span className="sc-stat-num" style={{ fontSize: '1rem' }}>📊</span>
+          <span className="sc-stat-label">Reporting</span>
+        </a>
       </div>
 
       {/* ─── Main Tabs ─── */}
@@ -546,9 +550,7 @@ export default function SmartCampaigns() {
           { value: 'campaigns', label: 'My Campaigns', count: campaigns.length },
           { value: 'queue',     label: 'Send Queue',   count: dueTasks.length },
           { value: 'active',    label: 'Enrollments',  count: enrollments.length },
-          { value: 'history',   label: 'History',       count: history.length },
-          { value: 'templates', label: 'Templates',     count: templates.length },
-          { value: 'ai',        label: 'AI Insights'                              },
+          { value: 'history',   label: 'Send Log',      count: history.length },
         ]}
         active={mainTab}
         onChange={setMainTab}
@@ -569,7 +571,7 @@ export default function SmartCampaigns() {
               action={
                 <div style={{ display: 'flex', gap: 8 }}>
                   <Button onClick={startBlank}>Create Blank</Button>
-                  <Button variant="ghost" onClick={() => setMainTab('templates')}>Browse Templates</Button>
+                  <Button variant="ghost" onClick={() => window.location.href = '/email/builder'}>Email Builder</Button>
                 </div>
               }
             />

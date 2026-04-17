@@ -25,6 +25,10 @@ export default function OHSignIn() {
   const [property, setProperty] = useState(null)
   const [loadError, setLoadError] = useState(null)
 
+  // Sign-in form config (per-OH field visibility)
+  const cfg = oh?.sign_in_config ?? {}
+  const show = (key) => cfg[key] !== false // default to visible
+
   // Form state
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -353,88 +357,106 @@ export default function OHSignIn() {
                   </div>
                 </div>
 
-                <div className="oh-kiosk__field">
-                  <label className="oh-kiosk__label">Email</label>
-                  <input
-                    className="oh-kiosk__input"
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    onBlur={savePartial}
-                    placeholder="email@example.com"
-                    autoComplete="email"
-                  />
-                </div>
-
-                <div className="oh-kiosk__field">
-                  <label className="oh-kiosk__label">Phone</label>
-                  <input
-                    className="oh-kiosk__input"
-                    type="tel"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    onBlur={savePartial}
-                    placeholder="(480) 555-1234"
-                    autoComplete="tel"
-                  />
-                </div>
-
-                {/* Qualification toggles */}
-                <div style={{ margin: '18px 0 6px' }}>
-                  <div className="oh-kiosk__label" style={{ marginBottom: 8 }}>A Few Quick Questions</div>
-
-                  <div className="oh-kiosk__toggle" onClick={() => setWorkingWithAgent(!workingWithAgent)}>
-                    <span className="oh-kiosk__toggle-label">Working with an agent?</span>
-                    <div className={`oh-kiosk__toggle-btn${workingWithAgent ? ' oh-kiosk__toggle-btn--on' : ''}`} />
+                {show('show_email') && (
+                  <div className="oh-kiosk__field">
+                    <label className="oh-kiosk__label">Email</label>
+                    <input
+                      className="oh-kiosk__input"
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      onBlur={savePartial}
+                      placeholder="email@example.com"
+                      autoComplete="email"
+                    />
                   </div>
-                  {workingWithAgent && (
-                    <div className="oh-kiosk__field" style={{ marginTop: 4 }}>
-                      <input
-                        className="oh-kiosk__input"
-                        value={agentName}
-                        onChange={e => setAgentName(e.target.value)}
-                        placeholder="Agent's name"
-                        style={{ fontSize: 14 }}
-                      />
-                    </div>
-                  )}
+                )}
 
-                  <div className="oh-kiosk__toggle" onClick={() => setPreApproved(!preApproved)}>
-                    <span className="oh-kiosk__toggle-label">Pre-approved for financing?</span>
-                    <div className={`oh-kiosk__toggle-btn${preApproved ? ' oh-kiosk__toggle-btn--on' : ''}`} />
+                {show('show_phone') && (
+                  <div className="oh-kiosk__field">
+                    <label className="oh-kiosk__label">Phone</label>
+                    <input
+                      className="oh-kiosk__input"
+                      type="tel"
+                      value={phone}
+                      onChange={e => setPhone(e.target.value)}
+                      onBlur={savePartial}
+                      placeholder="(480) 555-1234"
+                      autoComplete="tel"
+                    />
                   </div>
-                  {preApproved && (
-                    <div className="oh-kiosk__field" style={{ marginTop: 4 }}>
-                      <input
-                        className="oh-kiosk__input"
-                        value={lenderName}
-                        onChange={e => setLenderName(e.target.value)}
-                        placeholder="Lender name"
-                        style={{ fontSize: 14 }}
-                      />
-                    </div>
-                  )}
+                )}
 
-                  <div className="oh-kiosk__toggle" onClick={() => setNeedToSell(!needToSell)}>
-                    <span className="oh-kiosk__toggle-label">Need to sell a home first?</span>
-                    <div className={`oh-kiosk__toggle-btn${needToSell ? ' oh-kiosk__toggle-btn--on' : ''}`} />
+                {/* Qualification toggles — only show section if at least one toggle is enabled */}
+                {(show('show_working_with_agent') || show('show_pre_approved') || show('show_need_to_sell')) && (
+                  <div style={{ margin: '18px 0 6px' }}>
+                    <div className="oh-kiosk__label" style={{ marginBottom: 8 }}>A Few Quick Questions</div>
+
+                    {show('show_working_with_agent') && (
+                      <>
+                        <div className="oh-kiosk__toggle" onClick={() => setWorkingWithAgent(!workingWithAgent)}>
+                          <span className="oh-kiosk__toggle-label">Working with an agent?</span>
+                          <div className={`oh-kiosk__toggle-btn${workingWithAgent ? ' oh-kiosk__toggle-btn--on' : ''}`} />
+                        </div>
+                        {workingWithAgent && (
+                          <div className="oh-kiosk__field" style={{ marginTop: 4 }}>
+                            <input
+                              className="oh-kiosk__input"
+                              value={agentName}
+                              onChange={e => setAgentName(e.target.value)}
+                              placeholder="Agent's name"
+                              style={{ fontSize: 14 }}
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {show('show_pre_approved') && (
+                      <>
+                        <div className="oh-kiosk__toggle" onClick={() => setPreApproved(!preApproved)}>
+                          <span className="oh-kiosk__toggle-label">Pre-approved for financing?</span>
+                          <div className={`oh-kiosk__toggle-btn${preApproved ? ' oh-kiosk__toggle-btn--on' : ''}`} />
+                        </div>
+                        {preApproved && (
+                          <div className="oh-kiosk__field" style={{ marginTop: 4 }}>
+                            <input
+                              className="oh-kiosk__input"
+                              value={lenderName}
+                              onChange={e => setLenderName(e.target.value)}
+                              placeholder="Lender name"
+                              style={{ fontSize: 14 }}
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {show('show_need_to_sell') && (
+                      <div className="oh-kiosk__toggle" onClick={() => setNeedToSell(!needToSell)}>
+                        <span className="oh-kiosk__toggle-label">Need to sell a home first?</span>
+                        <div className={`oh-kiosk__toggle-btn${needToSell ? ' oh-kiosk__toggle-btn--on' : ''}`} />
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
 
-                <div className="oh-kiosk__field">
-                  <label className="oh-kiosk__label">Timeframe</label>
-                  <select
-                    className="oh-kiosk__input"
-                    value={timeframe}
-                    onChange={e => setTimeframe(e.target.value)}
-                    style={{ fontSize: 14 }}
-                  >
-                    <option value="">Select...</option>
-                    {TIMEFRAME_OPTIONS.map(t => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </div>
+                {show('show_timeframe') && (
+                  <div className="oh-kiosk__field">
+                    <label className="oh-kiosk__label">Timeframe</label>
+                    <select
+                      className="oh-kiosk__input"
+                      value={timeframe}
+                      onChange={e => setTimeframe(e.target.value)}
+                      style={{ fontSize: 14 }}
+                    >
+                      <option value="">Select...</option>
+                      {TIMEFRAME_OPTIONS.map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <button
                   type="submit"

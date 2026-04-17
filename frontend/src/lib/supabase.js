@@ -128,6 +128,48 @@ export const deleteProperty = async (id) => {
   return softDelete('properties', id)
 }
 
+/**
+ * Merge duplicate properties: reassign all FK references from dupeIds to keepId,
+ * then soft-delete the duplicates. Handles all 12+ dependent tables.
+ */
+export async function mergeProperties(keepId, dupeIds) {
+  if (!keepId || !dupeIds?.length) throw new Error('Need a primary and at least one duplicate')
+  const ids = dupeIds.filter(id => id !== keepId)
+  if (!ids.length) throw new Error('Duplicate IDs must differ from the primary')
+
+  // Reassign all FK references in every dependent table
+  const tables = [
+    'listings',
+    'transactions',
+    'showings',
+    'showing_sessions',
+    'open_houses',
+    'leads',
+    'investor_feedback',
+    'content_pieces',
+    'mileage_log',
+    'expenses',
+  ]
+
+  for (const table of tables) {
+    for (const dupeId of ids) {
+      // Update rows that point to the dupe → point to the keeper
+      await supabase.from(table).update({ property_id: keepId }).eq('property_id', dupeId)
+    }
+  }
+
+  // Soft-delete the duplicates
+  const now = new Date().toISOString()
+  for (const dupeId of ids) {
+    await supabase.from('properties').update({ deleted_at: now }).eq('id', dupeId)
+  }
+
+  // Log activity
+  await logActivity('properties_merged', `Merged ${ids.length} duplicate properties into primary`, { propertyId: keepId, mergedIds: ids })
+
+  return keepId
+}
+
 /** Get properties with all detail fields for content/marketing use */
 export const getPropertiesForContent = () =>
   query(supabase.from('properties').select('*')
@@ -470,6 +512,10 @@ export const getTransactions = () =>
 
 export const createTransaction  = (d)      => query(supabase.from('transactions').insert(d).select().single())
 export const updateTransaction  = (id, d)  => query(supabase.from('transactions').update(d).eq('id', id).select().single())
+export const archiveTransaction = (id)     => query(supabase.from('transactions').update({ status: 'archived', archived_at: new Date().toISOString() }).eq('id', id))
+export const getTransactionStatusLog = (txId) =>
+  query(supabase.from('transaction_status_log').select('*').eq('transaction_id', txId).order('changed_at', { ascending: false }))
+export const deleteTransaction  = (id)     => query(supabase.from('transactions').delete().eq('id', id))
 
 // Get all offers for a specific contact (offer history across all properties)
 export const getOfferHistory = (contactId) =>
@@ -616,6 +662,171 @@ export const getOHOutreach    = ()       => query(supabase.from('oh_outreach').s
 export const createOHOutreach = (d)      => query(supabase.from('oh_outreach').insert(d).select().single())
 export const updateOHOutreach = (id, d)  => query(supabase.from('oh_outreach').update(d).eq('id', id).select().single())
 export const deleteOHOutreach = (id)     => query(supabase.from('oh_outreach').delete().eq('id', id))
+
+// ─── Campaign Enrollments (read-only for badges) ─────────────────────────────
+export const getActiveEnrollments = () =>
+  query(supabase.from('campaign_enrollments').select('id, contact_id, status, campaign:campaigns(id, name)')
+    .in('status', ['active', 'paused']).order('enrolled_at', { ascending: false }))
+
+// ─── Contact Merge ───────────────────────────────────────────────────────────
+export async function mergeContacts(keepId, dupeIds) {
+  if (!keepId || !dupeIds?.length) throw new Error('Need a primary and at least one duplicate')
+  const ids = dupeIds.filter(id => id !== keepId)
+  if (!ids.length) throw new Error('Duplicate IDs must differ from the primary')
+
+  const tables = [
+    'listings',
+    'transactions',
+    'showing_sessions',
+    'showings',
+    'leads',
+    'investors',
+    'expenses',
+    'communication_log',
+    'intake_form_sends',
+    'campaign_enrollments',
+    'notes',
+    'contact_tags',
+  ]
+
+  for (const table of tables) {
+    for (const dupeId of ids) {
+      await supabase.from(table).update({ contact_id: keepId }).eq('contact_id', dupeId)
+    }
+  }
+
+  const now = new Date().toISOString()
+  for (const dupeId of ids) {
+    await supabase.from('contacts').update({ deleted_at: now }).eq('id', dupeId)
+  }
+
+  await logActivity('contacts_merged', `Merged ${ids.length} duplicate contacts into primary`, { contactId: keepId, mergedIds: ids })
+  return keepId
+}
+
+// ─── Facebook Audiences ──────────────────────────────────────────────────────
+export const getFbAudiences = () =>
+  query(supabase.from('fb_audiences').select('*').order('created_at', { ascending: false }))
+export const createFbAudience = (d) =>
+  query(supabase.from('fb_audiences').insert(d).select().single())
+export const updateFbAudience = (id, d) =>
+  query(supabase.from('fb_audiences').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+export const deleteFbAudience = (id) =>
+  query(supabase.from('fb_audiences').delete().eq('id', id))
+export const getFbAudienceMembers = (audienceId) =>
+  query(supabase.from('fb_audience_members').select('*, contact:contacts(id, name, email, phone, type, source, stage, city, state, zip)')
+    .eq('audience_id', audienceId).is('removed_at', null))
+export const addFbAudienceMember = (audienceId, contactId) =>
+  query(supabase.from('fb_audience_members').upsert({ audience_id: audienceId, contact_id: contactId, removed_at: null }, { onConflict: 'audience_id,contact_id' }).select().single())
+export const removeFbAudienceMember = (audienceId, contactId) =>
+  query(supabase.from('fb_audience_members').update({ removed_at: new Date().toISOString() })
+    .eq('audience_id', audienceId).eq('contact_id', contactId))
+
+/**
+ * Sync a rule-based audience: evaluate filter_rules against contacts/prospects,
+ * add new matches, remove contacts that no longer match.
+ */
+export async function syncFbAudience(audienceId) {
+  const audience = await query(supabase.from('fb_audiences').select('*').eq('id', audienceId).single())
+  if (!audience) throw new Error('Audience not found')
+  const rules = audience.filter_rules || {}
+
+  // Build query based on rules
+  let q = supabase.from('contacts').select('id, name, email, phone, type, source, stage, city, state, zip')
+    .is('deleted_at', null)
+
+  if (rules.source) q = q.eq('source', rules.source)
+  if (rules.type) q = q.eq('type', rules.type)
+  if (rules.stage) q = q.eq('stage', rules.stage)
+
+  const { data: matchingContacts } = await q
+
+  // Also check prospects table if source is expired/fsbo/circle/etc
+  let prospectContacts = []
+  if (rules.includeProspects && rules.source) {
+    let pq = supabase.from('prospects').select('id, name, email, phone, city, zip')
+    if (rules.source) pq = pq.eq('source', rules.source)
+    if (rules.excludeStatuses?.length) {
+      for (const s of rules.excludeStatuses) pq = pq.neq('status', s)
+    }
+    const { data: prospects } = await pq
+    prospectContacts = (prospects ?? []).map(p => ({ ...p, _fromProspects: true }))
+  }
+
+  const allMatching = [...(matchingContacts ?? []), ...prospectContacts]
+
+  // Exclude statuses
+  const filtered = rules.excludeStatuses?.length
+    ? allMatching.filter(c => !rules.excludeStatuses.includes(c.stage))
+    : allMatching
+
+  const matchIds = new Set(filtered.map(c => c.id))
+
+  // Get current members
+  const { data: currentMembers } = await supabase.from('fb_audience_members')
+    .select('contact_id').eq('audience_id', audienceId).is('removed_at', null)
+  const currentIds = new Set((currentMembers ?? []).map(m => m.contact_id))
+
+  // Add new matches
+  const toAdd = filtered.filter(c => !currentIds.has(c.id))
+  for (const c of toAdd) {
+    await supabase.from('fb_audience_members').upsert(
+      { audience_id: audienceId, contact_id: c.id, removed_at: null },
+      { onConflict: 'audience_id,contact_id' }
+    )
+  }
+
+  // Remove contacts that no longer match
+  const toRemove = [...currentIds].filter(id => !matchIds.has(id))
+  for (const id of toRemove) {
+    await supabase.from('fb_audience_members').update({ removed_at: new Date().toISOString() })
+      .eq('audience_id', audienceId).eq('contact_id', id)
+  }
+
+  // Update member count
+  const { count } = await supabase.from('fb_audience_members')
+    .select('id', { count: 'exact', head: true })
+    .eq('audience_id', audienceId).is('removed_at', null)
+
+  await supabase.from('fb_audiences').update({
+    member_count: count ?? 0,
+    last_synced_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq('id', audienceId)
+
+  return { added: toAdd.length, removed: toRemove.length, total: count ?? 0 }
+}
+
+// ─── Intake Form Tracking ─────────────────────────────────────────────────────
+export const getFormSendsForContact = (contactId) =>
+  query(supabase.from('intake_form_sends').select('*')
+    .eq('contact_id', contactId).order('sent_at', { ascending: false }))
+export const createFormSend = (d) =>
+  query(supabase.from('intake_form_sends').insert(d).select().single())
+export const markFormResponseReceived = (id) =>
+  query(supabase.from('intake_form_sends').update({ response_received: true, response_received_at: new Date().toISOString() }).eq('id', id).select().single())
+
+// ─── Resource Library ─────────────────────────────────────────────────────────
+export const getResources = () =>
+  query(supabase.from('resource_library').select('*').order('sort_order').order('title'))
+export const createResource = (d) =>
+  query(supabase.from('resource_library').insert(d).select().single())
+export const updateResource = (id, d) =>
+  query(supabase.from('resource_library').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+export const deleteResource = (id) =>
+  query(supabase.from('resource_library').delete().eq('id', id))
+
+// ─── Communication Log ────────────────────────────────────────────────────────
+export const getCommsForContact = (contactId) =>
+  query(supabase.from('communication_log').select('*')
+    .eq('contact_id', contactId).order('logged_at', { ascending: false }))
+export const getLatestComms = () =>
+  query(supabase.from('communication_log').select('contact_id, type, logged_at')
+    .order('logged_at', { ascending: false }).limit(500))
+export const createCommEntry = (d) =>
+  query(supabase.from('communication_log').insert(d).select().single())
+export const deleteCommEntry = (id) =>
+  query(supabase.from('communication_log').delete().eq('id', id))
 
 // ─── Host Reports ─────────────────────────────────────────────────────────────
 export const getHostReports    = ()      => query(supabase.from('host_reports').select(`
@@ -1380,13 +1591,27 @@ export const getExpenseCategories = (type) =>
 // ─── Expenses ────────────────────────────────────────────────────────────────
 export const getExpenses = (from, to) =>
   query(supabase.from('expenses').select(`
-    *, category:expense_categories(id,name,tax_line)
+    *, category:expense_categories(id,name,tax_line),
+    contact:contacts(id,name),
+    listing:listings(id,property:properties(id,address,city))
   `).gte('date', from).lte('date', to).order('date', { ascending: false }))
 
 export const getAllExpenses = () =>
   query(supabase.from('expenses').select(`
-    *, category:expense_categories(id,name,tax_line)
+    *, category:expense_categories(id,name,tax_line),
+    contact:contacts(id,name),
+    listing:listings(id,property:properties(id,address,city))
   `).order('date', { ascending: false }))
+
+export const getExpensesForListing = (listingId) =>
+  query(supabase.from('expenses').select(`
+    *, category:expense_categories(id,name)
+  `).eq('listing_id', listingId).order('date', { ascending: false }))
+
+export const getExpensesForContact = (contactId) =>
+  query(supabase.from('expenses').select(`
+    *, category:expense_categories(id,name)
+  `).eq('contact_id', contactId).order('date', { ascending: false }))
 
 export const createExpense  = (d)      => query(supabase.from('expenses').insert(d).select().single())
 export const updateExpense  = (id, d)  => query(supabase.from('expenses').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())

@@ -4,6 +4,7 @@ import { useBrand } from '../../lib/BrandContext'
 import * as DB from '../../lib/supabase'
 import TemplatesTab, { AIPlanPromptsEditor } from './TemplatesTab'
 import Recovery from '../Recovery/Recovery'
+import IntakeForms from '../IntakeForms/IntakeForms'
 import './Settings.css'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -36,7 +37,7 @@ const SOCIAL_CHANNELS = [
   { key: 'linktree',     label: 'Linktree / Bio', icon: '🔗', placeholder: 'https://linktr.ee/yourlink' },
 ]
 
-const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'connected', 'ai_prompts', 'lists', 'notifications', 'tech_stack', 'recovery']
+const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'connected', 'ai_prompts', 'lists', 'intake_forms', 'notifications', 'tech_stack', 'recovery']
 
 // Each entry = one user-managed dropdown list shown in the Lists tab.
 const DROPDOWN_LISTS_META = [
@@ -76,7 +77,7 @@ export default function Settings() {
             className={`settings-tab${tab === t ? ' settings-tab--active' : ''}`}
             onClick={() => setTab(t)}
           >
-            {{ signature: 'Signature', templates: 'Templates & Scripts', guidelines: 'Brand Guidelines', assets: 'Logos & Headshots', social: 'Social Channels', connected: 'Connected Accounts', ai_prompts: 'AI Prompts', lists: 'Lists & Tags', notifications: 'Notifications', tech_stack: 'Tech Stack', recovery: 'Trash & Archive' }[t] || t}
+            {{ signature: 'Signature', templates: 'Templates & Scripts', guidelines: 'Brand Guidelines', assets: 'Logos & Headshots', social: 'Social Channels', connected: 'Connected Accounts', ai_prompts: 'AI Prompts', lists: 'Lists & Tags', intake_forms: 'Intake Forms', notifications: 'Notifications', tech_stack: 'Tech Stack', recovery: 'Trash & Archive' }[t] || t}
           </button>
         ))}
       </div>
@@ -89,6 +90,7 @@ export default function Settings() {
       {tab === 'connected'  && <ConnectedAccountsTab />}
       {tab === 'ai_prompts' && <AiPromptsTab />}
       {tab === 'lists'      && <ListsTab />}
+      {tab === 'intake_forms' && <IntakeForms />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'tech_stack'    && <TechStackTab />}
       {tab === 'recovery'   && <Recovery />}

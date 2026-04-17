@@ -2,10 +2,15 @@ import { useState, useMemo, useCallback } from 'react'
 import { SectionHeader, Badge, Card, SlidePanel, Input, Select, Textarea, EmptyState, TabBar } from '../../components/ui/index.jsx'
 import { TagPicker, TagBadge, TagManager } from '../../components/ui/TagPicker.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople } from '../../components/related-people/RelatedPeopleSection.jsx'
-import { useContactsWithTags, useTags, useListings, useTransactions, useReplyLogForContact } from '../../lib/hooks.js'
+import { useContactsWithTags, useTags, useListings, useTransactions, useReplyLogForContact, useActiveEnrollments, useLatestComms } from '../../lib/hooks.js'
 import { useNavigate } from 'react-router-dom'
 import * as DB from '../../lib/supabase.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
+import CommunicationLog from '../../components/CommunicationLog.jsx'
+import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
+import FacebookExport from '../../components/FacebookExport.jsx'
+import LabelPrinter from '../../components/LabelPrinter.jsx'
+import { exportContacts } from '../../lib/csvExport.js'
 import './Database.css'
 
 // Buyer stages that indicate an active buy-side engagement
@@ -44,10 +49,59 @@ export default function Database() {
   const { data: contacts, loading, refetch } = useContactsWithTags()
   const { data: allTags } = useTags()
   const { data: allListings } = useListings()
+  const { data: enrollments } = useActiveEnrollments()
+  const { data: latestCommsData } = useLatestComms()
+
+  // Build map of contact_id → latest communication date
+  const lastContactedMap = useMemo(() => {
+    const map = {}
+    for (const c of (latestCommsData ?? [])) {
+      if (!c.contact_id) continue
+      if (!map[c.contact_id] || c.logged_at > map[c.contact_id]) map[c.contact_id] = c.logged_at
+    }
+    return map
+  }, [latestCommsData])
+
+  // Build a map of contact_id → active campaign names
+  const enrollmentMap = useMemo(() => {
+    const map = {}
+    for (const e of (enrollments ?? [])) {
+      if (!e.contact_id) continue
+      if (!map[e.contact_id]) map[e.contact_id] = []
+      map[e.contact_id].push({ name: e.campaign?.name || 'Campaign', status: e.status })
+    }
+    return map
+  }, [enrollments])
 
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
+  const [fbExportOpen, setFbExportOpen] = useState(false)
+  const [labelPrinterOpen, setLabelPrinterOpen] = useState(false)
+  const [bulkSelected, setBulkSelected] = useState(new Set())
+  const [bulkTagging, setBulkTagging] = useState(false)
+  const [bulkTagId, setBulkTagId] = useState('')
+
+  const toggleBulk = (id) => setBulkSelected(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+  const toggleAllBulk = () => {
+    if (bulkSelected.size === filtered.length) setBulkSelected(new Set())
+    else setBulkSelected(new Set(filtered.map(c => c.id)))
+  }
+  const handleBulkTag = async () => {
+    if (!bulkTagId || bulkSelected.size === 0) return
+    setBulkTagging(true)
+    try {
+      for (const cid of bulkSelected) await DB.addContactTag(cid, bulkTagId)
+      setBulkSelected(new Set())
+      setBulkTagId('')
+      refetch()
+    } catch (e) { alert(e.message) }
+    finally { setBulkTagging(false) }
+  }
   const [selectedTags, setSelectedTags] = useState([]) // tag IDs to filter by
   const [tagMode, setTagMode] = useState('any') // 'any' or 'all'
   const [showManager, setShowManager] = useState(false)
@@ -154,6 +208,31 @@ export default function Database() {
     refetch()
   }
 
+  // Contact duplicate detection
+  const contactDupeGroups = useMemo(() => {
+    const groups = {}
+    for (const c of enriched) {
+      // Normalize: lowercase, strip non-alpha
+      const norm = (c.name ?? '').toLowerCase().replace(/[^a-z]/g, '').trim()
+      if (!norm || norm.length < 3) continue
+      if (!groups[norm]) groups[norm] = []
+      groups[norm].push(c)
+    }
+    return Object.values(groups).filter(g => g.length > 1)
+  }, [enriched])
+
+  const [mergingContacts, setMergingContacts] = useState(false)
+  const [dismissedContactGroups, setDismissedContactGroups] = useState(new Set())
+
+  const handleContactMerge = async (keepId, dupeIds, gi) => {
+    setMergingContacts(true)
+    try {
+      await DB.mergeContacts(keepId, dupeIds)
+      refetch()
+    } catch (e) { alert('Merge failed: ' + e.message) }
+    finally { setMergingContacts(false) }
+  }
+
   // Group tags by category for filter sidebar
   const tagsByCategory = useMemo(() => {
     const grouped = {}
@@ -176,20 +255,74 @@ export default function Database() {
         title="Contact Database"
         subtitle={`${filtered.length} of ${enriched.length} contacts`}
         actions={
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               className={`db-tab-btn ${tab === 'database' ? 'db-tab-btn--active' : ''}`}
               onClick={() => setTab('database')}
             >Database</button>
             <button
+              className={`db-tab-btn ${tab === 'dupes' ? 'db-tab-btn--active' : ''}`}
+              onClick={() => setTab('dupes')}
+            >Find Duplicates{contactDupeGroups.length > 0 ? ` (${contactDupeGroups.length})` : ''}</button>
+            <button
               className={`db-tab-btn ${tab === 'tags' ? 'db-tab-btn--active' : ''}`}
               onClick={() => setTab('tags')}
             >Manage Tags</button>
+            <div style={{ flex: 1 }} />
+            <button onClick={() => exportContacts(enriched, `contacts_${new Date().toISOString().split('T')[0]}.csv`)} className="db-tab-btn" title="Export contacts to CSV">📥 CSV</button>
+            <button onClick={() => setLabelPrinterOpen(true)} className="db-tab-btn" title="Print mailing labels">🏷 Labels</button>
+            <button onClick={() => setFbExportOpen(true)} className="db-tab-btn" title="Export for Facebook Audience">📤 FB Export</button>
           </div>
         }
       />
 
-      {tab === 'tags' ? (
+      {tab === 'dupes' ? (
+        <div style={{ padding: '16px 0' }}>
+          {contactDupeGroups.filter((_, i) => !dismissedContactGroups.has(i)).length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40 }}>
+              <p style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--brown-dark)' }}>No duplicates found</p>
+              <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginTop: 4 }}>Contacts are matched by name similarity.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <p style={{ fontSize: '0.82rem', color: 'var(--brown-dark)', padding: '8px 12px', background: 'var(--color-bg-subtle, #faf8f5)', borderRadius: 8 }}>
+                <strong>{contactDupeGroups.filter((_, i) => !dismissedContactGroups.has(i)).length} potential duplicate groups.</strong> Select which contact to keep — all data (showings, expenses, campaigns, notes) will merge into the primary.
+              </p>
+              {contactDupeGroups.map((group, gi) => {
+                if (dismissedContactGroups.has(gi)) return null
+                return (
+                  <div key={gi} style={{ border: '1px solid var(--color-border)', borderRadius: 8, padding: 14, background: '#fff' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <strong style={{ fontSize: '0.88rem' }}>Group {gi + 1} — {group.length} contacts</strong>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => setDismissedContactGroups(prev => new Set([...prev, gi]))} style={{ padding: '4px 10px', fontSize: '0.72rem', border: '1px solid var(--color-border)', borderRadius: 6, background: 'none', cursor: 'pointer' }}>Not Duplicates</button>
+                      </div>
+                    </div>
+                    {group.map((c, ci) => (
+                      <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: ci === 0 ? 'var(--color-bg-success, #e8f5e9)' : 'transparent', borderRadius: 6, marginBottom: 2 }}>
+                        <input type="radio" name={`merge-contact-${gi}`} defaultChecked={ci === 0} onChange={() => {}} />
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{c.name}</span>
+                          <span style={{ marginLeft: 8, fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{c.email || ''} {c.phone || ''}</span>
+                        </div>
+                        <Badge variant={TYPE_VARIANTS[c.type] || 'default'} size="sm">{c.type || 'contact'}</Badge>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{c.tags?.length || 0} tags</span>
+                      </div>
+                    ))}
+                    <button
+                      disabled={mergingContacts}
+                      onClick={() => handleContactMerge(group[0].id, group.slice(1).map(c => c.id), gi)}
+                      style={{ marginTop: 8, padding: '6px 14px', background: 'var(--brown-mid)', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      {mergingContacts ? 'Merging...' : `Merge into ${group[0].name}`}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      ) : tab === 'tags' ? (
         <TagManager onClose={() => setTab('database')} />
       ) : (
         <div className="database-layout">
@@ -297,6 +430,35 @@ export default function Database() {
               </div>
             </div>
 
+            {/* Bulk action bar */}
+            {bulkSelected.size > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: 'var(--brown-dark)', color: '#fff', borderRadius: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>{bulkSelected.size} selected</span>
+                <select value={bulkTagId} onChange={e => setBulkTagId(e.target.value)} style={{ padding: '4px 8px', borderRadius: 6, border: 'none', fontSize: '0.78rem', fontFamily: 'inherit' }}>
+                  <option value="">— Add tag —</option>
+                  {(allTags ?? []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <button disabled={!bulkTagId || bulkTagging} onClick={handleBulkTag} style={{ padding: '4px 12px', background: '#fff', color: 'var(--brown-dark)', border: 'none', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', opacity: (!bulkTagId || bulkTagging) ? 0.5 : 1 }}>
+                  {bulkTagging ? 'Applying...' : 'Apply Tag'}
+                </button>
+                <button onClick={() => {
+                  const emails = [...bulkSelected].map(id => (filtered.find(c => c.id === id)?.email)).filter(Boolean)
+                  if (emails.length === 0) { alert('No selected contacts have emails'); return }
+                  window.open(`mailto:${emails.join(',')}`, '_blank')
+                }} style={{ padding: '4px 12px', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 6, fontSize: '0.78rem', cursor: 'pointer' }}>
+                  Email All
+                </button>
+                <button onClick={() => setLabelPrinterOpen(true)} style={{ padding: '4px 12px', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 6, fontSize: '0.78rem', cursor: 'pointer' }}>
+                  Print Labels
+                </button>
+                <button onClick={() => setFbExportOpen(true)} style={{ padding: '4px 12px', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 6, fontSize: '0.78rem', cursor: 'pointer' }}>
+                  FB Export
+                </button>
+                <div style={{ flex: 1 }} />
+                <button onClick={() => setBulkSelected(new Set())} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '0.82rem' }}>Clear</button>
+              </div>
+            )}
+
             {loading ? (
               <div className="db-loading">Loading contacts...</div>
             ) : filtered.length === 0 ? (
@@ -309,23 +471,35 @@ export default function Database() {
                 <table className="db-table">
                   <thead>
                     <tr>
+                      <th style={{ width: 36 }}>
+                        <input type="checkbox" checked={bulkSelected.size === filtered.length && filtered.length > 0} onChange={toggleAllBulk} title="Select all" />
+                      </th>
                       <th>Name</th>
                       <th>Contact</th>
                       <th>Type</th>
                       <th>Source</th>
                       <th>Stage</th>
                       <th>Tags</th>
+                      <th>Last Contact</th>
                       <th>Added</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map(c => (
                       <tr key={c.id} className="db-table__row" onClick={() => openContact(c)}>
+                        <td onClick={e => e.stopPropagation()} style={{ width: 36 }}>
+                          <input type="checkbox" checked={bulkSelected.has(c.id)} onChange={() => toggleBulk(c.id)} />
+                        </td>
                         <td className="db-table__name">
                           {c.name || '—'}
                           {c.last_reply_scan_at && (
                             <span className="db-replied-badge" title={`Replied to campaign email${c.reply_count > 1 ? ` (${c.reply_count}x)` : ''}`}>Replied</span>
                           )}
+                          {enrollmentMap[c.id]?.map((en, i) => (
+                            <Badge key={i} variant={en.status === 'active' ? 'info' : 'warning'} size="sm" style={{ marginLeft: 4 }}>
+                              {en.name}
+                            </Badge>
+                          ))}
                         </td>
                         <td className="db-table__contact">
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -367,6 +541,15 @@ export default function Database() {
                           {c.tags.length > 3 && (
                             <span className="db-table__more">+{c.tags.length - 3}</span>
                           )}
+                        </td>
+                        <td className="db-table__date">
+                          {(() => {
+                            const dt = lastContactedMap[c.id]
+                            if (!dt) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+                            const days = Math.floor((new Date() - new Date(dt)) / 86400000)
+                            const color = days > 30 ? 'var(--color-danger)' : days > 14 ? 'var(--color-warning, #e67e22)' : 'var(--color-success)'
+                            return <span style={{ color, fontWeight: 600 }}>{days === 0 ? 'Today' : days === 1 ? '1d' : `${days}d`}</span>
+                          })()}
                         </td>
                         <td className="db-table__date">{fmtDate(c.created_at)}</td>
                       </tr>
@@ -445,6 +628,8 @@ export default function Database() {
       </SlidePanel>
 
       <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} contactType={emailContact?.type} />
+      <FacebookExport contacts={enriched} open={fbExportOpen} onClose={() => setFbExportOpen(false)} />
+      <LabelPrinter contacts={enriched} open={labelPrinterOpen} onClose={() => setLabelPrinterOpen(false)} />
     </div>
   )
 }
@@ -572,6 +757,10 @@ function ContactDetail({ contact, onSave, onTagsChange, saving }) {
           )}
         </div>
       )}
+
+      {/* ── Communication Log ── */}
+      <IntakeFormTracker contactId={contact.id} contactEmail={contact.email} contactName={contact.name} />
+      <CommunicationLog contactId={contact.id} />
 
       <button
         className="db-save-btn"

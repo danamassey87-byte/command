@@ -158,12 +158,14 @@ export default function KpiHeatmap({ stats, fields, weekNum, weeks, groups, plan
               </div>
 
               <div className="heat-row__grid-wrap">
-                <div className="heat-row__q-labels" aria-hidden>
-                  <span>Q1</span>
-                  <span>Q2</span>
-                  <span>Q3</span>
-                  <span>Q4</span>
-                </div>
+                {viewMode === 'weekly' && (
+                  <div className="heat-row__q-labels" aria-hidden>
+                    <span>Q1</span>
+                    <span>Q2</span>
+                    <span>Q3</span>
+                    <span>Q4</span>
+                  </div>
+                )}
                 {viewMode === 'weekly' ? (
                   <div className="heat-row__cells heat-row__cells--weekly">
                     {weeks.map(w => {

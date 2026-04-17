@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import TopNav, { MobileMenuContext } from './TopNav'
+import GlobalSearch from './GlobalSearch'
+import QuickAddContact from './QuickAddContact'
 import ContextSidebar, { getActiveSection } from './ContextSidebar'
 import DockPanel from './DockPanel'
 import FavoritesTray from './FavoritesTray'
@@ -16,7 +18,7 @@ const pageTitles = {
   '/tasks':              'Daily Tasks',
   '/tasks/vendors':      'Vendors',
   '/prospecting':             'Prospecting',
-  '/prospecting/expired':     'Expired / Cannonball',
+  '/prospecting/expired':     'Expired Listings',
   '/prospecting/fsbo':        'FSBO Leads',
   '/prospecting/circle':      'Circle Prospecting',
   '/prospecting/soi':         'Personal Circle',
@@ -84,12 +86,25 @@ const pageTitles = {
   '/resources/email':    'Email Templates',
   '/resources/sms':      'SMS Templates',
   '/settings':           'Settings',
+  '/settings/intake-forms': 'Intake Forms',
+  '/email/reporting':    'Email Reporting',
+  '/listing-appts':      'Listing Appointments',
+  '/sellers':            'Sellers',
+  '/seller-showings':    'Listing Showings',
+  '/listing-plan':       'Listing Plan',
+  '/buyers':             'Buyers',
+  '/buyer-showings':     'Buyer Showings',
+  '/properties':         'Properties',
+  '/database':           'Contact Database',
+  '/on-hold':            'On Hold',
+  '/investors':          'Investors',
 }
 
 export default function Layout() {
   const { pathname } = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [quickAddOpen, setQuickAddOpen] = useState(false)
   const { dockOpen } = useNotesContext()
 
   const title = pageTitles[pathname] ?? pageTitles['/' + pathname.split('/').slice(1, 2).join('/')] ?? 'COMMAND'
@@ -100,6 +115,20 @@ export default function Layout() {
   const section = getActiveSection(pathname)
   const sidebarSections = ['home', 'prospect', 'people', 'deals', 'content', 'email', 'campaigns', 'biolink', 'money', 'toolkit']
   const showSidebar = sidebarSections.includes(section)
+
+  // Cmd+N to open quick-add contact
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n' && !e.shiftKey) {
+        // Don't intercept if user is typing in an input
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
+        e.preventDefault()
+        setQuickAddOpen(true)
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
 
   // Periodically scan for listings missing a content plan and emit reminders.
   // Runs once on mount + every 30 minutes thereafter. Failures are non-fatal.
@@ -134,6 +163,14 @@ export default function Layout() {
                 <h1 className="layout__page-title">{title}</h1>
                 <p className="layout__date">{today}</p>
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <GlobalSearch />
+                <button onClick={() => setQuickAddOpen(true)} style={{
+                  padding: '6px 12px', background: 'var(--brown-mid)', color: '#fff',
+                  borderRadius: 8, fontSize: '0.78rem', fontWeight: 600, border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+                }}>+ Contact</button>
+              </div>
               {/* Mobile sidebar toggle — only shows when section has sub-pages */}
               {showSidebar && (
                 <button
@@ -153,6 +190,7 @@ export default function Layout() {
         </div>
         <FavoritesTray />
         <NotesWidget />
+        <QuickAddContact open={quickAddOpen} onClose={() => setQuickAddOpen(false)} />
       </div>
     </MobileMenuContext.Provider>
   )

@@ -297,52 +297,44 @@ export default function DailyTracker() {
 
   return (
     <div className="daily-tracker">
-      <SectionHeader
-        title="Daily Tracker"
-        subtitle="Log your daily activity and track progress against weekly targets"
-        actions={
-          <Button variant="ghost" size="sm" onClick={openSettings}
-            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>}
-          >Set Targets</Button>
-        }
-      />
-
-      {/* ── Tasks ── */}
-      <DailyTasksCard />
-
-      {/* ── Today ── */}
-      <Card className="dt-today-card">
-        <div className="dt-today-header">
-          <div>
-            <h2 className="dt-today-title">Today</h2>
-            <p className="dt-today-date">{fmtDate(today)}</p>
-          </div>
+      {/* ── Today's Activity (compact) ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--brown-dark)' }}>{fmtDate(today)}</h3>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
           <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
             {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Today'}
           </Button>
+          <Button variant="ghost" size="sm" onClick={openSettings}>Targets</Button>
         </div>
-        <div className="dt-inputs-grid">
-          {METRICS.map(m => (
-            <div key={m.key} className="dt-metric-input">
-              <label className="dt-metric-label">{m.icon} {m.label}</label>
-              <input
-                type="number"
-                min="0"
-                className="dt-number-input"
-                value={draft[m.key]}
-                onChange={e => set(m.key, e.target.value)}
-              />
-            </div>
-          ))}
-        </div>
-        <Textarea
-          label="Notes"
-          rows={2}
+      </div>
+      <div className="dt-inputs-grid" style={{ marginBottom: 10 }}>
+        {METRICS.map(m => (
+          <div key={m.key} className="dt-metric-input">
+            <label className="dt-metric-label">{m.icon} {m.label}</label>
+            <input
+              type="number"
+              min="0"
+              className="dt-number-input"
+              value={draft[m.key]}
+              onChange={e => set(m.key, e.target.value)}
+            />
+          </div>
+        ))}
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <textarea
+          rows={1}
           value={draft.notes}
           onChange={e => set('notes', e.target.value)}
-          placeholder="What happened today? Any big conversations or follow-ups?"
+          placeholder="Notes — what happened today?"
+          style={{ width: '100%', padding: '6px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', fontFamily: 'inherit', resize: 'vertical' }}
         />
-      </Card>
+      </div>
+
+      {/* ── Tasks ── */}
+      <DailyTasksCard />
 
       {/* ── Auto-Tracked Today ── */}
       <Card className="dt-auto-card">

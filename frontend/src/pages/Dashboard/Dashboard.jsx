@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Badge, SlidePanel } from '../../components/ui/index.jsx'
-import { useDashboardData, useAllDailyTasks, useDailyStreaks, useProperties } from '../../lib/hooks.js'
+import { useDashboardData, useAllDailyTasks, useDailyStreaks, useProperties, useExpenseCategories, useAllExpenses } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext'
 import * as DB from '../../lib/supabase.js'
 import StaleRecordsWidget from '../../components/StaleRecordsWidget'
@@ -43,9 +43,9 @@ const TABS = [
 
 // ─── Default widget keys per tab ──────────────────────────────────────────────
 const DEFAULT_WIDGET_ORDER = {
-  today:       ['briefing', 'tasks', 'goals', 'week', 'campaigns', 'stale'],
+  today:       ['briefing', 'listingAlerts', 'tasks', 'goals', 'week', 'campaigns', 'stale'],
   pipeline:    ['pipeline', 'funnel', 'clients', 'oh', 'leads', 'closedMap', 'propertyMap'],
-  performance: ['production', 'roi', 'goals', 'week'],
+  performance: ['production', 'roi', 'pnl', 'goals', 'week'],
   activity:    ['activityOverview', 'feed', 'investors', 'showings'],
 }
 
@@ -888,6 +888,108 @@ function CampaignsWidget() {
 }
 
 // ─── Widget lookup by key ─────────────────────────────────────────────────────
+function PnLSummaryWidget() {
+  const pnlExpenses = useAllExpenses()
+  const expenses = pnlExpenses.data ?? []
+
+  const stats = useMemo(() => {
+    const now = new Date()
+    const yr = now.getFullYear()
+    const mo = now.getMonth()
+    const ytdExp = expenses.filter(e => new Date(e.date).getFullYear() === yr)
+    const moExp = ytdExp.filter(e => new Date(e.date).getMonth() === mo)
+    const ytdTotal = ytdExp.reduce((s, e) => s + Number(e.amount || 0), 0)
+    const moTotal = moExp.reduce((s, e) => s + Number(e.amount || 0), 0)
+
+    // Top categories
+    const catMap = {}
+    ytdExp.forEach(e => {
+      const cat = e.category?.name || 'Uncategorized'
+      catMap[cat] = (catMap[cat] || 0) + Number(e.amount || 0)
+    })
+    const topCats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 4)
+
+    return { ytdTotal, moTotal, ytdCount: ytdExp.length, moCount: moExp.length, topCats }
+  }, [expenses])
+
+  return (
+    <Widget>
+      <WidgetHeader title="P&L Snapshot" emoji="💰" />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+        <div style={{ textAlign: 'center', padding: '8px 0' }}>
+          <p style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--brown-dark)', margin: 0 }}>{fmtDollar(stats.moTotal)}</p>
+          <p style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', margin: '2px 0 0', textTransform: 'uppercase' }}>This Month</p>
+        </div>
+        <div style={{ textAlign: 'center', padding: '8px 0' }}>
+          <p style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--brown-dark)', margin: 0 }}>{fmtDollar(stats.ytdTotal)}</p>
+          <p style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', margin: '2px 0 0', textTransform: 'uppercase' }}>YTD Spend</p>
+        </div>
+      </div>
+      {stats.topCats.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          {stats.topCats.map(([cat, total]) => (
+            <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '0.75rem' }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>{cat}</span>
+              <span style={{ fontWeight: 600, color: 'var(--brown-dark)' }}>{fmtDollar(total)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <a href="/pnl" style={{ display: 'block', marginTop: 8, fontSize: '0.72rem', color: 'var(--brown-mid)', textAlign: 'center' }}>View Full P&L →</a>
+    </Widget>
+  )
+}
+
+function ListingAlertsWidget({ listings }) {
+  const now = new Date()
+  const alerts = useMemo(() => {
+    const items = []
+    for (const l of (listings ?? [])) {
+      // Agreement expiring within 14 days
+      if (l.agreement_expires_date) {
+        const exp = new Date(l.agreement_expires_date)
+        const days = Math.ceil((exp - now) / 86400000)
+        if (days <= 14 && days >= -7) {
+          items.push({
+            type: days < 0 ? 'expired' : 'expiring',
+            label: l.property?.address || 'Unknown',
+            detail: days < 0 ? `Agreement expired ${Math.abs(days)}d ago` : days === 0 ? 'Expires today!' : `Expires in ${days} days`,
+            variant: days <= 0 ? 'danger' : days <= 7 ? 'warning' : 'info',
+            days,
+          })
+        }
+      }
+      // Active listing 60+ DOM
+      if (l.status === 'active' && l.dom >= 60) {
+        items.push({
+          type: 'stale_listing',
+          label: l.property?.address || 'Unknown',
+          detail: `${l.dom} days on market — consider price reduction`,
+          variant: l.dom >= 90 ? 'danger' : 'warning',
+          days: l.dom,
+        })
+      }
+    }
+    return items.sort((a, b) => a.days - b.days)
+  }, [listings])
+
+  if (alerts.length === 0) return null
+
+  return (
+    <Widget color="warning">
+      <WidgetHeader title="Listing Alerts" emoji="⚠️" subtitle={`${alerts.length} item${alerts.length > 1 ? 's' : ''} need attention`} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+        {alerts.map((a, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--color-bg-subtle, rgba(255,255,255,0.6))', borderRadius: 6, fontSize: '0.78rem' }}>
+            <span style={{ fontWeight: 600, flex: 1, color: 'var(--brown-dark)' }}>{a.label}</span>
+            <span style={{ color: a.variant === 'danger' ? 'var(--color-danger)' : 'var(--color-text-muted)', fontSize: '0.72rem' }}>{a.detail}</span>
+          </div>
+        ))}
+      </div>
+    </Widget>
+  )
+}
+
 function getWidgetByKey(key, ctx) {
   const { kpis, loading, latestWeek, openDrill, transactions, listings,
     listingValue, avgDOM, conversionFunnel, contacts, openHouses,
@@ -898,6 +1000,8 @@ function getWidgetByKey(key, ctx) {
   switch (key) {
     case 'briefing':
       return <div className="widget widget--full"><DayBriefingCard showings={showingSessions} openHouses={openHouses} /></div>
+    case 'listingAlerts':
+      return <ListingAlertsWidget listings={listings} />
     case 'tasks':
       return <TasksWidget />
     case 'goals':
@@ -926,6 +1030,8 @@ function getWidgetByKey(key, ctx) {
       return <ProductionWidget kpis={kpis} loading={loading} onExpand={() => openDrill('production')} />
     case 'roi':
       return <ROIWidget kpis={kpis} loading={loading} onExpand={() => openDrill('roi')} />
+    case 'pnl':
+      return <PnLSummaryWidget />
     case 'activityOverview':
       return <ActivityWidget activityByType={activityByType} topClients={topClients} onExpand={() => openDrill('activityOverview')} />
     case 'feed':
@@ -1124,6 +1230,25 @@ export default function Dashboard() {
   const [now, setNow] = useState(new Date())
 
   const { order, dragState, onDragStart, onDragOver, onDrop, onDragEnd, resetOrder, isCustom } = useDragReorder(activeTab)
+
+  // Quick-add expense
+  const [expenseOpen, setExpenseOpen] = useState(false)
+  const [expDraft, setExpDraft] = useState({ date: '', vendor: '', description: '', amount: '', category_id: '' })
+  const [expSaving, setExpSaving] = useState(false)
+  const expenseCats = useExpenseCategories('expense')
+  const allExpensesQ = useAllExpenses()
+  const expCats = expenseCats.data ?? []
+  // Deduplicate categories by name
+  const dedupedExpCats = useMemo(() => {
+    const seen = new Set()
+    return expCats.filter(c => { if (seen.has(c.name)) return false; seen.add(c.name); return true })
+  }, [expCats])
+  // Unique vendor names for autocomplete
+  const vendorNames = useMemo(() => {
+    const names = new Set()
+    for (const e of (allExpensesQ.data ?? [])) if (e.vendor) names.add(e.vendor)
+    return [...names].sort()
+  }, [allExpensesQ.data])
 
   const { data: allTasksForEod } = useAllDailyTasks()
   const todayStr = now.toISOString().slice(0, 10)
@@ -1348,9 +1473,22 @@ export default function Dashboard() {
       <div className="greeting-bar">
         <div className="greeting-bar__left">
           <h1 className="greeting-bar__hello">{getGreeting()}, Dana</h1>
-          <p className="greeting-bar__date">{now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+          <p className="greeting-bar__date">
+            {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            {todayTasksForEod.length > 0 && (() => {
+              const done = todayTasksForEod.filter(t => t.status === 'completed').length
+              const total = todayTasksForEod.length
+              const pct = Math.round((done / total) * 100)
+              return <span style={{ marginLeft: 10, fontWeight: 600, color: pct === 100 ? 'var(--color-success)' : pct >= 50 ? 'var(--brown-mid)' : 'var(--color-text-muted)' }}>
+                {done}/{total} tasks ({pct}%)
+              </span>
+            })()}
+          </p>
         </div>
         <div className="greeting-bar__right">
+          <button className="eod-btn" onClick={() => { setExpDraft({ date: new Date().toISOString().split('T')[0], vendor: '', description: '', amount: '', category_id: '' }); setExpenseOpen(true) }} style={{ background: 'var(--brown-mid)', color: '#fff' }}>
+            + Expense
+          </button>
           <span className="greeting-bar__time">{fmtTime(now)}</span>
           <button className="eod-btn" onClick={() => setEodOpen(true)}>
             {'\u{1F44D}'} Done for today
@@ -1425,6 +1563,68 @@ export default function Dashboard() {
         transactions={transactions ?? []} listings={listings ?? []} pipelineValue={kpis.pipelineValue} listingValue={listingValue} />
       <WidgetDrill open={!!widgetDrill} onClose={() => setWidgetDrill(null)} config={widgetDrill} />
       <EndOfDayOverlay open={eodOpen} onClose={() => setEodOpen(false)} todayTasks={todayTasksForEod} />
+
+      {/* ─── Quick Add Expense Panel ─── */}
+      <SlidePanel open={expenseOpen} onClose={() => setExpenseOpen(false)} title="Quick Add Expense" width={380}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <label style={{ flex: 1 }}>
+              <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 4 }}>Date</span>
+              <input type="date" value={expDraft.date} onChange={e => setExpDraft(d => ({ ...d, date: e.target.value }))} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', fontFamily: 'inherit' }} />
+            </label>
+            <label style={{ flex: 1 }}>
+              <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 4 }}>Amount ($)</span>
+              <input type="number" step="0.01" value={expDraft.amount} onChange={e => setExpDraft(d => ({ ...d, amount: e.target.value }))} placeholder="0.00" style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', fontFamily: 'inherit' }} />
+            </label>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 4 }}>Vendor / Payee</span>
+            <input value={expDraft.vendor} onChange={e => setExpDraft(d => ({ ...d, vendor: e.target.value }))} placeholder="Start typing..." list="dash-vendor-list" style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', fontFamily: 'inherit' }} />
+            <datalist id="dash-vendor-list">
+              {vendorNames.map(n => <option key={n} value={n} />)}
+            </datalist>
+          </div>
+          <label>
+            <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 4 }}>Description</span>
+            <input value={expDraft.description} onChange={e => setExpDraft(d => ({ ...d, description: e.target.value }))} placeholder="What was this for?" style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', fontFamily: 'inherit' }} />
+          </label>
+          <label>
+            <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 4 }}>Category</span>
+            <select value={expDraft.category_id} onChange={e => setExpDraft(d => ({ ...d, category_id: e.target.value }))} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', fontFamily: 'inherit' }}>
+              <option value="">-- Select --</option>
+              {dedupedExpCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+          <button
+            disabled={expSaving || !expDraft.amount}
+            onClick={async () => {
+              setExpSaving(true)
+              try {
+                await DB.createExpense({
+                  date: expDraft.date,
+                  vendor: expDraft.vendor || null,
+                  description: expDraft.description || null,
+                  amount: Number(expDraft.amount),
+                  category_id: expDraft.category_id || null,
+                  is_deductible: true,
+                  is_split: false,
+                })
+                setExpenseOpen(false)
+                allExpensesQ.refetch()
+              } catch (err) { alert(err.message) }
+              finally { setExpSaving(false) }
+            }}
+            style={{
+              padding: '10px 16px', background: 'var(--brown-mid)', color: '#fff', border: 'none',
+              borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+              opacity: (expSaving || !expDraft.amount) ? 0.5 : 1,
+            }}
+          >
+            {expSaving ? 'Saving...' : 'Add Expense'}
+          </button>
+          <a href="/pnl/expenses" style={{ fontSize: '0.78rem', color: 'var(--brown-mid)', textAlign: 'center' }}>Open full Expenses page</a>
+        </div>
+      </SlidePanel>
     </div>
   )
 }

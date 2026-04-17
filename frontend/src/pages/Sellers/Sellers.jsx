@@ -5,12 +5,14 @@ import LeadSourcePicker from '../../components/ui/LeadSourcePicker.jsx'
 import PartiesSection from '../../components/parties/PartiesSection.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
-import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses, usePriceHistory, usePlatformStats, usePlatformTotals, useOffersForListing, useStatTasksForListing, useAdCampaignsForListing } from '../../lib/hooks.js'
+import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses, usePriceHistory, usePlatformStats, usePlatformTotals, useOffersForListing, useStatTasksForListing, useAdCampaignsForListing, useExpensesForListing, useExpenseCategories, useAllExpenses, useShowingSessions } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
 import { emit as emitNotification, emitListingContentReminder } from '../../lib/notifications.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
+import CommunicationLog from '../../components/CommunicationLog.jsx'
+import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
 import './Sellers.css'
 
 // ─── Checklist definitions ────────────────────────────────────────────────────
@@ -1298,7 +1300,20 @@ function AIPlanModal({ listing, allListings, onClose, onGenerated }) {
     if (!result?.length) return
     setGenerating(true)
     try {
+      // ── Preserve prior plan in localStorage history ──
       const existing = await DB.getTasksForListing(selectedListing.id)
+      if (existing.length > 0) {
+        const historyKey = `listing_plan_history_${selectedListing.id}`
+        const prevHistory = JSON.parse(localStorage.getItem(historyKey) || '[]')
+        prevHistory.unshift({
+          date: new Date().toISOString(),
+          strategy: selectedListing.strategy || null,
+          tasks: existing.map(t => ({ phase: t.phase, label: t.label, completed: t.completed })),
+        })
+        // Keep last 10 plan versions
+        localStorage.setItem(historyKey, JSON.stringify(prevHistory.slice(0, 10)))
+      }
+
       for (const t of existing) await DB.hardDeleteTask(t.id)
 
       const taskRows = result.map((step, i) => ({
@@ -2827,6 +2842,239 @@ Format this so I can send it directly to my seller.`
   )
 }
 
+// ─── Seller Email Engagement ─────────────────────────────────────────────────
+function SellerEmailEngagement({ contactId }) {
+  const [emails, setEmails] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    if (!contactId) return
+    async function load() {
+      try {
+        const { data: enrollments } = await DB.default
+          ? await fetch('') // won't reach — supabase is imported via DB
+          : { data: [] }
+        // Use supabase directly since it's imported as DB.*
+        const sup = (await import('../../lib/supabase.js')).default
+        const { data: enr } = await sup.from('campaign_enrollments').select('id').eq('contact_id', contactId)
+        if (!enr?.length) { setLoading(false); return }
+        const { data: history } = await sup.from('campaign_step_history')
+          .select('id, subject, sent_at, opened_at, clicked_at, replied_at, bounced_at')
+          .in('enrollment_id', enr.map(e => e.id))
+          .order('sent_at', { ascending: false }).limit(10)
+        setEmails(history ?? [])
+      } catch { /* silent */ }
+      finally { setLoading(false) }
+    }
+    load()
+  }, [contactId])
+
+  if (loading) return null
+  if (emails.length === 0) return null
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <h3 style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--brown-dark)', margin: 0 }}>Email Activity ({emails.length})</h3>
+        <a href="/email/reporting" style={{ fontSize: '0.72rem', color: 'var(--brown-mid)' }}>Reporting</a>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {emails.map(e => (
+          <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--color-bg-subtle, #faf8f5)', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem' }}>
+            <span style={{ minWidth: 70, color: 'var(--color-text-muted)' }}>
+              {e.sent_at ? new Date(e.sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+            </span>
+            <span style={{ flex: 1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject || '(no subject)'}</span>
+            <div style={{ display: 'flex', gap: 3 }}>
+              {e.opened_at && <Badge variant="success" size="sm">Opened</Badge>}
+              {e.clicked_at && <Badge variant="accent" size="sm">Clicked</Badge>}
+              {e.replied_at && <Badge variant="success" size="sm">Replied</Badge>}
+              {e.bounced_at && <Badge variant="danger" size="sm">Bounced</Badge>}
+              {!e.opened_at && !e.bounced_at && <Badge variant="default" size="sm">Sent</Badge>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Listing Expenses Tab ────────────────────────────────────────────────────
+const LISTING_EXPENSE_PRESETS = [
+  'Sign Post Installation',
+  'Photography',
+  'Lockbox Installation',
+  'Flyer Delivery / Printing',
+  'Ad Spend (Meta/Google)',
+  'Staging',
+  'Virtual Tour / Video',
+  'Cleaning / Prep',
+  'Repairs / Touch-Ups',
+  'Home Warranty',
+]
+
+function ListingExpensesTab({ listing }) {
+  const { data: listingExpenses, refetch } = useExpensesForListing(listing.id)
+  const { data: allExpData } = useAllExpenses()
+  const expCats = useExpenseCategories('expense')
+  const cats = expCats.data ?? []
+  const dedupedCats = useMemo(() => {
+    const seen = new Set()
+    return cats.filter(c => { if (seen.has(c.name)) return false; seen.add(c.name); return true })
+  }, [cats])
+
+  // Unique vendor names for autocomplete
+  const vendorNames = useMemo(() => {
+    const names = new Set()
+    for (const e of (allExpData ?? [])) if (e.vendor) names.add(e.vendor)
+    return [...names].sort()
+  }, [allExpData])
+
+  const expenses = listingExpenses ?? []
+  const total = expenses.reduce((s, e) => s + Number(e.amount || 0), 0)
+  const fmt = v => `$${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+  const [showAdd, setShowAdd] = useState(false)
+  const [draft, setDraft] = useState({ date: new Date().toISOString().split('T')[0], vendor: '', description: '', amount: '', category_id: '' })
+  const [saving, setSaving] = useState(false)
+
+  const handleAdd = async () => {
+    setSaving(true)
+    try {
+      await DB.createExpense({
+        date: draft.date,
+        vendor: draft.vendor || null,
+        description: draft.description || null,
+        amount: Number(draft.amount),
+        category_id: draft.category_id || null,
+        listing_id: listing.id,
+        contact_id: listing.contact_id || null,
+        is_deductible: true,
+        is_split: false,
+      })
+      setShowAdd(false)
+      setDraft({ date: new Date().toISOString().split('T')[0], vendor: '', description: '', amount: '', category_id: '' })
+      refetch()
+    } catch (e) { alert(e.message) }
+    finally { setSaving(false) }
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this expense?')) return
+    try {
+      await DB.deleteExpense(id)
+      refetch()
+    } catch (e) { alert(e.message) }
+  }
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <div>
+          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--brown-dark)', margin: 0 }}>
+            Listing Expenses
+          </h3>
+          <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', margin: '2px 0 0' }}>
+            {expenses.length} expense{expenses.length !== 1 ? 's' : ''} &middot; {fmt(total)} total
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setShowAdd(true)}>+ Add Expense</Button>
+      </div>
+
+      {/* Quick-add preset buttons */}
+      {!showAdd && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          {LISTING_EXPENSE_PRESETS.map(preset => (
+            <button
+              key={preset}
+              onClick={() => { setDraft(d => ({ ...d, description: preset })); setShowAdd(true) }}
+              style={{
+                padding: '4px 10px', fontSize: '0.72rem', borderRadius: 12,
+                border: '1px solid var(--color-border)', background: 'var(--color-bg-subtle, #faf8f5)',
+                color: 'var(--brown-dark)', cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              + {preset}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Add form */}
+      {showAdd && (
+        <Card style={{ marginBottom: 16, padding: 16 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <Input label="Date" type="date" value={draft.date} onChange={e => setDraft(d => ({ ...d, date: e.target.value }))} style={{ flex: 1 }} />
+            <Input label="Amount ($)" type="number" step="0.01" value={draft.amount} onChange={e => setDraft(d => ({ ...d, amount: e.target.value }))} style={{ flex: 1 }} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 3 }}>Vendor / Payee</label>
+            <input value={draft.vendor} onChange={e => setDraft(d => ({ ...d, vendor: e.target.value }))} placeholder="Start typing..." list="listing-vendor-list" style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', fontFamily: 'inherit' }} />
+            <datalist id="listing-vendor-list">{vendorNames.map(n => <option key={n} value={n} />)}</datalist>
+          </div>
+          <Input label="Description" value={draft.description} onChange={e => setDraft(d => ({ ...d, description: e.target.value }))} placeholder="Sign post, photography, etc." />
+          <Select label="Category" value={draft.category_id} onChange={e => setDraft(d => ({ ...d, category_id: e.target.value }))}>
+            <option value="">— Select —</option>
+            {dedupedCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </Select>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <Button size="sm" onClick={handleAdd} disabled={saving || !draft.amount}>
+              {saving ? 'Saving...' : 'Add Expense'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setShowAdd(false)}>Cancel</Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Expense list */}
+      {expenses.length === 0 ? (
+        <Card>
+          <p style={{ padding: 24, textAlign: 'center', fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
+            No expenses recorded for this listing yet. Use the presets above to quickly add common costs like sign posts, photography, or lockboxes.
+          </p>
+        </Card>
+      ) : (
+        <Card padding={false}>
+          <table className="pnl-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Vendor</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {expenses.map(e => (
+                <tr key={e.id}>
+                  <td>{new Date(e.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
+                  <td style={{ fontWeight: 500 }}>{e.vendor || '—'}</td>
+                  <td>
+                    <span style={{ fontSize: '0.82rem' }}>{e.description || '—'}</span>
+                    {e.category?.name && <><br /><span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{e.category.name}</span></>}
+                  </td>
+                  <td style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(e.amount)}</td>
+                  <td>
+                    <button onClick={() => handleDelete(e.id)} title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-danger)', fontSize: '0.9rem' }}>×</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ fontWeight: 700 }}>
+                <td colSpan="3" style={{ textAlign: 'right', paddingRight: 12 }}>Total</td>
+                <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(total)}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </Card>
+      )}
+    </div>
+  )
+}
+
 function PlanView({ listing, allListings, onBack, onEdit }) {
   const [detailTab, setDetailTab] = useState('plan')
   const isNew   = listing.type === 'new'
@@ -2852,6 +3100,24 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
   , [allOHs, listing.id])
 
+  // Buyer showing feedback for this listing's property
+  const { data: allShowingSessions } = useShowingSessions()
+  const buyerFeedback = useMemo(() => {
+    if (!listing.property_id || !allShowingSessions) return []
+    return allShowingSessions.flatMap(s =>
+      (s.showings ?? [])
+        .filter(sh => sh.property?.id === listing.property_id)
+        .map(sh => ({
+          date: s.date,
+          buyer: s.contact?.name ?? '—',
+          interest: sh.interest_level,
+          price: sh.feedback_price,
+          feedback: sh.buyer_feedback,
+          wouldOffer: sh.would_offer,
+        }))
+    ).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+  }, [allShowingSessions, listing.property_id])
+
   // Documents
   const { data: docs, refetch: refetchDocs } = useDocumentsForListing(isDbRow ? listing.id : null)
   const fileInputRef = useRef(null)
@@ -2869,6 +3135,10 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
 
   // Collapsible phase sections — all expanded by default
   const [collapsedPhases, setCollapsedPhases] = useState({})
+  const [showPlanHistory, setShowPlanHistory] = useState(false)
+  const planHistory = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem(`listing_plan_history_${listing.id}`) || '[]') } catch { return [] }
+  }, [listing.id, detailTab])
   const navigate = useNavigate()
 
   // Ref on the printable region (plan + strategy) for window.print and PDF export.
@@ -3098,7 +3368,41 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
           <Button variant="ghost" size="sm" onClick={handleExportPdf} disabled={exportingPdf}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>}
           >{exportingPdf ? 'Generating…' : 'Export PDF'}</Button>
+          {planHistory.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setShowPlanHistory(!showPlanHistory)}
+              icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
+            >{showPlanHistory ? 'Hide History' : `Plan History (${planHistory.length})`}</Button>
+          )}
         </div>
+      )}
+
+      {/* ── Plan History ── */}
+      {showPlanHistory && planHistory.length > 0 && (
+        <Card style={{ marginTop: 12, padding: 16 }}>
+          <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--brown-dark)', margin: '0 0 12px' }}>Prior Plans</h4>
+          {planHistory.map((plan, pi) => (
+            <details key={pi} style={{ marginBottom: 8, borderBottom: '1px solid var(--color-border-light, #f0ece6)', paddingBottom: 8 }}>
+              <summary style={{ cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, color: 'var(--brown-dark)', padding: '4px 0' }}>
+                {new Date(plan.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                <span style={{ fontWeight: 400, color: 'var(--color-text-muted)', marginLeft: 8 }}>{plan.tasks.length} tasks</span>
+              </summary>
+              {plan.strategy && (
+                <div style={{ padding: '8px 12px', background: 'var(--color-bg-subtle, #faf8f5)', borderRadius: 6, margin: '6px 0', fontSize: '0.75rem', color: 'var(--color-text)', whiteSpace: 'pre-wrap', maxHeight: 120, overflow: 'auto' }}>
+                  {plan.strategy}
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 4 }}>
+                {plan.tasks.map((t, ti) => (
+                  <div key={ti} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', padding: '2px 0' }}>
+                    <span style={{ color: t.completed ? 'var(--color-success)' : 'var(--color-text-muted)' }}>{t.completed ? '✓' : '○'}</span>
+                    <span style={{ color: t.completed ? 'var(--brown-dark)' : 'var(--color-text-muted)', textDecoration: t.completed ? 'line-through' : 'none' }}>{t.label}</span>
+                    {t.phase && <Badge variant="default" size="sm">{t.phase}</Badge>}
+                  </div>
+                ))}
+              </div>
+            </details>
+          ))}
+        </Card>
       )}
 
       {/* ── Detail Tabs ── */}
@@ -3108,6 +3412,8 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
             { label: 'Plan', value: 'plan' },
             { label: 'Platform Analytics', value: 'analytics' },
             { label: 'Offers', value: 'offers' },
+            { label: 'Expenses', value: 'expenses' },
+            { label: 'Activity', value: 'activity' },
           ]}
           active={detailTab}
           onChange={setDetailTab}
@@ -3120,10 +3426,49 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
       {/* ── Offers Tab ── */}
       {detailTab === 'offers' && isDbRow && <OffersTab listing={listing} />}
 
+      {/* ── Expenses Tab ── */}
+      {detailTab === 'expenses' && isDbRow && <ListingExpensesTab listing={listing} />}
+
+      {/* ── Activity Tab ── */}
+      {detailTab === 'activity' && isDbRow && listing.contact_id && (
+        <div style={{ marginTop: 16 }}>
+          <SellerEmailEngagement contactId={listing.contact_id} />
+          <IntakeFormTracker contactId={listing.contact_id} contactEmail={listing.contact_email || listing.contact?.email} contactName={listing.contact_name || listing.contact?.name} />
+          <CommunicationLog contactId={listing.contact_id} />
+        </div>
+      )}
+
       {/* ── Plan Tab (default) ── */}
       {detailTab === 'plan' && Array.isArray(listing.related_people) && listing.related_people.length > 0 && (
         <Card>
           <RelatedPeopleDisplay value={listing.related_people} title="Other Parties on This Transaction" />
+        </Card>
+      )}
+
+      {/* ── Buyer Showing Feedback (on Plan tab) ── */}
+      {detailTab === 'plan' && buyerFeedback.length > 0 && (
+        <Card style={{ padding: 16, marginBottom: 12 }}>
+          <h4 style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--brown-dark)', margin: '0 0 8px' }}>
+            Buyer Showing Feedback ({buyerFeedback.length})
+          </h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {buyerFeedback.map((fb, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 10px', background: 'var(--color-bg-subtle, #faf8f5)', borderRadius: 6 }}>
+                <div style={{ minWidth: 60, fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+                  {fb.date ? new Date(fb.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontWeight: 600, fontSize: '0.82rem' }}>{fb.buyer}</span>
+                  <div style={{ display: 'flex', gap: 4, marginTop: 3 }}>
+                    {fb.interest && <Badge variant={fb.interest === 'high' ? 'success' : fb.interest === 'medium' ? 'warning' : 'danger'} size="sm">{fb.interest} interest</Badge>}
+                    {fb.price && <Badge variant={fb.price === 'fair' ? 'success' : fb.price === 'too_high' ? 'danger' : 'info'} size="sm">Price: {fb.price === 'too_high' ? 'Too High' : fb.price === 'fair' ? 'Fair' : 'Good Value'}</Badge>}
+                    {fb.wouldOffer && <Badge variant="success" size="sm">Would Offer</Badge>}
+                  </div>
+                  {fb.feedback && <p style={{ fontSize: '0.78rem', color: 'var(--color-text)', margin: '4px 0 0', fontStyle: 'italic' }}>"{fb.feedback}"</p>}
+                </div>
+              </div>
+            ))}
+          </div>
         </Card>
       )}
 
@@ -3532,7 +3877,19 @@ export default function Sellers() {
   const { data: dbData, loading, refetch } = useListings()
   const { data: allOHsMain } = useOpenHouses()
   const { data: allTasks } = useAllChecklistTasks()
+  const { data: allExpensesData } = useAllExpenses()
   const listings = useMemo(() => (dbData ?? []).map(mapListing), [dbData])
+
+  // Expense totals per listing
+  const expenseByListing = useMemo(() => {
+    const map = {}
+    for (const e of (allExpensesData ?? [])) {
+      if (!e.listing_id) continue
+      if (!map[e.listing_id]) map[e.listing_id] = 0
+      map[e.listing_id] += Number(e.amount || 0)
+    }
+    return map
+  }, [allExpensesData])
 
   // Build a map of listing_id → next upcoming open house
   const nextOHByListing = useMemo(() => {
@@ -3567,6 +3924,9 @@ export default function Sellers() {
   const [deleting, setDeleting]           = useState(false)
   const [error, setError]                 = useState(null)
   const [emailContact, setEmailContact]   = useState(null)
+  const [quickExpListing, setQuickExpListing] = useState(null) // listing to add expense to
+  const [quickExpDraft, setQuickExpDraft] = useState({ date: '', vendor: '', description: '', amount: '' })
+  const [quickExpSaving, setQuickExpSaving] = useState(false)
 
   const openCreate = () => { setEditingListing(null); setPanelOpen(true) }
   const openEdit   = (l) => { setEditingListing(l); setPanelOpen(true) }
@@ -3886,7 +4246,12 @@ export default function Sellers() {
       )
     }},
     { key: 'type', label: 'Type', render: v => <Badge variant={v === 'new' ? 'success' : 'warning'} size="sm">{v === 'new' ? 'New' : 'Expired'}</Badge> },
-    { key: 'dom', label: 'DOM', render: v => `${v}d` },
+    { key: 'dom', label: 'DOM', render: (v, row) => {
+      const days = Number(v) || 0
+      const isActive = row.status === 'active' || row.status === 'coming_soon'
+      const variant = isActive && days > 60 ? 'danger' : isActive && days > 30 ? 'warning' : 'default'
+      return <Badge variant={variant} size="sm">{days}d</Badge>
+    }},
     { key: 'offers', label: 'Offers', render: v => v > 0 ? <Badge variant="success" size="sm">{v}</Badge> : '—' },
     {
       key: 'nextOH', label: 'Next OH',
@@ -3963,6 +4328,33 @@ export default function Sellers() {
         : <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>—</span>,
     },
     {
+      key: 'expenses', label: 'Spend',
+      render: (_, row) => {
+        const total = expenseByListing[row.id]
+        if (!total) return <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>—</span>
+        return <span style={{ fontWeight: 600, fontSize: '0.82rem', fontVariantNumeric: 'tabular-nums' }}>${Number(total).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+      },
+    },
+    {
+      key: 'roi', label: 'Est. ROI',
+      render: (_, row) => {
+        const price = Number(row.currentPriceRaw || row.listPriceRaw || 0)
+        const rate = Number(row.commission_rate || 3)
+        const commission = price * (rate / 100)
+        const spend = expenseByListing[row.id] || 0
+        if (!price) return <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>—</span>
+        const net = commission - spend
+        return (
+          <div style={{ fontSize: '0.78rem', fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ fontWeight: 600, color: net >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+              ${Math.round(net).toLocaleString()}
+            </span>
+            <br /><span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>{rate}% of ${(price/1000).toFixed(0)}K</span>
+          </div>
+        )
+      },
+    },
+    {
       key: 'checklist', label: 'Plan Progress',
       render: (_, row) => {
         const progress = taskProgressByListing[row.id]
@@ -3984,6 +4376,9 @@ export default function Sellers() {
       key: 'actions', label: '',
       render: (_, row) => (
         <div style={{ display: 'flex', gap: 6 }}>
+          <Button size="sm" variant="ghost" title="Add expense" onClick={e => { e.stopPropagation(); setQuickExpListing(row); setQuickExpDraft({ date: new Date().toISOString().split('T')[0], vendor: '', description: '', amount: '' }) }}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>}
+          />
           {row.seller_email && (
             <Button size="sm" variant="ghost" title="Send email" onClick={e => { e.stopPropagation(); setEmailContact({ id: row.contact_id, name: row.contact_name, email: row.seller_email }) }}
               icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>}
@@ -4004,7 +4399,17 @@ export default function Sellers() {
     <div className="sellers">
       <SectionHeader
         title="Sellers"
-        subtitle="Seller leads, listings, and expired property workflow tracking"
+        subtitle={(() => {
+          const totalValue = signedListings.reduce((s, l) => s + Number(l.listPriceRaw || l.currentPriceRaw || 0), 0)
+          const totalSpend = Object.values(expenseByListing).reduce((s, v) => s + v, 0)
+          const totalCommission = signedListings.reduce((s, l) => {
+            const price = Number(l.currentPriceRaw || l.listPriceRaw || 0)
+            const rate = Number(l.commission_rate || 3)
+            return s + (price * rate / 100)
+          }, 0)
+          const netROI = totalCommission - totalSpend
+          return `${signedListings.length} listing${signedListings.length !== 1 ? 's' : ''} · $${Math.round(totalValue / 1000).toLocaleString()}K value · $${Math.round(totalSpend).toLocaleString()} spent · $${Math.round(netROI).toLocaleString()} est. net`
+        })()}
         actions={
           <Button variant="primary" size="md" onClick={openCreate}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>}
@@ -4054,6 +4459,57 @@ export default function Sellers() {
       </SlidePanel>
 
       <SendEmailModal open={!!emailContact} onClose={() => setEmailContact(null)} contact={emailContact || {}} contactType="seller" />
+
+      {/* Quick Add Expense Modal */}
+      {quickExpListing && (
+        <div className="on-hold-modal__overlay" onClick={() => setQuickExpListing(null)}>
+          <div className="on-hold-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <h3 style={{ margin: '0 0 4px' }}>Add Expense</h3>
+            <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', margin: '0 0 12px' }}>{quickExpListing.address} — {quickExpListing.contact_name}</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <label style={{ flex: 1 }}>
+                <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, marginBottom: 2 }}>Date</span>
+                <input type="date" value={quickExpDraft.date} onChange={e => setQuickExpDraft(d => ({ ...d, date: e.target.value }))} style={{ width: '100%', padding: '7px 8px', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: '0.82rem', fontFamily: 'inherit' }} />
+              </label>
+              <label style={{ flex: 1 }}>
+                <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, marginBottom: 2 }}>Amount ($)</span>
+                <input type="number" step="0.01" value={quickExpDraft.amount} onChange={e => setQuickExpDraft(d => ({ ...d, amount: e.target.value }))} placeholder="0.00" style={{ width: '100%', padding: '7px 8px', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: '0.82rem', fontFamily: 'inherit' }} />
+              </label>
+            </div>
+            <label style={{ display: 'block', marginBottom: 8 }}>
+              <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, marginBottom: 2 }}>Vendor</span>
+              <input value={quickExpDraft.vendor} onChange={e => setQuickExpDraft(d => ({ ...d, vendor: e.target.value }))} placeholder="e.g. AZ Sign Pro" style={{ width: '100%', padding: '7px 8px', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: '0.82rem', fontFamily: 'inherit' }} />
+            </label>
+            <label style={{ display: 'block', marginBottom: 12 }}>
+              <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, marginBottom: 2 }}>Description</span>
+              <input value={quickExpDraft.description} onChange={e => setQuickExpDraft(d => ({ ...d, description: e.target.value }))} placeholder="Sign post, photography, etc." style={{ width: '100%', padding: '7px 8px', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: '0.82rem', fontFamily: 'inherit' }} />
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button size="sm" disabled={quickExpSaving || !quickExpDraft.amount} onClick={async () => {
+                setQuickExpSaving(true)
+                try {
+                  await DB.createExpense({
+                    date: quickExpDraft.date,
+                    vendor: quickExpDraft.vendor || null,
+                    description: quickExpDraft.description || null,
+                    amount: Number(quickExpDraft.amount),
+                    listing_id: quickExpListing.id,
+                    contact_id: quickExpListing.contact_id || null,
+                    is_deductible: true,
+                    is_split: false,
+                  })
+                  setQuickExpListing(null)
+                  refetch()
+                } catch (e) { alert(e.message) }
+                finally { setQuickExpSaving(false) }
+              }}>
+                {quickExpSaving ? 'Saving...' : 'Add Expense'}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setQuickExpListing(null)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* On-Hold Reason Modal */}
       {onHoldModal && (

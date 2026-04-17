@@ -228,9 +228,12 @@ function OHQuickForm({ onSave, onClose, saving, error, existingOHs }) {
 function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existingOHs }) {
   const { data: propertiesData } = useProperties()
   const { data: listingsData } = useListings()
+  const sig = useBrandSignature()
   const properties = propertiesData ?? []
   const listings = listingsData ?? []
 
+  // Auto-populate host agent with Dana's info for new OHs
+  const isNew = !oh?.id
   const [draft, setDraft] = useState({
     property_id:         oh?.property_id         ?? '',
     listing_id:          oh?.listing_id          ?? '',
@@ -244,16 +247,24 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
     listing_agent:       oh?.listing_agent       ?? '',
     lofty_landing_page:  oh?.lofty_landing_page  ?? '',
     lofty_other_oh_page: oh?.lofty_other_oh_page ?? '',
-    agent_name:          oh?.agent_name          ?? '',
-    agent_brokerage:     oh?.agent_brokerage     ?? '',
-    agent_phone:         oh?.agent_phone         ?? '',
-    agent_email:         oh?.agent_email         ?? '',
+    agent_name:          oh?.agent_name          ?? (isNew ? (sig?.full_name || 'Dana Massey') : ''),
+    agent_brokerage:     oh?.agent_brokerage     ?? (isNew ? (sig?.brokerage || '') : ''),
+    agent_phone:         oh?.agent_phone         ?? (isNew ? (sig?.phone || '') : ''),
+    agent_email:         oh?.agent_email         ?? (isNew ? (sig?.email || '') : ''),
     inquiries:           oh?.inquiries           ?? 0,
     signIn:              oh?.signIn              ?? 0,
     leads:               oh?.leads               ?? 0,
     groups_through:      oh?.groups_through      ?? 0,
     leads_converted:     oh?.leads_converted     ?? 0,
     notes:               oh?.notes               ?? '',
+    sign_in_config:      oh?.sign_in_config      ?? {
+      show_email: true,
+      show_phone: true,
+      show_working_with_agent: true,
+      show_pre_approved: true,
+      show_need_to_sell: true,
+      show_timeframe: true,
+    },
   })
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
 
@@ -360,6 +371,35 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
           <Input label="Phone" type="tel" value={draft.agent_phone} onChange={e => set('agent_phone', e.target.value)} placeholder="480-555-1234" />
           <Input label="Email" type="email" value={draft.agent_email} onChange={e => set('agent_email', e.target.value)} placeholder="agent@email.com" />
         </div>
+      </div>
+
+      <hr className="panel-divider" />
+      <div className="panel-section">
+        <p className="panel-section-label">Sign-In Form Fields</p>
+        <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', margin: '-4px 0 10px' }}>
+          Toggle which questions guests see on the kiosk sign-in for this open house
+        </p>
+        {[
+          { key: 'show_email',              label: 'Email address' },
+          { key: 'show_phone',              label: 'Phone number' },
+          { key: 'show_working_with_agent', label: '"Working with an agent?"' },
+          { key: 'show_pre_approved',       label: '"Pre-approved for financing?"' },
+          { key: 'show_need_to_sell',       label: '"Need to sell a home first?"' },
+          { key: 'show_timeframe',          label: 'Buying timeframe' },
+        ].map(({ key, label }) => (
+          <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer', fontSize: '0.88rem' }}>
+            <input
+              type="checkbox"
+              checked={draft.sign_in_config?.[key] !== false}
+              onChange={() => setDraft(p => ({
+                ...p,
+                sign_in_config: { ...p.sign_in_config, [key]: !(p.sign_in_config?.[key] !== false) },
+              }))}
+              style={{ width: 16, height: 16, accentColor: 'var(--color-primary)' }}
+            />
+            {label}
+          </label>
+        ))}
       </div>
 
       <hr className="panel-divider" />
@@ -672,6 +712,26 @@ function OHDetail({ oh, onBack, onEdit }) {
           >
             Copy Link
           </button>
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}/oh-signin/${oh.id}`
+              const qrWin = window.open('', '_blank', 'width=400,height=500')
+              qrWin.document.write(`
+                <html><head><title>OH Sign-In QR</title></head>
+                <body style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;font-family:system-ui;background:#faf8f5">
+                  <h2 style="margin:0 0 8px;color:#342922">Open House Sign-In</h2>
+                  <p style="margin:0 0 16px;color:#8b7a68;font-size:14px">${oh.address || ''}</p>
+                  <img src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(url)}" alt="QR Code" width="250" height="250" style="border-radius:12px;border:2px solid #e0dbd6" />
+                  <p style="margin:16px 0 0;font-size:12px;color:#8b7a68">Scan to sign in</p>
+                  <button onclick="window.print()" style="margin-top:16px;padding:8px 24px;background:#342922;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px">Print QR</button>
+                </body></html>
+              `)
+            }}
+            className="oh-detail__link"
+            style={{ background: 'none', border: '1px solid #e0dbd6', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem' }}
+          >
+            QR Code
+          </button>
         </div>
       )}
 
@@ -959,6 +1019,7 @@ function ScheduledTab({ openHouses, loading, refetch }) {
         groups_through:      Number(draft.groups_through) || 0,
         leads_converted:     Number(draft.leads_converted) || 0,
         notes:               (draft.notes ?? '').trim()   || null,
+        sign_in_config:      draft.sign_in_config        || null,
       }
       await DB.updateOpenHouse(editingOH.id, dbRow)
       await DB.logActivity('open_house_updated', `Updated open house: ${editingOH.address}`, { propertyId: dbRow.property_id })

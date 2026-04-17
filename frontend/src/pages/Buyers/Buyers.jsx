@@ -4,11 +4,14 @@ import { Button, Badge, SectionHeader, TabBar, DataTable, Card, SlidePanel, Inpu
 import LeadSourcePicker from '../../components/ui/LeadSourcePicker.jsx'
 import { TagPicker, TagBadge } from '../../components/ui/TagPicker.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
-import { useBuyers, useTransactions, useShowingSessionsForContact, useContactTags, useNotesForContact, useVendors } from '../../lib/hooks.js'
+import { useBuyers, useTransactions, useShowingSessionsForContact, useContactTags, useNotesForContact, useVendors, useProperties, useExpensesForContact } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
+import CommunicationLog from '../../components/CommunicationLog.jsx'
+import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
 import * as DB from '../../lib/supabase.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
+import supabase from '../../lib/supabase.js'
 import './Buyers.css'
 
 // Map Supabase contact row → internal buyer shape
@@ -295,6 +298,51 @@ function BuyerForm({ buyer, onSave, onDelete, onPutOnHold, onClose, saving, dele
   )
 }
 
+// ─── Email Engagement for Contact ─────────────────────────────────────────────
+function EmailEngagement({ contactId }) {
+  const [emails, setEmails] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!contactId) return
+    async function load() {
+      try {
+        const { data: enrollments } = await supabase.from('campaign_enrollments').select('id').eq('contact_id', contactId)
+        if (!enrollments?.length) { setLoading(false); return }
+        const eids = enrollments.map(e => e.id)
+        const { data: history } = await supabase.from('campaign_step_history').select('id, subject, sent_at, opened_at, clicked_at, replied_at, bounced_at, delivery_status')
+          .in('enrollment_id', eids).order('sent_at', { ascending: false }).limit(10)
+        setEmails(history ?? [])
+      } catch { /* silent */ }
+      finally { setLoading(false) }
+    }
+    load()
+  }, [contactId])
+
+  if (loading) return <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>Loading...</p>
+  if (emails.length === 0) return <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>No campaign emails sent yet.</p>
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {emails.map(e => (
+        <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--color-bg-subtle, #faf8f5)', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem' }}>
+          <span style={{ minWidth: 70, color: 'var(--color-text-muted)' }}>
+            {e.sent_at ? new Date(e.sent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
+          </span>
+          <span style={{ flex: 1, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.subject || '(no subject)'}</span>
+          <div style={{ display: 'flex', gap: 3 }}>
+            {e.opened_at && <Badge variant="success" size="sm">Opened</Badge>}
+            {e.clicked_at && <Badge variant="accent" size="sm">Clicked</Badge>}
+            {(e.replied_at) && <Badge variant="success" size="sm">Replied</Badge>}
+            {e.bounced_at && <Badge variant="danger" size="sm">Bounced</Badge>}
+            {!e.opened_at && !e.bounced_at && <Badge variant="default" size="sm">Sent</Badge>}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Buyer Detail ─────────────────────────────────────────────────────────────
 function BuyerDetail({ buyer, onBack, onEdit }) {
   const navigate = useNavigate()
@@ -302,7 +350,41 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
   const { data: sessionsData, refetch: refetchSessions } = useShowingSessionsForContact(buyer.id)
   const { data: linkedNotes, refetch: refetchNotes } = useNotesForContact(buyer.id)
   const { openNote, createAndOpen } = useNotesContext()
+  const { data: propertiesData } = useProperties()
+  const { data: buyerExpenses } = useExpensesForContact(buyer.id)
   const sessions = sessionsData ?? []
+
+  // Expense summary for this buyer
+  const expenseTotal = (buyerExpenses ?? []).reduce((s, e) => s + Number(e.amount || 0), 0)
+
+  // Inline showing scheduler state
+  const [showScheduler, setShowScheduler] = useState(false)
+  const [schedDate, setSchedDate] = useState(new Date().toISOString().split('T')[0])
+  const [schedPropSearch, setSchedPropSearch] = useState('')
+  const [schedProps, setSchedProps] = useState([])
+  const [schedSaving, setSchedSaving] = useState(false)
+
+  const schedFilteredProps = useMemo(() => {
+    if (!schedPropSearch) return (propertiesData ?? []).slice(0, 6)
+    const q = schedPropSearch.toLowerCase()
+    return (propertiesData ?? []).filter(p => (p.address ?? '').toLowerCase().includes(q) || (p.city ?? '').toLowerCase().includes(q)).slice(0, 6)
+  }, [propertiesData, schedPropSearch])
+
+  const handleQuickSchedule = async () => {
+    if (!schedProps.length || !schedDate) return
+    setSchedSaving(true)
+    try {
+      const session = await DB.createShowingSession({ contact_id: buyer.id, date: schedDate })
+      for (const prop of schedProps) {
+        await DB.createShowing({ session_id: session.id, property_id: prop.id, contact_id: buyer.id, status: 'scheduled' })
+      }
+      setShowScheduler(false)
+      setSchedProps([])
+      setSchedPropSearch('')
+      refetchSessions()
+    } catch (e) { alert(e.message) }
+    finally { setSchedSaving(false) }
+  }
 
   // Find deals linked to this buyer
   const buyerDeals = useMemo(() =>
@@ -359,9 +441,14 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
           </svg>
           Back to Buyers
         </button>
-        <Button variant="ghost" size="sm" onClick={onEdit}
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
-        >Edit Buyer</Button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Button variant="ghost" size="sm" onClick={() => setShowScheduler(!showScheduler)}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
+          >{showScheduler ? 'Cancel' : 'Schedule Showing'}</Button>
+          <Button variant="ghost" size="sm" onClick={onEdit}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
+          >Edit Buyer</Button>
+        </div>
       </div>
 
       <div className="buyer-detail__header">
@@ -392,8 +479,63 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
             <p className="buyer-detail__stat-value">{(buyer.areas ?? []).join(', ') || '—'}</p>
             <p className="buyer-detail__stat-label">Target Areas</p>
           </div>
+          <div className="buyer-detail__stat">
+            <p className="buyer-detail__stat-value">{allShowings.length}</p>
+            <p className="buyer-detail__stat-label">Showings</p>
+          </div>
+          {expenseTotal > 0 && (
+            <div className="buyer-detail__stat">
+              <p className="buyer-detail__stat-value">${Math.round(expenseTotal).toLocaleString()}</p>
+              <p className="buyer-detail__stat-label">Spend</p>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* ── Inline Showing Scheduler ── */}
+      {showScheduler && (
+        <Card style={{ padding: 16, marginBottom: 12, border: '2px solid var(--brown-mid)' }}>
+          <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--brown-dark)', margin: '0 0 10px' }}>Schedule Showing for {buyer.name}</h4>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <label style={{ flex: 1 }}>
+              <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 3 }}>Date</span>
+              <input type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)} style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: '0.82rem', fontFamily: 'inherit' }} />
+            </label>
+            <label style={{ flex: 2 }}>
+              <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 3 }}>Search Properties</span>
+              <input value={schedPropSearch} onChange={e => setSchedPropSearch(e.target.value)} placeholder="Type address..." style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: '0.82rem', fontFamily: 'inherit' }} />
+            </label>
+          </div>
+          {schedPropSearch && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 140, overflowY: 'auto', marginBottom: 8, border: '1px solid var(--color-border)', borderRadius: 6 }}>
+              {schedFilteredProps.map(p => (
+                <button key={p.id} type="button"
+                  onClick={() => { if (!schedProps.find(sp => sp.id === p.id)) setSchedProps(prev => [...prev, p]); setSchedPropSearch('') }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', fontSize: '0.82rem', border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                  onMouseOver={e => e.currentTarget.style.background = 'var(--color-bg-hover, #f5f0ea)'}
+                  onMouseOut={e => e.currentTarget.style.background = 'none'}
+                >
+                  <strong>{p.address}</strong> <span style={{ color: 'var(--color-text-muted)' }}>{p.city}{p.price ? ` · $${Number(p.price).toLocaleString()}` : ''}</span>
+                </button>
+              ))}
+              {schedFilteredProps.length === 0 && <p style={{ padding: 10, fontSize: '0.78rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>No matches</p>}
+            </div>
+          )}
+          {schedProps.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              {schedProps.map(p => (
+                <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 10px', background: 'var(--color-bg-subtle, #faf8f5)', borderRadius: 6, marginBottom: 3 }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 500 }}>{p.address}{p.city ? `, ${p.city}` : ''}</span>
+                  <button onClick={() => setSchedProps(prev => prev.filter(sp => sp.id !== p.id))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-danger)', fontSize: '0.9rem' }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <Button size="sm" onClick={handleQuickSchedule} disabled={schedSaving || !schedProps.length || !schedDate}>
+            {schedSaving ? 'Scheduling...' : `Schedule ${schedProps.length} Showing${schedProps.length > 1 ? 's' : ''}`}
+          </Button>
+        </Card>
+      )}
 
       {/* ── Active Deals ── */}
       {buyerDeals.length > 0 && (
@@ -478,11 +620,56 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
         )}
       </div>
 
+      {/* ── Email Engagement ── */}
+      {buyer.email && (
+        <div className="buyer-detail__showings-section">
+          <div className="buyer-detail__showings-header">
+            <h3>Email Activity</h3>
+            <a href="/email/reporting" style={{ fontSize: '0.78rem', color: 'var(--brown-mid)' }}>View All Reporting</a>
+          </div>
+          <EmailEngagement contactId={buyer.id} />
+        </div>
+      )}
+
+      {/* ── Intake Forms ── */}
+      <IntakeFormTracker contactId={buyer.id} contactEmail={buyer.email} contactName={buyer.name} />
+
+      {/* ── Communication Log ── */}
+      <CommunicationLog contactId={buyer.id} />
+
       {/* ── Showings ── */}
       <div className="buyer-detail__showings-section">
         <div className="buyer-detail__showings-header">
           <h3>Properties Shown ({allShowings.length})</h3>
         </div>
+
+        {/* Property visit summary */}
+        {allShowings.length > 0 && (() => {
+          const propVisits = {}
+          allShowings.forEach(sh => {
+            const addr = sh.property?.address || 'Unknown'
+            const pid = sh.property?.id || addr
+            if (!propVisits[pid]) propVisits[pid] = { address: addr, city: sh.property?.city, price: sh.property?.price, visits: 0, lastInterest: null }
+            propVisits[pid].visits++
+            if (sh.interest_level) propVisits[pid].lastInterest = sh.interest_level
+          })
+          const props = Object.values(propVisits).sort((a, b) => b.visits - a.visits)
+          return (
+            <div style={{ marginBottom: 10, padding: '10px 12px', background: 'var(--color-bg-subtle, #faf8f5)', borderRadius: 'var(--radius-sm)' }}>
+              <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--brown-dark)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                {props.length} Properties · {allShowings.length} Total Visits
+              </p>
+              {props.map(p => (
+                <div key={p.address} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', fontSize: '0.82rem' }}>
+                  <span style={{ flex: 1, fontWeight: 500, color: 'var(--brown-dark)' }}>{p.address}{p.city ? `, ${p.city}` : ''}</span>
+                  {p.price && <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>${Number(p.price).toLocaleString()}</span>}
+                  <Badge variant="default" size="sm">{p.visits} visit{p.visits > 1 ? 's' : ''}</Badge>
+                  {p.lastInterest && <Badge variant={interestVariant[p.lastInterest]} size="sm">{p.lastInterest}</Badge>}
+                </div>
+              ))}
+            </div>
+          )
+        })()}
 
         {allShowings.length === 0 ? (
           <div className="buyer-detail__showings-empty">
@@ -619,9 +806,17 @@ export default function Buyers() {
       if (editingBuyer && typeof editingBuyer.id === 'string') {
         await DB.updateContact(editingBuyer.id, data)
         await DB.logActivity('contact_updated', `Updated buyer: ${data.name}`, { contactId: editingBuyer.id })
+        // Ensure Slack channel if stage changed to active
+        if (data.stage && ACTIVE_BUYER_STAGES.includes(data.stage)) {
+          DB.ensureSlackChannel({ contactId: editingBuyer.id, contactType: 'buyer' }).catch(() => {})
+        }
       } else {
         const result = await DB.createContact(data)
         await DB.logActivity('contact_created', `New buyer added: ${data.name}`, { contactId: result.id })
+        // Ensure Slack channel if created with active stage
+        if (data.stage && ACTIVE_BUYER_STAGES.includes(data.stage)) {
+          DB.ensureSlackChannel({ contactId: result.id, contactType: 'buyer' }).catch(() => {})
+        }
       }
       await refetch()
       closePanel()
@@ -671,10 +866,21 @@ export default function Buyers() {
 
   // Inline field update — saves a single field without opening the panel
   const [savingInline, setSavingInline] = useState({})
+  const ACTIVE_BUYER_STAGES = ['Pre-Approval', 'Active Search', 'Showing', 'Under Contract']
   const inlineUpdate = async (id, field, value) => {
     setSavingInline(p => ({ ...p, [id + field]: true }))
     try {
       await DB.updateContact(id, { [field]: value })
+      // Auto-create Slack channel when buyer enters active pipeline
+      if (field === 'stage' && ACTIVE_BUYER_STAGES.includes(value)) {
+        const buyer = buyers.find(b => b.id === id)
+        if (buyer) {
+          DB.ensureSlackChannel({
+            contactId: id,
+            contactType: 'buyer',
+          }).catch(() => {})
+        }
+      }
       await refetch()
     } catch { /* silent */ } finally {
       setSavingInline(p => ({ ...p, [id + field]: false }))
@@ -837,6 +1043,13 @@ export default function Buyers() {
       },
     },
     { key: 'showings', label: 'Showings', render: v => <span style={{ fontWeight: 600 }}>{Array.isArray(v) ? v.length : 0}</span> },
+    { key: 'updated_at', label: 'Last Activity', render: v => {
+      if (!v) return <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>—</span>
+      const d = new Date(v)
+      const days = Math.floor((new Date() - d) / 86400000)
+      const variant = days > 30 ? 'danger' : days > 14 ? 'warning' : 'default'
+      return <Badge variant={variant} size="sm">{days === 0 ? 'Today' : days === 1 ? 'Yesterday' : `${days}d ago`}</Badge>
+    }},
     {
       key: 'edit', label: '',
       render: (_, row) => (
@@ -917,6 +1130,24 @@ export default function Buyers() {
         ))}
       </div>
 
+      {/* ── Source Breakdown ── */}
+      {(() => {
+        const srcMap = {}
+        buyers.forEach(b => { const s = b.source || 'Unknown'; srcMap[s] = (srcMap[s] || 0) + 1 })
+        const sources = Object.entries(srcMap).sort((a, b) => b[1] - a[1])
+        const srcLabels = { open_house: 'OH', referral: 'Referral', expired: 'Expired', circle: 'Circle', soi: 'SOI', fsbo: 'FSBO', online: 'Online', Unknown: 'Unknown' }
+        if (sources.length <= 1) return null
+        return (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '8px 0' }}>
+            {sources.map(([src, count]) => (
+              <span key={src} style={{ padding: '3px 10px', fontSize: '0.72rem', borderRadius: 12, border: '1px solid var(--color-border)', background: 'var(--color-bg-subtle, #faf8f5)', color: 'var(--brown-dark)', fontWeight: 500 }}>
+                {srcLabels[src] || src}: {count}
+              </span>
+            ))}
+          </div>
+        )
+      })()}
+
       <TabBar
         tabs={[
           { label: 'All', value: 'all', count: buyers.length },
@@ -927,6 +1158,43 @@ export default function Buyers() {
         active={filter}
         onChange={setFilter}
       />
+
+      {/* ── Alerts ── */}
+      {(() => {
+        const now = new Date()
+        const expiringBBAs = buyers.filter(b => {
+          if (!b.bba_expiration_date) return false
+          const exp = new Date(b.bba_expiration_date)
+          const days = Math.ceil((exp - now) / 86400000)
+          return days >= 0 && days <= 14
+        })
+        const staleBuyers = buyers.filter(b => {
+          if (!b.updated_at && !b.created_at) return false
+          const d = new Date(b.updated_at || b.created_at)
+          return (now - d) / 86400000 > 30 && !['Closed', 'Inactive', 'On Hold'].includes(b.stage)
+        })
+        if (expiringBBAs.length === 0 && staleBuyers.length === 0) return null
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+            {expiringBBAs.length > 0 && (
+              <div style={{ padding: '10px 14px', background: 'rgba(230,126,34,0.08)', border: '1px solid rgba(230,126,34,0.2)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '1rem' }}>⚠️</span>
+                <div style={{ fontSize: '0.82rem', color: 'var(--brown-dark)' }}>
+                  <strong>BBA Expiring Soon:</strong> {expiringBBAs.map(b => b.name).join(', ')}
+                </div>
+              </div>
+            )}
+            {staleBuyers.length > 0 && (
+              <div style={{ padding: '10px 14px', background: 'rgba(139,122,104,0.08)', border: '1px solid rgba(139,122,104,0.2)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '1rem' }}>📋</span>
+                <div style={{ fontSize: '0.82rem', color: 'var(--brown-dark)' }}>
+                  <strong>{staleBuyers.length} stale buyer{staleBuyers.length > 1 ? 's' : ''}:</strong> No activity in 30+ days — {staleBuyers.slice(0, 3).map(b => b.name).join(', ')}{staleBuyers.length > 3 ? ` +${staleBuyers.length - 3} more` : ''}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       <DataTable columns={columns} rows={filtered} onRowClick={setSelectedBuyer} />
 

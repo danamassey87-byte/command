@@ -120,12 +120,106 @@ serve(async (req) => {
       '{full_name}':       contact.name || '',
       '{email}':           contact.email || '',
       '{phone}':           contact.phone || '',
-      '{property_address}': '', // TODO: resolve from listing if available
+      '{property_address}': '', // resolved below if listing exists
       '{agent_name}':      FROM_NAME,
       '{agent_first_name}': 'Dana',
       '{brokerage}':       'REAL Broker',
       '{agent_email}':     'dana@danamassey.com',
       '{agent_phone}':     '', // TODO: pull from brand settings
+    }
+
+    // ─── Showing data variables (for weekly seller reports) ─────────────────
+    // If contact is a seller with an active listing, resolve showing stats
+    if (contact.type === 'seller' || contact.type === 'both') {
+      const { data: listing } = await db
+        .from('listings')
+        .select('id, property:properties(address)')
+        .eq('contact_id', contact.id)
+        .in('status', ['signed', 'coming_soon', 'active', 'pending', 'contingent'])
+        .limit(1)
+        .maybeSingle()
+
+      if (listing) {
+        vars['{property_address}'] = (listing as any)?.property?.address || ''
+
+        // Fetch latest weekly report snapshot
+        const { data: snapshot } = await db
+          .from('weekly_report_snapshots')
+          .select('*')
+          .eq('listing_id', listing.id)
+          .eq('email_sent', false)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (snapshot) {
+          const showings = (snapshot.showings_data || []) as any[]
+          const feedback = (snapshot.feedback_data || []) as any[]
+          const stats = (snapshot.stats || {}) as any
+
+          // Format showings list
+          const showingsList = showings
+            .map((s: any) => {
+              const date = new Date(s.requested_date).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' })
+              const time = s.requested_time || ''
+              const agent = s.agent_name ? ` (${s.agent_name}${s.agent_brokerage ? ', ' + s.agent_brokerage : ''})` : ''
+              return `• ${date}${time ? ' at ' + time : ''}${agent}`
+            })
+            .join('\n') || 'No showings this week.'
+
+          // Format feedback block
+          const feedbackSummary = feedback
+            .map((f: any) => {
+              const rating = f.overall_rating ? `${f.overall_rating}/5` : ''
+              const agent = f.agent_name || 'Anonymous agent'
+              return `• ${agent} ${rating}: ${f.sentiment_summary || (f.feedback_text || '').substring(0, 150)}`
+            })
+            .join('\n\n') || 'No feedback received this week.'
+
+          // Price sentiment
+          const priceOpinions = feedback.filter((f: any) => f.price_opinion)
+          const priceTotal = priceOpinions.length
+          const priceSentiment = priceTotal > 0
+            ? Object.entries(
+                priceOpinions.reduce((acc: Record<string, number>, f: any) => {
+                  acc[f.price_opinion] = (acc[f.price_opinion] || 0) + 1
+                  return acc
+                }, {} as Record<string, number>)
+              )
+                .map(([op, ct]) => `${ct} of ${priceTotal} said "${(op as string).replace('_', ' ')}"`)
+                .join(', ')
+            : ''
+
+          const trendArrow = stats.showing_trend === 'up' ? '↑' : stats.showing_trend === 'down' ? '↓' : '→'
+
+          vars['{showing_count}'] = String(stats.total_showings || 0)
+          vars['{showing_dates_list}'] = showingsList
+          vars['{feedback_count}'] = String(stats.feedback_count || 0)
+          vars['{feedback_summary}'] = feedbackSummary
+          vars['{avg_rating}'] = stats.avg_rating ? `${Number(stats.avg_rating).toFixed(1)}/5` : 'N/A'
+          vars['{showing_trend}'] = `${trendArrow} ${stats.showing_trend === 'up' ? 'Up' : stats.showing_trend === 'down' ? 'Down' : 'Steady'} vs last week`
+          vars['{lifetime_showings}'] = String(stats.lifetime_showings || 0)
+          vars['{feedback_highlight}'] = feedback[0]?.sentiment_summary || ''
+          vars['{price_sentiment}'] = priceSentiment
+
+          // Mark snapshot as sent
+          await db
+            .from('weekly_report_snapshots')
+            .update({ email_sent: true, email_sent_at: new Date().toISOString() })
+            .eq('id', snapshot.id)
+        } else {
+          // No snapshot — set defaults so template vars don't show raw placeholders
+          vars['{showing_count}'] = '0'
+          vars['{showing_dates_list}'] = 'No showings this week.'
+          vars['{feedback_count}'] = '0'
+          vars['{feedback_summary}'] = 'No feedback received this week.'
+          vars['{avg_rating}'] = 'N/A'
+          vars['{showing_trend}'] = '→ Steady'
+          vars['{lifetime_showings}'] = '0'
+          vars['{feedback_highlight}'] = ''
+          vars['{price_sentiment}'] = ''
+        }
+      }
     }
 
     const resolve = (text: string | null): string => {

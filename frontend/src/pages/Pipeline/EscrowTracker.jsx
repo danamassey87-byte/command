@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Badge, EmptyState, TabBar, Button } from '../../components/ui/index.jsx'
-import { useTransactions } from '../../lib/hooks.js'
+import { useTransactions, useListings } from '../../lib/hooks.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
 import './EscrowTracker.css'
 
@@ -179,15 +179,33 @@ function flatCount(checklist) { return checklist.reduce((s, sec) => s + sec.item
 
 export default function EscrowTracker() {
   const { data: transactions, loading } = useTransactions()
+  const { data: listingsData } = useListings()
   const [checklists, setChecklists] = useState(() => loadChecklists())
   const [expandedId, setExpandedId] = useState(null)
   const [emailContact, setEmailContact] = useState(null)
+
+  // Build a set of property IDs that have active listings (seller side)
+  const listingPropertyIds = useMemo(() => {
+    const ids = new Set()
+    for (const l of (listingsData ?? [])) {
+      if (l.property_id) ids.add(l.property_id)
+    }
+    return ids
+  }, [listingsData])
 
   const escrowDeals = useMemo(() =>
     (transactions ?? []).filter(t => {
       const s = (t.status ?? '').toLowerCase()
       return !s.includes('offer') && !s.includes('pre') && !s.includes('counter') && !s.includes('declined')
         && !s.includes('closed') && !s.includes('cancelled') && !s.includes('withdrawn') && !s.includes('dead')
+    }).map(t => {
+      // Infer deal_type from listings if not explicitly set or set incorrectly
+      // If the property has an active listing in our system, it's a seller-side deal
+      let dealType = t.deal_type
+      if ((!dealType || dealType === 'buyer') && t.property_id && listingPropertyIds.has(t.property_id)) {
+        dealType = 'seller'
+      }
+      return { ...t, deal_type: dealType || 'buyer' }
     }).sort((a, b) => {
       const dA = daysUntil(a.closing_date)
       const dB = daysUntil(b.closing_date)
@@ -196,7 +214,7 @@ export default function EscrowTracker() {
       if (dB === null) return -1
       return dA - dB
     })
-  , [transactions])
+  , [transactions, listingPropertyIds])
 
   const getChecklist = (dealId) => checklists[dealId] ?? {}
   const toggleItem = (dealId, sectionIdx, itemIdx) => {

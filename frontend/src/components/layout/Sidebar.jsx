@@ -40,23 +40,13 @@ const navSections = [
           </svg>
         ),
       },
-      {
-        label: 'Listing Appts', path: '/listing-appts',
-        icon: (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
-          </svg>
-        ),
-      },
     ],
   },
   {
     label: 'LEAD GEN',
     items: [
       {
-        label: 'Cannonball Expireds', path: '/lead-gen',
+        label: 'Expired', path: '/prospecting/expired',
         icon: (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -76,6 +66,16 @@ const navSections = [
   {
     label: 'SELLERS',
     items: [
+      {
+        label: 'Listing Appts', path: '/listing-appts',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+        ),
+      },
       {
         label: 'Listings', path: '/sellers',
         icon: (
@@ -128,6 +128,37 @@ const navSections = [
         icon: (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 12L12 3l9 9" /><path d="M9 21V12h6v9" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    label: 'OVERALL',
+    items: [
+      {
+        label: 'Contact Database', path: '/database',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+          </svg>
+        ),
+      },
+      {
+        label: 'On Hold', path: '/on-hold',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><line x1="10" y1="15" x2="10" y2="9" /><line x1="14" y1="15" x2="14" y2="9" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Vendors', path: '/vendors',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" />
+            <path d="M2 7l4-4h12l4 4" /><line x1="12" y1="12" x2="12" y2="16" />
           </svg>
         ),
       },

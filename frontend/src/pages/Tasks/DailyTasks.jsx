@@ -80,7 +80,7 @@ export default function DailyTasks() {
   const { data: listingAppts } = useListingAppointments()
 
   // UI State
-  const [view, setView] = useState('today')         // today | upcoming | completed | vendors
+  const [view, setView] = useState('today')         // today | this_week | upcoming | past | completed | recurring | vendors
   const [panelOpen, setPanelOpen] = useState(false)
   const [editItem, setEditItem] = useState(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
@@ -202,9 +202,33 @@ export default function DailyTasks() {
       .sort((a, b) => (b.completed_at ?? '').localeCompare(a.completed_at ?? ''))
   , [tasks])
 
+  // This week (Mon-Sun of current week)
+  const thisWeekTasks = useMemo(() => {
+    const now = new Date()
+    const dayOfWeek = now.getDay()
+    const mon = new Date(now); mon.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1)); mon.setHours(0,0,0,0)
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6)
+    const monStr = mon.toISOString().slice(0, 10)
+    const sunStr = sun.toISOString().slice(0, 10)
+    return tasks.filter(t => {
+      if (t.is_recurring) return true // always show recurring in week view
+      if (!t.due_date) return false
+      return t.due_date >= monStr && t.due_date <= sunStr
+    }).sort((a, b) => (a.due_date ?? '').localeCompare(b.due_date ?? '') || priSort(a.priority) - priSort(b.priority))
+  }, [tasks])
+
   const upcomingTasks = useMemo(() =>
-    tasks.filter(t => t.due_date > TODAY && t.due_date <= WEEK_END && t.status !== 'completed')
+    tasks.filter(t => !t.is_recurring && t.due_date > TODAY && t.status !== 'completed')
       .sort((a, b) => (a.due_date ?? '').localeCompare(b.due_date ?? '') || priSort(a.priority) - priSort(b.priority))
+  , [tasks])
+
+  const pastTasks = useMemo(() =>
+    tasks.filter(t => !t.is_recurring && t.due_date && t.due_date < TODAY)
+      .sort((a, b) => (b.due_date ?? '').localeCompare(a.due_date ?? ''))
+  , [tasks])
+
+  const recurringTasks = useMemo(() =>
+    tasks.filter(t => t.is_recurring)
   , [tasks])
 
   const overdueTasks = useMemo(() =>
@@ -510,9 +534,11 @@ export default function DailyTasks() {
         <TabBar
           tabs={[
             { value: 'today',     label: 'Today',     count: todayTasks.filter(t => t.status !== 'completed').length },
+            { value: 'this_week', label: 'This Week', count: thisWeekTasks.length },
             { value: 'upcoming',  label: 'Upcoming',  count: upcomingTasks.length },
+            { value: 'past',      label: 'Past',      count: pastTasks.length },
+            { value: 'recurring', label: 'Recurring', count: recurringTasks.length },
             { value: 'completed', label: 'Completed', count: completedTasks.length },
-            { value: 'vendors',   label: 'Vendors',   count: vList.length },
           ]}
           active={view}
           onChange={setView}
@@ -588,6 +614,84 @@ export default function DailyTasks() {
                   </div>
                 ))
               })()
+            )}
+          </div>
+        )}
+
+        {/* ─── This Week View ─── */}
+        {view === 'this_week' && (
+          <div className="dt-list">
+            {thisWeekTasks.length === 0 ? (
+              <EmptyState title="Nothing this week" description="No tasks for this week." />
+            ) : (
+              (() => {
+                const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+                const grouped = {}
+                thisWeekTasks.forEach(t => {
+                  if (t.is_recurring) {
+                    const day = dayNames[t.recur_day] || 'Recurring'
+                    if (!grouped[day]) grouped[day] = []
+                    grouped[day].push(t)
+                  } else {
+                    const d = t.due_date || 'No date'
+                    const label = d === TODAY ? `Today — ${fmtDate(d)}` : fmtDateLong(d)
+                    if (!grouped[label]) grouped[label] = []
+                    grouped[label].push(t)
+                  }
+                })
+                return Object.entries(grouped).map(([label, tasks]) => (
+                  <div key={label} className="dt-section">
+                    <h3 className="dt-section__title">{label}</h3>
+                    {tasks.map(t => <TaskRow key={t.id} task={t} showDate />)}
+                  </div>
+                ))
+              })()
+            )}
+          </div>
+        )}
+
+        {/* ─── Past View ─── */}
+        {view === 'past' && (
+          <div className="dt-list">
+            {pastTasks.length === 0 ? (
+              <EmptyState title="No past tasks" description="Past tasks will appear here." />
+            ) : (
+              (() => {
+                const grouped = {}
+                pastTasks.forEach(t => {
+                  const d = t.due_date || 'No date'
+                  if (!grouped[d]) grouped[d] = []
+                  grouped[d].push(t)
+                })
+                return Object.entries(grouped).slice(0, 14).map(([date, tasks]) => (
+                  <div key={date} className="dt-section">
+                    <h3 className="dt-section__title">{fmtDateLong(date)}</h3>
+                    {tasks.map(t => <TaskRow key={t.id} task={t} showDate />)}
+                  </div>
+                ))
+              })()
+            )}
+          </div>
+        )}
+
+        {/* ─── Recurring View ─── */}
+        {view === 'recurring' && (
+          <div className="dt-list">
+            {recurringTasks.length === 0 ? (
+              <EmptyState title="No recurring tasks" description="Create a recurring task to see it here." />
+            ) : (
+              <div className="dt-section">
+                <h3 className="dt-section__title">Recurring Tasks</h3>
+                {recurringTasks.map(t => {
+                  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+                  return (
+                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <TaskRow task={t} />
+                      <Badge variant="info" size="sm">Every {dayNames[t.recur_day]}</Badge>
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
         )}

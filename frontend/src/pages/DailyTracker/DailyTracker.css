@@ -30,11 +30,14 @@
 
 .dt-inputs-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 900px) {
+  .dt-inputs-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 500px) {
   .dt-inputs-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
@@ -45,17 +48,17 @@
 }
 
 .dt-metric-label {
-  font-size: 0.75rem;
-  font-weight: 500;
+  font-size: 0.68rem;
+  font-weight: 600;
   color: var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
 
 .dt-number-input {
   width: 100%;
-  padding: 10px 12px;
-  font-size: 1.4rem;
+  padding: 6px 8px;
+  font-size: 1.1rem;
   font-weight: 700;
   font-family: var(--font-body);
   color: var(--brown-dark);

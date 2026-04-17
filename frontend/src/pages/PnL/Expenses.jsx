@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { SectionHeader, Card, TabBar, Button, SlidePanel, Input, Select } from '../../components/ui/index.jsx'
-import { useAllExpenses, useExpenseCategories } from '../../lib/hooks.js'
+import { useAllExpenses, useExpenseCategories, useContacts, useListings } from '../../lib/hooks.js'
+import { exportExpenses } from '../../lib/csvExport.js'
 import { createExpense, updateExpense, deleteExpense, createExpenseBatch } from '../../lib/supabase.js'
 import supabase from '../../lib/supabase.js'
 import './PnL.css'
@@ -25,6 +26,8 @@ const EMPTY = {
   amount: '',
   category_id: '',
   property_id: '',
+  contact_id: '',
+  listing_id: '',
   payment_method: '',
   receipt_url: '',
   notes: '',
@@ -32,10 +35,79 @@ const EMPTY = {
   is_split: false,
 }
 
+// ─── Vendor Autocomplete ────────────────────────────────────────────────────
+function VendorAutocomplete({ value, onChange, allExpenses }) {
+  const [open, setOpen] = useState(false)
+  const [focus, setFocus] = useState(false)
+  const ref = useRef(null)
+
+  // Build unique vendor names from past expenses
+  const vendorNames = useMemo(() => {
+    const names = new Set()
+    for (const e of (allExpenses ?? [])) {
+      if (e.vendor) names.add(e.vendor)
+    }
+    return [...names].sort((a, b) => a.localeCompare(b))
+  }, [allExpenses])
+
+  const filtered = useMemo(() => {
+    if (!value) return vendorNames.slice(0, 8)
+    const q = value.toLowerCase()
+    return vendorNames.filter(n => n.toLowerCase().includes(q)).slice(0, 8)
+  }, [vendorNames, value])
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <Input
+        label="Vendor / Payee"
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => { setFocus(true); setOpen(true) }}
+        onBlur={() => setFocus(false)}
+        placeholder="Start typing to see saved vendors..."
+        autoComplete="off"
+      />
+      {open && filtered.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+          background: '#fff', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto',
+        }}>
+          {filtered.map(name => (
+            <button
+              key={name}
+              type="button"
+              onMouseDown={e => { e.preventDefault(); onChange(name); setOpen(false) }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px',
+                fontSize: '0.82rem', border: 'none', background: 'none', cursor: 'pointer',
+                color: 'var(--brown-dark)',
+              }}
+              onMouseOver={e => e.currentTarget.style.background = 'var(--color-bg-hover, #f5f0ea)'}
+              onMouseOut={e => e.currentTarget.style.background = 'none'}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Expenses() {
   const [view, setView]       = useState('all')
   const [search, setSearch]   = useState('')
   const [catFilter, setCatFilter] = useState('')
+  const [clientFilter, setClientFilter] = useState('')
   const [panel, setPanel]     = useState(null) // null | 'add' | expense object
   const [draft, setDraft]     = useState(EMPTY)
   const [splits, setSplits]   = useState([])
@@ -43,24 +115,50 @@ export default function Expenses() {
 
   const expenses   = useAllExpenses()
   const categories = useExpenseCategories('expense')
+  const contacts   = useContacts()
+  const listingsQ  = useListings()
 
   const cats  = categories.data ?? []
   const all   = expenses.data ?? []
+  const allContacts = contacts.data ?? []
+  const allListings = (listingsQ.data ?? [])
+
+  // Deduplicate categories by name (keep first occurrence)
+  const dedupedCats = useMemo(() => {
+    const seen = new Set()
+    return cats.filter(c => {
+      if (seen.has(c.name)) return false
+      seen.add(c.name)
+      return true
+    })
+  }, [cats])
+
+  // Build listing options for the client picker
+  const listingOptions = useMemo(() =>
+    allListings.map(l => ({
+      id: l.id,
+      label: `${l.property?.address || 'Unknown'} — ${l.contact?.name || 'No client'}`,
+      contact_id: l.contact_id,
+    })),
+  [allListings])
 
   // Filtered list
   const filtered = useMemo(() => {
     let list = all
     if (catFilter) list = list.filter(e => e.category_id === catFilter)
+    if (clientFilter) list = list.filter(e => e.contact_id === clientFilter || e.listing?.id === clientFilter)
     if (search) {
       const q = search.toLowerCase()
       list = list.filter(e =>
         (e.vendor ?? '').toLowerCase().includes(q) ||
         (e.description ?? '').toLowerCase().includes(q) ||
-        (e.category?.name ?? '').toLowerCase().includes(q)
+        (e.category?.name ?? '').toLowerCase().includes(q) ||
+        (e.contact?.name ?? '').toLowerCase().includes(q) ||
+        (e.listing?.property?.address ?? '').toLowerCase().includes(q)
       )
     }
     return list
-  }, [all, catFilter, search])
+  }, [all, catFilter, clientFilter, search])
 
   // Category summary
   const catSummary = useMemo(() => {
@@ -91,6 +189,8 @@ export default function Expenses() {
       amount: exp.amount ?? '',
       category_id: exp.category_id ?? '',
       property_id: exp.property_id ?? '',
+      contact_id: exp.contact_id ?? '',
+      listing_id: exp.listing_id ?? '',
       payment_method: exp.payment_method ?? '',
       receipt_url: exp.receipt_url ?? '',
       notes: exp.notes ?? '',
@@ -118,62 +218,42 @@ export default function Expenses() {
   async function handleSave() {
     setSaving(true)
     try {
+      const base = {
+        date: draft.date,
+        vendor: draft.vendor || null,
+        description: draft.description || null,
+        amount: Number(draft.amount),
+        category_id: draft.category_id || null,
+        contact_id: draft.contact_id || null,
+        listing_id: draft.listing_id || null,
+        payment_method: draft.payment_method || null,
+        receipt_url: draft.receipt_url || null,
+        notes: draft.notes || null,
+        is_deductible: draft.is_deductible,
+      }
+
       if (draft.is_split && splits.length > 0) {
-        // Create split expenses
         const groupId = crypto.randomUUID()
         const rows = splits.map(sp => ({
-          date: draft.date,
-          vendor: draft.vendor,
+          ...base,
           description: sp.description || draft.description,
           amount: Number(sp.amount),
-          category_id: draft.category_id || null,
-          payment_method: draft.payment_method || null,
-          notes: draft.notes,
-          is_deductible: draft.is_deductible,
           is_split: true,
           split_group: groupId,
         }))
-        // If there's remaining amount, add an unassigned line
         if (remaining > 0.01) {
           rows.push({
-            date: draft.date,
-            vendor: draft.vendor,
-            description: draft.description,
+            ...base,
             amount: remaining,
-            category_id: draft.category_id || null,
-            payment_method: draft.payment_method || null,
-            notes: draft.notes,
-            is_deductible: draft.is_deductible,
             is_split: true,
             split_group: groupId,
           })
         }
         await createExpenseBatch(rows)
       } else if (panel === 'add') {
-        await createExpense({
-          date: draft.date,
-          vendor: draft.vendor || null,
-          description: draft.description || null,
-          amount: Number(draft.amount),
-          category_id: draft.category_id || null,
-          payment_method: draft.payment_method || null,
-          receipt_url: draft.receipt_url || null,
-          notes: draft.notes || null,
-          is_deductible: draft.is_deductible,
-          is_split: false,
-        })
+        await createExpense({ ...base, is_split: false })
       } else {
-        await updateExpense(panel.id, {
-          date: draft.date,
-          vendor: draft.vendor || null,
-          description: draft.description || null,
-          amount: Number(draft.amount),
-          category_id: draft.category_id || null,
-          payment_method: draft.payment_method || null,
-          receipt_url: draft.receipt_url || null,
-          notes: draft.notes || null,
-          is_deductible: draft.is_deductible,
-        })
+        await updateExpense(panel.id, base)
       }
       setPanel(null)
       expenses.refetch()
@@ -193,26 +273,46 @@ export default function Expenses() {
     } catch (e) { alert(e.message) }
   }
 
+  // Unique contacts that have expenses for the client filter
+  const contactsWithExpenses = useMemo(() => {
+    const map = {}
+    all.forEach(e => {
+      if (e.contact?.id && e.contact?.name) map[e.contact.id] = e.contact.name
+    })
+    return Object.entries(map).sort((a, b) => a[1].localeCompare(b[1]))
+  }, [all])
+
   return (
     <>
       <SectionHeader
         title="Expenses"
         subtitle={`${all.length} expenses · ${fmt(grandTotal)} total`}
-        actions={<Button onClick={openAdd}>+ Add Expense</Button>}
+        actions={
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Button variant="ghost" onClick={() => exportExpenses(filtered, `expenses_${new Date().toISOString().split('T')[0]}.csv`)}>Export CSV</Button>
+            <Button onClick={openAdd}>+ Add Expense</Button>
+          </div>
+        }
       />
 
       {/* ─── Filters ─── */}
       <div className="pnl-filters" style={{ marginBottom: 16 }}>
         <Input
           className="pnl-search"
-          placeholder="Search vendor, description..."
+          placeholder="Search vendor, description, client..."
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
         <Select value={catFilter} onChange={e => setCatFilter(e.target.value)}>
           <option value="">All Categories</option>
-          {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {dedupedCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
+        {contactsWithExpenses.length > 0 && (
+          <Select value={clientFilter} onChange={e => setClientFilter(e.target.value)}>
+            <option value="">All Clients</option>
+            {contactsWithExpenses.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </Select>
+        )}
       </div>
 
       {/* ─── View Toggle ─── */}
@@ -242,6 +342,7 @@ export default function Expenses() {
                 <tr>
                   <th>Date</th>
                   <th>Vendor</th>
+                  <th>Client</th>
                   <th>Category</th>
                   <th>Amount</th>
                 </tr>
@@ -256,6 +357,14 @@ export default function Expenses() {
                       {e.is_split && <span className="pnl-table__split-badge">SPLIT</span>}
                       {e.receipt_url && <span className="pnl-table__split-badge" style={{ background: 'var(--color-success)' }}>RECEIPT</span>}
                     </td>
+                    <td>
+                      {e.contact?.name
+                        ? <span style={{ fontSize: '0.82rem' }}>{e.contact.name}</span>
+                        : e.listing?.property?.address
+                          ? <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>{e.listing.property.address}</span>
+                          : <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>—</span>
+                      }
+                    </td>
                     <td>{e.category ? <span className="pnl-table__cat">{e.category.name}</span> : '—'}</td>
                     <td className="pnl-table__amount">{fmt(e.amount)}</td>
                   </tr>
@@ -263,7 +372,7 @@ export default function Expenses() {
               </tbody>
               <tfoot>
                 <tr style={{ fontWeight: 600 }}>
-                  <td colSpan="3" style={{ textAlign: 'right', paddingRight: 12 }}>Total</td>
+                  <td colSpan="4" style={{ textAlign: 'right', paddingRight: 12 }}>Total</td>
                   <td className="pnl-table__amount">{fmt(filtered.reduce((s, e) => s + Number(e.amount || 0), 0))}</td>
                 </tr>
               </tfoot>
@@ -299,17 +408,36 @@ export default function Expenses() {
             <Input label="Date" type="date" value={draft.date} onChange={e => setDraft(d => ({ ...d, date: e.target.value }))} />
             <Input label="Amount ($)" type="number" step="0.01" value={draft.amount} onChange={e => setDraft(d => ({ ...d, amount: e.target.value }))} />
           </div>
-          <Input label="Vendor / Payee" value={draft.vendor} onChange={e => setDraft(d => ({ ...d, vendor: e.target.value }))} placeholder="e.g., Canva, Home Depot, Keller Williams" />
+          <VendorAutocomplete value={draft.vendor} onChange={v => setDraft(d => ({ ...d, vendor: v }))} allExpenses={all} />
           <Input label="Description" value={draft.description} onChange={e => setDraft(d => ({ ...d, description: e.target.value }))} placeholder="What was this for?" />
+
           <div className="pnl-form__row">
             <Select label="Category" value={draft.category_id} onChange={e => setDraft(d => ({ ...d, category_id: e.target.value }))}>
               <option value="">— Select —</option>
-              {cats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {dedupedCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
             <Select label="Payment Method" value={draft.payment_method} onChange={e => setDraft(d => ({ ...d, payment_method: e.target.value }))}>
               {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
             </Select>
           </div>
+
+          {/* ─── Client / Listing Attribution ─── */}
+          <hr className="pnl-form__divider" />
+          <p style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 4 }}>Attribute to Client</p>
+          <Select label="Client" value={draft.contact_id} onChange={e => setDraft(d => ({ ...d, contact_id: e.target.value }))}>
+            <option value="">— No Client —</option>
+            {allContacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.type ? ` (${c.type})` : ''}</option>)}
+          </Select>
+          <Select label="Listing" value={draft.listing_id} onChange={e => {
+            const lid = e.target.value
+            setDraft(d => {
+              const listing = allListings.find(l => l.id === lid)
+              return { ...d, listing_id: lid, contact_id: listing?.contact_id || d.contact_id }
+            })
+          }}>
+            <option value="">— No Listing —</option>
+            {listingOptions.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
+          </Select>
 
           <hr className="pnl-form__divider" />
 

@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react'
 import { SectionHeader, Button, Badge } from '../../components/ui/index.jsx'
 import { useOnHoldContacts } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
+import CommunicationLog from '../../components/CommunicationLog.jsx'
+import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
 import './OnHoldContacts.css'
 
 function daysBetween(from, to = new Date()) {
@@ -18,6 +20,7 @@ export default function OnHoldContacts() {
   const [filter, setFilter]     = useState('all')    // all | buyer | seller
   const [sortDir, setSortDir]   = useState('newest')  // newest | oldest | longest
   const [reactivating, setReactivating] = useState(null)
+  const [expandedId, setExpandedId] = useState(null)
 
   const contacts = useMemo(() => {
     let list = (data ?? []).slice()
@@ -176,18 +179,34 @@ export default function OnHoldContacts() {
                   <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
                     {contact.source && `Source: ${contact.source}`}
                   </span>
-                  <button
-                    className="on-hold__reactivate-btn"
-                    onClick={() => handleReactivate(contact)}
-                    disabled={reactivating === contact.id}
-                  >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="23 4 23 10 17 10"/>
-                      <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
-                    </svg>
-                    {reactivating === contact.id ? 'Reactivating...' : 'Reactivate'}
-                  </button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      className="on-hold__reactivate-btn"
+                      onClick={() => setExpandedId(expandedId === contact.id ? null : contact.id)}
+                      style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 6, padding: '4px 10px', fontSize: '0.72rem', cursor: 'pointer', color: 'var(--brown-dark)' }}
+                    >
+                      {expandedId === contact.id ? 'Hide Details' : 'Details'}
+                    </button>
+                    <button
+                      className="on-hold__reactivate-btn"
+                      onClick={() => handleReactivate(contact)}
+                      disabled={reactivating === contact.id}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
+                      </svg>
+                      {reactivating === contact.id ? 'Reactivating...' : 'Reactivate'}
+                    </button>
+                  </div>
                 </div>
+
+                {expandedId === contact.id && (
+                  <div style={{ marginTop: 12, borderTop: '1px solid var(--color-border-light, #f0ece6)', paddingTop: 12 }}>
+                    <IntakeFormTracker contactId={contact.id} contactEmail={contact.email} contactName={contact.name} />
+                    <CommunicationLog contactId={contact.id} />
+                  </div>
+                )}
               </div>
             )
           })}

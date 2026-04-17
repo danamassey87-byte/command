@@ -8,6 +8,14 @@ const STRATEGIES = ['buy-hold', 'fix-flip', 'multi-family']
 const strategyDisplay = { 'buy-hold': 'Buy & Hold', 'fix-flip': 'Fix & Flip', 'multi-family': 'Multi-Family' }
 const strategyDb      = { 'Buy & Hold': 'buy-hold', 'Fix & Flip': 'fix-flip', 'Multi-Family': 'multi-family' }
 
+const INVESTOR_ROLES = [
+  { value: 'buyer',  label: 'Buyer' },
+  { value: 'seller', label: 'Seller' },
+  { value: 'both',   label: 'Buyer & Seller' },
+]
+const roleVariant = { buyer: 'info', seller: 'warning', both: 'success' }
+const roleLabel   = { buyer: 'Buyer', seller: 'Seller', both: 'Buyer & Seller' }
+
 const feedbackVariant = {
   yes:   { badge: 'success', label: 'Yes',   icon: '✓' },
   no:    { badge: 'danger',  label: 'No',    icon: '✗' },
@@ -55,6 +63,7 @@ function mapInvestor(row) {
       status:   f.status ?? 'maybe',
       feedback: f.notes  ?? '',
     })),
+    investor_role: row.investor_role ?? 'buyer',
     contact_id: row.contact_id,
     created_at: row.created_at,
   }
@@ -68,6 +77,7 @@ function InvestorForm({ investor, onSave, onDelete, onClose, saving, deleting })
     name:       investor?.name       ?? '',
     phone:      investor?.phone      ?? '',
     email:      investor?.email      ?? '',
+    investor_role: investor?.investor_role ?? 'buyer',
     strategy:   investor?.strategyDb ?? investor?.strategy ?? 'buy-hold',
     assets:     investor?.assets     ?? 0,
     buyBoxType:     investor?.buyBox?.type     ?? 'SFR',
@@ -94,6 +104,9 @@ function InvestorForm({ investor, onSave, onDelete, onClose, saving, deleting })
           <Input label="Phone" value={draft.phone} onChange={e => set('phone', e.target.value)} placeholder="(480) 555-0000" />
           <Input label="Email" value={draft.email} onChange={e => set('email', e.target.value)} placeholder="email@example.com" />
         </div>
+        <Select label="Investor Role" value={draft.investor_role} onChange={e => set('investor_role', e.target.value)}>
+          {INVESTOR_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+        </Select>
         <div className="panel-row">
           <Select label="Strategy" value={draft.strategy} onChange={e => set('strategy', e.target.value)}>
             {STRATEGIES.map(s => <option key={s} value={s}>{strategyDisplay[s]}</option>)}
@@ -173,6 +186,7 @@ function InvestorDetail({ investor, onBack, onEdit, onFeedbackChange }) {
       <div className="investor-detail__header">
         <div>
           <div className="investor-detail__badges">
+            <Badge variant={roleVariant[investor.investor_role] || 'info'} size="sm">{roleLabel[investor.investor_role] || 'Buyer'}</Badge>
             <Badge variant={strategyVariant[investor.strategy]} size="sm">{investor.strategy}</Badge>
           </div>
           <h2 className="investor-detail__name">{investor.name}</h2>
@@ -320,6 +334,7 @@ export default function Investors() {
 
       const dbRow = {
         contact_id,
+        investor_role:     draft.investor_role || 'buyer',
         strategy:          draft.strategy,
         assets_count:      Number(draft.assets) || 0,
         buy_box_type:      draft.buyBoxType.trim() || null,
@@ -405,6 +420,7 @@ export default function Investors() {
         </div>
       ),
     },
+    { key: 'investor_role', label: 'Role', render: v => <Badge variant={roleVariant[v] || 'info'} size="sm">{roleLabel[v] || 'Buyer'}</Badge> },
     { key: 'strategy', label: 'Strategy', render: v => <Badge variant={strategyVariant[v]} size="sm">{v}</Badge> },
     { key: 'assets', label: 'Assets', render: v => <span style={{ fontWeight: 600 }}>{v}</span> },
     {

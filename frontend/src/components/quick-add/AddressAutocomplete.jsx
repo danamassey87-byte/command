@@ -107,8 +107,9 @@ export default function AddressAutocomplete({
         setUspsResult({ deliverable: res.deliverable, exact: false, suggestion: { ...s, fullStreet } })
       }
     } catch (err) {
-      console.error('USPS verify failed:', err)
-      setUspsError(err.message || 'Verification failed')
+      console.warn('USPS verify skipped:', err.message)
+      // Don't show error to user — edge function may not be deployed
+      setUspsError(null)
     } finally {
       setVerifying(false)
     }

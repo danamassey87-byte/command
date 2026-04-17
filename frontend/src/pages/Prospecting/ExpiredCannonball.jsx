@@ -1209,7 +1209,7 @@ ${labelHtml}
   return (
     <div className="ec-page">
       <SectionHeader
-        title="Expired / Cannonball Tracker"
+        title="Expired Listing Tracker"
         subtitle={`${stats.total} contacts across all mail waves`}
         actions={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>

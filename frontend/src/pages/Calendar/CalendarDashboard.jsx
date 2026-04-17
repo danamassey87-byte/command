@@ -63,9 +63,9 @@ export default function CalendarDashboard() {
 
   // Upcoming events (all types merged, sorted by date)
   const upcoming = [
-    ...weekShowings.map(s => ({ id: `s-${s.id}`, type: 'Showing', name: s.contact?.name ?? '—', date: s.date, count: (s.showings ?? []).length + ' properties' })),
-    ...weekAppts.map(a => ({ id: `a-${a.id}`, type: 'Listing Appt', name: a.contact?.name ?? '—', date: getApptDate(a), time: a.scheduled_at ? new Date(a.scheduled_at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : null })),
-    ...weekOH.map(o => ({ id: `o-${o.id}`, type: 'Open House', name: o.property?.address ?? '—', date: o.date, time: o.start_time })),
+    ...weekShowings.map(s => ({ id: `s-${s.id}`, type: 'Showing', name: s.contact?.name ?? '—', date: s.date, count: (s.showings ?? []).length + ' properties', link: '/buyer-showings' })),
+    ...weekAppts.map(a => ({ id: `a-${a.id}`, type: 'Listing Appt', name: a.contact?.name ?? '—', date: getApptDate(a), time: a.scheduled_at ? new Date(a.scheduled_at).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' }) : null, link: '/listing-appts' })),
+    ...weekOH.map(o => ({ id: `o-${o.id}`, type: 'Open House', name: o.property?.address ?? '—', date: o.date, time: o.start_time, link: '/open-houses' })),
   ].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '')).slice(0, 8)
 
   // This month count
@@ -81,11 +81,11 @@ export default function CalendarDashboard() {
     <div className="section-dash cal-dash">
 
       <div className="section-dash__kpis">
-        <StatCard label="Today's Showings" value={todayShowings.length} accent />
-        <StatCard label="Today's Appts" value={todayAppts.length} />
-        <StatCard label="This Week" value={weekShowings.length + weekAppts.length + weekOH.length} />
-        <StatCard label="Month Showings" value={monthShowings.length} />
-        <StatCard label="Upcoming OH" value={weekOH.length} />
+        <Link to="/calendar/today" style={{ textDecoration: 'none' }}><StatCard label="Today's Showings" value={todayShowings.length} accent /></Link>
+        <Link to="/listing-appts" style={{ textDecoration: 'none' }}><StatCard label="Today's Appts" value={todayAppts.length} /></Link>
+        <Link to="/calendar/schedule" style={{ textDecoration: 'none' }}><StatCard label="This Week" value={weekShowings.length + weekAppts.length + weekOH.length} /></Link>
+        <Link to="/buyer-showings" style={{ textDecoration: 'none' }}><StatCard label="Month Showings" value={monthShowings.length} /></Link>
+        <Link to="/open-houses" style={{ textDecoration: 'none' }}><StatCard label="Upcoming OH" value={weekOH.length} /></Link>
       </div>
 
       <div className="sd-row sd-row--60-40">
@@ -93,7 +93,7 @@ export default function CalendarDashboard() {
           {upcoming.length > 0 ? (
             <div className="cal-schedule">
               {upcoming.map(ev => (
-                <div key={ev.id} className="cal-event-row">
+                <Link key={ev.id} to={ev.link} className="cal-event-row" style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}>
                   <div className="cal-event-row__left">
                     <span className="cal-event-row__name">{ev.name}</span>
                     <span className="cal-event-row__meta">
@@ -101,7 +101,7 @@ export default function CalendarDashboard() {
                     </span>
                   </div>
                   <Badge variant={ev.type === 'Showing' ? 'info' : ev.type === 'Listing Appt' ? 'warning' : 'success'} size="sm">{ev.type}</Badge>
-                </div>
+                </Link>
               ))}
             </div>
           ) : <p className="sd-empty">No events this week</p>}

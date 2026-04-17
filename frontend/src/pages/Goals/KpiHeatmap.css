@@ -7,9 +7,11 @@
   -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  padding: var(--space-xl);
+  padding: var(--space-lg);
   box-shadow: var(--shadow-xs);
   position: relative;
+  max-width: 100%;
+  overflow: hidden;
 
   /* Heat color ramp (brown) */
   --heat-0: #ece8e1;
@@ -20,12 +22,12 @@
   --heat-5: #3A2A1E;
 
   /* Layout */
-  --heat-cell-size: 22px;
-  --heat-cell-gap: 4px;
-  --heat-month-size: 56px;
-  --heat-month-gap: 6px;
-  --heat-label-width: 220px;
-  --heat-q-label-width: 22px;
+  --heat-cell-size: 18px;
+  --heat-cell-gap: 3px;
+  --heat-month-size: 32px;
+  --heat-month-gap: 3px;
+  --heat-label-width: 180px;
+  --heat-q-label-width: 20px;
 
   /* Active row size — overridden per view-mode */
   --heat-row-cell-size: var(--heat-cell-size);
@@ -145,13 +147,13 @@
 .kpi-heatmap__rows {
   display: flex;
   flex-direction: column;
-  gap: var(--space-lg);
+  gap: var(--space-md);
 }
 
 .heat-row {
   display: flex;
   align-items: center;
-  gap: var(--space-lg);
+  gap: var(--space-md);
 }
 
 .heat-row__label {
@@ -233,8 +235,7 @@
 .heat-row__cells {
   display: grid;
   gap: var(--heat-cell-gap);
-  flex-shrink: 0;
-  padding: 8px;
+  padding: 6px;
   background: rgba(82, 65, 54, 0.04);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border-light);
@@ -246,9 +247,9 @@
   grid-auto-rows: var(--heat-cell-size);
 }
 
-/* Monthly: 3 cols × 4 rows, bigger cells with month label inside */
+/* Monthly: 12 cols × 1 row, compact inline */
 .heat-row__cells--monthly {
-  grid-template-columns: repeat(3, var(--heat-month-size));
+  grid-template-columns: repeat(12, var(--heat-month-size));
   grid-auto-rows: var(--heat-month-size);
   gap: var(--heat-month-gap);
 }
@@ -404,33 +405,40 @@
   text-align: right;
 }
 
+/* Keep grids from overflowing — allow horizontal scroll only on the cells */
+.heat-row__grid-wrap {
+  overflow-x: auto;
+  min-width: 0;
+  flex: 1;
+}
+
 /* Responsive */
 @media (max-width: 1200px) {
   .kpi-heatmap {
-    --heat-label-width: 180px;
-    --heat-cell-size: 18px;
+    --heat-label-width: 160px;
+    --heat-cell-size: 16px;
+    --heat-cell-gap: 2px;
+    --heat-month-size: 36px;
+    --heat-month-gap: 3px;
   }
 }
 @media (max-width: 900px) {
   .kpi-heatmap {
     padding: var(--space-lg);
-    --heat-label-width: 150px;
-    --heat-cell-size: 16px;
-    --heat-cell-gap: 3px;
+    --heat-label-width: 140px;
+    --heat-cell-size: 14px;
+    --heat-cell-gap: 2px;
+    --heat-month-size: 32px;
   }
   .heat-row__name { font-size: 0.74rem; }
   .heat-row__total { font-size: 0.95rem; }
 }
 @media (max-width: 640px) {
-  .kpi-heatmap { --heat-cell-size: 18px; }
+  .kpi-heatmap { --heat-cell-size: 14px; --heat-label-width: 120px; }
   .kpi-heatmap__header { flex-direction: column; align-items: stretch; }
-  .heat-row { flex-direction: column; align-items: stretch; gap: var(--space-sm); }
   .heat-row__label {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--color-border-light);
-    padding-right: 0;
-    padding-bottom: var(--space-sm);
+    width: var(--heat-label-width);
+    flex-shrink: 0;
   }
-  .heat-row__grid-wrap { justify-content: flex-start; }
+  .heat-row__grid-wrap { justify-content: flex-start; overflow-x: auto; }
 }

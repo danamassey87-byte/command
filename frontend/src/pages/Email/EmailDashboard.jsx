@@ -53,11 +53,11 @@ export default function EmailDashboard() {
                 <span className="em-tool-link__desc">Design emails with drag-and-drop blocks</span>
               </div>
             </Link>
-            <Link to="/email/templates" className="em-tool-link">
+            <Link to="/email/builder" className="em-tool-link">
               <span className="em-tool-link__icon">📄</span>
               <div>
-                <span className="em-tool-link__name">Saved Templates</span>
-                <span className="em-tool-link__desc">Your library of reusable templates</span>
+                <span className="em-tool-link__name">Templates & Builder</span>
+                <span className="em-tool-link__desc">Saved templates and drag-and-drop email builder</span>
               </div>
             </Link>
             <Link to="/email/newsletters" className="em-tool-link">
@@ -77,8 +77,15 @@ export default function EmailDashboard() {
             <Link to="/email/sent" className="em-tool-link">
               <span className="em-tool-link__icon">✅</span>
               <div>
-                <span className="em-tool-link__name">Sent History</span>
-                <span className="em-tool-link__desc">Track and review sent emails</span>
+                <span className="em-tool-link__name">Send Log</span>
+                <span className="em-tool-link__desc">Individual email send history</span>
+              </div>
+            </Link>
+            <Link to="/email/reporting" className="em-tool-link">
+              <span className="em-tool-link__icon">📊</span>
+              <div>
+                <span className="em-tool-link__name">Reporting</span>
+                <span className="em-tool-link__desc">Campaign stats, open rates, client history</span>
               </div>
             </Link>
           </div>
