@@ -311,8 +311,8 @@ export default function App() {
 }
 
 function LoginGate() {
-  const { user, loading } = useAuth()
+  const { user, loading, demoMode } = useAuth()
   if (loading) return null
-  if (user) return <Navigate to="/" replace />
+  if (user || demoMode) return <Navigate to="/" replace />
   return <Login />
 }

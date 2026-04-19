@@ -1,8 +1,12 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../lib/AuthContext'
 import supabase from '../../lib/supabase'
 import './Login.css'
 
 export default function Login() {
+  const navigate = useNavigate()
+  const { enterDemoMode } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
@@ -73,6 +77,18 @@ export default function Login() {
             {loading ? 'Please wait...' : isSignUp ? 'Create Account' : 'Sign In'}
           </button>
         </form>
+
+        <div className="login__divider">
+          <span>or</span>
+        </div>
+
+        <button
+          className="login__demo-btn"
+          onClick={() => { enterDemoMode(); navigate('/') }}
+        >
+          Explore Demo
+        </button>
+        <p className="login__demo-hint">Browse the full app with sample data — no account needed</p>
 
         <p className="login__toggle">
           {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}

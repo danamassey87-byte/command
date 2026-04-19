@@ -9,6 +9,7 @@ export default supabase
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 async function query(promise) {
+  if (window.__DEMO_MODE__) return []
   const { data, error } = await promise
   if (error) throw new Error(error.message)
   return data

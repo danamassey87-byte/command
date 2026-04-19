@@ -9,6 +9,7 @@ import FavoritesTray from './FavoritesTray'
 import NotesWidget from './NotesWidget'
 import { useNotesContext } from '../../lib/NotesContext'
 import { syncListingContentReminders } from '../../lib/safeguards'
+import DemoBanner from '../DemoBanner'
 import './Layout.css'
 
 const pageTitles = {
@@ -153,6 +154,7 @@ export default function Layout() {
 
   return (
     <MobileMenuContext.Provider value={ctxValue}>
+      <DemoBanner />
       <div className="layout">
         <TopNav />
         <div className={`layout__body ${showSidebar ? 'layout__body--with-sidebar' : ''}`}>
