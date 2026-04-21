@@ -12,6 +12,9 @@ import * as DB from '../../lib/supabase.js'
 import { emit as emitNotification, emitListingContentReminder } from '../../lib/notifications.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
 import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
+import SocialProfilesPanel from '../../components/SocialProfilesPanel.jsx'
+import LifeEventsPanel from '../../components/LifeEventsPanel.jsx'
+import FamilyLinksPanel from '../../components/FamilyLinksPanel.jsx'
 import ChecklistRunner from '../../components/ChecklistRunner.jsx'
 import SellerWeeklyUpdate from '../../components/SellerWeeklyUpdate.jsx'
 import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
@@ -3436,6 +3439,9 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         <div style={{ marginTop: 16 }}>
           <SellerEmailEngagement contactId={listing.contact_id} />
           <IntakeFormTracker contactId={listing.contact_id} contactEmail={listing.contact_email || listing.contact?.email} contactName={listing.contact_name || listing.contact?.name} />
+          <SocialProfilesPanel contactId={listing.contact_id} />
+          <FamilyLinksPanel contactId={listing.contact_id} />
+          <LifeEventsPanel contactId={listing.contact_id} />
           <InteractionsTimeline contactId={listing.contact_id} />
 
           {/* Seller weekly update */}

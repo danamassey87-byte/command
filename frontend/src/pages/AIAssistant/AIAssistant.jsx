@@ -83,29 +83,27 @@ export default function AIAssistant() {
     setLoading(true)
 
     try {
-      // Build context from recent interactions + RAG
-      const systemPrompt = `You are Dana Massey's real estate AI assistant. Dana is a solo agent in Arizona with REAL Brokerage, focused on the East Valley / Gilbert market.
+      // Build conversation history for multi-turn context
+      const conversationHistory = [...messages, userMsg].map(m => ({
+        role: m.role,
+        content: m.content,
+      }))
 
-Rules:
-- Always comply with Fair Housing Act — never reference protected classes
-- Include brokerage disclosure (REAL Brokerage) in any marketing copy
-- Never use guarantee language about sales or prices
-- Match Dana's tone: warm, direct, professional but not stuffy
-- For listing descriptions: lead with lifestyle, mention key features, end with call to action
-- For emails: personal touch, no corporate-speak
-- For social: engaging hooks, hashtag suggestions, platform-specific formatting
+      // Call the ai-assistant-chat edge function (Claude-powered)
+      const { data: aiResponse, error: aiError } = await supabase.functions.invoke('ai-assistant-chat', {
+        body: {
+          messages: conversationHistory,
+          contact_id: attachedContact?.id || null,
+        },
+      })
 
-If generating content that will be published, note any compliance considerations.`
-
-      // Use Claude via the existing AI prompts system or direct call
-      // For now, generate a helpful response locally
-      // In production, this would call an edge function that wraps Claude
-      const responses = generateLocalResponse(text.trim(), messages)
+      if (aiError) throw new Error(aiError.message || 'AI request failed')
+      if (aiResponse?.error) throw new Error(aiResponse.error)
 
       const assistantMsg = {
         role: 'assistant',
-        content: responses.text,
-        compliance: responses.compliance || null,
+        content: aiResponse.text || 'Sorry, I got an empty response. Please try again.',
+        compliance: aiResponse.compliance || null,
       }
       setMessages(prev => [...prev, assistantMsg])
 
@@ -114,13 +112,15 @@ If generating content that will be published, note any compliance considerations
         kind: 'note',
         channel: 'command',
         body: `AI Assistant: ${text.trim().slice(0, 100)}...`,
+        contact_id: attachedContact?.id || null,
         metadata: { type: 'ai-chat', prompt_length: text.length },
       }).catch(() => {})
 
-      // Track estimated cost
-      const estimatedTokens = (text.length + responses.text.length) / 4
-      const estimatedCost = estimatedTokens * 0.000003 // Sonnet pricing rough estimate
-      setCostThisSession(prev => prev + estimatedCost)
+      // Track actual cost from usage data
+      const usage = aiResponse.usage || {}
+      const inputCost = (usage.input_tokens || 0) * 0.000003
+      const outputCost = (usage.output_tokens || 0) * 0.000015
+      setCostThisSession(prev => prev + inputCost + outputCost)
 
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${e.message}. Connect your Anthropic API key in Settings > Connected Accounts to enable AI responses.` }])
@@ -279,154 +279,3 @@ If generating content that will be published, note any compliance considerations
   )
 }
 
-// ─── Local response generator (placeholder until Claude API is wired) ────────
-function generateLocalResponse(prompt, history) {
-  const p = prompt.toLowerCase()
-
-  if (p.includes('listing description') || p.includes('mls description')) {
-    return {
-      text: `Here's a listing description framework for your property:
-
-**Headline:** [Lifestyle hook — what will the buyer's life look like here?]
-
-**Opening:** Start with the emotional hook — the feeling of coming home. Don't lead with beds/baths.
-
-**Body:**
-- Key upgrades and features (kitchen, primary suite, outdoor living)
-- Neighborhood and lifestyle (schools, parks, shopping, dining)
-- Smart home / energy efficiency if applicable
-
-**Closing:** Clear call to action with your contact info.
-
-**Compliance notes:**
-- Include "Brokered by REAL Brokerage"
-- Avoid terms like "family neighborhood" (Fair Housing)
-- Don't guarantee any values or appreciation
-
-Want me to draft a specific one? Give me the address and key features.`,
-      compliance: 'pass',
-    }
-  }
-
-  if (p.includes('follow-up') || p.includes('email')) {
-    return {
-      text: `Here's a follow-up email draft:
-
----
-
-**Subject:** Great meeting you [at the open house / at yesterday's showings]!
-
-Hi [Name],
-
-It was wonderful [showing you homes yesterday / meeting you at the open house at {address}]. I really enjoyed hearing about what you're looking for.
-
-[Personal detail — reference something specific they mentioned]
-
-I wanted to follow up with [a few more options that match what we discussed / some additional information about the property].
-
-Would you be free [this week / Thursday afternoon] for a quick call to discuss next steps?
-
-Looking forward to connecting!
-
-Warm regards,
-Dana Massey
-REAL Brokerage | Arizona
-dana@danamassey.com
-
----
-
-**Tips:** Personalize the bracketed sections. Send within 24 hours of the interaction.`,
-      compliance: 'pass',
-    }
-  }
-
-  if (p.includes('open house') || p.includes('oh prep') || p.includes('heat')) {
-    return {
-      text: `**Arizona Open House Prep Checklist (Hot Weather Edition):**
-
-**48 Hours Before:**
-- Confirm A/C is set to 72°F (pre-cool if vacant)
-- Stock bottled water (frozen bottles work great — they thaw by showtime)
-- Order directional signs + check they won't melt or blow over
-- Post social media announcement with time, address, and "escape the heat" hook
-
-**Day-Of:**
-- Arrive 30 min early to cool the house and turn on all lights
-- Set out water station at the entry
-- Close blinds on sun-facing windows
-- Place entry mat (people track in dust)
-- Have sign-in kiosk ready (iPad charged + QR printed)
-
-**During:**
-- Greet at the door — don't let visitors wander without introduction
-- Ask about timeline and pre-approval status (qualify)
-- Note which rooms get the most attention
-
-**After:**
-- Process sign-ins within 1 hour
-- Send follow-up emails same day
-- Update your listing agent with attendance + feedback
-
-**Heat-specific warnings:** If it's 110°+, consider a shorter window (1 hour vs 2) and mention A/C comfort in your marketing.`,
-      compliance: 'pass',
-    }
-  }
-
-  if (p.includes('social') || p.includes('instagram') || p.includes('caption')) {
-    return {
-      text: `Here's an Instagram caption framework:
-
-**Hook (first line — this is what shows before "more"):**
-"This kitchen is giving main character energy 🤩" or "POV: You just found your dream home in Gilbert"
-
-**Body:**
-- 2-3 key features with personality
-- Neighborhood/lifestyle angle
-- Price if public, "DM for details" if not
-
-**Call to action:**
-"Save this for your house hunting folder 📌"
-"Tag someone who needs to see this home 👀"
-"Link in bio for the full listing"
-
-**Hashtags (mix of these):**
-#GilbertAZ #ArizonaRealEstate #EastValleyHomes #GilbertRealtor #AZRealEstate #NewListing #JustListed #DreamHome #HomeForSale #RealBrokerage
-
-**Compliance note:** Don't use "perfect for families" or reference schools/churches directly in the caption. Focus on the home's features.`,
-      compliance: 'pass',
-    }
-  }
-
-  if (p.includes('objection') || p.includes('wait') || p.includes('spring')) {
-    return {
-      text: `**Objection: "I want to wait until spring to list"**
-
-**Acknowledge:** "I totally understand that thinking — spring has always been seen as the traditional selling season."
-
-**Reframe with data:**
-"Here's what's interesting about our market right now:
-- Inventory is lower in [current season], which means less competition for your home
-- Serious buyers are out year-round in Arizona — we don't have the weather barriers other markets do
-- Interest rates [current context] are motivating buyers to act now
-- Homes listed before the spring rush often get more attention"
-
-**Plant the seed:**
-"What I'd recommend is this: let me run a market analysis now so we know exactly where your home stands. That way, whether you list now or in spring, you'll be making the decision with real data — not guesswork."
-
-**Close:** "Can I swing by [this week] to take a look and put the numbers together? No pressure either way."
-
-**Key:** Don't argue. Acknowledge, then present an alternative framing with data. The CMA is your foot in the door.`,
-      compliance: 'pass',
-    }
-  }
-
-  // Default
-  return {
-    text: `I'd be happy to help with that! Here are some thoughts:
-
-${prompt.length > 50 ? 'Based on what you described, here are a few approaches to consider:\n\n1. **Start with the data** — pull relevant market stats or client history to ground your approach\n2. **Draft, then refine** — I can help you create a first draft, then we iterate\n3. **Compliance check** — I\'ll flag any Fair Housing, ADRE, or NAR concerns\n\nCould you give me a bit more detail about the specific situation? For example:\n- Which client or property is this for?\n- What\'s the desired outcome?\n- Any specific tone or style preferences?' : 'Could you tell me more about what you\'re working on? I can help with:\n\n- **Writing:** Listing descriptions, emails, social captions, newsletters\n- **Strategy:** Pricing analysis, marketing plans, objection handling\n- **Preparation:** Open house prep, listing appointment prep, CMA talking points\n- **Compliance:** Review any content for Fair Housing, ADRE, and NAR compliance'}
-
-Just ask naturally — I'm here to help.`,
-    compliance: null,
-  }
-}

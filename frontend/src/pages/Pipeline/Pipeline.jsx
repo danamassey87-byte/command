@@ -8,6 +8,7 @@ import { useBrandSignature } from '../../lib/BrandContext'
 import * as DB from '../../lib/supabase.js'
 import ChecklistRunner from '../../components/ChecklistRunner.jsx'
 import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
+import { logDealStageChange } from '../../lib/interactionBridges.js'
 import './Pipeline.css'
 
 // ─── Arizona Transaction Stages ──────────────────────────────────────────────
@@ -934,6 +935,13 @@ export default function Pipeline() {
         update.offer_submitted_at = new Date().toISOString()
       }
       await DB.updateTransaction(deal.id, update)
+      logDealStageChange({
+        contactId: deal.contact_id,
+        dealId: deal.id,
+        fromStage: current.label,
+        toStage: next.label,
+        propertyAddress: deal.property_address || deal.address,
+      })
       refetch()
     } catch (err) {
       alert('Error: ' + err.message)
