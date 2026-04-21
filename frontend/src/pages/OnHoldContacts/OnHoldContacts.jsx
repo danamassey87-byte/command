@@ -2,7 +2,9 @@ import { useState, useMemo } from 'react'
 import { SectionHeader, Button, Badge } from '../../components/ui/index.jsx'
 import { useOnHoldContacts } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
-import CommunicationLog from '../../components/CommunicationLog.jsx'
+import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
+import SocialProfilesPanel from '../../components/SocialProfilesPanel.jsx'
+import LifeEventsPanel from '../../components/LifeEventsPanel.jsx'
 import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
 import './OnHoldContacts.css'
 
@@ -204,7 +206,9 @@ export default function OnHoldContacts() {
                 {expandedId === contact.id && (
                   <div style={{ marginTop: 12, borderTop: '1px solid var(--color-border-light, #f0ece6)', paddingTop: 12 }}>
                     <IntakeFormTracker contactId={contact.id} contactEmail={contact.email} contactName={contact.name} />
-                    <CommunicationLog contactId={contact.id} />
+                    <SocialProfilesPanel contactId={contact.id} />
+                    <LifeEventsPanel contactId={contact.id} />
+                    <InteractionsTimeline contactId={contact.id} />
                   </div>
                 )}
               </div>

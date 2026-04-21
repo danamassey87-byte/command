@@ -10,6 +10,8 @@ import NotesWidget from './NotesWidget'
 import { useNotesContext } from '../../lib/NotesContext'
 import { syncListingContentReminders } from '../../lib/safeguards'
 import DemoBanner from '../DemoBanner'
+import CommandPalette from '../CommandPalette'
+import QuickLogButton from '../QuickLogButton'
 import './Layout.css'
 
 const pageTitles = {
@@ -155,6 +157,8 @@ export default function Layout() {
   return (
     <MobileMenuContext.Provider value={ctxValue}>
       <DemoBanner />
+      <CommandPalette />
+      <QuickLogButton />
       <div className="layout">
         <TopNav />
         <div className={`layout__body ${showSidebar ? 'layout__body--with-sidebar' : ''}`}>
@@ -166,6 +170,18 @@ export default function Layout() {
                 <p className="layout__date">{today}</p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
+                  title="Command Palette (⌘K)"
+                  style={{
+                    padding: '5px 10px', background: '#fff', border: '1px solid var(--color-border, #C8C3B9)',
+                    borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                    fontSize: '0.72rem', color: 'var(--color-text-muted, #B79782)',
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', padding: '1px 4px', background: 'var(--cream)', borderRadius: 3, border: '1px solid var(--color-border)' }}>⌘K</span>
+                </button>
                 <GlobalSearch />
                 <button onClick={() => setQuickAddOpen(true)} style={{
                   padding: '6px 12px', background: 'var(--brown-mid)', color: '#fff',

@@ -70,6 +70,15 @@ export async function submitPublicForm({ formId, slug, clientName, data }) {
       user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
     })
   if (error) throw new Error(error.message)
+
+  // Bridge to interactions (fire-and-forget)
+  try {
+    const { logIntakeFormSubmission } = await import('./interactionBridges')
+    // If there's a merged contact, log the interaction
+    if (data?.email || data?.phone) {
+      logIntakeFormSubmission({ contactId: null, formName: slug || 'intake form' })
+    }
+  } catch { /* silent */ }
 }
 
 /** Authed read — get all submissions across all forms. */

@@ -1,6 +1,8 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Button, Badge, Select } from '../../components/ui/index.jsx'
+import ComplianceCheck from '../../components/ComplianceCheck.jsx'
+import supabase from '../../lib/supabase.js'
 import { PropertyPicker } from '../../components/ui/PropertyPicker.jsx'
 import { HashtagPicker } from '../../components/ui/HashtagPicker.jsx'
 import * as DB from '../../lib/supabase.js'
@@ -428,6 +430,13 @@ export default function PostComposer() {
 
       if (!anyFailed) {
         await DB.updateContentPiece(piece.id, { status: 'published' })
+        // Log to blotato_posts table
+        supabase.from('blotato_posts').insert({
+          content_piece_id: piece.id,
+          platforms: selectedPlatforms,
+          status: 'posted',
+          metadata: { caption_preview: mainCaption?.slice(0, 100) },
+        }).then(() => {}).catch(() => {})
       }
     } catch (err) {
       console.error('Publish error:', err)
@@ -725,6 +734,14 @@ export default function PostComposer() {
                 type="time"
                 value={scheduleTime}
                 onChange={e => setScheduleTime(e.target.value)}
+              />
+            </div>
+            {/* Compliance gate */}
+            <div style={{ marginBottom: 8 }}>
+              <ComplianceCheck
+                targetKind="social-post"
+                targetId={piece?.id || 'draft'}
+                content={mainCaption}
               />
             </div>
             <div className="pc-schedule__buttons">

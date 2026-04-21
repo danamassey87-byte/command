@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Button } from '../../components/ui/index.jsx'
+import ComplianceCheck from '../../components/ComplianceCheck.jsx'
 import { useBrand } from '../../lib/BrandContext'
 import { BrandColorPicker, BorderRadiusControl, FontPicker, FontSizeControl, SpacingControl } from '../../components/ui/StyleControls'
 import { PropertyPicker } from '../../components/ui/PropertyPicker'
@@ -1497,6 +1498,15 @@ export default function EmailBuilder() {
           </div>
         </div>
       )}
+
+      {/* Compliance Check */}
+      <div style={{ margin: '0 0 12px' }}>
+        <ComplianceCheck
+          targetKind="email"
+          targetId={subject || 'draft'}
+          content={[subject, ...blocks.filter(b => b.type === 'text' || b.type === 'heading').map(b => b.text || b.label || '')].join(' ')}
+        />
+      </div>
 
       {/* Two-column: Editor + Preview */}
       <div className="eb__workspace">

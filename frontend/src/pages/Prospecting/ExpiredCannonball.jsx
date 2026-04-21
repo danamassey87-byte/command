@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { Button, Badge, SectionHeader, TabBar, SlidePanel, Input, Textarea } from '../../components/ui/index.jsx'
 import * as DB from '../../lib/supabase.js'
 import { emitExpiredApptFollowup, resolveExpiredApptFollowup } from '../../lib/notifications.js'
+import ExpiredLeadsDb from '../../components/ExpiredLeadsDb.jsx'
 import INITIAL_DATA from './expiredData.js'
 import './ExpiredCannonball.css'
 
@@ -329,6 +330,7 @@ export default function ExpiredCannonball() {
   const [checkAllMode, setCheckAllMode] = useState(false)
   const [checkAllIndex, setCheckAllIndex] = useState(0)
   const [showLabelModal, setShowLabelModal] = useState(false)
+  const [dataSource, setDataSource] = useState('local') // 'local' | 'db'
   const [labelSelections, setLabelSelections] = useState({}) // { [id]: 'property' | 'mailing' | false }
   const [labelSelectAll, setLabelSelectAll] = useState(false)
   const [showStatusHelp, setShowStatusHelp] = useState(false)
@@ -1236,6 +1238,27 @@ ${labelHtml}
         }
       />
 
+      {/* ── Data source toggle ── */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
+        <button onClick={() => setDataSource('local')} style={{
+          padding: '5px 14px', fontSize: '0.75rem', borderRadius: 6, cursor: 'pointer',
+          border: `1px solid ${dataSource === 'local' ? 'var(--brown-dark)' : 'var(--color-border)'}`,
+          background: dataSource === 'local' ? 'var(--brown-dark)' : 'transparent',
+          color: dataSource === 'local' ? 'var(--cream)' : 'var(--brown-warm)',
+        }}>Local Data (Current)</button>
+        <button onClick={() => setDataSource('db')} style={{
+          padding: '5px 14px', fontSize: '0.75rem', borderRadius: 6, cursor: 'pointer',
+          border: `1px solid ${dataSource === 'db' ? 'var(--brown-dark)' : 'var(--color-border)'}`,
+          background: dataSource === 'db' ? 'var(--brown-dark)' : 'transparent',
+          color: dataSource === 'db' ? 'var(--cream)' : 'var(--brown-warm)',
+        }}>Database</button>
+      </div>
+
+      {dataSource === 'db' ? (
+        <ExpiredLeadsDb />
+      ) : (
+      <>
+
       {/* ── Cannonball Process Reference ── */}
       {showProcess && (
         <div className="ec-process-card">
@@ -1975,6 +1998,8 @@ ${labelHtml}
             setScriptPopup(null)
           }}
         />
+      )}
+      </>
       )}
     </div>
   )

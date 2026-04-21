@@ -6,6 +6,7 @@ import { blocksToHtml } from '../../lib/emailHtml'
 import BlockComposer from '../../components/email/BlockComposer'
 import { newBlock, fillSigBlock, BLOCK_PALETTE } from '../EmailBuilder/EmailBuilder.jsx'
 import * as DB from '../../lib/supabase'
+import ComplianceCheck from '../../components/ComplianceCheck.jsx'
 import './Newsletters.css'
 
 // ─── Newsletter Templates ────────────────────────────────────────────────────
@@ -376,6 +377,14 @@ export default function Newsletters() {
               <Button variant="primary" size="sm" onClick={() => handleSave('scheduled')} disabled={saving}>Schedule</Button>
             )}
           </div>
+        </div>
+        {/* Compliance gate */}
+        <div style={{ margin: '8px 0' }}>
+          <ComplianceCheck
+            targetKind="newsletter"
+            targetId={editing?.id || 'draft'}
+            content={[subject, ...(blocks ?? []).filter(b => b.type === 'text' || b.type === 'heading').map(b => b.text || b.label || '')].join(' ')}
+          />
         </div>
 
         {/* Recipient picker + schedule */}

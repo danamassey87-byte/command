@@ -1,6 +1,9 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Badge, SlidePanel } from '../../components/ui/index.jsx'
+import UpcomingEventsWidget from '../../components/UpcomingEventsWidget.jsx'
+import RecentActivityFeed from '../../components/RecentActivityFeed.jsx'
+import CostMiniWidget from '../../components/CostMiniWidget.jsx'
 import { useDashboardData, useAllDailyTasks, useDailyStreaks, useProperties, useExpenseCategories, useAllExpenses } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext'
 import * as DB from '../../lib/supabase.js'
@@ -1552,6 +1555,13 @@ export default function Dashboard() {
                 </DraggableWidget>
               )
             })}
+          </div>
+
+          {/* Command widgets */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 12 }}>
+            <RecentActivityFeed limit={8} />
+            <UpcomingEventsWidget days={30} limit={6} />
+            <CostMiniWidget />
           </div>
         </>
       )}

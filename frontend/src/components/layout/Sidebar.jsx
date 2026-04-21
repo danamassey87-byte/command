@@ -61,6 +61,15 @@ const navSections = [
           </svg>
         ),
       },
+      {
+        label: 'Home Value', path: '/home-value',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12L12 3l9 9" /><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
+            <line x1="12" y1="13" x2="12" y2="17" /><line x1="10" y1="15" x2="14" y2="15" />
+          </svg>
+        ),
+      },
     ],
   },
   {
@@ -170,6 +179,31 @@ const navSections = [
           </svg>
         ),
       },
+      {
+        label: 'Reviews', path: '/reviews',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Post-Close', path: '/post-close',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Print & Mail', path: '/print',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" />
+            <rect x="6" y="14" width="12" height="8" />
+          </svg>
+        ),
+      },
     ],
   },
   {
@@ -185,6 +219,38 @@ const navSections = [
             <circle cx="8" cy="16" r="1" fill="currentColor" stroke="none" />
             <circle cx="12" cy="16" r="1" fill="currentColor" stroke="none" />
             <circle cx="16" cy="16" r="1" fill="currentColor" stroke="none" />
+          </svg>
+        ),
+      },
+      {
+        label: 'Media Library', path: '/media',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" />
+            <polyline points="21 15 16 10 5 21" />
+          </svg>
+        ),
+      },
+      {
+        label: 'SEO & AEO', path: '/seo',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" />
+          </svg>
+        ),
+      },
+    ],
+  },
+  {
+    label: 'TOOLS',
+    items: [
+      {
+        label: 'AI Assistant', path: '/ai',
+        icon: (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a7 7 0 017 7v4a7 7 0 01-14 0V9a7 7 0 017-7z" />
+            <line x1="8" y1="10" x2="8" y2="10.01" /><line x1="16" y1="10" x2="16" y2="10.01" />
+            <path d="M9 15c.6.9 1.6 1.5 3 1.5s2.4-.6 3-1.5" />
           </svg>
         ),
       },

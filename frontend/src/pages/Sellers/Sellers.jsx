@@ -11,7 +11,9 @@ import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
 import { emit as emitNotification, emitListingContentReminder } from '../../lib/notifications.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
-import CommunicationLog from '../../components/CommunicationLog.jsx'
+import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
+import ChecklistRunner from '../../components/ChecklistRunner.jsx'
+import SellerWeeklyUpdate from '../../components/SellerWeeklyUpdate.jsx'
 import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
 import './Sellers.css'
 
@@ -3434,7 +3436,19 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         <div style={{ marginTop: 16 }}>
           <SellerEmailEngagement contactId={listing.contact_id} />
           <IntakeFormTracker contactId={listing.contact_id} contactEmail={listing.contact_email || listing.contact?.email} contactName={listing.contact_name || listing.contact?.name} />
-          <CommunicationLog contactId={listing.contact_id} />
+          <InteractionsTimeline contactId={listing.contact_id} />
+
+          {/* Seller weekly update */}
+          <div style={{ marginTop: 12 }}>
+            <SellerWeeklyUpdate listing={listing} />
+          </div>
+
+          {/* Listing checklist */}
+          {typeof listing.id === 'string' && (
+            <div style={{ marginTop: 12 }}>
+              <ChecklistRunner parentKind="listing" parentId={listing.id} category="listing" />
+            </div>
+          )}
         </div>
       )}
 

@@ -6,6 +6,8 @@ import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import { useBrandSignature } from '../../lib/BrandContext'
 import * as DB from '../../lib/supabase.js'
+import ChecklistRunner from '../../components/ChecklistRunner.jsx'
+import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
 import './Pipeline.css'
 
 // ─── Arizona Transaction Stages ──────────────────────────────────────────────
@@ -1536,12 +1538,30 @@ export default function Pipeline() {
                       </div>
                     )
                   })()}
+
+                  {/* Command checklist */}
+                  {typeof deal.id === 'string' && (
+                    <div style={{ marginTop: 16 }}>
+                      <ChecklistRunner
+                        parentKind="deal"
+                        parentId={deal.id}
+                        category={deal.deal_type === 'seller' ? 'listing' : 'buyer'}
+                      />
+                    </div>
+                  )}
                 </>
               )}
 
               {/* ═══ HISTORY TAB ═══ */}
               {detailTab === 'history' && (
-                <DealStageHistory dealId={deal.id} />
+                <>
+                  <DealStageHistory dealId={deal.id} />
+                  {deal.contact_id && (
+                    <div style={{ marginTop: 16 }}>
+                      <InteractionsTimeline contactId={deal.contact_id} compact />
+                    </div>
+                  )}
+                </>
               )}
 
               {/* ═══ SOP TAB ═══ */}

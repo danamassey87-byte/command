@@ -2,6 +2,10 @@ import { useState, useMemo } from 'react'
 import { Button, Badge, SectionHeader, Card, DataTable, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
 import { useInvestors } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
+import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
+import SocialProfilesPanel from '../../components/SocialProfilesPanel.jsx'
+import LifeEventsPanel from '../../components/LifeEventsPanel.jsx'
+import FamilyLinksPanel from '../../components/FamilyLinksPanel.jsx'
 import './Investors.css'
 
 const STRATEGIES = ['buy-hold', 'fix-flip', 'multi-family']
@@ -290,6 +294,16 @@ function InvestorDetail({ investor, onBack, onEdit, onFeedbackChange }) {
           </div>
         )}
       </div>
+
+      {/* Command panels */}
+      {investor.contact_id && (
+        <>
+          <SocialProfilesPanel contactId={investor.contact_id} />
+          <FamilyLinksPanel contactId={investor.contact_id} />
+          <LifeEventsPanel contactId={investor.contact_id} />
+          <InteractionsTimeline contactId={investor.contact_id} />
+        </>
+      )}
     </div>
   )
 }

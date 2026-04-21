@@ -44,6 +44,7 @@ const SECTIONS = {
       { label: 'Referrals',             path: '/prospecting/referrals', icon: 'user' },
       { label: 'OH Prospecting',          path: '/prospecting/oh-leads',  icon: 'users',        group: 'Open Houses' },
       { label: 'Open Houses',            path: '/open-houses',           icon: 'eye' },
+      { label: 'Home Value',             path: '/home-value',            icon: 'home',         group: 'Seller Leads' },
     ],
   },
   people: {
@@ -61,6 +62,9 @@ const SECTIONS = {
       { label: 'On Hold',          path: '/on-hold',             icon: 'clock' },
       { label: 'Vendors',          path: '/vendors',             icon: 'users' },
       { label: 'Investors',        path: '/investors',           icon: 'trending-up' },
+      { label: 'Reviews',          path: '/reviews',             icon: 'target',        group: 'Sphere' },
+      { label: 'Post-Close',       path: '/post-close',          icon: 'check-circle' },
+      { label: 'Print & Mail',     path: '/print',               icon: 'clipboard' },
     ],
   },
   deals: {
@@ -70,6 +74,7 @@ const SECTIONS = {
       { label: 'Deal Board',     path: '/pipeline/board',      icon: 'columns' },
       { label: 'Escrow Tracker', path: '/pipeline/escrow',     icon: 'clock' },
       { label: 'Closed Deals',   path: '/pipeline/closed',     icon: 'check-circle' },
+      { label: 'Post-Close',     path: '/post-close',          icon: 'check-circle',  group: 'After Close' },
     ],
   },
   content: {
@@ -80,6 +85,8 @@ const SECTIONS = {
       { label: 'Publish',       path: '/content/publish',     icon: 'columns' },
       { label: 'Measure',       path: '/content/measure',     icon: 'bar-chart' },
       { label: 'Content Bank',  path: '/content/bank',        icon: 'database' },
+      { label: 'Media Library', path: '/media',               icon: 'columns',       group: 'Assets' },
+      { label: 'SEO & AEO',    path: '/seo',                icon: 'trending-up',   group: 'Growth' },
       { label: 'Ads Manager',   path: '/content/ads',         icon: 'target',        group: 'Ads' },
       { label: 'Ad Reports',    path: '/content/ads/reports', icon: 'bar-chart-2' },
     ],
@@ -133,6 +140,8 @@ const SECTIONS = {
       { label: 'Buyer Playbook',     path: '/pipeline/buyer-sop',  icon: 'clipboard',     group: 'Playbooks' },
       { label: 'Seller Playbook',    path: '/pipeline/seller-sop', icon: 'clipboard' },
       { label: 'Settings',           path: '/settings',            icon: 'zap',           group: 'Settings' },
+      { label: 'System Health',     path: '/settings/system',     icon: 'bar-chart' },
+      { label: 'AI Assistant',      path: '/ai',                  icon: 'zap',           group: 'AI' },
     ],
   },
 }

@@ -3,6 +3,8 @@ import { Button, Badge, SectionHeader, TabBar, DataTable, Card, SlidePanel, Inpu
 import { useOpenHouses, useOHOutreach, useOHTasksForOH, useHostReports, useProperties, useListings } from '../../lib/hooks.js'
 import { useBrandSignature } from '../../lib/BrandContext'
 import * as DB from '../../lib/supabase.js'
+import ChecklistRunner from '../../components/ChecklistRunner.jsx'
+import WeatherPrepFlags from '../../components/WeatherPrepFlags.jsx'
 import './OpenHouses.css'
 
 // ─── Error Boundary ──────────────────────────────────────────────────────────
@@ -756,6 +758,23 @@ function OHDetail({ oh, onBack, onEdit }) {
 
       {/* Sign-In Attendees */}
       {typeof oh.id === 'string' && <AttendeesPanel ohId={oh.id} />}
+
+      {/* Weather + Prep Flags */}
+      {oh.property_id && oh.date && (
+        <WeatherPrepFlags
+          propertyId={oh.property_id}
+          ohDate={oh.date}
+          latitude={oh.property?.latitude ?? oh.latitude}
+          longitude={oh.property?.longitude ?? oh.longitude}
+        />
+      )}
+
+      {/* Command checklist with system badges */}
+      {typeof oh.id === 'string' && (
+        <div style={{ margin: '16px 0' }}>
+          <ChecklistRunner parentKind="oh" parentId={oh.id} category="oh" />
+        </div>
+      )}
 
       <div className="oh-detail__tasks-section">
         <h3 className="oh-detail__tasks-title">Process Checklist</h3>

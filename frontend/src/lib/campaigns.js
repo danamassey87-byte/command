@@ -5,6 +5,7 @@
 // React error boundaries.
 // ─────────────────────────────────────────────────────────────────────────────
 import supabase from './supabase'
+import { logEmailSend } from './interactionBridges'
 
 async function run(promise) {
   const { data, error } = await promise
@@ -347,6 +348,13 @@ export async function markStepSent(enrollmentId, stepIndex, sentVia = 'manual') 
       sent_via: sentVia,
     })
   )
+
+  // Log to unified interactions timeline
+  logEmailSend({
+    contactId: enrollment.contact_id,
+    subject: step.subject,
+    campaignName: campaign.name,
+  })
 
   // Calculate next state
   const nextStep = stepIndex + 1

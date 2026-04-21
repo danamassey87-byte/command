@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { StatCard, Badge } from '../../components/ui/index.jsx'
+import { useState as useStateHook, useEffect as useEffectHook } from 'react'
 import { useLeads, useContacts, useOpenHouses, useAllExpenses, useResources } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
+import supabase from '../../lib/supabase.js'
 import './ProspectingDashboard.css'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -393,6 +395,24 @@ export default function ProspectingDashboard() {
     timeline.push({ title: 'No recent events', sub: 'Schedule an open house to get started', active: false })
   }
 
+  // Command DB pipeline stats
+  const [dbStats, setDbStats] = useStateHook({ expired: 0, fsbo: 0, sellerLeads: 0, hotLeads: 0 })
+  useEffectHook(() => {
+    Promise.all([
+      supabase.from('expired_leads').select('id', { count: 'exact', head: true }),
+      supabase.from('fsbo_leads').select('id', { count: 'exact', head: true }),
+      supabase.from('seller_leads').select('id', { count: 'exact', head: true }),
+      supabase.from('expired_leads').select('id', { count: 'exact', head: true }).eq('status', 'new'),
+    ]).then(([e, f, s, h]) => {
+      setDbStats({
+        expired: e.count ?? 0,
+        fsbo: f.count ?? 0,
+        sellerLeads: s.count ?? 0,
+        hotLeads: h.count ?? 0,
+      })
+    }).catch(() => {})
+  }, [])
+
   if (loading) return <div className="prospect-lux"><div className="sd-loading">Loading prospecting data...</div></div>
 
   return (
@@ -404,6 +424,28 @@ export default function ProspectingDashboard() {
         <KpiCard label="TOTAL SPEND" value={fmtDollar(totalSpend)} sub={`across ${expenses.length} expenses`} />
         <KpiCard label="COST PER LEAD" value={costPerLead > 0 ? `$${costPerLead.toFixed(2)}` : '$0'} sub={converted > 0 ? `${converted} converted` : 'No conversions yet'} />
       </div>
+
+      {/* ─── Command Pipeline Stats ─── */}
+      {(dbStats.expired > 0 || dbStats.fsbo > 0 || dbStats.sellerLeads > 0) && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+          <Link to="/prospecting/expired" style={{ textDecoration: 'none', color: 'inherit', background: 'var(--cream-3, #F6F4EE)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 12, textAlign: 'center' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', lineHeight: 1 }}>{dbStats.expired}</div>
+            <div style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 4 }}>Expired (DB)</div>
+          </Link>
+          <Link to="/prospecting/fsbo" style={{ textDecoration: 'none', color: 'inherit', background: 'var(--cream-3)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 12, textAlign: 'center' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', lineHeight: 1 }}>{dbStats.fsbo}</div>
+            <div style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 4 }}>FSBO (DB)</div>
+          </Link>
+          <Link to="/home-value" style={{ textDecoration: 'none', color: 'inherit', background: 'var(--cream-3)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 12, textAlign: 'center' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', lineHeight: 1 }}>{dbStats.sellerLeads}</div>
+            <div style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 4 }}>Seller Leads</div>
+          </Link>
+          <div style={{ background: dbStats.hotLeads > 0 ? 'rgba(192,96,74,.06)' : 'var(--cream-3)', border: `1px solid ${dbStats.hotLeads > 0 ? 'rgba(192,96,74,.2)' : 'var(--color-border)'}`, borderRadius: 8, padding: 12, textAlign: 'center' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', lineHeight: 1, color: dbStats.hotLeads > 0 ? '#c0604a' : 'var(--brown-dark)' }}>{dbStats.hotLeads}</div>
+            <div style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 4 }}>Need Action</div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Marketing Prep + Stat Cards Row ─── */}
       <div className="prospect-lux__row prospect-lux__row--prep">

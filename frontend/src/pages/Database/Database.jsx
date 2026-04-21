@@ -6,8 +6,12 @@ import { useContactsWithTags, useTags, useListings, useTransactions, useReplyLog
 import { useNavigate } from 'react-router-dom'
 import * as DB from '../../lib/supabase.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
-import CommunicationLog from '../../components/CommunicationLog.jsx'
+import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
+import SocialProfilesPanel from '../../components/SocialProfilesPanel.jsx'
+import LifeEventsPanel from '../../components/LifeEventsPanel.jsx'
+import FamilyLinksPanel from '../../components/FamilyLinksPanel.jsx'
 import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
+import DuplicateDetector from '../../components/DuplicateDetector.jsx'
 import FacebookExport from '../../components/FacebookExport.jsx'
 import LabelPrinter from '../../components/LabelPrinter.jsx'
 import { exportContacts } from '../../lib/csvExport.js'
@@ -211,14 +215,40 @@ export default function Database() {
   // Contact duplicate detection
   const contactDupeGroups = useMemo(() => {
     const groups = {}
+    const seen = new Set()
     for (const c of enriched) {
-      // Normalize: lowercase, strip non-alpha
-      const norm = (c.name ?? '').toLowerCase().replace(/[^a-z]/g, '').trim()
-      if (!norm || norm.length < 3) continue
-      if (!groups[norm]) groups[norm] = []
-      groups[norm].push(c)
+      if (seen.has(c.id)) continue
+      // Key 1: normalized full name
+      const normName = (c.name ?? '').toLowerCase().replace(/[^a-z]/g, '').trim()
+      // Key 2: first_name + last_name (more precise)
+      const normFL = ((c.first_name ?? '') + (c.last_name ?? '')).toLowerCase().replace(/[^a-z]/g, '').trim()
+      // Key 3: email (exact)
+      const normEmail = (c.email ?? '').toLowerCase().trim()
+      // Key 4: phone (digits only)
+      const normPhone = (c.phone ?? '').replace(/[^0-9]/g, '').slice(-10)
+
+      const keys = []
+      if (normName.length >= 3) keys.push('n:' + normName)
+      if (normFL.length >= 3 && normFL !== normName) keys.push('fl:' + normFL)
+      if (normEmail.length >= 5) keys.push('e:' + normEmail)
+      if (normPhone.length >= 7) keys.push('p:' + normPhone)
+
+      for (const key of keys) {
+        if (!groups[key]) groups[key] = []
+        groups[key].push(c)
+      }
     }
-    return Object.values(groups).filter(g => g.length > 1)
+    // Dedupe groups: merge overlapping groups, take unique groups only
+    const result = []
+    const usedIds = new Set()
+    for (const group of Object.values(groups).filter(g => g.length > 1)) {
+      const ids = group.map(c => c.id).sort().join(',')
+      if (usedIds.has(ids)) continue
+      usedIds.add(ids)
+      group.forEach(c => seen.add(c.id))
+      result.push(group)
+    }
+    return result
   }, [enriched])
 
   const [mergingContacts, setMergingContacts] = useState(false)
@@ -491,7 +521,7 @@ export default function Database() {
                           <input type="checkbox" checked={bulkSelected.has(c.id)} onChange={() => toggleBulk(c.id)} />
                         </td>
                         <td className="db-table__name">
-                          {c.name || '—'}
+                          <a href={`/contact/${c.id}`} onClick={e => e.stopPropagation()} style={{ color: 'inherit', textDecoration: 'none' }}>{c.name || '—'}</a>
                           {c.last_reply_scan_at && (
                             <span className="db-replied-badge" title={`Replied to campaign email${c.reply_count > 1 ? ` (${c.reply_count}x)` : ''}`}>Replied</span>
                           )}
@@ -759,8 +789,11 @@ function ContactDetail({ contact, onSave, onTagsChange, saving }) {
       )}
 
       {/* ── Communication Log ── */}
+      <SocialProfilesPanel contactId={contact.id} />
+      <FamilyLinksPanel contactId={contact.id} />
+      <LifeEventsPanel contactId={contact.id} />
       <IntakeFormTracker contactId={contact.id} contactEmail={contact.email} contactName={contact.name} />
-      <CommunicationLog contactId={contact.id} />
+      <InteractionsTimeline contactId={contact.id} />
 
       <button
         className="db-save-btn"

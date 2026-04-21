@@ -214,6 +214,26 @@ export default function OHSignIn() {
         }
       }
 
+      // Also write to Command oh_signins + interactions tables
+      const signInId = partialSavedRef.current || null
+      supabase.from('oh_signins').insert({
+        open_house_id: openHouseId,
+        raw_form: {
+          first_name: firstName.trim(), last_name: lastName.trim(),
+          email: email.trim().toLowerCase() || null, phone: phone.trim() || null,
+          working_with_agent: workingWithAgent, pre_approved: preApproved,
+          timeframe, need_to_sell: needToSell,
+        },
+        tier_at_signin: preApproved ? 'hot' : workingWithAgent ? 'warm' : 'nurture',
+      }).then(() => {}).catch(() => {})
+
+      supabase.from('interactions').insert({
+        kind: 'oh-signin',
+        channel: 'oh-kiosk',
+        body: `${firstName.trim()} ${lastName.trim()} signed in at open house${preApproved ? ' (pre-approved)' : ''}`,
+        metadata: { open_house_id: openHouseId, timeframe, pre_approved: preApproved },
+      }).then(() => {}).catch(() => {})
+
       // Update sign-in count on the open house
       await supabase
         .from('open_houses')

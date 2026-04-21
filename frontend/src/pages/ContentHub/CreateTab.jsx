@@ -62,6 +62,19 @@ export default function CreateTab() {
           <span>&#10024;</span>
           Inspo Library
         </button>
+        <button
+          onClick={() => navigate('/media')}
+          style={{
+            padding: '8px 16px', borderRadius: 8, fontSize: '0.82rem',
+            border: '2px solid transparent', background: '#fff',
+            color: 'var(--brown-warm)', cursor: 'pointer', fontWeight: 500,
+            display: 'flex', alignItems: 'center', gap: 6,
+            whiteSpace: 'nowrap', transition: 'all 0.15s ease',
+          }}
+        >
+          <span>📷</span>
+          Media Library
+        </button>
       </div>
 
       {/* Active mode */}

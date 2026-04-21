@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { SectionHeader, Button, Input, Textarea } from '../../components/ui/index.jsx'
 import { useBrand } from '../../lib/BrandContext'
 import * as DB from '../../lib/supabase'
 import TemplatesTab, { AIPlanPromptsEditor } from './TemplatesTab'
 import Recovery from '../Recovery/Recovery'
+const SystemHealthEmbed = lazy(() => import('../SystemHealth/SystemHealth'))
+const NotificationRulesEmbed = lazy(() => import('../../components/NotificationRulesEditor.jsx'))
+const LoftySyncEmbed = lazy(() => import('../../components/LoftySyncPanel.jsx'))
 import IntakeForms from '../IntakeForms/IntakeForms'
 import './Settings.css'
 
@@ -37,7 +40,7 @@ const SOCIAL_CHANNELS = [
   { key: 'linktree',     label: 'Linktree / Bio', icon: '🔗', placeholder: 'https://linktr.ee/yourlink' },
 ]
 
-const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'connected', 'ai_prompts', 'lists', 'intake_forms', 'notifications', 'tech_stack', 'recovery']
+const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'connected', 'ai_prompts', 'lists', 'intake_forms', 'notifications', 'notification_rules', 'lofty_sync', 'tech_stack', 'system_health', 'recovery']
 
 // Each entry = one user-managed dropdown list shown in the Lists tab.
 const DROPDOWN_LISTS_META = [
@@ -77,7 +80,7 @@ export default function Settings() {
             className={`settings-tab${tab === t ? ' settings-tab--active' : ''}`}
             onClick={() => setTab(t)}
           >
-            {{ signature: 'Signature', templates: 'Templates & Scripts', guidelines: 'Brand Guidelines', assets: 'Logos & Headshots', social: 'Social Channels', connected: 'Connected Accounts', ai_prompts: 'AI Prompts', lists: 'Lists & Tags', intake_forms: 'Intake Forms', notifications: 'Notifications', tech_stack: 'Tech Stack', recovery: 'Trash & Archive' }[t] || t}
+            {{ signature: 'Signature', templates: 'Templates & Scripts', guidelines: 'Brand Guidelines', assets: 'Logos & Headshots', social: 'Social Channels', connected: 'Connected Accounts', ai_prompts: 'AI Prompts', lists: 'Lists & Tags', intake_forms: 'Intake Forms', notifications: 'Notifications', notification_rules: 'Routing Rules', lofty_sync: 'Lofty Sync', tech_stack: 'Tech Stack', system_health: 'System Health', recovery: 'Trash & Archive' }[t] || t}
           </button>
         ))}
       </div>
@@ -92,7 +95,10 @@ export default function Settings() {
       {tab === 'lists'      && <ListsTab />}
       {tab === 'intake_forms' && <IntakeForms />}
       {tab === 'notifications' && <NotificationsTab />}
+      {tab === 'notification_rules' && <Suspense fallback={<p>Loading...</p>}><NotificationRulesEmbed /></Suspense>}
+      {tab === 'lofty_sync'         && <Suspense fallback={<p>Loading...</p>}><LoftySyncEmbed /></Suspense>}
       {tab === 'tech_stack'    && <TechStackTab />}
+      {tab === 'system_health' && <Suspense fallback={<p>Loading...</p>}><SystemHealthEmbed /></Suspense>}
       {tab === 'recovery'   && <Recovery />}
     </div>
   )

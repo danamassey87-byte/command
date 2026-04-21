@@ -25,6 +25,16 @@ import Goals from './pages/Goals/Goals'
 import ContentPlanner from './pages/ContentPlanner/ContentPlanner'
 import Settings from './pages/Settings/Settings'
 import Recovery from './pages/Recovery/Recovery'
+import SystemHealth from './pages/SystemHealth/SystemHealth'
+import ReviewsAndReferrals from './components/ReviewsPanel.jsx'
+import PostClose from './pages/PostClose/PostClose.jsx'
+import MediaLibrary from './pages/MediaLibrary/MediaLibrary.jsx'
+import HomeValue from './pages/HomeValue/HomeValue.jsx'
+import PrintDelivery from './pages/PrintDelivery/PrintDelivery.jsx'
+import SeoAeo from './pages/SeoAeo/SeoAeo.jsx'
+import AIAssistant from './pages/AIAssistant/AIAssistant.jsx'
+import Onboarding from './pages/Onboarding/Onboarding.jsx'
+import ContactProfile from './pages/ContactProfile/ContactProfile.jsx'
 import ListingPlan from './pages/ListingPlan/ListingPlan'
 import BioLinkBuilder from './pages/BioLink/BioLinkBuilder'
 import EmailBuilder from './pages/EmailBuilder/EmailBuilder'
@@ -299,8 +309,36 @@ export default function App() {
           {/* ─── Notifications ─── */}
           <Route path="/notifications"     element={<Notifications />} />
 
+          {/* ─── Reviews & Referrals ─── */}
+          <Route path="/reviews"           element={<ReviewsAndReferrals />} />
+
+          {/* ─── Post-Close ─── */}
+          <Route path="/post-close"        element={<PostClose />} />
+
+          {/* ─── Media Library ─── */}
+          <Route path="/media"             element={<MediaLibrary />} />
+
+          {/* ─── Home Value / Seller Leads ─── */}
+          <Route path="/home-value"        element={<HomeValue />} />
+
+          {/* ─── Print & Delivery ─── */}
+          <Route path="/print"             element={<PrintDelivery />} />
+
+          {/* ─── SEO & AEO ─── */}
+          <Route path="/seo"               element={<SeoAeo />} />
+
+          {/* ─── AI Assistant ─── */}
+          <Route path="/ai"                element={<AIAssistant />} />
+
+          {/* ─── Onboarding ─── */}
+          <Route path="/onboarding"        element={<Onboarding />} />
+
+          {/* ─── Contact Profile ─── */}
+          <Route path="/contact/:id"       element={<ContactProfile />} />
+
           {/* ─── Settings ─── */}
           <Route path="/settings"          element={<Settings />} />
+          <Route path="/settings/system"  element={<SystemHealth />} />
           <Route path="/settings/recovery" element={<Recovery />} />
           <Route path="/settings/intake-forms" element={<IntakeForms />} />
         </Route>

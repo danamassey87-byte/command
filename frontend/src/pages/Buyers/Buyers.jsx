@@ -7,7 +7,10 @@ import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '
 import { useBuyers, useTransactions, useShowingSessionsForContact, useContactTags, useNotesForContact, useVendors, useProperties, useExpensesForContact } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
-import CommunicationLog from '../../components/CommunicationLog.jsx'
+import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
+import SocialProfilesPanel from '../../components/SocialProfilesPanel.jsx'
+import LifeEventsPanel from '../../components/LifeEventsPanel.jsx'
+import FamilyLinksPanel from '../../components/FamilyLinksPanel.jsx'
 import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
 import * as DB from '../../lib/supabase.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
@@ -41,6 +44,15 @@ function mapClient(c) {
     related_people:      Array.isArray(c.related_people) ? c.related_people : [],
     showings:            [],
     created_at:          c.created_at,
+    // Command Phase 1 fields
+    tier:                c.tier ?? 'warm',
+    first_name:          c.first_name ?? '',
+    last_name:           c.last_name ?? '',
+    lofty_id:            c.lofty_id ?? null,
+    looking_for:         c.looking_for ?? null,
+    voice_notes:         c.voice_notes ?? '',
+    timezone:            c.timezone ?? 'America/Phoenix',
+    do_not_contact:      c.do_not_contact ?? false,
   }
 }
 
@@ -171,6 +183,11 @@ function BuyerForm({ buyer, onSave, onDelete, onPutOnHold, onClose, saving, dele
     bba_expiration_date: buyer?.bba_expiration_date ?? '',
     notes:               buyer?.notes ?? '',
     related_people:      Array.isArray(buyer?.related_people) ? buyer.related_people : [],
+    // Command fields
+    tier:                buyer?.tier ?? 'warm',
+    do_not_contact:      buyer?.do_not_contact ?? false,
+    timezone:            buyer?.timezone ?? 'America/Phoenix',
+    voice_notes:         buyer?.voice_notes ?? '',
   })
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
 
@@ -194,6 +211,10 @@ function BuyerForm({ buyer, onSave, onDelete, onPutOnHold, onClose, saving, dele
       notes:               draft.notes.trim() || null,
       type:                draft.type,
       related_people:      cleanRelatedPeople(draft.related_people),
+      tier:                draft.tier,
+      do_not_contact:      draft.do_not_contact,
+      timezone:            draft.timezone || 'America/Phoenix',
+      voice_notes:         draft.voice_notes?.trim() || null,
     })
   }
 
@@ -213,9 +234,22 @@ function BuyerForm({ buyer, onSave, onDelete, onPutOnHold, onClose, saving, dele
           </Select>
           <LeadSourcePicker label="Source" value={draft.source} onChange={v => set('source', v)} />
         </div>
-        <Select label="Stage" value={draft.stage} onChange={e => set('stage', e.target.value)}>
-          {stages.map(s => <option key={s}>{s}</option>)}
-        </Select>
+        <div className="panel-row">
+          <Select label="Stage" value={draft.stage} onChange={e => set('stage', e.target.value)}>
+            {stages.map(s => <option key={s}>{s}</option>)}
+          </Select>
+          <Select label="Tier" value={draft.tier} onChange={e => set('tier', e.target.value)}>
+            <option value="hot">Hot</option>
+            <option value="warm">Warm</option>
+            <option value="nurture">Nurture</option>
+            <option value="cold">Cold</option>
+            <option value="past">Past</option>
+          </Select>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: 'var(--brown-warm, #5A4136)', cursor: 'pointer', padding: '4px 0' }}>
+          <input type="checkbox" checked={draft.do_not_contact} onChange={e => set('do_not_contact', e.target.checked)} />
+          Do not contact (blocks all sends)
+        </label>
       </div>
 
       <hr className="panel-divider" />
@@ -259,6 +293,7 @@ function BuyerForm({ buyer, onSave, onDelete, onPutOnHold, onClose, saving, dele
 
       <hr className="panel-divider" />
       <Textarea label="Notes" rows={3} value={draft.notes} onChange={e => set('notes', e.target.value)} placeholder="Key requirements, timeline, financing notes…" />
+      <Textarea label="Voice Notes" rows={2} value={draft.voice_notes} onChange={e => set('voice_notes', e.target.value)} placeholder="Quick voice memo transcription, observations..." />
 
       {!isNew && buyer?.id && (
         <>
@@ -457,8 +492,14 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
           <p className="buyer-detail__contact">{buyer.phone} &bull; {buyer.email}</p>
           <div className="buyer-detail__tags">
             <Badge variant={stageVariant[buyer.stage]}>{buyer.stage}</Badge>
+            {buyer.tier && buyer.tier !== 'warm' && (
+              <Badge variant={buyer.tier === 'hot' ? 'danger' : buyer.tier === 'cold' ? 'default' : buyer.tier === 'past' ? 'default' : 'warning'} size="sm">
+                {buyer.tier}
+              </Badge>
+            )}
             {buyer.preApproved && <Badge variant="success" size="sm">Pre-Approved ✓</Badge>}
             {buyer.repAgreement && <Badge variant="accent" size="sm">BBA Signed ✓</Badge>}
+            {buyer.do_not_contact && <Badge variant="danger" size="sm">Do Not Contact</Badge>}
           </div>
         </div>
         <div className="buyer-detail__quick-stats">
@@ -634,8 +675,17 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
       {/* ── Intake Forms ── */}
       <IntakeFormTracker contactId={buyer.id} contactEmail={buyer.email} contactName={buyer.name} />
 
-      {/* ── Communication Log ── */}
-      <CommunicationLog contactId={buyer.id} />
+      {/* ── Social Profiles ── */}
+      <SocialProfilesPanel contactId={buyer.id} />
+
+      {/* ── Family & Relationships ── */}
+      <FamilyLinksPanel contactId={buyer.id} />
+
+      {/* ── Life Events ── */}
+      <LifeEventsPanel contactId={buyer.id} />
+
+      {/* ── Activity Timeline ── */}
+      <InteractionsTimeline contactId={buyer.id} />
 
       {/* ── Showings ── */}
       <div className="buyer-detail__showings-section">
@@ -942,14 +992,21 @@ export default function Buyers() {
     )
   }
 
-  const filtered = buyers.filter(b => filter === 'all' || b.stage === filter)
+  const [tierFilter, setTierFilter] = useState('all')
+  const filtered = buyers.filter(b => {
+    if (filter !== 'all' && b.stage !== filter) return false
+    if (tierFilter !== 'all' && b.tier !== tierFilter) return false
+    return true
+  })
 
   const columns = [
     {
       key: 'name', label: 'Buyer',
       render: (v, row) => (
         <div>
-          <p style={{ fontWeight: 600, fontSize: '0.85rem' }}>{v}</p>
+          <p style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+            <a href={`/contact/${row.id}`} onClick={e => { e.stopPropagation() }} style={{ color: 'inherit', textDecoration: 'none' }}>{v}</a>
+          </p>
           <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{row.source}</p>
         </div>
       ),
@@ -990,6 +1047,28 @@ export default function Buyers() {
           onChange={e => { e.stopPropagation(); inlineUpdate(row.id, 'source', e.target.value) }}
         >
           {sources.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      ),
+    },
+    {
+      key: 'tier', label: 'Tier',
+      render: (v, row) => (
+        <select
+          className={`buyer-inline-select buyer-inline-select--tier buyer-inline-select--${v ?? 'warm'}`}
+          value={v ?? 'warm'}
+          disabled={!!savingInline[row.id + 'tier']}
+          onClick={e => e.stopPropagation()}
+          onChange={e => { e.stopPropagation(); inlineUpdate(row.id, 'tier', e.target.value) }}
+          style={{
+            color: v === 'hot' ? '#c0604a' : v === 'cold' ? 'var(--color-text-muted)' : v === 'past' ? 'var(--color-text-muted)' : 'var(--brown-warm)',
+            fontWeight: v === 'hot' ? 700 : 400,
+          }}
+        >
+          <option value="hot">Hot</option>
+          <option value="warm">Warm</option>
+          <option value="nurture">Nurture</option>
+          <option value="cold">Cold</option>
+          <option value="past">Past</option>
         </select>
       ),
     },
@@ -1158,6 +1237,25 @@ export default function Buyers() {
         active={filter}
         onChange={setFilter}
       />
+
+      {/* ── Tier filter ── */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+        {['all', 'hot', 'warm', 'nurture', 'cold', 'past'].map(t => {
+          const count = t === 'all' ? buyers.length : buyers.filter(b => b.tier === t).length
+          if (t !== 'all' && count === 0) return null
+          return (
+            <button key={t} onClick={() => setTierFilter(t)} style={{
+              padding: '3px 10px', fontSize: '0.68rem', borderRadius: 999, cursor: 'pointer',
+              border: `1px solid ${tierFilter === t ? 'var(--brown-dark)' : 'var(--color-border)'}`,
+              background: tierFilter === t ? 'var(--brown-dark)' : 'transparent',
+              color: tierFilter === t ? 'var(--cream)' : t === 'hot' ? '#c0604a' : t === 'cold' ? 'var(--color-text-muted)' : 'var(--brown-warm)',
+              fontWeight: t === 'hot' ? 600 : 400,
+            }}>
+              {t === 'all' ? 'All Tiers' : t.charAt(0).toUpperCase() + t.slice(1)} {count > 0 ? `(${count})` : ''}
+            </button>
+          )
+        })}
+      </div>
 
       {/* ── Alerts ── */}
       {(() => {

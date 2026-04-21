@@ -149,6 +149,25 @@ export const useGmailReplyLog        = ()    => useQuery(DB.getGmailReplyLog)
 export const useReplyDetectedContacts = ()   => useQuery(DB.getReplyDetectedContacts)
 export const useReplyLogForContact   = (cid) => useQuery(() => cid ? DB.getReplyLogForContact(cid) : Promise.resolve([]), [cid])
 
+// ─── Command Phase 1 hooks ──────────────────────────────────────────────────
+export const useInteractionsForContact = (cid) => useQuery(() => cid ? DB.getInteractionsForContact(cid) : Promise.resolve([]), [cid])
+export const useInteractionsForDeal    = (did) => useQuery(() => did ? DB.getInteractionsForDeal(did) : Promise.resolve([]), [did])
+export const useRecentInteractions     = (limit) => useQuery(() => DB.getRecentInteractions(limit))
+export const useChecklistTemplates     = ()    => useQuery(DB.getChecklistTemplates)
+export const useChecklistRun           = (kind, id) => useQuery(() => (kind && id) ? DB.getChecklistRun(kind, id) : Promise.resolve(null), [kind, id])
+export const useCostLedger             = ()    => useQuery(DB.getCostLedger)
+export const useSystemEvents           = (limit) => useQuery(() => DB.getSystemEvents(limit))
+export const useBackgroundJobs         = ()    => useQuery(DB.getBackgroundJobs)
+export const useSocialProfiles         = (cid) => useQuery(() => cid ? DB.getSocialProfiles(cid) : Promise.resolve([]), [cid])
+export const useFamilyLinks            = (cid) => useQuery(() => cid ? DB.getFamilyLinks(cid) : Promise.resolve([]), [cid])
+export const useLifeEvents             = (cid) => useQuery(() => cid ? DB.getLifeEvents(cid) : Promise.resolve([]), [cid])
+export const useUpcomingLifeEvents     = (days) => useQuery(() => DB.getUpcomingLifeEvents(days))
+export const useReviews                = ()    => useQuery(DB.getReviews)
+export const useReferrals              = ()    => useQuery(DB.getReferrals)
+export const useMediaAssets            = (pid) => useQuery(() => DB.getMediaAssets(pid), [pid])
+export const useContactTagsList        = (cid) => useQuery(() => cid ? DB.getContactTags(cid) : Promise.resolve([]), [cid])
+export const useNotificationRules      = ()    => useQuery(DB.getNotificationRules)
+
 // ─── Weather hooks (NOAA Weather.gov API — free, no key needed) ──────────────
 // Fetches the 7-day forecast for given lat/lng via the NWS two-step endpoint.
 export function useWeatherForecast(lat, lng) {

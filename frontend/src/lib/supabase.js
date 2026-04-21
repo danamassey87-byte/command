@@ -512,7 +512,17 @@ export const getTransactions = () =>
   `).order('created_at', { ascending: false }))
 
 export const createTransaction  = (d)      => query(supabase.from('transactions').insert(d).select().single())
-export const updateTransaction  = (id, d)  => query(supabase.from('transactions').update(d).eq('id', id).select().single())
+export const updateTransaction = async (id, d) => {
+  // If status is changing, bridge to interactions
+  if (d.status) {
+    const { data: old } = await supabase.from('transactions').select('status, contact_id').eq('id', id).maybeSingle()
+    if (old && old.status !== d.status && old.contact_id) {
+      const { logDealStageChange } = await import('./interactionBridges')
+      logDealStageChange({ contactId: old.contact_id, dealId: id, fromStage: old.status, toStage: d.status })
+    }
+  }
+  return query(supabase.from('transactions').update(d).eq('id', id).select().single())
+}
 export const archiveTransaction = (id)     => query(supabase.from('transactions').update({ status: 'archived', archived_at: new Date().toISOString() }).eq('id', id))
 export const getTransactionStatusLog = (txId) =>
   query(supabase.from('transaction_status_log').select('*').eq('transaction_id', txId).order('changed_at', { ascending: false }))
@@ -619,7 +629,15 @@ export const getShowingSessions = () =>
 
 export const createShowingSession  = (d)      => query(supabase.from('showing_sessions').insert(d).select().single())
 export const updateShowingSession  = (id, d)  => query(supabase.from('showing_sessions').update(d).eq('id', id).select().single())
-export const createShowing         = (d)      => query(supabase.from('showings').insert(d).select().single())
+export const createShowing = async (d) => {
+  const result = await query(supabase.from('showings').insert(d).select().single())
+  // Bridge to interactions
+  if (d.contact_id) {
+    const { logShowingInteraction } = await import('./interactionBridges')
+    logShowingInteraction({ contactId: d.contact_id, propertyId: d.property_id, address: '', status: d.status })
+  }
+  return result
+}
 export const updateShowing         = (id, d)  => query(supabase.from('showings').update(d).eq('id', id).select().single())
 
 // ─── Open Houses ─────────────────────────────────────────────────────────────
@@ -2079,8 +2097,14 @@ export const getNotesForContact = (contactId) =>
 export const getNotesForTransaction = (txId) =>
   query(supabase.from('notes').select('*').eq('transaction_id', txId).order('updated_at', { ascending: false }))
 
-export const createNote = (d) =>
-  query(supabase.from('notes').insert(d).select().single())
+export const createNote = async (d) => {
+  const result = await query(supabase.from('notes').insert(d).select().single())
+  if (d.contact_id) {
+    const { logNoteCreated } = await import('./interactionBridges')
+    logNoteCreated({ contactId: d.contact_id, notePreview: d.content?.slice(0, 200) || d.title })
+  }
+  return result
+}
 
 export const updateNote = (id, d) =>
   query(supabase.from('notes').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
@@ -2219,3 +2243,201 @@ export const getReplyLogForContact = (contactId) =>
   query(supabase.from('gmail_reply_log').select('*')
     .eq('contact_id', contactId)
     .order('created_at', { ascending: false }))
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Command Phase 1 — New table CRUD
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Interactions (unified contact timeline) ─────────────────────────────────
+export const getInteractionsForContact = (contactId) =>
+  query(supabase.from('interactions').select('*')
+    .eq('contact_id', contactId).is('deleted_at', null)
+    .order('at', { ascending: false }).limit(200))
+
+export const getInteractionsForDeal = (dealId) =>
+  query(supabase.from('interactions').select('*')
+    .eq('deal_id', dealId).is('deleted_at', null)
+    .order('at', { ascending: false }))
+
+export const getInteractionsForProperty = (propertyId) =>
+  query(supabase.from('interactions').select('*')
+    .eq('property_id', propertyId).is('deleted_at', null)
+    .order('at', { ascending: false }))
+
+export const createInteraction = (d) =>
+  query(supabase.from('interactions').insert(d).select().single())
+
+export const deleteInteraction = async (id) => {
+  const now = new Date().toISOString()
+  return query(supabase.from('interactions').update({ deleted_at: now }).eq('id', id).select().single())
+}
+
+export const getRecentInteractions = (limit = 100) =>
+  query(supabase.from('interactions').select('*, contact:contacts(id, name, first_name, last_name)')
+    .is('deleted_at', null).order('at', { ascending: false }).limit(limit))
+
+// ─── Checklist system ────────────────────────────────────────────────────────
+export const getChecklistTemplates = () =>
+  query(supabase.from('checklist_templates').select('*')
+    .is('deleted_at', null).order('category').order('name'))
+
+export const getChecklistTemplate = (id) =>
+  query(supabase.from('checklist_templates').select('*').eq('id', id).single())
+
+export const createChecklistTemplate = (d) =>
+  query(supabase.from('checklist_templates').insert(d).select().single())
+
+export const updateChecklistTemplate = (id, d) =>
+  query(supabase.from('checklist_templates').update({ ...d, updated_at: new Date().toISOString() })
+    .eq('id', id).select().single())
+
+export const getChecklistRun = (parentKind, parentId) =>
+  query(supabase.from('checklist_runs').select('*, template:checklist_templates(*)')
+    .eq('parent_kind', parentKind).eq('parent_id', parentId).limit(1).maybeSingle())
+
+export const createChecklistRun = (d) =>
+  query(supabase.from('checklist_runs').insert(d).select().single())
+
+export const updateChecklistRun = (id, d) =>
+  query(supabase.from('checklist_runs').update({ ...d, updated_at: new Date().toISOString() })
+    .eq('id', id).select().single())
+
+// ─── Cost Ledger ─────────────────────────────────────────────────────────────
+export const getCostLedger = () =>
+  query(supabase.from('cost_ledger').select('*').order('month', { ascending: false }))
+
+export const upsertCostEntry = (d) =>
+  query(supabase.from('cost_ledger').upsert(d, { onConflict: 'service,month' }).select().single())
+
+// ─── System Events ───────────────────────────────────────────────────────────
+export const getSystemEvents = (limit = 100) =>
+  query(supabase.from('system_events').select('*')
+    .order('created_at', { ascending: false }).limit(limit))
+
+export const createSystemEvent = (d) =>
+  query(supabase.from('system_events').insert(d).select().single())
+
+// ─── Background Jobs ─────────────────────────────────────────────────────────
+export const getBackgroundJobs = () =>
+  query(supabase.from('background_jobs').select('*').order('name'))
+
+export const upsertBackgroundJob = (d) =>
+  query(supabase.from('background_jobs').upsert(d, { onConflict: 'name' }).select().single())
+
+// ─── Compliance Checks ──────────────────────────────────────────────────────
+export const getComplianceChecks = (targetKind, targetId) =>
+  query(supabase.from('compliance_checks').select('*')
+    .eq('target_kind', targetKind).eq('target_id', targetId)
+    .order('checked_at', { ascending: false }))
+
+export const createComplianceCheck = (d) =>
+  query(supabase.from('compliance_checks').insert(d).select().single())
+
+// ─── Media Assets ────────────────────────────────────────────────────────────
+export const getMediaAssets = (propertyId) =>
+  propertyId
+    ? query(supabase.from('media_assets').select('*').eq('property_id', propertyId).is('deleted_at', null).order('created_at', { ascending: false }))
+    : query(supabase.from('media_assets').select('*').is('deleted_at', null).order('created_at', { ascending: false }).limit(200))
+
+export const createMediaAsset = (d) =>
+  query(supabase.from('media_assets').insert(d).select().single())
+
+export const deleteMediaAsset = async (id) => {
+  const now = new Date().toISOString()
+  return query(supabase.from('media_assets').update({ deleted_at: now }).eq('id', id).select().single())
+}
+
+// ─── Notification Rules ──────────────────────────────────────────────────────
+export const getNotificationRules = () =>
+  query(supabase.from('notification_rules').select('*').order('source'))
+
+export const upsertNotificationRule = (d) =>
+  query(supabase.from('notification_rules').upsert(d, { onConflict: 'source,event' }).select().single())
+
+// ─── Weather Forecasts ��──────────────────────────────────────────────────────
+export const getWeatherForecast = (propertyId, date) =>
+  query(supabase.from('weather_forecasts').select('*')
+    .eq('property_id', propertyId).eq('forecast_date', date).maybeSingle())
+
+export const upsertWeatherForecast = (d) =>
+  query(supabase.from('weather_forecasts').upsert(d, { onConflict: 'property_id,forecast_date' }).select().single())
+
+// ─── Document Embeddings (RAG) ──────────────────────────────────────────────
+export const searchDocuments = async (queryEmbedding, collection = null, count = 5, threshold = 0.7) => {
+  const { data, error } = await supabase.rpc('match_documents', {
+    query_embedding: queryEmbedding,
+    match_collection: collection,
+    match_count: count,
+    match_threshold: threshold,
+  })
+  if (error) throw new Error(error.message)
+  return data
+}
+
+export const searchSummaries = async (queryEmbedding, collection = null, count = 10, threshold = 0.65) => {
+  const { data, error } = await supabase.rpc('match_summaries', {
+    query_embedding: queryEmbedding,
+    match_collection: collection,
+    match_count: count,
+    match_threshold: threshold,
+  })
+  if (error) throw new Error(error.message)
+  return data
+}
+
+export const upsertEmbedding = (d) =>
+  query(supabase.from('document_embeddings').insert(d).select().single())
+
+// ─── Social Profiles ─────────────────────────────────────────────────────────
+export const getSocialProfiles = (contactId) =>
+  query(supabase.from('social_profiles').select('*').eq('contact_id', contactId).order('platform'))
+
+export const upsertSocialProfile = (d) =>
+  query(supabase.from('social_profiles').upsert(d, { onConflict: 'contact_id,platform' }).select().single())
+
+// ─── Family Links ────────────────────────────────────────────────────────────
+export const getFamilyLinks = (contactId) =>
+  query(supabase.from('family_links').select('*, to_contact:contacts!family_links_to_contact_id_fkey(id, name, first_name, last_name, phone, email)')
+    .eq('from_contact_id', contactId))
+
+export const createFamilyLink = (d) =>
+  query(supabase.from('family_links').insert(d).select().single())
+
+export const deleteFamilyLink = (id) =>
+  query(supabase.from('family_links').delete().eq('id', id))
+
+// ─── Life Events ─────────────────────────────────────────────────────────────
+export const getLifeEvents = (contactId) =>
+  query(supabase.from('life_events').select('*').eq('contact_id', contactId).order('occurs_on'))
+
+export const getUpcomingLifeEvents = (days = 90) => {
+  const today = new Date().toISOString().slice(0, 10)
+  const future = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10)
+  return query(supabase.from('life_events').select('*, contact:contacts(id, name, first_name, last_name)')
+    .gte('occurs_on', today).lte('occurs_on', future).order('occurs_on'))
+}
+
+export const createLifeEvent = (d) =>
+  query(supabase.from('life_events').insert(d).select().single())
+
+// ─── Reviews & Referrals ─────────────────────────────────────────────────────
+export const getReviews = () =>
+  query(supabase.from('reviews').select('*, contact:contacts(id, name, first_name, last_name)')
+    .order('posted_at', { ascending: false }))
+
+export const createReview = (d) =>
+  query(supabase.from('reviews').insert(d).select().single())
+
+export const getReferrals = () =>
+  query(supabase.from('referrals').select('*, referrer:contacts!referrals_referrer_contact_id_fkey(id, name), referred:contacts!referrals_referred_contact_id_fkey(id, name)')
+    .order('created_at', { ascending: false }))
+
+export const createReferral = (d) =>
+  query(supabase.from('referrals').insert(d).select().single())
+
+// ─── User Settings (generic) ────────────────────────────────────────────────
+export const upsertUserSetting = (key, value) =>
+  query(supabase.from('user_settings').upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' }).select().single())
+
+export const getUserSetting = (key) =>
+  query(supabase.from('user_settings').select('value').eq('key', key).maybeSingle())
