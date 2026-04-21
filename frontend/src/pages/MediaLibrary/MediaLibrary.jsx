@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react'
 import { Button, Badge, SectionHeader, Input, Select } from '../../components/ui/index.jsx'
-import { useMediaAssets } from '../../lib/hooks.js'
+import { useMediaAssets, useIsMobile } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 import supabase from '../../lib/supabase.js'
 
@@ -15,6 +15,7 @@ const KIND_META = {
 const FILTERS = ['all', 'photo', 'clip', 'audio', 'graphic', 'voiceover']
 
 export default function MediaLibrary() {
+  const isMobile = useIsMobile()
   const { data: assets, refetch } = useMediaAssets()
   const entries = assets ?? []
   const [filter, setFilter] = useState('all')
@@ -108,7 +109,7 @@ export default function MediaLibrary() {
       <SectionHeader title="Media Library" subtitle="Photos, video clips, audio, and graphics for content creation" />
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(6, 1fr)', gap: 10, marginBottom: 16 }}>
         {Object.entries(KIND_META).map(([kind, meta]) => (
           <div key={kind} style={{
             background: 'var(--cream-3, #F6F4EE)', border: '1px solid var(--color-border)',
@@ -138,8 +139,8 @@ export default function MediaLibrary() {
       </div>
 
       {/* Toolbar */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 3 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
           {FILTERS.map(f => (
             <button
               key={f}
@@ -174,7 +175,7 @@ export default function MediaLibrary() {
           padding: 14, background: 'var(--cream)', borderRadius: 8, border: '1px solid var(--color-border)',
           marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8,
         }}>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <Select label="Type" value={uploadDraft.kind} onChange={e => setUploadDraft(d => ({ ...d, kind: e.target.value }))} style={{ width: 140 }}>
               {Object.entries(KIND_META).map(([k, m]) => <option key={k} value={k}>{m.icon} {m.label}</option>)}
             </Select>
@@ -201,7 +202,7 @@ export default function MediaLibrary() {
       ) : (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+          gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fill, minmax(180px, 1fr))',
           gap: 12,
         }}>
           {filtered.map(asset => {

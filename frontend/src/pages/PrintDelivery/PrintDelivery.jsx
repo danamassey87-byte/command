@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Badge, SectionHeader, Input, Select, Textarea } from '../../components/ui/index.jsx'
+import { useIsMobile } from '../../lib/hooks.js'
 import supabase from '../../lib/supabase.js'
 
 const ORDER_KINDS = [
@@ -22,6 +23,7 @@ const STATUS_VARIANT = {
 }
 
 export default function PrintDelivery() {
+  const isMobile = useIsMobile()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
@@ -114,7 +116,7 @@ export default function PrintDelivery() {
       <SectionHeader title="Print & Delivery" subtitle="Postcards, handwritten notes, and pop-by tags" />
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
         <div style={{ background: 'var(--cream-3)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 12, textAlign: 'center' }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', lineHeight: 1 }}>{stats.total}</div>
           <div style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 4 }}>Orders</div>
@@ -142,14 +144,14 @@ export default function PrintDelivery() {
           padding: 14, background: 'var(--cream)', borderRadius: 8, border: '1px solid var(--color-border)',
           marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8,
         }}>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <Select label="Type" value={draft.kind} onChange={e => setDraft(d => ({ ...d, kind: e.target.value }))} style={{ flex: 1 }}>
               {ORDER_KINDS.map(k => <option key={k.value} value={k.value}>{k.icon} {k.label}</option>)}
             </Select>
             <Select label="Provider" value={draft.provider} onChange={e => setDraft(d => ({ ...d, provider: e.target.value }))} style={{ flex: 1 }}>
               {PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
             </Select>
-            <Input label="Cost (cents)" type="number" value={draft.cost_cents} onChange={e => setDraft(d => ({ ...d, cost_cents: e.target.value }))} placeholder="150" style={{ width: 100 }} />
+            <Input label="Cost (cents)" type="number" value={draft.cost_cents} onChange={e => setDraft(d => ({ ...d, cost_cents: e.target.value }))} placeholder="150" style={{ width: isMobile ? '100%' : 100 }} />
           </div>
           <Input label="Template reference" value={draft.template_ref} onChange={e => setDraft(d => ({ ...d, template_ref: e.target.value }))} placeholder="Canva URL or template name..." />
 

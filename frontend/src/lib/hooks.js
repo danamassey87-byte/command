@@ -24,6 +24,21 @@ function useQuery(fetcher, deps = []) {
   return { data, loading, error, refetch: load }
 }
 
+// ─── Responsive helper ───────────────────────────────────────────────────────
+export function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < breakpoint : false
+  )
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`)
+    const handler = (e) => setIsMobile(e.matches)
+    setIsMobile(mq.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [breakpoint])
+  return isMobile
+}
+
 // ─── Table hooks ─────────────────────────────────────────────────────────────
 export const useContacts      = () => useQuery(DB.getContacts)
 export const useBuyers        = () => useQuery(DB.getBuyers)

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Input } from '../../components/ui/index.jsx'
+import { useIsMobile } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 
 const STEPS = [
@@ -11,6 +12,7 @@ const STEPS = [
 ]
 
 export default function Onboarding() {
+  const isMobile = useIsMobile()
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [profile, setProfile] = useState({
@@ -49,12 +51,12 @@ export default function Onboarding() {
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'var(--cream, #EFEDE8)', padding: 40,
+      background: 'var(--cream, #EFEDE8)', padding: isMobile ? 16 : 40,
     }}>
       <div style={{
-        maxWidth: 560, width: '100%', background: '#fff',
+        maxWidth: isMobile ? '100%' : 560, width: '100%', background: '#fff',
         borderRadius: 12, border: '1px solid var(--color-border, #C8C3B9)',
-        padding: '40px 48px', boxShadow: '0 4px 24px rgba(58,42,30,.06)',
+        padding: isMobile ? '24px 20px' : '40px 48px', boxShadow: '0 4px 24px rgba(58,42,30,.06)',
       }}>
         {/* Progress */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 32 }}>
@@ -85,7 +87,7 @@ export default function Onboarding() {
             <p style={{ fontSize: '0.88rem', color: 'var(--brown-warm, #5A4136)', lineHeight: 1.6, marginBottom: 16 }}>
               Command is your daily operating system for real estate. It replaces the dozen tools you're juggling and wraps everything into one place — CRM, deals, content, marketing, finances, and AI.
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 20 }}>
               {[
                 { icon: '👥', label: 'CRM & Contacts' },
                 { icon: '🏠', label: 'Open Houses' },
@@ -109,12 +111,12 @@ export default function Onboarding() {
         {/* Step 1: Profile */}
         {step === 1 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10, flexDirection: isMobile ? 'column' : 'row' }}>
               <Input label="Full Name" value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} style={{ flex: 1 }} />
               <Input label="Phone" value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} placeholder="(480) 555-0000" style={{ flex: 1 }} />
             </div>
             <Input label="Email" value={profile.email} onChange={e => setProfile(p => ({ ...p, email: e.target.value }))} />
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10, flexDirection: isMobile ? 'column' : 'row' }}>
               <Input label="Brokerage" value={profile.brokerage} onChange={e => setProfile(p => ({ ...p, brokerage: e.target.value }))} style={{ flex: 1 }} />
               <Input label="Market Area" value={profile.market} onChange={e => setProfile(p => ({ ...p, market: e.target.value }))} style={{ flex: 1 }} />
             </div>

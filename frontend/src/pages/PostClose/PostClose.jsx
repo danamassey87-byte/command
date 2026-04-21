@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Button, Badge, SectionHeader, Input, Select } from '../../components/ui/index.jsx'
+import { useIsMobile } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 import supabase from '../../lib/supabase.js'
 
@@ -74,6 +75,7 @@ function generateTouches(planId, cadence, startDate) {
 }
 
 export default function PostClose() {
+  const isMobile = useIsMobile()
   const [plans, setPlans] = useState([])
   const [touches, setTouches] = useState({})
   const [loading, setLoading] = useState(true)
@@ -187,7 +189,7 @@ export default function PostClose() {
       <SectionHeader title="Client for Life" subtitle="Post-close touch plans — keep relationships warm for years" />
 
       {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
         <div style={{ background: 'var(--cream-3, #F6F4EE)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 14 }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', lineHeight: 1 }}>{plans.length}</div>
           <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)', marginTop: 4, fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.08em' }}>Plans</div>
@@ -212,7 +214,7 @@ export default function PostClose() {
           marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10,
         }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 500 }}>Start a Client for Life plan</div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <Select label="Client" value={createDraft.contact_id} onChange={e => setCreateDraft(d => ({ ...d, contact_id: e.target.value }))} style={{ flex: 1 }}>
               <option value="">Select client...</option>
               {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}

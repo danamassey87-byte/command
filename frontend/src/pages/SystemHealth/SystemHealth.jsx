@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react'
 import { Button, Badge, Input, Select, SectionHeader, Card } from '../../components/ui/index.jsx'
-import { useCostLedger, useSystemEvents, useBackgroundJobs } from '../../lib/hooks.js'
+import { useCostLedger, useSystemEvents, useBackgroundJobs, useIsMobile } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 
 // ─── Cost Ledger ─────────────────────────────────────────────────────────────
-function CostLedgerPanel() {
+function CostLedgerPanel({ isMobile }) {
   const { data: ledger, refetch } = useCostLedger()
   const entries = ledger ?? []
   const [showAdd, setShowAdd] = useState(false)
@@ -57,7 +57,7 @@ function CostLedgerPanel() {
     <div>
       {/* Current month card */}
       <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20,
+        display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14, marginBottom: 20,
       }}>
         <div style={{
           background: 'var(--cream-3, #F6F4EE)', border: '1px solid var(--color-border, #C8C3B9)',
@@ -130,7 +130,7 @@ function CostLedgerPanel() {
           padding: 14, background: 'var(--cream, #EFEDE8)', borderRadius: 8, marginBottom: 12,
           border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 8,
         }}>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <Select label="Service" value={draft.service} onChange={e => setDraft(d => ({ ...d, service: e.target.value }))} style={{ flex: 1 }}>
               <option value="">Select...</option>
               <option value="Supabase">Supabase</option>
@@ -145,7 +145,7 @@ function CostLedgerPanel() {
             </Select>
             <Input label="Month" type="date" value={draft.month} onChange={e => setDraft(d => ({ ...d, month: e.target.value }))} style={{ flex: 1 }} />
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <Input label="Amount ($)" type="number" step="0.01" value={draft.amount} onChange={e => setDraft(d => ({ ...d, amount: e.target.value }))} style={{ flex: 1 }} />
             <Input label="Budget Cap ($)" type="number" step="1" value={draft.budget_cap} onChange={e => setDraft(d => ({ ...d, budget_cap: e.target.value }))} placeholder="600" style={{ flex: 1 }} />
           </div>
@@ -305,13 +305,14 @@ const TABS = [
 ]
 
 export default function SystemHealth() {
+  const isMobile = useIsMobile()
   const [tab, setTab] = useState('costs')
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       <SectionHeader title="System Health" subtitle="Usage, costs, events & background jobs" />
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
         {TABS.map(t => (
           <button
             key={t.id}
@@ -329,7 +330,7 @@ export default function SystemHealth() {
         ))}
       </div>
 
-      {tab === 'costs'  && <CostLedgerPanel />}
+      {tab === 'costs'  && <CostLedgerPanel isMobile={isMobile} />}
       {tab === 'events' && <SystemEventsPanel />}
       {tab === 'jobs'   && <BackgroundJobsPanel />}
     </div>

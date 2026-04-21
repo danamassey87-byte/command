@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Badge, SectionHeader, Input, Select } from '../../components/ui/index.jsx'
+import { useIsMobile } from '../../lib/hooks.js'
 import supabase from '../../lib/supabase.js'
 
 const TABS = [
@@ -23,7 +24,7 @@ const INTENT_COLORS = {
 }
 
 // ─── Keywords Tab ────────────────────────────────────────────────────────────
-function KeywordsTab() {
+function KeywordsTab({ isMobile }) {
   const [keywords, setKeywords] = useState([])
   const [snapshots, setSnapshots] = useState({})
   const [loading, setLoading] = useState(true)
@@ -87,11 +88,11 @@ function KeywordsTab() {
       </div>
       {showAdd && (
         <div style={{ padding: 12, background: 'var(--cream)', borderRadius: 8, border: '1px solid var(--color-border)', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexDirection: isMobile ? 'column' : 'row' }}>
             <Input label="Keyword" value={draft.keyword} onChange={e => setDraft(d => ({ ...d, keyword: e.target.value }))} placeholder="gilbert az real estate agent" style={{ flex: 2 }} />
             <Input label="Category" value={draft.category} onChange={e => setDraft(d => ({ ...d, category: e.target.value }))} placeholder="brand" style={{ flex: 1 }} />
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexDirection: isMobile ? 'column' : 'row' }}>
             <Select label="Intent" value={draft.intent} onChange={e => setDraft(d => ({ ...d, intent: e.target.value }))} style={{ flex: 1 }}>
               <option value="local">Local</option>
               <option value="informational">Informational</option>
@@ -164,7 +165,7 @@ function KeywordsTab() {
 }
 
 // ─── AI Citations Tab ────────────────────────────────────────────────────────
-function CitationsTab() {
+function CitationsTab({ isMobile }) {
   const [citations, setCitations] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
@@ -209,7 +210,7 @@ function CitationsTab() {
   return (
     <div>
       {/* Share-of-voice cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
         {AI_ENGINES.map(eng => {
           const s = stats[eng.value] || { total: 0, cited: 0 }
           const pct = s.total > 0 ? Math.round((s.cited / s.total) * 100) : 0
@@ -232,7 +233,7 @@ function CitationsTab() {
 
       {showAdd && (
         <div style={{ padding: 12, background: 'var(--cream)', borderRadius: 8, border: '1px solid var(--color-border)', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexDirection: isMobile ? 'column' : 'row' }}>
             <Input label="Query" value={draft.query} onChange={e => setDraft(d => ({ ...d, query: e.target.value }))} placeholder="best real estate agent gilbert az" style={{ flex: 2 }} />
             <Select label="AI" value={draft.ai} onChange={e => setDraft(d => ({ ...d, ai: e.target.value }))} style={{ flex: 1 }}>
               {AI_ENGINES.map(e => <option key={e.value} value={e.value}>{e.label}</option>)}
@@ -435,13 +436,14 @@ function AuditsTab() {
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 export default function SeoAeo() {
+  const isMobile = useIsMobile()
   const [tab, setTab] = useState('keywords')
 
   return (
     <div style={{ maxWidth: 950, margin: '0 auto' }}>
       <SectionHeader title="SEO & AEO" subtitle="Search rankings, AI citation share-of-voice, and topical authority" />
 
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             padding: '6px 16px', fontSize: '0.8rem', borderRadius: 6, cursor: 'pointer', fontFamily: 'var(--font-sans)',
@@ -452,8 +454,8 @@ export default function SeoAeo() {
         ))}
       </div>
 
-      {tab === 'keywords'  && <KeywordsTab />}
-      {tab === 'citations' && <CitationsTab />}
+      {tab === 'keywords'  && <KeywordsTab isMobile={isMobile} />}
+      {tab === 'citations' && <CitationsTab isMobile={isMobile} />}
       {tab === 'hubs'      && <HubSpokeTab />}
       {tab === 'audits'    && <AuditsTab />}
     </div>

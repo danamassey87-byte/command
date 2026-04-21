@@ -1,131 +1,155 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { BrandProvider } from './lib/BrandContext'
 import { NotesProvider } from './lib/NotesContext'
 import { FavoritesProvider } from './lib/FavoritesContext'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import Layout from './components/layout/Layout'
-import Login from './pages/Login/Login'
-
-// ─── Existing pages ──────────────────────────────────────────────────────────
-import Dashboard from './pages/Dashboard/Dashboard'
-import DailyTracker from './pages/DailyTracker/DailyTracker'
-import ListingAppts from './pages/ListingAppts/ListingAppts'
-import Buyers from './pages/Buyers/Buyers'
-import Sellers from './pages/Sellers/Sellers'
-import SellerClients from './pages/Sellers/SellerClients'
-import Investors from './pages/Investors/Investors'
-import LeadGen from './pages/LeadGen/LeadGen'
-import BuyerShowings from './pages/BuyerShowings/BuyerShowings'
-import SellerShowings from './pages/SellerShowings/SellerShowings'
-import Properties from './pages/Properties/Properties'
-import OpenHouses from './pages/OpenHouses/OpenHouses'
-import ContentCalendar from './pages/ContentCalendar/ContentCalendar'
-import Stats from './pages/Stats/Stats'
-import Goals from './pages/Goals/Goals'
-import ContentPlanner from './pages/ContentPlanner/ContentPlanner'
-import Settings from './pages/Settings/Settings'
-import Recovery from './pages/Recovery/Recovery'
-import SystemHealth from './pages/SystemHealth/SystemHealth'
 import ReviewsAndReferrals from './components/ReviewsPanel.jsx'
-import PostClose from './pages/PostClose/PostClose.jsx'
-import MediaLibrary from './pages/MediaLibrary/MediaLibrary.jsx'
-import HomeValue from './pages/HomeValue/HomeValue.jsx'
-import PrintDelivery from './pages/PrintDelivery/PrintDelivery.jsx'
-import SeoAeo from './pages/SeoAeo/SeoAeo.jsx'
-import AIAssistant from './pages/AIAssistant/AIAssistant.jsx'
-import Onboarding from './pages/Onboarding/Onboarding.jsx'
-import ContactProfile from './pages/ContactProfile/ContactProfile.jsx'
-import ListingPlan from './pages/ListingPlan/ListingPlan'
-import BioLinkBuilder from './pages/BioLink/BioLinkBuilder'
-import EmailBuilder from './pages/EmailBuilder/EmailBuilder'
-import NewslettersPage from './pages/Newsletters/Newsletters'
-import IntakeForms from './pages/IntakeForms/IntakeForms'
-import PublicForm from './pages/PublicForm/PublicForm'
-import OHSignIn from './pages/OHSignIn/OHSignIn'
-import GoogleCallback from './pages/Auth/GoogleCallback'
-import Notifications from './pages/Notifications/Notifications'
-import CalendarSchedule from './pages/Calendar/CalendarSchedule'
-import TodayShowings from './pages/Calendar/TodayShowings'
-import CalendarTasks from './pages/Calendar/Tasks'
-import SocialDashboard from './pages/Content/SocialDashboard'
-import AIStudio from './pages/AIStudio/AIStudio'
-import PostComposer from './pages/PostComposer/PostComposer'
-import HashtagBank from './pages/HashtagBank/HashtagBank'
-import KeywordTracker from './pages/KeywordTracker/KeywordTracker'
-import InspoRecreator from './pages/InspoRecreator/InspoRecreator'
-import GammaPresentations from './pages/GammaPresentations/GammaPresentations'
-import VideoStudio from './pages/VideoStudio/VideoStudio'
-import AdsManager from './pages/Ads/AdsManager'
-import AdReports from './pages/Ads/AdReports'
+
+// ─── Lazy-loaded pages ─────────────────────────────────────────────────────────
+const Login = lazy(() => import('./pages/Login/Login'))
+const Dashboard = lazy(() => import('./pages/Dashboard/Dashboard'))
+const DailyTracker = lazy(() => import('./pages/DailyTracker/DailyTracker'))
+const ListingAppts = lazy(() => import('./pages/ListingAppts/ListingAppts'))
+const Buyers = lazy(() => import('./pages/Buyers/Buyers'))
+const Sellers = lazy(() => import('./pages/Sellers/Sellers'))
+const SellerClients = lazy(() => import('./pages/Sellers/SellerClients'))
+const Investors = lazy(() => import('./pages/Investors/Investors'))
+const LeadGen = lazy(() => import('./pages/LeadGen/LeadGen'))
+const BuyerShowings = lazy(() => import('./pages/BuyerShowings/BuyerShowings'))
+const SellerShowings = lazy(() => import('./pages/SellerShowings/SellerShowings'))
+const Properties = lazy(() => import('./pages/Properties/Properties'))
+const OpenHouses = lazy(() => import('./pages/OpenHouses/OpenHouses'))
+const ContentCalendar = lazy(() => import('./pages/ContentCalendar/ContentCalendar'))
+const Stats = lazy(() => import('./pages/Stats/Stats'))
+const Goals = lazy(() => import('./pages/Goals/Goals'))
+const ContentPlanner = lazy(() => import('./pages/ContentPlanner/ContentPlanner'))
+const Settings = lazy(() => import('./pages/Settings/Settings'))
+const Recovery = lazy(() => import('./pages/Recovery/Recovery'))
+const SystemHealth = lazy(() => import('./pages/SystemHealth/SystemHealth'))
+const PostClose = lazy(() => import('./pages/PostClose/PostClose.jsx'))
+const MediaLibrary = lazy(() => import('./pages/MediaLibrary/MediaLibrary.jsx'))
+const HomeValue = lazy(() => import('./pages/HomeValue/HomeValue.jsx'))
+const PrintDelivery = lazy(() => import('./pages/PrintDelivery/PrintDelivery.jsx'))
+const SeoAeo = lazy(() => import('./pages/SeoAeo/SeoAeo.jsx'))
+const AIAssistant = lazy(() => import('./pages/AIAssistant/AIAssistant.jsx'))
+const Onboarding = lazy(() => import('./pages/Onboarding/Onboarding.jsx'))
+const ContactProfile = lazy(() => import('./pages/ContactProfile/ContactProfile.jsx'))
+const ListingPlan = lazy(() => import('./pages/ListingPlan/ListingPlan'))
+const BioLinkBuilder = lazy(() => import('./pages/BioLink/BioLinkBuilder'))
+const EmailBuilder = lazy(() => import('./pages/EmailBuilder/EmailBuilder'))
+const NewslettersPage = lazy(() => import('./pages/Newsletters/Newsletters'))
+const IntakeForms = lazy(() => import('./pages/IntakeForms/IntakeForms'))
+const PublicForm = lazy(() => import('./pages/PublicForm/PublicForm'))
+const OHSignIn = lazy(() => import('./pages/OHSignIn/OHSignIn'))
+const GoogleCallback = lazy(() => import('./pages/Auth/GoogleCallback'))
+const Notifications = lazy(() => import('./pages/Notifications/Notifications'))
+const CalendarSchedule = lazy(() => import('./pages/Calendar/CalendarSchedule'))
+const TodayShowings = lazy(() => import('./pages/Calendar/TodayShowings'))
+const CalendarTasks = lazy(() => import('./pages/Calendar/Tasks'))
+const SocialDashboard = lazy(() => import('./pages/Content/SocialDashboard'))
+const AIStudio = lazy(() => import('./pages/AIStudio/AIStudio'))
+const PostComposer = lazy(() => import('./pages/PostComposer/PostComposer'))
+const HashtagBank = lazy(() => import('./pages/HashtagBank/HashtagBank'))
+const KeywordTracker = lazy(() => import('./pages/KeywordTracker/KeywordTracker'))
+const InspoRecreator = lazy(() => import('./pages/InspoRecreator/InspoRecreator'))
+const GammaPresentations = lazy(() => import('./pages/GammaPresentations/GammaPresentations'))
+const VideoStudio = lazy(() => import('./pages/VideoStudio/VideoStudio'))
+const AdsManager = lazy(() => import('./pages/Ads/AdsManager'))
+const AdReports = lazy(() => import('./pages/Ads/AdReports'))
 
 // ─── Content Hub (new unified structure) ──────────────────────────────────────
-import ContentHub from './pages/ContentHub/ContentHub'
-import PlanTab from './pages/ContentHub/PlanTab'
-import CreateTab from './pages/ContentHub/CreateTab'
-import PublishTab from './pages/ContentHub/PublishTab'
-import MeasureTab from './pages/ContentHub/MeasureTab'
-import ContentBank from './pages/ContentHub/ContentBank'
-import Vendors from './pages/Vendors/Vendors'
+const ContentHub = lazy(() => import('./pages/ContentHub/ContentHub'))
+const PlanTab = lazy(() => import('./pages/ContentHub/PlanTab'))
+const CreateTab = lazy(() => import('./pages/ContentHub/CreateTab'))
+const PublishTab = lazy(() => import('./pages/ContentHub/PublishTab'))
+const MeasureTab = lazy(() => import('./pages/ContentHub/MeasureTab'))
+const ContentBank = lazy(() => import('./pages/ContentHub/ContentBank'))
+const Vendors = lazy(() => import('./pages/Vendors/Vendors'))
 
 // ─── Section Dashboards ────────────────────────────────────────────────────────
-import CrmDashboard from './pages/CRM/CrmDashboard'
-import PipelineDashboard from './pages/Pipeline/PipelineDashboard'
-import ProspectingDashboard from './pages/Prospecting/ProspectingDashboard'
-import ContentDashboard from './pages/Content/ContentDashboard'
-import CalendarDashboard from './pages/Calendar/CalendarDashboard'
-import EmailDashboard from './pages/Email/EmailDashboard'
-// EmailTemplates route now redirects to /email/builder
-import SentHistory from './pages/Email/SentHistory'
-import EmailReporting from './pages/Email/EmailReporting'
-import CampaignsDashboard from './pages/Campaigns/CampaignsDashboard'
-import ResourcesDashboard from './pages/Resources/ResourcesDashboard'
-import AppraiserPackage from './pages/Resources/AppraiserPackage'
-import BioLinkDashboard from './pages/BioLink/BioLinkDashboard'
+const CrmDashboard = lazy(() => import('./pages/CRM/CrmDashboard'))
+const PipelineDashboard = lazy(() => import('./pages/Pipeline/PipelineDashboard'))
+const ProspectingDashboard = lazy(() => import('./pages/Prospecting/ProspectingDashboard'))
+const ContentDashboard = lazy(() => import('./pages/Content/ContentDashboard'))
+const CalendarDashboard = lazy(() => import('./pages/Calendar/CalendarDashboard'))
+const EmailDashboard = lazy(() => import('./pages/Email/EmailDashboard'))
+const SentHistory = lazy(() => import('./pages/Email/SentHistory'))
+const EmailReporting = lazy(() => import('./pages/Email/EmailReporting'))
+const CampaignsDashboard = lazy(() => import('./pages/Campaigns/CampaignsDashboard'))
+const ResourcesDashboard = lazy(() => import('./pages/Resources/ResourcesDashboard'))
+const AppraiserPackage = lazy(() => import('./pages/Resources/AppraiserPackage'))
+const BioLinkDashboard = lazy(() => import('./pages/BioLink/BioLinkDashboard'))
 
 // ─── Pipeline Pages ─────────────────────────────────────────────────────────
-import PipelineBoard from './pages/Pipeline/Pipeline'
-import EscrowTracker from './pages/Pipeline/EscrowTracker'
-import ClosedDeals from './pages/Pipeline/ClosedDeals'
-import SellerSOP from './pages/Pipeline/SellerSOP'
-import BuyerSOP from './pages/Pipeline/BuyerSOP'
+const PipelineBoard = lazy(() => import('./pages/Pipeline/Pipeline'))
+const EscrowTracker = lazy(() => import('./pages/Pipeline/EscrowTracker'))
+const ClosedDeals = lazy(() => import('./pages/Pipeline/ClosedDeals'))
+const SellerSOP = lazy(() => import('./pages/Pipeline/SellerSOP'))
+const BuyerSOP = lazy(() => import('./pages/Pipeline/BuyerSOP'))
 
 // ─── Daily Tasks ─────────────────────────────────────────────────────────────
-import DailyTasks from './pages/Tasks/DailyTasks'
+const DailyTasks = lazy(() => import('./pages/Tasks/DailyTasks'))
 
 // ─── Notes ──────────────────────────────────────────────────────────────────
-import Notes from './pages/Notes/Notes'
+const Notes = lazy(() => import('./pages/Notes/Notes'))
 
 // ─── Expired / Cannonball Tracker ─────────────────────────────────────────────
-import ExpiredCannonball from './pages/Prospecting/ExpiredCannonball'
+const ExpiredCannonball = lazy(() => import('./pages/Prospecting/ExpiredCannonball'))
 
 // ─── Prospecting Pages ──────────────────────────────────────────────────────
-import AllProspects from './pages/Prospecting/AllProspects'
-import FsboLeads from './pages/Prospecting/FsboLeads'
-import CircleProspecting from './pages/Prospecting/CircleProspecting'
-import PersonalCircle from './pages/Prospecting/PersonalCircle'
-import Referrals from './pages/Prospecting/Referrals'
-import OHLeads from './pages/Prospecting/OHLeads'
+const AllProspects = lazy(() => import('./pages/Prospecting/AllProspects'))
+const FsboLeads = lazy(() => import('./pages/Prospecting/FsboLeads'))
+const CircleProspecting = lazy(() => import('./pages/Prospecting/CircleProspecting'))
+const PersonalCircle = lazy(() => import('./pages/Prospecting/PersonalCircle'))
+const Referrals = lazy(() => import('./pages/Prospecting/Referrals'))
+const OHLeads = lazy(() => import('./pages/Prospecting/OHLeads'))
 
 // ─── Smart Campaigns ────────────────────────────────────────────────────────
-import SmartCampaigns from './pages/Campaigns/SmartCampaigns'
+const SmartCampaigns = lazy(() => import('./pages/Campaigns/SmartCampaigns'))
 
 // ─── Database (Contact Hub) ──────────────────────────────────────────────────
-import Database from './pages/Database/Database'
-import OnHoldContacts from './pages/OnHoldContacts/OnHoldContacts'
+const Database = lazy(() => import('./pages/Database/Database'))
+const OnHoldContacts = lazy(() => import('./pages/OnHoldContacts/OnHoldContacts'))
 
 // ─── Net Sheet ──────────────────────────────────────────────────────────────
-import NetSheet from './pages/NetSheet/NetSheet'
+const NetSheet = lazy(() => import('./pages/NetSheet/NetSheet'))
 
 // ─── P&L Pages ──────────────────────────────────────────────────────────────
-import PnLOverview from './pages/PnL/PnLOverview'
-import PnLExpenses from './pages/PnL/Expenses'
-import PnLIncome   from './pages/PnL/Income'
-import MileageLog  from './pages/PnL/MileageLog'
-import TaxSummary  from './pages/PnL/TaxSummary'
-import RecurringExpenses from './pages/PnL/RecurringExpenses'
-import BudgetVsActual from './pages/PnL/BudgetVsActual'
-import CostTracker from './pages/PnL/CostTracker'
-import ROIAnalytics from './pages/PnL/ROIAnalytics'
+const PnLOverview = lazy(() => import('./pages/PnL/PnLOverview'))
+const PnLExpenses = lazy(() => import('./pages/PnL/Expenses'))
+const PnLIncome   = lazy(() => import('./pages/PnL/Income'))
+const MileageLog  = lazy(() => import('./pages/PnL/MileageLog'))
+const TaxSummary  = lazy(() => import('./pages/PnL/TaxSummary'))
+const RecurringExpenses = lazy(() => import('./pages/PnL/RecurringExpenses'))
+const BudgetVsActual = lazy(() => import('./pages/PnL/BudgetVsActual'))
+const CostTracker = lazy(() => import('./pages/PnL/CostTracker'))
+const ROIAnalytics = lazy(() => import('./pages/PnL/ROIAnalytics'))
+
+// ─── Loading spinner (brand-styled) ────────────────────────────────────────────
+function PageLoader() {
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100%',
+      minHeight: '60vh',
+      backgroundColor: 'var(--cream)',
+    }}>
+      <div style={{
+        width: 40,
+        height: 40,
+        border: '3px solid var(--cream)',
+        borderTopColor: 'var(--brown-dark)',
+        borderRadius: '50%',
+        animation: 'app-spin 0.8s linear infinite',
+      }} />
+      <style>{`@keyframes app-spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  )
+}
 
 // ─── Placeholder for new pages (renders a "Coming Soon" card) ────────────────
 function ComingSoon({ title }) {
@@ -148,6 +172,7 @@ export default function App() {
   return (
     <AuthProvider>
     <BrowserRouter>
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Public client-facing pages (unauthed) */}
         <Route path="/form/:slug" element={<PublicForm />} />
@@ -343,6 +368,7 @@ export default function App() {
           <Route path="/settings/intake-forms" element={<IntakeForms />} />
         </Route>
       </Routes>
+      </Suspense>
     </BrowserRouter>
     </AuthProvider>
   )

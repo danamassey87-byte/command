@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Button, Badge } from '../../components/ui/index.jsx'
+import { useIsMobile } from '../../lib/hooks.js'
 import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
 import SocialProfilesPanel from '../../components/SocialProfilesPanel.jsx'
 import LifeEventsPanel from '../../components/LifeEventsPanel.jsx'
@@ -16,6 +17,7 @@ const TIER_STYLE = {
 }
 
 export default function ContactProfile() {
+  const isMobile = useIsMobile()
   const { id } = useParams()
   const navigate = useNavigate()
   const [contact, setContact] = useState(null)
@@ -49,10 +51,10 @@ export default function ContactProfile() {
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20, marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: isMobile ? 12 : 20, marginBottom: 24, flexDirection: isMobile ? 'column' : 'row' }}>
         {/* Avatar */}
         <div style={{
-          width: 72, height: 72, borderRadius: '50%', flexShrink: 0,
+          width: isMobile ? 56 : 72, height: isMobile ? 56 : 72, borderRadius: '50%', flexShrink: 0,
           background: 'var(--brown-mid, #B79782)', color: '#fff',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 500,
@@ -102,7 +104,7 @@ export default function ContactProfile() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>← Back</Button>
           <Button variant="ghost" size="sm" onClick={() => {
             const label = `${displayName}\n${contact.email || ''}\n${contact.phone || ''}\n${contact.city ? contact.city + ', AZ' : ''}`
@@ -120,7 +122,7 @@ export default function ContactProfile() {
       </div>
 
       {/* Quick stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: 10, marginBottom: 20 }}>
         <div style={{ background: 'var(--cream-3)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 12, textAlign: 'center' }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', lineHeight: 1 }}>{deals.length}</div>
           <div style={{ fontSize: '0.58rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 4 }}>Deals</div>
@@ -205,7 +207,7 @@ export default function ContactProfile() {
       )}
 
       {/* Two-column: Relationships | Activity */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20, marginBottom: 24 }}>
         <div>
           <SocialProfilesPanel contactId={id} />
           <FamilyLinksPanel contactId={id} />

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Button, Badge, SectionHeader, Input, Select } from '../../components/ui/index.jsx'
+import { useIsMobile } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 import supabase from '../../lib/supabase.js'
 
@@ -17,6 +18,7 @@ const TIMEFRAMES = [
 ]
 
 export default function HomeValue() {
+  const isMobile = useIsMobile()
   const [leads, setLeads] = useState([])
   const [valuations, setValuations] = useState([])
   const [loading, setLoading] = useState(true)
@@ -119,7 +121,7 @@ export default function HomeValue() {
       <SectionHeader title="Home Value & Seller Leads" subtitle="Track seller prospects and property valuations" />
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
         <div style={{ background: 'var(--cream-3)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 12, textAlign: 'center' }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', lineHeight: 1 }}>{leads.length}</div>
           <div style={{ fontSize: '0.62rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 4 }}>Total Leads</div>
@@ -141,7 +143,7 @@ export default function HomeValue() {
           padding: 14, background: 'var(--cream)', borderRadius: 8, border: '1px solid var(--color-border)',
           marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8,
         }}>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row' }}>
             <Select label="Property" value={draft.property_id} onChange={e => setDraft(d => ({ ...d, property_id: e.target.value }))} style={{ flex: 1 }}>
               <option value="">Select property...</option>
               {properties.map(p => <option key={p.id} value={p.id}>{p.address}{p.city ? `, ${p.city}` : ''}</option>)}
@@ -223,7 +225,7 @@ export default function HomeValue() {
                   {/* Existing valuations */}
                   {leadVals.map(val => (
                     <div key={val.id} style={{
-                      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr) 1fr', gap: 8, padding: '8px 0',
+                      display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr) 1fr', gap: 8, padding: '8px 0',
                       borderBottom: '1px solid var(--color-border)', fontSize: '0.78rem',
                     }}>
                       <div>
@@ -254,7 +256,7 @@ export default function HomeValue() {
                   {/* Add valuation */}
                   <div style={{ marginTop: 10 }}>
                     <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--brown-warm)', marginBottom: 6 }}>Add Valuation</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 6 }}>
                       <Input label="Zillow" type="number" value={valDraft.avm_zillow} onChange={e => setValDraft(d => ({ ...d, avm_zillow: e.target.value }))} placeholder="450000" />
                       <Input label="Redfin" type="number" value={valDraft.avm_redfin} onChange={e => setValDraft(d => ({ ...d, avm_redfin: e.target.value }))} placeholder="460000" />
                       <Input label="Realtor" type="number" value={valDraft.avm_realtor} onChange={e => setValDraft(d => ({ ...d, avm_realtor: e.target.value }))} placeholder="455000" />

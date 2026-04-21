@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, Badge } from '../../components/ui/index.jsx'
+import { useIsMobile } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 import supabase from '../../lib/supabase.js'
 
@@ -48,6 +49,7 @@ function MessageBubble({ message }) {
 }
 
 export default function AIAssistant() {
+  const isMobile = useIsMobile()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -138,7 +140,7 @@ export default function AIAssistant() {
   }
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 140px)' }}>
+    <div style={{ maxWidth: isMobile ? '100%' : 800, margin: '0 auto', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 140px)', padding: isMobile ? '0 8px' : 0 }}>
       {/* Header */}
       <div style={{ padding: '12px 0', borderBottom: '1px solid var(--color-border)', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -171,7 +173,7 @@ export default function AIAssistant() {
             <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginBottom: 20, maxWidth: 400, margin: '0 auto 20px' }}>
               I can write listing descriptions, draft emails, create social captions, prep for appointments, and more — all compliance-checked.
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, maxWidth: 500, margin: '0 auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 8, maxWidth: 500, margin: '0 auto' }}>
               {SUGGESTED_PROMPTS.map((sp, i) => (
                 <button
                   key={i}
