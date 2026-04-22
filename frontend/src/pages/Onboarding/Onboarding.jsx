@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Input } from '../../components/ui/index.jsx'
 import { useIsMobile } from '../../lib/hooks.js'
+import { useAuth } from '../../lib/AuthContext'
 import * as DB from '../../lib/supabase.js'
 
 const STEPS = [
@@ -14,6 +15,7 @@ const STEPS = [
 export default function Onboarding() {
   const isMobile = useIsMobile()
   const navigate = useNavigate()
+  const { markOnboardingComplete } = useAuth()
   const [step, setStep] = useState(0)
   const [profile, setProfile] = useState({
     name: 'Dana Massey',
@@ -38,10 +40,11 @@ export default function Onboarding() {
       finally { setSaving(false) }
     }
     if (isLast) {
-      // Mark onboarding complete
+      // Mark onboarding complete in DB and auth context
       try {
         await DB.upsertUserSetting('onboarding_complete', { completed_at: new Date().toISOString() })
       } catch { /* silent */ }
+      markOnboardingComplete()
       navigate('/')
       return
     }

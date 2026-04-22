@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { BrandProvider } from './lib/BrandContext'
 import { NotesProvider } from './lib/NotesContext'
 import { FavoritesProvider } from './lib/FavoritesContext'
@@ -168,6 +168,19 @@ function ProtectedRoute({ children }) {
   return children
 }
 
+function OnboardingGate({ children }) {
+  const { onboardingComplete, demoMode } = useAuth()
+  const location = useLocation()
+
+  // Demo users and users already on /onboarding skip the gate
+  if (demoMode || location.pathname === '/onboarding') return children
+  // Still loading onboarding status
+  if (onboardingComplete === null) return null
+  // Redirect to onboarding if not complete
+  if (!onboardingComplete) return <Navigate to="/onboarding" replace />
+  return children
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -180,7 +193,7 @@ export default function App() {
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
         <Route path="/login" element={<LoginGate />} />
-        <Route element={<ProtectedRoute><BrandProvider><NotesProvider><FavoritesProvider><Layout /></FavoritesProvider></NotesProvider></BrandProvider></ProtectedRoute>}>
+        <Route element={<ProtectedRoute><OnboardingGate><BrandProvider><NotesProvider><FavoritesProvider><Layout /></FavoritesProvider></NotesProvider></BrandProvider></OnboardingGate></ProtectedRoute>}>
           {/* ─── Dashboard ─── */}
           <Route path="/"                  element={<Dashboard />} />
           <Route path="/dashboard/daily"   element={<DailyTracker />} />

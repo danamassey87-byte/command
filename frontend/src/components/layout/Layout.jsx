@@ -99,8 +99,20 @@ const pageTitles = {
   '/buyer-showings':     'Buyer Showings',
   '/properties':         'Properties',
   '/database':           'Contact Database',
-  '/on-hold':            'On Hold',
+  '/on-hold':            'On Hold Contacts',
   '/investors':          'Investors',
+  '/ai':                 'AI Assistant',
+  '/contact':            'Contact Profile',
+  '/home-value':         'Home Value',
+  '/media':              'Media Library',
+  '/onboarding':         'Onboarding',
+  '/post-close':         'Post-Close',
+  '/print':              'Print & Delivery',
+  '/seo':                'SEO / AEO',
+  '/reviews':            'Reviews & Referrals',
+  '/settings/system':    'System Health',
+  '/notifications':      'Notifications',
+  '/vendors':            'Vendors',
 }
 
 export default function Layout() {

@@ -93,29 +93,80 @@ serve(async (req) => {
       } catch (_e) { /* non-fatal */ }
     }
 
-    // ─── RAG: search knowledge base for relevant context ─────────────────
-    // Simple keyword search against interactions + notes for now
-    // When embeddings pipeline is ready, switch to vector similarity
+    // ─── RAG: vector similarity search via pgvector embeddings ───────────
+    // Uses HuggingFace sentence-transformers/all-MiniLM-L6-v2 (384 dims, FREE)
+    // Falls back to keyword search if embeddings aren't available yet
     const lastUserMsg = messages?.filter((m: any) => m.role === 'user').pop()?.content || ''
     let ragContext = ''
     if (lastUserMsg.length > 10) {
+      let usedVectorSearch = false
+
+      // Try vector similarity search first
       try {
-        // Search recent interactions for relevant context
-        const keywords = lastUserMsg.split(/\s+/).filter((w: string) => w.length > 3).slice(0, 5)
-        if (keywords.length) {
-          const searchTerm = keywords.join(' & ')
-          const { data: relevant } = await supabase
-            .from('interactions')
-            .select('kind, channel, body, created_at')
-            .textSearch('body', searchTerm, { type: 'websearch' })
-            .limit(5)
-          if (relevant?.length) {
-            ragContext = '\n\nRELEVANT KNOWLEDGE (from CRM data):\n' + relevant.map((r: any) =>
-              `- [${r.created_at?.slice(0, 10)}] ${r.kind}: ${(r.body || '').slice(0, 150)}`
-            ).join('\n')
+        // Generate embedding for the user's query via HuggingFace free API
+        const hfResp = await fetch(
+          'https://api-inference.huggingface.co/pipeline/feature-extraction/sentence-transformers/all-MiniLM-L6-v2',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              inputs: lastUserMsg.slice(0, 2000),
+              options: { wait_for_model: true },
+            }),
+          }
+        )
+
+        if (hfResp.ok) {
+          let queryEmbedding = await hfResp.json()
+          // Normalize response shape (single text may return nested array)
+          if (Array.isArray(queryEmbedding) && Array.isArray(queryEmbedding[0])) {
+            queryEmbedding = queryEmbedding[0]
+          }
+
+          if (Array.isArray(queryEmbedding) && typeof queryEmbedding[0] === 'number') {
+            // Call the match_documents database function for semantic search
+            const { data: vectorResults } = await supabase.rpc('match_documents', {
+              query_embedding: queryEmbedding,
+              match_collection: null,  // search all collections
+              match_count: 5,
+              match_threshold: 0.5,
+            })
+
+            if (vectorResults?.length) {
+              usedVectorSearch = true
+              ragContext = '\n\nRELEVANT KNOWLEDGE (semantic search from knowledge base):\n' +
+                vectorResults.map((r: any) => {
+                  const sim = (r.similarity * 100).toFixed(0)
+                  const text = r.summary || r.content?.slice(0, 200) || ''
+                  return `- [${r.collection}/${r.source_kind}] ${r.title} (${sim}% match): ${text}`
+                }).join('\n')
+            }
           }
         }
-      } catch (_e) { /* non-fatal — text search may not be indexed yet */ }
+      } catch (_e) {
+        // Vector search failed — fall through to keyword search
+        console.log('Vector search unavailable, falling back to keyword search')
+      }
+
+      // Fallback: keyword search against interactions (original approach)
+      if (!usedVectorSearch) {
+        try {
+          const keywords = lastUserMsg.split(/\s+/).filter((w: string) => w.length > 3).slice(0, 5)
+          if (keywords.length) {
+            const searchTerm = keywords.join(' & ')
+            const { data: relevant } = await supabase
+              .from('interactions')
+              .select('kind, channel, body, created_at')
+              .textSearch('body', searchTerm, { type: 'websearch' })
+              .limit(5)
+            if (relevant?.length) {
+              ragContext = '\n\nRELEVANT KNOWLEDGE (from CRM data):\n' + relevant.map((r: any) =>
+                `- [${r.created_at?.slice(0, 10)}] ${r.kind}: ${(r.body || '').slice(0, 150)}`
+              ).join('\n')
+            }
+          }
+        } catch (_e) { /* non-fatal — text search may not be indexed yet */ }
+      }
     }
 
     // ─── Fetch custom AI prompts if any ──────────────────────────────────
