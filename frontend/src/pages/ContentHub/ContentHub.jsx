@@ -19,6 +19,7 @@ export default function ContentHub() {
     if (path.startsWith('/content/publish')) return 'publish'
     if (path.startsWith('/content/measure')) return 'measure'
     if (path.startsWith('/content/bank')) return 'bank'
+    if (path.startsWith('/content/settings')) return 'settings'
     return 'plan'
   }, [location.pathname])
 
@@ -50,6 +51,13 @@ export default function ContentHub() {
         >
           <span className="ch-tab__icon">📦</span>
           Content Bank
+        </button>
+        <button
+          className={`ch-tab${activeTab === 'settings' ? ' ch-tab--active' : ''}`}
+          onClick={() => navigate('/content/settings')}
+        >
+          <span className="ch-tab__icon">⚙️</span>
+          Settings
         </button>
       </div>
 

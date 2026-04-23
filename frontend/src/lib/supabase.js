@@ -2441,3 +2441,17 @@ export const upsertUserSetting = (key, value) =>
 
 export const getUserSetting = (key) =>
   query(supabase.from('user_settings').select('value').eq('key', key).maybeSingle())
+
+// ─── Content Rules ────────────────────────────────────────────────────────────
+export const getContentRules = async () => {
+  const { data } = await getUserSetting('content_rules')
+  return Array.isArray(data?.value) ? data.value : []
+}
+export const saveContentRules = (rules) => upsertUserSetting('content_rules', rules)
+
+// ─── Auto-Content Config ──────────────────────────────────────────────────────
+export const getAutoContentConfig = async () => {
+  const { data } = await getUserSetting('auto_content_config')
+  return data?.value || { enabled: false, time: '05:00', platforms: ['instagram', 'facebook'], auto_publish: false, avatar_ids: [] }
+}
+export const saveAutoContentConfig = (config) => upsertUserSetting('auto_content_config', config)

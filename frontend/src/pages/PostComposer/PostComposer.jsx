@@ -72,13 +72,111 @@ export default function PostComposer() {
   const [videoGenerating, setVideoGenerating] = useState(false)
   const [videoResult, setVideoResult] = useState(null)
 
-  // Inspo Recreator panel
+  // Inspo Recreator panel — chat-style refinement
   const [inspoOpen, setInspoOpen] = useState(false)
   const [inspoCaption, setInspoCaption] = useState('')
   const [inspoLoading, setInspoLoading] = useState(false)
   const [inspoResult, setInspoResult] = useState(null)
+  const [inspoChat, setInspoChat] = useState([]) // [{ role: 'user'|'assistant', content: string }]
+  const [inspoRefineInput, setInspoRefineInput] = useState('')
+  const inspoChatEndRef = useRef(null)
 
   const fileInputRef = useRef(null)
+
+  // ─── Inspo sessions — auto-save current + save/open previous ───────────
+  const INSPO_DRAFT_KEY = 'pc_inspo_draft'
+  const INSPO_SAVED_KEY = 'pc_inspo_saved_sessions'
+  const [inspoSavedSessions, setInspoSavedSessions] = useState([])
+  const [inspoSessionId, setInspoSessionId] = useState(null) // id of currently loaded saved session
+  const [showInspoSessions, setShowInspoSessions] = useState(false)
+
+  // Load saved sessions list + restore current draft on mount
+  useEffect(() => {
+    try {
+      const sessions = JSON.parse(localStorage.getItem(INSPO_SAVED_KEY) || '[]')
+      setInspoSavedSessions(sessions)
+    } catch { /* ignore */ }
+    try {
+      const saved = localStorage.getItem(INSPO_DRAFT_KEY)
+      if (saved) {
+        const draft = JSON.parse(saved)
+        if (draft.inspoCaption) setInspoCaption(draft.inspoCaption)
+        if (draft.inspoChat?.length) setInspoChat(draft.inspoChat)
+        if (draft.inspoResult) setInspoResult(draft.inspoResult)
+        if (draft.sessionId) setInspoSessionId(draft.sessionId)
+        if (draft.inspoChat?.length || draft.inspoResult) setInspoOpen(true)
+      }
+    } catch { /* ignore corrupt data */ }
+  }, [])
+
+  // Auto-save current draft on every meaningful change
+  useEffect(() => {
+    if (!inspoCaption && !inspoChat.length && !inspoResult) {
+      localStorage.removeItem(INSPO_DRAFT_KEY)
+      return
+    }
+    try {
+      localStorage.setItem(INSPO_DRAFT_KEY, JSON.stringify({
+        inspoCaption, inspoChat, inspoResult, sessionId: inspoSessionId, savedAt: Date.now(),
+      }))
+    } catch { /* storage full — non-fatal */ }
+  }, [inspoCaption, inspoChat, inspoResult, inspoSessionId])
+
+  function inspoSessionTitle(session) {
+    const caption = session.inspoCaption || session.inspoResult?.recreated_text || ''
+    return caption.slice(0, 50).trim() || 'Untitled session'
+  }
+
+  // Save current session to the saved list
+  function saveInspoSession() {
+    if (!inspoChat.length && !inspoResult) return
+    const id = inspoSessionId || `inspo_${Date.now()}`
+    const session = {
+      id, inspoCaption, inspoChat, inspoResult, savedAt: Date.now(),
+    }
+    setInspoSavedSessions(prev => {
+      const filtered = prev.filter(s => s.id !== id)
+      const next = [session, ...filtered].slice(0, 20) // keep max 20
+      localStorage.setItem(INSPO_SAVED_KEY, JSON.stringify(next))
+      return next
+    })
+    setInspoSessionId(id)
+    return id
+  }
+
+  // Save current & start new blank session
+  function saveAndStartNewInspo() {
+    saveInspoSession()
+    setInspoCaption('')
+    setInspoChat([])
+    setInspoResult(null)
+    setInspoRefineInput('')
+    setInspoSessionId(null)
+    localStorage.removeItem(INSPO_DRAFT_KEY)
+  }
+
+  // Load a saved session
+  function loadInspoSession(session) {
+    // Auto-save current work first if there's anything
+    if (inspoChat.length || inspoResult) saveInspoSession()
+    setInspoCaption(session.inspoCaption || '')
+    setInspoChat(session.inspoChat || [])
+    setInspoResult(session.inspoResult || null)
+    setInspoRefineInput('')
+    setInspoSessionId(session.id)
+    setShowInspoSessions(false)
+  }
+
+  // Delete a saved session
+  function deleteInspoSession(e, id) {
+    e.stopPropagation()
+    setInspoSavedSessions(prev => {
+      const next = prev.filter(s => s.id !== id)
+      localStorage.setItem(INSPO_SAVED_KEY, JSON.stringify(next))
+      return next
+    })
+    if (inspoSessionId === id) setInspoSessionId(null)
+  }
 
   // ─── Load existing piece ─────────────────────────────────────────────────
   useEffect(() => {
@@ -352,9 +450,11 @@ export default function PostComposer() {
       }
 
       setPublishStatus('draft')
+      return currentPiece
     } catch (err) {
       console.error('Save error:', err)
       alert('Failed to save: ' + err.message)
+      return null
     } finally {
       setSaving(false)
     }
@@ -364,9 +464,9 @@ export default function PostComposer() {
   async function schedulePost() {
     setSaving(true)
     try {
-      // Save first
-      await saveDraft()
-      if (!piece?.id) { setSaving(false); return }
+      // Save first, use returned piece directly (state may not have updated yet)
+      const saved = piece?.id ? piece : await saveDraft()
+      if (!saved?.id) { setSaving(false); return }
 
       const scheduledFor = new Date(`${contentDate}T${scheduleTime}:00`).toISOString()
 
@@ -375,7 +475,7 @@ export default function PostComposer() {
         const text = getTextForPlatform(pid)
         const charInfo = getCharInfo(pid)
         await DB.upsertContentPlatformPost({
-          content_id: piece.id,
+          content_id: saved.id,
           platform: pid,
           adapted_text: platformTexts[pid] || null,
           hashtags: hashtags || null,
@@ -386,7 +486,7 @@ export default function PostComposer() {
       }
 
       // Update the content piece status
-      await DB.updateContentPiece(piece.id, { status: 'scheduled' })
+      await DB.updateContentPiece(saved.id, { status: 'scheduled' })
       setPublishStatus('scheduled')
     } catch (err) {
       console.error('Schedule error:', err)
@@ -401,9 +501,9 @@ export default function PostComposer() {
     setSaving(true)
     setPublishError('')
     try {
-      // Save first
-      await saveDraft()
-      if (!piece?.id) { setSaving(false); return }
+      // Save first, use returned piece directly
+      const saved = piece?.id ? piece : await saveDraft()
+      if (!saved?.id) { setSaving(false); return }
 
       setPublishStatus('publishing')
 
@@ -411,7 +511,7 @@ export default function PostComposer() {
       for (const pid of selectedPlatforms) {
         // Get the platform_post record
         const { data: posts } = await DB.getContentPieces(contentDate, contentDate)
-        const currentPiece = (posts ?? []).find(p => p.id === piece.id)
+        const currentPiece = (posts ?? []).find(p => p.id === saved.id)
         const platformPost = (currentPiece?.platform_posts ?? []).find(pp => pp.platform === pid)
 
         if (platformPost) {
@@ -429,7 +529,7 @@ export default function PostComposer() {
       setPublishStatus(anyFailed ? 'failed' : 'published')
 
       if (!anyFailed) {
-        await DB.updateContentPiece(piece.id, { status: 'published' })
+        await DB.updateContentPiece(saved.id, { status: 'published' })
         // Log to blotato_posts table
         supabase.from('blotato_posts').insert({
           content_piece_id: piece.id,
@@ -447,11 +547,12 @@ export default function PostComposer() {
     }
   }
 
-  // ─── Inspo Recreator ──────────────────────────────────────────────────
+  // ─── Inspo Recreator — chat-style AI refinement ──────────────────────
   async function handleInspoRecreate() {
     if (inspoLoading || !inspoCaption.trim()) return
     setInspoLoading(true)
     setInspoResult(null)
+    setInspoChat([]) // reset conversation
     try {
       const result = await DB.generateContent({
         type: 'recreate_inspo',
@@ -461,8 +562,42 @@ export default function PostComposer() {
         framework: framework || undefined,
       })
       setInspoResult(result)
+      // Seed conversation history for future refinements
+      if (result?.recreated_text) {
+        setInspoChat([
+          { role: 'user', content: `Recreate this inspo caption in my voice:\n\n"${inspoCaption}"` },
+          { role: 'assistant', content: result.recreated_text },
+        ])
+      }
     } catch (err) {
       setInspoResult({ error: err.message })
+    } finally {
+      setInspoLoading(false)
+    }
+  }
+
+  // Send a refinement message in the ongoing conversation
+  async function handleInspoRefine(userMsg) {
+    const msg = (userMsg || inspoRefineInput).trim()
+    if (inspoLoading || !msg) return
+    setInspoLoading(true)
+    setInspoRefineInput('')
+    const updatedChat = [...inspoChat, { role: 'user', content: msg }]
+    setInspoChat(updatedChat)
+    try {
+      const result = await DB.generateContent({
+        type: 'refine',
+        conversation: updatedChat,
+        avatar_id: avatarId || undefined,
+        framework: framework || undefined,
+      })
+      const aiReply = result?.text || ''
+      setInspoChat(prev => [...prev, { role: 'assistant', content: aiReply }])
+      // Update the result so "Use This" always grabs the latest
+      setInspoResult(prev => ({ ...prev, recreated_text: aiReply }))
+      setTimeout(() => inspoChatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+    } catch (err) {
+      setInspoChat(prev => [...prev, { role: 'assistant', content: `Error: ${err.message}` }])
     } finally {
       setInspoLoading(false)
     }
@@ -472,11 +607,23 @@ export default function PostComposer() {
     if (!inspoResult?.recreated_text) return
     setMainCaption(inspoResult.recreated_text)
     if (inspoResult.suggested_hashtags?.length) {
-      setHashtags(inspoResult.suggested_hashtags.map(h => `#${h}`).join(' '))
+      setHashtags(inspoResult.suggested_hashtags.map(h => `#${h.replace(/^#+/, '')}`).join(' '))
+    }
+    // Remove from saved sessions since it's been used
+    if (inspoSessionId) {
+      setInspoSavedSessions(prev => {
+        const next = prev.filter(s => s.id !== inspoSessionId)
+        localStorage.setItem(INSPO_SAVED_KEY, JSON.stringify(next))
+        return next
+      })
     }
     setInspoOpen(false)
     setInspoCaption('')
     setInspoResult(null)
+    setInspoChat([])
+    setInspoRefineInput('')
+    setInspoSessionId(null)
+    localStorage.removeItem(INSPO_DRAFT_KEY)
   }
 
   // ─── Generate video via Blotato ────────────────────────────────────────
@@ -746,8 +893,8 @@ export default function PostComposer() {
             </div>
             <div className="pc-schedule__buttons">
               <Button size="sm" variant="ghost" onClick={async () => {
-                if (!piece?.id) { await saveDraft(); }
-                if (piece?.id) { await DB.bankContentPiece(piece.id); setPublishStatus('banked') }
+                const saved = piece?.id ? piece : await saveDraft()
+                if (saved?.id) { await DB.bankContentPiece(saved.id); setPublishStatus('banked') }
               }} disabled={saving || !mainCaption.trim()} style={{ color: 'var(--brown-warm)' }}>
                 Save to Bank
               </Button>
@@ -947,103 +1094,285 @@ export default function PostComposer() {
         </div>
       </div>
 
-      {/* ─── Inspo Recreator Panel ─── */}
+      {/* ─── Inspo Recreator Panel — Chat-style AI refinement ─── */}
       {inspoOpen && (
         <div className="pc-inspo-overlay" onClick={() => setInspoOpen(false)}>
-          <div className="pc-inspo-panel" onClick={e => e.stopPropagation()}>
+          <div className="pc-inspo-panel" onClick={e => e.stopPropagation()} style={{ maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
             <div className="pc-inspo-panel__header">
               <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', color: 'var(--brown-dark)', margin: 0 }}>
                 Recreate Inspiration
               </h3>
-              <button onClick={() => setInspoOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
+              <button onClick={() => { setInspoOpen(false) }} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--color-text-muted)' }}>
                 &times;
               </button>
             </div>
 
-            <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', margin: '0 0 14px' }}>
-              Paste a caption or post you love. Claude will analyze the structure, then recreate it in your voice with your framework and avatar.
-            </p>
-
-            <textarea
-              value={inspoCaption}
-              onChange={e => setInspoCaption(e.target.value)}
-              placeholder="Paste the original caption, post text, or content you want to recreate..."
-              rows={6}
-              style={{
-                width: '100%', padding: '10px 12px', border: '1px solid #e0dbd6',
-                borderRadius: 8, fontSize: '0.85rem', resize: 'vertical',
-                fontFamily: 'var(--font-body)', marginBottom: 12,
-              }}
-            />
-
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <Button size="sm" onClick={handleInspoRecreate} disabled={inspoLoading || !inspoCaption.trim()}>
-                {inspoLoading ? 'Analyzing...' : '✨ Recreate in My Voice'}
-              </Button>
-              {framework && (
-                <span style={{ fontSize: '0.72rem', color: 'var(--sage-green)', alignSelf: 'center' }}>
-                  Using {framework.toUpperCase()} framework
-                </span>
+            {/* Session toolbar */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => { if (inspoChat.length || inspoResult) saveAndStartNewInspo() }}
+                disabled={!inspoChat.length && !inspoResult}
+                style={{
+                  padding: '4px 12px', borderRadius: 6, border: '1px solid #e0dbd6',
+                  background: '#faf8f5', fontSize: '0.78rem', cursor: 'pointer',
+                  color: 'var(--brown-dark)', fontFamily: 'inherit',
+                  opacity: (!inspoChat.length && !inspoResult) ? 0.4 : 1,
+                }}
+              >
+                + New
+              </button>
+              <button
+                onClick={() => {
+                  // Save current before showing list
+                  if (inspoChat.length || inspoResult) saveInspoSession()
+                  setShowInspoSessions(!showInspoSessions)
+                }}
+                style={{
+                  padding: '4px 12px', borderRadius: 6, border: '1px solid #e0dbd6',
+                  background: showInspoSessions ? '#edf4ee' : '#faf8f5', fontSize: '0.78rem',
+                  cursor: 'pointer', color: 'var(--brown-dark)', fontFamily: 'inherit',
+                }}
+              >
+                Saved{inspoSavedSessions.length > 0 ? ` (${inspoSavedSessions.length})` : ''}
+              </button>
+              {inspoChat.length > 0 && (
+                <button
+                  onClick={saveInspoSession}
+                  style={{
+                    padding: '4px 12px', borderRadius: 6, border: '1px solid #e0dbd6',
+                    background: '#faf8f5', fontSize: '0.78rem', cursor: 'pointer',
+                    color: 'var(--sage-green)', fontFamily: 'inherit',
+                  }}
+                >
+                  Save
+                </button>
               )}
             </div>
 
-            {inspoResult?.error && (
-              <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fce8e6', color: '#c5221f', fontSize: '0.82rem', marginBottom: 12 }}>
-                {inspoResult.error}
-              </div>
-            )}
-
-            {inspoResult?.analysis && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)', marginBottom: 4 }}>
-                  Analysis
-                </div>
-                <div style={{ padding: '10px 14px', background: '#faf8f5', borderRadius: 8, fontSize: '0.82rem', color: 'var(--brown-dark)', lineHeight: 1.6 }}>
-                  {inspoResult.analysis}
-                </div>
-              </div>
-            )}
-
-            {inspoResult?.recreated_text && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)', marginBottom: 4 }}>
-                  Recreated in Your Voice
-                </div>
-                <div style={{ padding: '10px 14px', background: '#edf4ee', borderRadius: 8, fontSize: '0.85rem', color: 'var(--brown-dark)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                  {inspoResult.recreated_text}
-                </div>
-                {inspoResult.suggested_hook && (
-                  <div style={{ marginTop: 6, fontSize: '0.78rem', color: 'var(--sage-green)' }}>
-                    <strong>Suggested hook:</strong> {inspoResult.suggested_hook}
+            {/* Saved sessions list */}
+            {showInspoSessions && (
+              <div style={{
+                marginBottom: 14, border: '1px solid #e8e3de', borderRadius: 8,
+                maxHeight: 200, overflowY: 'auto', background: '#faf8f5',
+              }}>
+                {inspoSavedSessions.length === 0 ? (
+                  <div style={{ padding: '12px 14px', fontSize: '0.82rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                    No saved sessions yet
                   </div>
-                )}
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  <Button size="sm" onClick={useInspoResult}>
-                    Use This in My Post
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => {
-                    navigator.clipboard.writeText(inspoResult.recreated_text)
-                  }}>
-                    Copy
-                  </Button>
-                </div>
+                ) : inspoSavedSessions.map(session => (
+                  <div
+                    key={session.id}
+                    onClick={() => loadInspoSession(session)}
+                    style={{
+                      padding: '8px 14px', cursor: 'pointer', display: 'flex',
+                      justifyContent: 'space-between', alignItems: 'center',
+                      borderBottom: '1px solid #f0ece7',
+                      background: session.id === inspoSessionId ? '#edf4ee' : 'transparent',
+                    }}
+                    onMouseOver={e => { if (session.id !== inspoSessionId) e.currentTarget.style.background = '#f5f0eb' }}
+                    onMouseOut={e => { if (session.id !== inspoSessionId) e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--brown-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {inspoSessionTitle(session)}
+                      </div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>
+                        {new Date(session.savedAt).toLocaleDateString()} &middot; {session.inspoChat?.length || 0} messages
+                      </div>
+                    </div>
+                    <button
+                      onClick={e => deleteInspoSession(e, session.id)}
+                      style={{ background: 'none', border: 'none', fontSize: '0.9rem', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '0 4px', flexShrink: 0 }}
+                      title="Delete"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
 
-            {inspoResult?.suggested_hashtags?.length > 0 && (
-              <div>
-                <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)', marginBottom: 4 }}>
-                  Suggested Hashtags
+            <div style={{ flex: 1, overflowY: 'auto', paddingBottom: 8 }}>
+              {/* Initial input — show when no result yet */}
+              {!inspoResult && (
+                <>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', margin: '0 0 14px' }}>
+                    Paste a caption or post you love. Claude will analyze the structure, then recreate it in your voice. You can chat back and forth to get it perfect.
+                  </p>
+
+                  <textarea
+                    value={inspoCaption}
+                    onChange={e => setInspoCaption(e.target.value)}
+                    placeholder="Paste the original caption, post text, or content you want to recreate..."
+                    rows={6}
+                    style={{
+                      width: '100%', padding: '10px 12px', border: '1px solid #e0dbd6',
+                      borderRadius: 8, fontSize: '0.85rem', resize: 'vertical',
+                      fontFamily: 'var(--font-body)', marginBottom: 12,
+                    }}
+                  />
+
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                    <Button size="sm" onClick={handleInspoRecreate} disabled={inspoLoading || !inspoCaption.trim()}>
+                      {inspoLoading ? 'Analyzing...' : 'Recreate in My Voice'}
+                    </Button>
+                    {framework && (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--sage-green)', alignSelf: 'center' }}>
+                        Using {framework.toUpperCase()} framework
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {inspoResult?.error && (
+                <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fce8e6', color: '#c5221f', fontSize: '0.82rem', marginBottom: 12 }}>
+                  {inspoResult.error}
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {inspoResult.suggested_hashtags.map((h, i) => (
-                    <span key={i} style={{ padding: '3px 8px', borderRadius: 4, fontSize: '0.72rem', background: '#f5f0eb', color: 'var(--brown-dark)' }}>
-                      #{h}
-                    </span>
-                  ))}
+              )}
+
+              {/* Show results + conversation history */}
+              {inspoResult?.recreated_text && (
+                <>
+                  {/* Initial analysis (collapsible) */}
+                  {inspoResult?.analysis && (
+                    <details style={{ marginBottom: 14 }}>
+                      <summary style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)', cursor: 'pointer', marginBottom: 4 }}>
+                        Structure Analysis
+                      </summary>
+                      <div style={{ padding: '10px 14px', background: '#faf8f5', borderRadius: 8, fontSize: '0.82rem', color: 'var(--brown-dark)', lineHeight: 1.6 }}>
+                        {inspoResult.analysis}
+                      </div>
+                    </details>
+                  )}
+
+                  {/* Chat conversation — show refinement exchanges */}
+                  {inspoChat.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+                      {inspoChat.map((msg, i) => {
+                        // Skip the initial user message (it's just the inspo paste)
+                        if (i === 0 && msg.role === 'user') return null
+                        return (
+                          <div key={i} style={{
+                            padding: '10px 14px',
+                            borderRadius: 8,
+                            fontSize: '0.85rem',
+                            lineHeight: 1.6,
+                            whiteSpace: 'pre-wrap',
+                            ...(msg.role === 'user' ? {
+                              background: '#f5f0eb',
+                              color: 'var(--brown-dark)',
+                              marginLeft: 24,
+                              borderBottomRightRadius: 2,
+                            } : {
+                              background: '#edf4ee',
+                              color: 'var(--brown-dark)',
+                              marginRight: 24,
+                              borderBottomLeftRadius: 2,
+                            }),
+                          }}>
+                            {msg.role === 'user' && (
+                              <div style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 2 }}>You</div>
+                            )}
+                            {msg.role === 'assistant' && (
+                              <div style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--sage-green)', marginBottom: 2 }}>Claude</div>
+                            )}
+                            {msg.content}
+                          </div>
+                        )
+                      })}
+                      <div ref={inspoChatEndRef} />
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                    <Button size="sm" onClick={useInspoResult}>
+                      Use This in My Post
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => {
+                      navigator.clipboard.writeText(inspoResult.recreated_text)
+                    }}>
+                      Copy
+                    </Button>
+                  </div>
+
+                  {/* Quick refine action chips */}
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                      Refine it
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {[
+                        { label: 'Try a different angle', msg: 'Rewrite this with a completely different angle and hook. Don\'t reuse the same points.' },
+                        { label: 'Make it shorter', msg: 'Make this more concise — cut it roughly in half while keeping the impact.' },
+                        { label: 'More emotional', msg: 'Rewrite with more emotion and storytelling. Make it feel personal.' },
+                        { label: 'More punchy / edgy', msg: 'Make this punchier and more bold. Shorter sentences, stronger hook.' },
+                        { label: 'Different hook', msg: 'Keep the same message but give me a completely different opening hook.' },
+                        { label: 'Give me 3 options', msg: 'Give me 3 different versions of this content. Number them 1, 2, 3. Each should have a different angle or hook style.' },
+                      ].map(chip => (
+                        <button
+                          key={chip.label}
+                          onClick={() => handleInspoRefine(chip.msg)}
+                          disabled={inspoLoading}
+                          style={{
+                            padding: '5px 12px', borderRadius: 20, border: '1px solid #e0dbd6',
+                            background: '#faf8f5', fontSize: '0.78rem', cursor: 'pointer',
+                            color: 'var(--brown-dark)', fontFamily: 'inherit',
+                            opacity: inspoLoading ? 0.5 : 1,
+                          }}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Free-form chat input */}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input
+                      value={inspoRefineInput}
+                      onChange={e => setInspoRefineInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleInspoRefine() } }}
+                      placeholder="Tell AI what to change... (e.g. 'add a CTA', 'make it about Gilbert specifically')"
+                      disabled={inspoLoading}
+                      style={{
+                        flex: 1, padding: '8px 12px', border: '1px solid #e0dbd6', borderRadius: 8,
+                        fontSize: '0.85rem', fontFamily: 'inherit', color: 'var(--brown-dark)', outline: 'none',
+                      }}
+                    />
+                    <Button size="sm" onClick={() => handleInspoRefine()} disabled={inspoLoading || !inspoRefineInput.trim()}>
+                      {inspoLoading ? '...' : 'Send'}
+                    </Button>
+                  </div>
+
+                  {/* Start over link */}
+                  <div style={{ marginTop: 10, textAlign: 'center' }}>
+                    <button
+                      onClick={saveAndStartNewInspo}
+                      style={{ background: 'none', border: 'none', fontSize: '0.75rem', color: 'var(--color-text-muted)', cursor: 'pointer', textDecoration: 'underline' }}
+                    >
+                      Start over with new inspo
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {inspoResult?.suggested_hashtags?.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)', marginBottom: 4 }}>
+                    Suggested Hashtags
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {inspoResult.suggested_hashtags.map((h, i) => (
+                      <span key={i} style={{ padding: '3px 8px', borderRadius: 4, fontSize: '0.72rem', background: '#f5f0eb', color: 'var(--brown-dark)' }}>
+                        #{h.replace(/^#+/, '')}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -106,6 +106,8 @@ function BlogMode() {
   const [aiLoading, setAiLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  const [piece, setPiece] = useState(null) // track saved piece to avoid duplicates
+
   // Inspo panel
   const [inspoOpen, setInspoOpen] = useState(false)
   const [inspoText, setInspoText] = useState('')
@@ -161,13 +163,20 @@ function BlogMode() {
   async function saveDraft() {
     setSaving(true)
     try {
-      await DB.createContentPiece({
+      const pieceData = {
         title: title || 'Untitled Blog',
         body_text: body,
         content_type: 'blog',
         content_date: new Date().toISOString().slice(0, 10),
         status: 'draft',
-      })
+      }
+      if (piece?.id) {
+        const { data } = await DB.updateContentPiece(piece.id, pieceData)
+        setPiece(data)
+      } else {
+        const { data } = await DB.createContentPiece(pieceData)
+        setPiece(data)
+      }
     } catch (e) { console.error(e) }
     finally { setSaving(false) }
   }
@@ -175,14 +184,21 @@ function BlogMode() {
   async function saveToBank() {
     setSaving(true)
     try {
-      await DB.createContentPiece({
+      const pieceData = {
         title: title || 'Untitled Blog',
         body_text: body,
         content_type: 'blog',
         content_date: new Date().toISOString().slice(0, 10),
         status: 'banked',
         banked_at: new Date().toISOString(),
-      })
+      }
+      if (piece?.id) {
+        const { data } = await DB.updateContentPiece(piece.id, pieceData)
+        setPiece(data)
+      } else {
+        const { data } = await DB.createContentPiece(pieceData)
+        setPiece(data)
+      }
     } catch (e) { console.error(e) }
     finally { setSaving(false) }
   }
@@ -363,6 +379,7 @@ function DirectMailMode() {
   const [framework, setFramework] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [piece, setPiece] = useState(null)
 
   // Inspo
   const [inspoOpen, setInspoOpen] = useState(false)
@@ -423,7 +440,7 @@ function DirectMailMode() {
   async function saveToBank() {
     setSaving(true)
     try {
-      await DB.createContentPiece({
+      const pieceData = {
         title: headline || 'Untitled Direct Mail',
         body_text: `${headline}\n\n${body}\n\n${cta}`,
         content_type: 'direct_mail',
@@ -431,7 +448,14 @@ function DirectMailMode() {
         status: 'banked',
         banked_at: new Date().toISOString(),
         notes: mailType,
-      })
+      }
+      if (piece?.id) {
+        const { data } = await DB.updateContentPiece(piece.id, pieceData)
+        setPiece(data)
+      } else {
+        const { data } = await DB.createContentPiece(pieceData)
+        setPiece(data)
+      }
     } catch (e) { console.error(e) }
     finally { setSaving(false) }
   }

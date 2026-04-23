@@ -89,6 +89,7 @@ const SECTIONS = {
       { label: 'SEO & AEO',    path: '/seo',                icon: 'trending-up',   group: 'Growth' },
       { label: 'Ads Manager',   path: '/content/ads',         icon: 'target',        group: 'Ads' },
       { label: 'Ad Reports',    path: '/content/ads/reports', icon: 'bar-chart-2' },
+      { label: 'Content Settings', path: '/content/settings', icon: 'zap',          group: 'Settings' },
     ],
   },
   email: {
@@ -178,17 +179,17 @@ const ICONS = {
 
 export function getActiveSection(pathname) {
   if (pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/goals') || pathname.startsWith('/calendar') || pathname.startsWith('/tasks')) return 'home'
-  if (pathname.startsWith('/prospecting') || pathname.startsWith('/open-houses')) return 'prospect'
-  if (pathname.startsWith('/crm') || pathname.startsWith('/vendors')) return 'people'
+  if (pathname.startsWith('/prospecting') || pathname.startsWith('/open-houses') || pathname.startsWith('/home-value')) return 'prospect'
+  if (pathname.startsWith('/crm') || pathname.startsWith('/vendors') || pathname.startsWith('/print') || pathname.startsWith('/reviews') || pathname.startsWith('/post-close') || pathname.startsWith('/on-hold') || pathname.startsWith('/investors') || pathname.startsWith('/database') || pathname.startsWith('/listing-') || pathname.startsWith('/sellers') || pathname.startsWith('/seller-') || pathname.startsWith('/buyers') || pathname.startsWith('/buyer-') || pathname.startsWith('/properties')) return 'people'
   // SOP/playbook routes live under toolkit, not deals
   if (pathname === '/pipeline/buyer-sop' || pathname === '/pipeline/seller-sop') return 'toolkit'
   if (pathname.startsWith('/pipeline'))    return 'deals'
-  if (pathname.startsWith('/content'))    return 'content'
+  if (pathname.startsWith('/content') || pathname.startsWith('/seo') || pathname.startsWith('/media')) return 'content'
   if (pathname.startsWith('/email'))      return 'email'
   if (pathname.startsWith('/campaigns'))  return 'email'
   if (pathname.startsWith('/bio-link'))   return 'biolink'
   if (pathname.startsWith('/pnl') || pathname.startsWith('/net-sheet') || pathname.startsWith('/market')) return 'money'
-  if (pathname.startsWith('/resources') || pathname.startsWith('/settings')) return 'toolkit'
+  if (pathname.startsWith('/resources') || pathname.startsWith('/settings') || pathname.startsWith('/ai')) return 'toolkit'
   return 'home'
 }
 

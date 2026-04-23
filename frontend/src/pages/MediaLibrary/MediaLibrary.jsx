@@ -1,8 +1,160 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Button, Badge, SectionHeader, Input, Select } from '../../components/ui/index.jsx'
 import { useMediaAssets, useIsMobile } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 import supabase from '../../lib/supabase.js'
+
+/* ── Tag Input with autocomplete ─────────────────────────────── */
+function TagInput({ selectedTags, onChange, allTags }) {
+  const [input, setInput] = useState('')
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [highlightIdx, setHighlightIdx] = useState(-1)
+  const wrapRef = useRef(null)
+  const inputRef = useRef(null)
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setShowSuggestions(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const suggestions = useMemo(() => {
+    if (!input.trim()) return allTags.filter(t => !selectedTags.includes(t)).slice(0, 12)
+    const q = input.trim().toLowerCase()
+    return allTags
+      .filter(t => t.toLowerCase().includes(q) && !selectedTags.includes(t))
+      .sort((a, b) => {
+        const aStarts = a.toLowerCase().startsWith(q) ? 0 : 1
+        const bStarts = b.toLowerCase().startsWith(q) ? 0 : 1
+        return aStarts - bStarts || a.localeCompare(b)
+      })
+      .slice(0, 12)
+  }, [input, allTags, selectedTags])
+
+  const exactMatch = input.trim() && allTags.some(t => t.toLowerCase() === input.trim().toLowerCase())
+  const alreadySelected = input.trim() && selectedTags.some(t => t.toLowerCase() === input.trim().toLowerCase())
+  const showCreateOption = input.trim() && !exactMatch && !alreadySelected
+
+  const addTag = useCallback((tag) => {
+    const trimmed = tag.trim()
+    if (!trimmed || selectedTags.some(t => t.toLowerCase() === trimmed.toLowerCase())) return
+    onChange([...selectedTags, trimmed])
+    setInput('')
+    setHighlightIdx(-1)
+    inputRef.current?.focus()
+  }, [selectedTags, onChange])
+
+  const removeTag = (tag) => onChange(selectedTags.filter(t => t !== tag))
+
+  const handleKeyDown = (e) => {
+    const totalItems = suggestions.length + (showCreateOption ? 1 : 0)
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setShowSuggestions(true)
+      setHighlightIdx(i => (i + 1) % totalItems)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHighlightIdx(i => (i - 1 + totalItems) % totalItems)
+    } else if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      if (highlightIdx >= 0 && highlightIdx < suggestions.length) {
+        addTag(suggestions[highlightIdx])
+      } else if (highlightIdx === suggestions.length && showCreateOption) {
+        addTag(input.trim())
+      } else if (input.trim()) {
+        addTag(input.trim())
+      }
+    } else if (e.key === 'Backspace' && !input && selectedTags.length) {
+      removeTag(selectedTags[selectedTags.length - 1])
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false)
+    }
+  }
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, color: 'var(--brown-warm)', marginBottom: 3 }}>
+        Tags
+      </label>
+      <div
+        onClick={() => inputRef.current?.focus()}
+        style={{
+          display: 'flex', flexWrap: 'wrap', gap: 4, padding: '5px 8px',
+          border: '1px solid var(--color-border)', borderRadius: 6,
+          background: '#fff', minHeight: 34, alignItems: 'center', cursor: 'text',
+        }}
+      >
+        {selectedTags.map(t => (
+          <span key={t} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            fontSize: '0.7rem', padding: '2px 8px', borderRadius: 999,
+            background: 'var(--cream)', border: '1px solid var(--color-border)',
+            color: 'var(--brown-warm)', whiteSpace: 'nowrap',
+          }}>
+            {t}
+            <span onClick={(e) => { e.stopPropagation(); removeTag(t) }}
+              style={{ cursor: 'pointer', opacity: 0.6, fontWeight: 700, fontSize: '0.8rem', lineHeight: 1 }}>
+              ×
+            </span>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={e => { setInput(e.target.value); setShowSuggestions(true); setHighlightIdx(-1) }}
+          onFocus={() => setShowSuggestions(true)}
+          onKeyDown={handleKeyDown}
+          placeholder={selectedTags.length ? '' : 'Type to add tags...'}
+          style={{
+            flex: 1, minWidth: 80, border: 'none', outline: 'none',
+            fontSize: '0.82rem', fontFamily: 'inherit', background: 'transparent',
+            padding: '2px 0',
+          }}
+        />
+      </div>
+      {showSuggestions && (suggestions.length > 0 || showCreateOption) && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+          background: '#fff', border: '1px solid var(--color-border)',
+          borderRadius: 6, marginTop: 2, maxHeight: 200, overflowY: 'auto',
+          boxShadow: '0 4px 12px rgba(0,0,0,.08)',
+        }}>
+          {suggestions.map((tag, i) => (
+            <div
+              key={tag}
+              onMouseDown={(e) => { e.preventDefault(); addTag(tag) }}
+              onMouseEnter={() => setHighlightIdx(i)}
+              style={{
+                padding: '6px 12px', fontSize: '0.78rem', cursor: 'pointer',
+                background: highlightIdx === i ? 'var(--cream-3, #F6F4EE)' : 'transparent',
+                color: 'var(--brown-warm)',
+              }}
+            >
+              {tag}
+            </div>
+          ))}
+          {showCreateOption && (
+            <div
+              onMouseDown={(e) => { e.preventDefault(); addTag(input.trim()) }}
+              onMouseEnter={() => setHighlightIdx(suggestions.length)}
+              style={{
+                padding: '6px 12px', fontSize: '0.78rem', cursor: 'pointer',
+                background: highlightIdx === suggestions.length ? 'var(--cream-3, #F6F4EE)' : 'transparent',
+                color: 'var(--brown-dark)', fontStyle: 'italic',
+                borderTop: suggestions.length ? '1px solid var(--color-border)' : 'none',
+              }}
+            >
+              + Create "{input.trim()}"
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const KIND_META = {
   photo:     { icon: '📷', label: 'Photo',     color: '#8B9A7B' },
@@ -22,7 +174,7 @@ export default function MediaLibrary() {
   const [search, setSearch] = useState('')
   const [uploading, setUploading] = useState(false)
   const [showUpload, setShowUpload] = useState(false)
-  const [uploadDraft, setUploadDraft] = useState({ kind: 'photo', tags: '' })
+  const [uploadDraft, setUploadDraft] = useState({ kind: 'photo', tags: [] })
   const fileRef = useRef(null)
 
   const filtered = useMemo(() => {
@@ -38,6 +190,13 @@ export default function MediaLibrary() {
     }
     return result
   }, [entries, filter, search])
+
+  // Collect all unique tags across assets for autocomplete
+  const allTags = useMemo(() => {
+    const set = new Set()
+    for (const a of entries) (a.tags ?? []).forEach(t => set.add(t))
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }, [entries])
 
   // Stats
   const stats = useMemo(() => {
@@ -81,11 +240,11 @@ export default function MediaLibrary() {
         width,
         height,
         file_size: file.size,
-        tags: uploadDraft.tags ? uploadDraft.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        tags: uploadDraft.tags,
       })
 
       setShowUpload(false)
-      setUploadDraft({ kind: 'photo', tags: '' })
+      setUploadDraft({ kind: 'photo', tags: [] })
       if (fileRef.current) fileRef.current.value = ''
       refetch()
     } catch (e) { alert(e.message) }
@@ -184,7 +343,11 @@ export default function MediaLibrary() {
               <input ref={fileRef} type="file" accept="image/*,video/*,audio/*" style={{ fontSize: '0.82rem' }} />
             </div>
           </div>
-          <Input label="Tags (comma-separated)" value={uploadDraft.tags} onChange={e => setUploadDraft(d => ({ ...d, tags: e.target.value }))} placeholder="listing, exterior, drone, twilight" />
+          <TagInput
+            selectedTags={uploadDraft.tags}
+            onChange={tags => setUploadDraft(d => ({ ...d, tags }))}
+            allTags={allTags}
+          />
           <div style={{ display: 'flex', gap: 6 }}>
             <Button size="sm" onClick={handleUpload} disabled={uploading || !fileRef.current?.files?.length}>
               {uploading ? 'Uploading...' : 'Upload'}

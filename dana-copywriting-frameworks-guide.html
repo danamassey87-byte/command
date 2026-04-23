@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Persuasion Playbook — Dana Massey Real Estate</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brown: #524136;
+    --taupe: #b79782;
+    --warm-gray: #c8c3b9;
+    --cream: #efede8;
+    --white: #ffffff;
+    --brown-light: #6b5649;
+    --ink: #2e1f18;
+    --taupe-light: #d4c0ae;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: var(--cream);
+    color: var(--brown);
+    line-height: 1.7;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    background: var(--brown);
+    color: var(--cream);
+    padding: 72px 48px 64px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 380px; height: 380px;
+    border-radius: 50%;
+    border: 1px solid rgba(183,151,130,0.18);
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: -80px;
+    width: 500px; height: 500px;
+    border-radius: 50%;
+    border: 1px solid rgba(183,151,130,0.12);
+  }
+  .hero-inner { max-width: 860px; margin: 0 auto; position: relative; z-index: 1; }
+  .hero-eyebrow {
+    font-family: 'Poppins', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--taupe);
+    margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(36px, 5vw, 58px);
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--white);
+    margin-bottom: 20px;
+  }
+  .hero h1 em {
+    font-style: italic;
+    color: var(--taupe);
+  }
+  .hero-sub {
+    font-size: 15px;
+    font-weight: 300;
+    color: var(--warm-gray);
+    max-width: 560px;
+    line-height: 1.8;
+  }
+  .hero-badge {
+    display: inline-block;
+    margin-top: 32px;
+    background: rgba(183,151,130,0.15);
+    border: 1px solid var(--taupe);
+    color: var(--taupe);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 8px 18px;
+    border-radius: 2px;
+  }
+
+  /* ── LAYOUT ── */
+  .container { max-width: 900px; margin: 0 auto; padding: 0 32px; }
+
+  /* ── INTRO SECTION ── */
+  .intro-section {
+    background: var(--white);
+    padding: 56px 48px;
+    border-bottom: 1px solid var(--taupe-light);
+  }
+  .intro-section .container { max-width: 860px; }
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--taupe);
+    margin-bottom: 14px;
+  }
+  .intro-section h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    color: var(--brown);
+    margin-bottom: 16px;
+  }
+  .intro-section p {
+    font-size: 14.5px;
+    color: var(--brown-light);
+    max-width: 680px;
+    line-height: 1.85;
+    margin-bottom: 12px;
+  }
+  .psych-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-top: 36px;
+  }
+  .psych-card {
+    background: var(--cream);
+    border-top: 3px solid var(--taupe);
+    padding: 22px 20px;
+  }
+  .psych-card .stat {
+    font-family: 'Playfair Display', serif;
+    font-size: 34px;
+    font-weight: 700;
+    color: var(--brown);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .psych-card p {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--brown-light);
+    line-height: 1.6;
+    max-width: 100%;
+  }
+
+  /* ── FRAMEWORK SECTION ── */
+  .frameworks-wrapper { padding: 64px 0; }
+  .framework-block {
+    margin-bottom: 64px;
+    background: var(--white);
+    border-radius: 2px;
+    overflow: hidden;
+    box-shadow: 0 2px 20px rgba(82,65,54,0.06);
+  }
+  .framework-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 24px;
+    padding: 28px 36px;
+    border-bottom: 1px solid var(--cream);
+  }
+  .framework-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--taupe-light);
+    line-height: 1;
+    min-width: 52px;
+  }
+  .framework-title-group h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--brown);
+    margin-bottom: 4px;
+  }
+  .framework-title-group .acronym {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--taupe);
+  }
+  .framework-badge {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .badge-primary { background: var(--brown); color: var(--taupe); }
+  .badge-strong  { background: var(--taupe); color: var(--white); }
+  .badge-solid   { background: var(--cream); color: var(--brown); border: 1px solid var(--taupe); }
+
+  .framework-body { padding: 32px 36px; }
+
+  .def-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    margin-bottom: 32px;
+  }
+  .def-box h4 {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--taupe);
+    margin-bottom: 10px;
+  }
+  .def-box p {
+    font-size: 13.5px;
+    color: var(--brown-light);
+    line-height: 1.8;
+  }
+
+  /* Steps */
+  .steps-row {
+    display: flex;
+    gap: 0;
+    margin-bottom: 32px;
+    border: 1px solid var(--cream);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .step {
+    flex: 1;
+    padding: 18px 16px;
+    border-right: 1px solid var(--cream);
+    text-align: center;
+  }
+  .step:last-child { border-right: none; }
+  .step-letter {
+    font-family: 'Playfair Display', serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--brown);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .step-word {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--taupe);
+    margin-bottom: 8px;
+  }
+  .step-desc {
+    font-size: 11.5px;
+    color: var(--brown-light);
+    line-height: 1.6;
+  }
+
+  /* Real estate example box */
+  .re-example {
+    background: var(--cream);
+    border-left: 3px solid var(--taupe);
+    padding: 22px 24px;
+    margin-bottom: 28px;
+    border-radius: 0 2px 2px 0;
+  }
+  .re-example h4 {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--taupe);
+    margin-bottom: 14px;
+  }
+  .re-example-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  .re-segment {
+    background: var(--white);
+    padding: 14px 16px;
+    border-radius: 2px;
+  }
+  .re-segment .seg-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--taupe);
+    margin-bottom: 8px;
+  }
+  .re-segment p {
+    font-size: 12.5px;
+    color: var(--brown);
+    font-style: italic;
+    line-height: 1.65;
+  }
+
+  /* Channel map */
+  .channel-map {
+    margin-bottom: 0;
+  }
+  .channel-map h4 {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--taupe);
+    margin-bottom: 14px;
+  }
+  .channel-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .channel-tag {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 5px 12px;
+    border-radius: 2px;
+    border: 1px solid var(--warm-gray);
+    color: var(--brown-light);
+  }
+  .channel-tag.best {
+    background: var(--brown);
+    color: var(--taupe);
+    border-color: var(--brown);
+    font-weight: 600;
+  }
+  .channel-tag.good {
+    background: var(--taupe-light);
+    color: var(--brown);
+    border-color: var(--taupe);
+  }
+
+  /* ── CHANNEL MASTER TABLE ── */
+  .channel-section {
+    background: var(--brown);
+    padding: 64px 48px;
+  }
+  .channel-section .container { max-width: 860px; }
+  .channel-section h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 30px;
+    color: var(--white);
+    margin-bottom: 8px;
+  }
+  .channel-section .sub {
+    font-size: 13px;
+    color: var(--warm-gray);
+    margin-bottom: 40px;
+  }
+  .channel-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .channel-table th {
+    background: rgba(183,151,130,0.15);
+    color: var(--taupe);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid rgba(183,151,130,0.3);
+  }
+  .channel-table td {
+    padding: 16px 16px;
+    border-bottom: 1px solid rgba(183,151,130,0.12);
+    color: var(--warm-gray);
+    vertical-align: top;
+    line-height: 1.7;
+  }
+  .channel-table tr:last-child td { border-bottom: none; }
+  .channel-table .channel-name {
+    color: var(--white);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .table-badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 2px;
+    margin-bottom: 4px;
+  }
+  .tb-primary { background: var(--taupe); color: var(--brown); }
+  .tb-alt { background: rgba(183,151,130,0.2); color: var(--taupe); border: 1px solid rgba(183,151,130,0.4); }
+  .table-why { font-size: 11.5px; color: var(--warm-gray); margin-top: 6px; line-height: 1.6; }
+
+  /* ── LAYERING SECTION ── */
+  .layer-section {
+    background: var(--white);
+    padding: 64px 48px;
+    border-top: 1px solid var(--cream);
+  }
+  .layer-section .container { max-width: 860px; }
+  .layer-section h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    color: var(--brown);
+    margin-bottom: 8px;
+  }
+  .layer-section .sub {
+    font-size: 13.5px;
+    color: var(--brown-light);
+    margin-bottom: 40px;
+    max-width: 580px;
+    line-height: 1.8;
+  }
+  .recipe-card {
+    background: var(--cream);
+    padding: 28px 28px;
+    margin-bottom: 20px;
+    border-radius: 2px;
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+  .recipe-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--brown);
+    margin-bottom: 6px;
+  }
+  .recipe-formula {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    font-style: italic;
+    color: var(--taupe);
+    line-height: 1.5;
+  }
+  .recipe-desc {
+    font-size: 13px;
+    color: var(--brown-light);
+    line-height: 1.8;
+  }
+  .recipe-desc strong { color: var(--brown); font-weight: 600; }
+
+  /* ── SEGMENT QUICK REF ── */
+  .seg-section {
+    background: var(--cream);
+    padding: 64px 48px;
+  }
+  .seg-section .container { max-width: 860px; }
+  .seg-section h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    color: var(--brown);
+    margin-bottom: 8px;
+  }
+  .seg-section .sub {
+    font-size: 13.5px;
+    color: var(--brown-light);
+    margin-bottom: 40px;
+    line-height: 1.8;
+  }
+  .seg-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+  .seg-card {
+    background: var(--white);
+    padding: 24px;
+    border-radius: 2px;
+    border-top: 3px solid var(--taupe);
+  }
+  .seg-card h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 17px;
+    color: var(--brown);
+    margin-bottom: 6px;
+  }
+  .seg-card .seg-tagline {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--taupe);
+    margin-bottom: 14px;
+  }
+  .seg-card table { width: 100%; font-size: 12px; border-collapse: collapse; }
+  .seg-card table td { padding: 5px 0; border-bottom: 1px solid var(--cream); color: var(--brown-light); }
+  .seg-card table td:first-child { font-weight: 600; color: var(--brown); padding-right: 12px; white-space: nowrap; width: 110px; }
+  .seg-card table tr:last-child td { border-bottom: none; }
+
+  /* ── FOOTER ── */
+  .doc-footer {
+    background: var(--ink);
+    color: var(--warm-gray);
+    padding: 36px 48px;
+    text-align: center;
+    font-size: 12px;
+  }
+  .doc-footer strong { color: var(--taupe); }
+
+  /* ── MISC ── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--taupe-light), transparent);
+    margin: 0 36px;
+  }
+
+  @media (max-width: 640px) {
+    .hero { padding: 48px 24px; }
+    .intro-section, .channel-section, .layer-section, .seg-section { padding: 48px 24px; }
+    .framework-header { grid-template-columns: 1fr; gap: 12px; }
+    .framework-body { padding: 24px 20px; }
+    .def-row { grid-template-columns: 1fr; }
+    .re-example-grid { grid-template-columns: 1fr; }
+    .psych-grid { grid-template-columns: 1fr; }
+    .seg-grid { grid-template-columns: 1fr; }
+    .steps-row { flex-direction: column; }
+    .step { border-right: none; border-bottom: 1px solid var(--cream); }
+    .recipe-card { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-eyebrow">Dana Massey · Real Estate Marketing</div>
+    <h1>The <em>Persuasion</em> Playbook</h1>
+    <p class="hero-sub">A deep-research guide to every major copywriting framework — what they are, why they work in the brain, and exactly how to deploy each one across your social, blog, mail, and conversion channels.</p>
+    <div class="hero-badge">7 Frameworks · Channel-by-Channel Mapping · All 5 Segments</div>
+  </div>
+</div>
+
+<!-- INTRO / PSYCHOLOGY BASE -->
+<div class="intro-section">
+  <div class="container">
+    <div class="section-label">The Science First</div>
+    <h2>Why frameworks work — and what's happening inside the brain</h2>
+    <p>Copywriting frameworks aren't opinions or preferences. They're built on decades of behavioral science research about how humans process information, experience emotion, and make decisions. Before choosing a framework, understand what you're actually activating.</p>
+    <p>Every framework below operates on one or more of these core psychological levers. The ones that convert the most reliably in real estate — where stakes are high and emotions run hotter than almost any other purchase — are the ones that hit the most levers at once.</p>
+    <div class="psych-grid">
+      <div class="psych-card">
+        <div class="stat">2–3×</div>
+        <p>People are 2 to 3 times more motivated to avoid pain than to gain pleasure. This is Kahneman and Tversky's Nobel Prize-winning Prospect Theory — the core engine behind PAS.</p>
+      </div>
+      <div class="psych-card">
+        <div class="stat">95%</div>
+        <p>Neuroscience research shows 95% of purchasing decisions are made emotionally, then rationalized logically after the fact. Logic closes deals — emotion opens them.</p>
+      </div>
+      <div class="psych-card">
+        <div class="stat">3–10×</div>
+        <p>Marketing expert Perry Marshall found that problem-focused messaging generates 3 to 10 times more response than product or company-focused messaging.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FRAMEWORKS -->
+<div class="frameworks-wrapper">
+<div class="container">
+
+<!-- ── FRAMEWORK 1: PAS ── -->
+<div class="framework-block">
+  <div class="framework-header">
+    <div class="framework-number">01</div>
+    <div class="framework-title-group">
+      <div class="acronym">PAS · Problem · Agitate · Solution</div>
+      <h2>The one you already use — and should keep using</h2>
+    </div>
+    <div class="framework-badge badge-primary">Your Core Formula</div>
+  </div>
+  <div class="framework-body">
+
+    <div class="def-row">
+      <div class="def-box">
+        <h4>Definition</h4>
+        <p>The simplest and most battle-tested persuasion structure in existence. You name the exact pain your reader is feeling, twist it until they feel its full weight, then position yourself as the only sensible exit from it. Dan Kennedy called it "the most reliable sales formula ever invented."</p>
+      </div>
+      <div class="def-box">
+        <h4>Why It Works (The Psychology)</h4>
+        <p>Activates loss aversion — the most powerful human motivator. Pain is felt 2–3× more intensely than equivalent gain. By making the problem vivid and urgent before offering relief, you create undeniable motivation to act. The Agitate step is the engine. Most people skip it. Don't.</p>
+      </div>
+    </div>
+
+    <div class="steps-row">
+      <div class="step">
+        <div class="step-letter">P</div>
+        <div class="step-word">Problem</div>
+        <div class="step-desc">Name the exact pain point. Be specific enough that the reader feels you read their diary. Vague problems get ignored.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">A</div>
+        <div class="step-word">Agitate</div>
+        <div class="step-desc">Twist the knife. Amplify what ignoring this problem costs them emotionally, financially, and practically. This is where 90% of copy fails — people skip this step because it feels uncomfortable.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">S</div>
+        <div class="step-word">Solution</div>
+        <div class="step-desc">After the problem is felt viscerally, your solution arrives as obvious relief. Present it with authority and a clear next step.</div>
+      </div>
+    </div>
+
+    <div class="re-example">
+      <h4>Real Estate Examples by Segment</h4>
+      <div class="re-example-grid">
+        <div class="re-segment">
+          <div class="seg-label">Expired Sellers</div>
+          <p>"Your listing expired. Again. You did everything you were told — cleaned, staged, showed up. And it still sat there. The truth is the problem was never the house. It was the pricing strategy and the marketing. I fix both, with a PSA certification and 15 years of digital marketing behind it."</p>
+        </div>
+        <div class="re-segment">
+          <div class="seg-label">Relocation Buyers</div>
+          <p>"You're moving to Arizona and you're making every decision based on Zillow, Reddit, and a weekend you visited five years ago. There are five Gilbert zip codes with wildly different schools, HOAs, and price trajectories. You deserve someone who grew up here and came back. That's me."</p>
+        </div>
+        <div class="re-segment">
+          <div class="seg-label">Investors</div>
+          <p>"By the time a deal hits Zillow, it's already gone. The good stuff moves before it's listed. If you're still hunting the MLS for investment properties, you're fishing in an empty pond."</p>
+        </div>
+        <div class="re-segment">
+          <div class="seg-label">Snowbirds / 55+</div>
+          <p>"You've been renting seasonally for three years while prices climbed. What you paid in rent last season could've been equity. Let's fix that before next winter arrives."</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="channel-map">
+      <h4>Best Channels</h4>
+      <div class="channel-tags">
+        <span class="channel-tag best">Direct Mail (Expireds)</span>
+        <span class="channel-tag best">Instagram Reels / Posts</span>
+        <span class="channel-tag best">Facebook Ads</span>
+        <span class="channel-tag best">Cold Email / SMS</span>
+        <span class="channel-tag good">Blog Intros</span>
+        <span class="channel-tag good">Landing Pages (Lead Capture)</span>
+        <span class="channel-tag">Webinars</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FRAMEWORK 2: PASTOR ── -->
+<div class="framework-block">
+  <div class="framework-header">
+    <div class="framework-number">02</div>
+    <div class="framework-title-group">
+      <div class="acronym">PASTOR · Problem · Amplify · Story · Transformation · Offer · Response</div>
+      <h2>PAS with proof — the long-form upgrade</h2>
+    </div>
+    <div class="framework-badge badge-strong">High-Ticket Closer</div>
+  </div>
+  <div class="framework-body">
+
+    <div class="def-row">
+      <div class="def-box">
+        <h4>Definition</h4>
+        <p>Created by copywriter Ray Edwards, PASTOR is what PAS becomes when you have space and a high-stakes offer. It extends the PAS structure with a story, a before/after transformation, your specific offer, and a clear call to action. This is the framework for listing presentations, landing pages, webinars, and full sales sequences.</p>
+      </div>
+      <div class="def-box">
+        <h4>Why It Works (The Psychology)</h4>
+        <p>Adds social proof through Story, which activates mirror neurons — we feel what others felt. The Transformation step creates aspirational identity shift ("this is who I'll become"). Together, PASTOR addresses every objection category: pain, trust, proof, desire, and commitment. It's built for decisions where someone is spending six figures.</p>
+      </div>
+    </div>
+
+    <div class="steps-row">
+      <div class="step">
+        <div class="step-letter">P</div>
+        <div class="step-word">Problem</div>
+        <div class="step-desc">Name the core pain or challenge your reader faces.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">A</div>
+        <div class="step-word">Amplify</div>
+        <div class="step-desc">Show the consequences of not solving it. Make the cost of inaction real.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">S</div>
+        <div class="step-word">Story</div>
+        <div class="step-desc">Share a client story or testimonial that mirrors the reader's situation. They see themselves in it.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">T</div>
+        <div class="step-word">Transformation</div>
+        <div class="step-desc">Paint the vivid after — what life looks like on the other side of the solution.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">O</div>
+        <div class="step-word">Offer</div>
+        <div class="step-desc">Lay out exactly what you're offering, what's included, and why it's the right path.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">R</div>
+        <div class="step-word">Response</div>
+        <div class="step-desc">Give one clear, frictionless call to action. One. Don't give them options.</div>
+      </div>
+    </div>
+
+    <div class="re-example">
+      <h4>Real Estate Application</h4>
+      <div class="re-example-grid">
+        <div class="re-segment">
+          <div class="seg-label">Listing Presentation / Expired</div>
+          <p>"Problem: Your home sat on the market without selling. Amplify: Every week it sat, buyers assumed something was wrong with it. Price cut anxiety sets in. Your neighbors watched. Story: I worked with a seller in Mesa whose listing expired after 74 days. We relisted with a PSA-backed price and a targeted digital campaign — under contract in 9 days. Transformation: Imagine actually getting to the closing table, check in hand, moving forward. That's the other side of this. Offer: Here's exactly what I do differently…"</p>
+        </div>
+        <div class="re-segment">
+          <div class="seg-label">Relocation Buyers (Long Email / Blog)</div>
+          <p>"Problem: Moving across the country is overwhelming — especially when you don't know the market. Amplify: Make the wrong neighborhood call and your kids are in the wrong school district, you're stuck in HOA hell, and you're 40 minutes from where you actually need to be. Story: My last relocation client from California told me they'd been looking online for four months and felt more confused than when they started. We found their home in three weeks. Transformation: Picture landing in Gilbert with a house that fits your life — not just your budget…"</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="channel-map">
+      <h4>Best Channels</h4>
+      <div class="channel-tags">
+        <span class="channel-tag best">Listing Presentation Decks</span>
+        <span class="channel-tag best">Webinars (Buyer / Seller)</span>
+        <span class="channel-tag best">Long-Form Sales Pages</span>
+        <span class="channel-tag best">Email Nurture Sequences</span>
+        <span class="channel-tag good">Blog Posts (Mid-Funnel)</span>
+        <span class="channel-tag good">Direct Mail (Multi-Page)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FRAMEWORK 3: AIDA ── -->
+<div class="framework-block">
+  <div class="framework-header">
+    <div class="framework-number">03</div>
+    <div class="framework-title-group">
+      <div class="acronym">AIDA · Attention · Interest · Desire · Action</div>
+      <h2>The original — best for strangers who don't know you yet</h2>
+    </div>
+    <div class="framework-badge badge-solid">Top of Funnel</div>
+  </div>
+  <div class="framework-body">
+
+    <div class="def-row">
+      <div class="def-box">
+        <h4>Definition</h4>
+        <p>The oldest copywriting framework in existence — first documented in 1898 by advertising pioneer E. St. Elmo Lewis. AIDA takes someone from complete unawareness to ready-to-act. It doesn't lead with pain the way PAS does — instead it follows cognitive progression from curiosity to conviction. Best for cold audiences who haven't identified their problem yet.</p>
+      </div>
+      <div class="def-box">
+        <h4>Why It Works (The Psychology)</h4>
+        <p>Maps directly to how the brain processes new information: first notice, then engage, then want, then act. It respects the reader's cognitive journey rather than forcing urgency. Cold audiences need to be led through this progression — skipping steps causes drop-off. AIDA is the framework for SEO content, social awareness posts, and any situation where you're introducing yourself to someone who didn't ask.</p>
+      </div>
+    </div>
+
+    <div class="steps-row">
+      <div class="step">
+        <div class="step-letter">A</div>
+        <div class="step-word">Attention</div>
+        <div class="step-desc">A headline or hook that interrupts the scroll. Surprising, specific, or provocative.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">I</div>
+        <div class="step-word">Interest</div>
+        <div class="step-desc">Build curiosity by sharing something they don't know, or framing something familiar in a fresh way.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">D</div>
+        <div class="step-word">Desire</div>
+        <div class="step-desc">Show them the better version of their situation. Make them want what you have.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">A</div>
+        <div class="step-word">Action</div>
+        <div class="step-desc">One specific, frictionless next step. Don't list options.</div>
+      </div>
+    </div>
+
+    <div class="re-example">
+      <h4>Real Estate Examples by Segment</h4>
+      <div class="re-example-grid">
+        <div class="re-segment">
+          <div class="seg-label">General Buyers (Instagram / Blog)</div>
+          <p>"Gilbert has 4 zip codes. They are not the same. [Attention] Here's what most buyers don't realize until after closing: which one you buy in determines your school district, your HOA structure, your drive to the 202, and your resale in 5 years. [Interest] The 85296 zip has been outperforming its neighbors on appreciation for 3 straight years. [Desire] Want a breakdown of all 4 before you start looking? [Action] DM me 'GILBERT' and I'll send it over."</p>
+        </div>
+        <div class="re-segment">
+          <div class="seg-label">Relocation Buyers (SEO Blog)</div>
+          <p>"California to Arizona: What Nobody Tells You Before You Move [Attention] Most people moving from California focus on price. That's smart. But there are five other things that will determine whether you love or hate where you land — and none of them are on Zillow. [Interest] I've helped dozens of California families land in the East Valley without a single regret. [Desire] Here's the full relocation guide I give every one of them. [Action]"</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="channel-map">
+      <h4>Best Channels</h4>
+      <div class="channel-tags">
+        <span class="channel-tag best">SEO Blog Posts (Top of Funnel)</span>
+        <span class="channel-tag best">Awareness Social Posts</span>
+        <span class="channel-tag best">Google/Meta Ad Headlines</span>
+        <span class="channel-tag good">Website Homepage</span>
+        <span class="channel-tag good">YouTube / TikTok Scripts</span>
+        <span class="channel-tag">Newsletter Intros</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FRAMEWORK 4: BAB ── -->
+<div class="framework-block">
+  <div class="framework-header">
+    <div class="framework-number">04</div>
+    <div class="framework-title-group">
+      <div class="acronym">BAB · Before · After · Bridge</div>
+      <h2>Transformation selling — show the life they want</h2>
+    </div>
+    <div class="framework-badge badge-solid">Aspiration & Results</div>
+  </div>
+  <div class="framework-body">
+
+    <div class="def-row">
+      <div class="def-box">
+        <h4>Definition</h4>
+        <p>BAB leads with the current situation (Before), then paints a vivid picture of the desired state (After), and finally shows how to get from one to the other (Bridge). Unlike PAS which drives through pain, BAB drives through aspiration — it's the framework for showing results, sharing testimonials, and selling the transformation rather than the transaction.</p>
+      </div>
+      <div class="def-box">
+        <h4>Why It Works (The Psychology)</h4>
+        <p>Creates mental ownership — the reader literally visualizes themselves living in the After state before they've committed. This pre-commitment effect is a documented psychological phenomenon. BAB is particularly powerful in tight formats (social captions, short video, direct mail cards) because its structure is instantly readable even when scanned, not read.</p>
+      </div>
+    </div>
+
+    <div class="steps-row">
+      <div class="step">
+        <div class="step-letter">B</div>
+        <div class="step-word">Before</div>
+        <div class="step-desc">Describe the current, less-than-ideal situation the reader is stuck in. Make it relatable, not dramatic.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">A</div>
+        <div class="step-word">After</div>
+        <div class="step-desc">Paint the vivid, specific, emotionally resonant life on the other side. This is where you make them want it.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">B</div>
+        <div class="step-word">Bridge</div>
+        <div class="step-desc">Your product, service, or approach is the path that gets them from Before to After. Keep this part simple.</div>
+      </div>
+    </div>
+
+    <div class="re-example">
+      <h4>Real Estate Examples by Segment</h4>
+      <div class="re-example-grid">
+        <div class="re-segment">
+          <div class="seg-label">Snowbirds / 55+ (Social / Direct Mail)</div>
+          <p>"Before: You're renting a place in Scottsdale every winter, paying someone else's mortgage, and leaving in April wondering if prices will be even higher next year. After: You own your piece of Arizona. Your car stays. Your stuff stays. You fly back whenever you want. After: That's 5 years of rental money back in your equity. Bridge: I specialize in 55+ communities across the East Valley. Let's find yours."</p>
+        </div>
+        <div class="re-segment">
+          <div class="seg-label">Expired Sellers (Client Results Post)</div>
+          <p>"Before: Listed for 97 days. No offers. One price reduction. Sellers were ready to give up. After: Under contract in 9 days at 98.7% of asking price. Bridge: The difference was a certified pricing strategy (PSA) and a real digital marketing plan. Same house. Different agent. Different result."</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="channel-map">
+      <h4>Best Channels</h4>
+      <div class="channel-tags">
+        <span class="channel-tag best">Instagram Results Posts</span>
+        <span class="channel-tag best">Client Testimonials / Case Studies</span>
+        <span class="channel-tag best">Direct Mail Postcards</span>
+        <span class="channel-tag best">Short-Form Video (Reels / TikTok)</span>
+        <span class="channel-tag good">Email Subject Lines</span>
+        <span class="channel-tag good">Open House Follow-Up</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FRAMEWORK 5: 4Ps ── -->
+<div class="framework-block">
+  <div class="framework-header">
+    <div class="framework-number">05</div>
+    <div class="framework-title-group">
+      <div class="acronym">4Ps · Picture · Promise · Proof · Push</div>
+      <h2>When they're warm — convince them to commit</h2>
+    </div>
+    <div class="framework-badge badge-solid">Conversion & Proof</div>
+  </div>
+  <div class="framework-body">
+
+    <div class="def-row">
+      <div class="def-box">
+        <h4>Definition</h4>
+        <p>The 4Ps framework is a mid-to-bottom funnel structure for audiences who are already aware they have a problem and are evaluating options. It opens with a vivid picture of the desired outcome, makes a bold promise, backs it up with proof (data, testimonials, credentials), and closes with a direct push to act. This is the framework for conversion pages, testimonial posts, and closing sequences.</p>
+      </div>
+      <div class="def-box">
+        <h4>Why It Works (The Psychology)</h4>
+        <p>Leads with desire (Picture) before hitting them with credibility (Promise + Proof), which sidesteps the skepticism that cold logic-first approaches trigger. The Proof step is crucial for real estate where trust is the primary objection — people need to see that someone like them got results. Push works because it reduces friction and provides decision clarity.</p>
+      </div>
+    </div>
+
+    <div class="steps-row">
+      <div class="step">
+        <div class="step-letter">P</div>
+        <div class="step-word">Picture</div>
+        <div class="step-desc">Open with a vivid image of the desirable outcome. Sensory, emotional, specific.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">P</div>
+        <div class="step-word">Promise</div>
+        <div class="step-desc">Make a clear, bold commitment to deliver that outcome. No hedging.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">P</div>
+        <div class="step-word">Proof</div>
+        <div class="step-desc">Back the promise with data, testimonials, certifications, case studies, or track record.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">P</div>
+        <div class="step-word">Push</div>
+        <div class="step-desc">Give them the nudge — urgency, scarcity, or a low-friction CTA that makes acting easy.</div>
+      </div>
+    </div>
+
+    <div class="re-example">
+      <h4>Real Estate Examples by Segment</h4>
+      <div class="re-example-grid">
+        <div class="re-segment">
+          <div class="seg-label">Listing Page / Seller Landing Page</div>
+          <p>"Picture: Your home under contract — real offer, right price, clean timeline. Promise: I will bring you a certified pricing strategy, professional marketing across every relevant channel, and the straight talk most agents are afraid to give you. Proof: PSA-certified. 15+ years digital marketing. Here's what my last three sellers said. Push: Let's schedule a 20-minute call. No pressure, no pitch — just clarity on what your home is worth and what needs to happen."</p>
+        </div>
+        <div class="re-segment">
+          <div class="seg-label">Investor Outreach (Email / DM)</div>
+          <p>"Picture: An off-market deal hitting your inbox before it touches the MLS. Promise: I source on-market AND off-market inventory — the stuff other agents don't have access to. Proof: I use Lead Deck to find deals that never get listed publicly. I've closed [X] investor transactions in the East Valley. Push: Tell me your buy box criteria. I'll start running it."</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="channel-map">
+      <h4>Best Channels</h4>
+      <div class="channel-tags">
+        <span class="channel-tag best">Website Service Pages</span>
+        <span class="channel-tag best">Listing Presentation Leave-Behinds</span>
+        <span class="channel-tag best">Retargeting Ads (Warm Audience)</span>
+        <span class="channel-tag best">Case Study Posts</span>
+        <span class="channel-tag good">Email Sequences (Late Stage)</span>
+        <span class="channel-tag good">Google My Business Posts</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FRAMEWORK 6: StoryBrand ── -->
+<div class="framework-block">
+  <div class="framework-header">
+    <div class="framework-number">06</div>
+    <div class="framework-title-group">
+      <div class="acronym">StoryBrand · Character · Problem · Guide · Plan · CTA · Success · Failure</div>
+      <h2>Make the client the hero — you're the guide</h2>
+    </div>
+    <div class="framework-badge badge-solid">Brand Clarity</div>
+  </div>
+  <div class="framework-body">
+
+    <div class="def-row">
+      <div class="def-box">
+        <h4>Definition</h4>
+        <p>Donald Miller's StoryBrand framework inverts the typical agent-centric marketing approach. Instead of the agent as hero, the client is the hero and you are the trusted guide (think Gandalf, not Frodo). Your job is to clarify their journey, acknowledge their problem, and give them a simple plan to reach success — while also naming what failure looks like if they don't act. Ideal for brand messaging, website copy, and positioning work.</p>
+      </div>
+      <div class="def-box">
+        <h4>Why It Works (The Psychology)</h4>
+        <p>Most real estate marketing makes the agent the star. StoryBrand's research shows this is a conversion killer — because the brain's primary survival instinct is to be self-focused. When your messaging positions the client as the hero and you as the guide who helps them win, it triggers trust faster than any credential can. People don't buy from experts. They buy from guides who understand them.</p>
+      </div>
+    </div>
+
+    <div class="steps-row">
+      <div class="step">
+        <div class="step-letter">C</div>
+        <div class="step-word">Character</div>
+        <div class="step-desc">Who is your client? Define them as the hero with a goal.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">P</div>
+        <div class="step-word">Problem</div>
+        <div class="step-desc">External (what they face), Internal (how it makes them feel), Philosophical (why it's unfair).</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">G</div>
+        <div class="step-word">Guide</div>
+        <div class="step-desc">You. Show empathy (you understand) and authority (you've solved this before).</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">P</div>
+        <div class="step-word">Plan</div>
+        <div class="step-desc">A simple 3-step process. Remove complexity and decision friction.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">CTA</div>
+        <div class="step-word">Call to Action</div>
+        <div class="step-desc">Direct (book a call) and transitional (download the guide). Both matter.</div>
+      </div>
+    </div>
+
+    <div class="re-example">
+      <h4>Real Estate Application — Website Hero / About Page</h4>
+      <div class="re-example-grid">
+        <div class="re-segment">
+          <div class="seg-label">Website Headline Structure</div>
+          <p>"You deserve an agent with a real marketing strategy — not someone who just posts on Instagram and prays. I'm Dana Massey. I'm a PSA-certified agent and a marketing professional with 15 years of digital experience. Here's how it works: 1) We talk about your situation honestly. 2) I build a strategy that fits it. 3) We execute and get you to the closing table. Don't spend another listing cycle hoping for different results."</p>
+        </div>
+        <div class="re-segment">
+          <div class="seg-label">Relocation Buyer Version</div>
+          <p>"You're moving to Arizona and you're trying to make the biggest financial decision of your life in a market you don't know yet. I grew up here, left for a decade, and came back. I know every neighborhood in the East Valley like a local because I am one. Here's how we'll find your home: 1) I learn your life first. 2) I send you on and off-market matches — not just Zillow. 3) You move with confidence."</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="channel-map">
+      <h4>Best Channels</h4>
+      <div class="channel-tags">
+        <span class="channel-tag best">Website Homepage / About Page</span>
+        <span class="channel-tag best">Brand Bio / Instagram Bio</span>
+        <span class="channel-tag best">Pitch Decks / Presentations</span>
+        <span class="channel-tag good">Webinar Openings</span>
+        <span class="channel-tag good">Lead Magnet Intro Pages</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FRAMEWORK 7: FAB ── -->
+<div class="framework-block">
+  <div class="framework-header">
+    <div class="framework-number">07</div>
+    <div class="framework-title-group">
+      <div class="acronym">FAB · Features · Advantages · Benefits</div>
+      <h2>When they're already sold — make the offer concrete</h2>
+    </div>
+    <div class="framework-badge badge-solid">Warm Audience / Objection Handling</div>
+  </div>
+  <div class="framework-body">
+
+    <div class="def-row">
+      <div class="def-box">
+        <h4>Definition</h4>
+        <p>FAB answers the question every buyer or seller has in their head: "What does this actually mean for me?" It moves from what a service IS (Feature) to why it matters (Advantage) to what it actually does for the client's life (Benefit). FAB isn't a standalone framework — it's a layer you add to other frameworks to make your offer concrete and credible. Use it inside PASTOR or 4Ps at the offer stage.</p>
+      </div>
+      <div class="def-box">
+        <h4>Why It Works (The Psychology)</h4>
+        <p>Most agents list features without completing the translation to benefits — which means clients have to do the cognitive work themselves. Most don't. FAB removes that friction by making the "so what" explicit. The benefit is always about their life, not your service. "PSA certified" is a feature. "You won't get a price pulled from thin air" is the benefit. That's the difference.</p>
+      </div>
+    </div>
+
+    <div class="steps-row">
+      <div class="step">
+        <div class="step-letter">F</div>
+        <div class="step-word">Feature</div>
+        <div class="step-desc">What it IS — the tangible attribute of the service or offering.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">A</div>
+        <div class="step-word">Advantage</div>
+        <div class="step-desc">What it DOES — why this feature matters compared to the alternative.</div>
+      </div>
+      <div class="step">
+        <div class="step-letter">B</div>
+        <div class="step-word">Benefit</div>
+        <div class="step-desc">What it MEANS FOR THEM — the emotional or practical payoff in their life.</div>
+      </div>
+    </div>
+
+    <div class="re-example">
+      <h4>Dana's Services Translated Through FAB</h4>
+      <div class="re-example-grid">
+        <div class="re-segment">
+          <div class="seg-label">PSA Certification</div>
+          <p>"Feature: I hold the NAR Pricing Strategy Advisor (PSA) certification. Advantage: My pricing is based on a rigorous data methodology — not comps pulled from Zillow and adjusted by gut feel. Benefit: You don't leave money on the table by pricing too low, and you don't sit on the market by pricing too high. Your price is defensible on day one."</p>
+        </div>
+        <div class="re-segment">
+          <div class="seg-label">15 Years Digital Marketing</div>
+          <p>"Feature: 15+ years in digital marketing before real estate. Advantage: I know how to get a listing seen by qualified buyers — not just posted to the MLS and forgotten. Benefit: Your home gets in front of people who are actually looking for exactly what you're selling, which means more showings and better offers, faster."</p>
+        </div>
+        <div class="re-segment">
+          <div class="seg-label">Off-Market Access (Investors)</div>
+          <p>"Feature: I use Lead Deck for off-market sourcing. Advantage: You see deals before they hit the MLS — before every other investor in the Phoenix metro is looking at the same property. Benefit: You buy at pre-list pricing, with less competition and more negotiating room."</p>
+        </div>
+        <div class="re-segment">
+          <div class="seg-label">Concierge / Solo Agent Model</div>
+          <p>"Feature: I work as a solo concierge agent — you work with me, not a team of assistants. Advantage: No handoffs, no dropped balls, no "your agent is with another client right now." Benefit: You have one person who knows every detail of your transaction from day one to closing and beyond."</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="channel-map">
+      <h4>Best Channels</h4>
+      <div class="channel-tags">
+        <span class="channel-tag best">Service Pages (Website)</span>
+        <span class="channel-tag best">Listing Presentation Slides</span>
+        <span class="channel-tag best">Email Follow-Up Sequences</span>
+        <span class="channel-tag good">LinkedIn / Professional Bio</span>
+        <span class="channel-tag good">Objection Handling Scripts</span>
+        <span class="channel-tag">Printed Brochures / Leave-Behinds</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /container -->
+</div><!-- /frameworks-wrapper -->
+
+<!-- CHANNEL MASTER TABLE -->
+<div class="channel-section">
+  <div class="container">
+    <div class="section-label" style="color:var(--taupe);">The Channel Map</div>
+    <h2>Which framework wins on which channel</h2>
+    <p class="sub">Based on audience temperature, attention span, format constraints, and conversion goal. Cold audiences respond to AIDA and PAS. Warm audiences convert better with 4Ps and PASTOR.</p>
+
+    <table class="channel-table">
+      <thead>
+        <tr>
+          <th>Channel</th>
+          <th>Primary Framework</th>
+          <th>Why / Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="channel-name">Instagram Posts / Reels</td>
+          <td>
+            <div><span class="table-badge tb-primary">PAS</span></div>
+            <div><span class="table-badge tb-alt">BAB</span></div>
+          </td>
+          <td class="table-why">8-second attention span demands pain-first hook. PAS for cold audiences, BAB for results/transformation posts showing client wins. Agitate hard — social scroll requires intensity to stop thumbs.</td>
+        </tr>
+        <tr>
+          <td class="channel-name">Facebook / Meta Ads</td>
+          <td>
+            <div><span class="table-badge tb-primary">PAS</span></div>
+            <div><span class="table-badge tb-alt">AIDA</span></div>
+          </td>
+          <td class="table-why">PAS for retargeting warm audiences who've engaged with your content. AIDA for cold prospecting campaigns where you need to build from awareness. Facebook's own data shows emotional hooks generate 31% higher engagement.</td>
+        </tr>
+        <tr>
+          <td class="channel-name">Direct Mail — Expired Listings</td>
+          <td>
+            <div><span class="table-badge tb-primary">PAS</span></div>
+          </td>
+          <td class="table-why">Expired sellers are already in acute pain. They don't need education — they need someone who names the wound first. PAS is the single best framework for your core expired outreach. Lead with "Your listing expired. Here's why." Agitate. Then offer.</td>
+        </tr>
+        <tr>
+          <td class="channel-name">Direct Mail — Postcards / Farming</td>
+          <td>
+            <div><span class="table-badge tb-primary">BAB</span></div>
+            <div><span class="table-badge tb-alt">4Ps</span></div>
+          </td>
+          <td class="table-why">Cold farming audiences respond to transformation (BAB) and proof (4Ps). Space is limited so the tight 3-step structure of BAB is perfect. Results-based postcards — "Before: 97 days. After: Under contract in 9" — hit hard in a small format.</td>
+        </tr>
+        <tr>
+          <td class="channel-name">Blog / SEO Content</td>
+          <td>
+            <div><span class="table-badge tb-primary">AIDA</span> Top of Funnel</div>
+            <div><span class="table-badge tb-alt">PASTOR</span> Mid Funnel</div>
+          </td>
+          <td class="table-why">AIDA for awareness posts answering search queries from people who don't know you yet (relocation guides, neighborhood comparisons, first-time buyer content). PASTOR for mid-funnel posts targeting people already considering listing or buying — they need story + proof + transformation.</td>
+        </tr>
+        <tr>
+          <td class="channel-name">Website Homepage</td>
+          <td>
+            <div><span class="table-badge tb-primary">StoryBrand</span></div>
+          </td>
+          <td class="table-why">The homepage is your only chance to make strangers trust you in under 5 seconds. StoryBrand's client-as-hero approach removes ego from the equation and answers "what can you do for me?" before they have to ask. Stop making your homepage about you. Make it about them.</td>
+        </tr>
+        <tr>
+          <td class="channel-name">Website Service Pages</td>
+          <td>
+            <div><span class="table-badge tb-primary">4Ps</span></div>
+            <div><span class="table-badge tb-alt">FAB</span></div>
+          </td>
+          <td class="table-why">Service pages live in the middle of the funnel — the visitor is already considering you. They need proof and benefit translation. 4Ps to structure the page, FAB to translate each service into real-life outcomes they actually care about.</td>
+        </tr>
+        <tr>
+          <td class="channel-name">Email Nurture Sequences</td>
+          <td>
+            <div><span class="table-badge tb-primary">PASTOR</span></div>
+            <div><span class="table-badge tb-alt">PAS</span> Short Sends</div>
+          </td>
+          <td class="table-why">Email sequences need to build trust over time. PASTOR gives you room for story, social proof, and transformation across a multi-email arc. For single tactical emails (price drop, follow-up, open house invite), use PAS for speed and emotional punch.</td>
+        </tr>
+        <tr>
+          <td class="channel-name">Webinars (Buyer / Seller)</td>
+          <td>
+            <div><span class="table-badge tb-primary">PASTOR</span></div>
+          </td>
+          <td class="table-why">Webinars give you the time to run a full PASTOR arc. Open with the problem, amplify the stakes, tell a client story that mirrors the audience, walk through the transformation, present your offer, and close with a clear CTA. PASTOR is the webinar playbook. Period.</td>
+        </tr>
+        <tr>
+          <td class="channel-name">Listing Presentation</td>
+          <td>
+            <div><span class="table-badge tb-primary">PASTOR</span></div>
+            <div><span class="table-badge tb-alt">4Ps</span></div>
+          </td>
+          <td class="table-why">PASTOR for the narrative arc of the full presentation. 4Ps at the close when you're presenting your offer and credentials. The listing presentation is your highest-stakes conversion moment — use the framework with the most proof architecture.</td>
+        </tr>
+        <tr>
+          <td class="channel-name">SMS / Cold Outreach</td>
+          <td>
+            <div><span class="table-badge tb-primary">PAS</span></div>
+          </td>
+          <td class="table-why">Two sentences max. Name the pain, give the hook. "Your listing expired. I do things differently. Worth a 10-minute call?" That's PAS in 3 lines. Anything longer gets ignored.</td>
+        </tr>
+        <tr>
+          <td class="channel-name">Google My Business / Reviews</td>
+          <td>
+            <div><span class="table-badge tb-primary">BAB</span></div>
+          </td>
+          <td class="table-why">Post your review responses and update posts as Before / After proof. "Before: [client situation]. After: [result]." Short, scannable, credibility-building. GMB posts have a limited audience so every word counts.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- LAYERING / STACKING SECTION -->
+<div class="layer-section">
+  <div class="container">
+    <div class="section-label">Advanced Application</div>
+    <h2>How to layer frameworks — the real pro move</h2>
+    <p class="sub">The best copywriters don't pick one framework and live in it. They use PAS or BAB as the hook, then shift frameworks as the content deepens. Here are the combinations that work best for Dana's business.</p>
+
+    <div class="recipe-card">
+      <div>
+        <div class="recipe-label">Instagram Reel</div>
+        <div class="recipe-formula">PAS hook → BAB close</div>
+      </div>
+      <p class="recipe-desc"><strong>How it works:</strong> Open with a PAS hook (name the pain in the first 2 seconds), agitate it through the middle of the video, then flip to a BAB close showing the transformation. "Your listing sat. No offers. [Problem] You wonder what you did wrong. [Agitate] My last client in the same situation was under contract in 9 days. [After] Here's the difference. [Bridge + CTA]"</p>
+    </div>
+
+    <div class="recipe-card">
+      <div>
+        <div class="recipe-label">Blog Post</div>
+        <div class="recipe-formula">AIDA intro → PASTOR body → 4Ps CTA</div>
+      </div>
+      <p class="recipe-desc"><strong>How it works:</strong> Use AIDA to hook the cold reader and pull them into the post. Shift to PASTOR in the body to build the story, proof, and transformation arc. Close with a 4Ps CTA section — Picture the outcome, Promise what you deliver, offer Proof (testimonial or credential), and Push with a specific low-friction action step.</p>
+    </div>
+
+    <div class="recipe-card">
+      <div>
+        <div class="recipe-label">Listing Presentation</div>
+        <div class="recipe-formula">StoryBrand opening → PASTOR body → 4Ps close</div>
+      </div>
+      <p class="recipe-desc"><strong>How it works:</strong> Open with StoryBrand (they're the hero, you're the guide — here's the simple plan). Shift to PASTOR for the bulk of the presentation (amplify what went wrong before, tell a success story, show the transformation). Close with 4Ps — paint the outcome, make the promise, stack the proof, and push to sign the agreement.</p>
+    </div>
+
+    <div class="recipe-card">
+      <div>
+        <div class="recipe-label">Email Sequence (7-part)</div>
+        <div class="recipe-formula">Email 1: PAS · 2–4: PASTOR · 5–6: BAB + 4Ps · 7: PAS close</div>
+      </div>
+      <p class="recipe-desc"><strong>How it works:</strong> Open the sequence with a PAS email — high emotion, low commitment. Build trust over emails 2–4 using PASTOR (story, proof, transformation). Emails 5–6 shift to BAB results stories backed by 4Ps proof. Final email returns to PAS urgency — remind them of the problem and give them one clear way out.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SEGMENT QUICK REFERENCE -->
+<div class="seg-section">
+  <div class="container">
+    <div class="section-label">Quick Reference</div>
+    <h2>Framework by client segment</h2>
+    <p class="sub">Every segment has a different awareness level and emotional temperature. This reference maps the right framework to each of Dana's five core audiences.</p>
+
+    <div class="seg-grid">
+      <div class="seg-card">
+        <h3>Expired / Frustrated Sellers</h3>
+        <div class="seg-tagline">Acute Pain · High Awareness</div>
+        <table>
+          <tr><td>Primary</td><td>PAS — they're already in pain, name it first</td></tr>
+          <tr><td>Social</td><td>PAS (posts) + BAB (results)</td></tr>
+          <tr><td>Direct Mail</td><td>PAS — hard-hitting, direct</td></tr>
+          <tr><td>Presentation</td><td>PASTOR — story + proof arc</td></tr>
+          <tr><td>Email</td><td>PAS opens → PASTOR nurture</td></tr>
+          <tr><td>Avoid</td><td>AIDA (too slow — they know their problem)</td></tr>
+        </table>
+      </div>
+
+      <div class="seg-card">
+        <h3>Relocation Buyers</h3>
+        <div class="seg-tagline">Overwhelmed · Medium Awareness</div>
+        <table>
+          <tr><td>Primary</td><td>StoryBrand — they're the hero, you're the guide</td></tr>
+          <tr><td>Blog / SEO</td><td>AIDA — they're searching, meet them there</td></tr>
+          <tr><td>Social</td><td>BAB — show the "before confusion / after clarity" arc</td></tr>
+          <tr><td>Email</td><td>PASTOR — story-led nurture builds trust</td></tr>
+          <tr><td>Webinar</td><td>PASTOR — full relocation education arc</td></tr>
+          <tr><td>Avoid</td><td>PAS with high agitation — they're already anxious</td></tr>
+        </table>
+      </div>
+
+      <div class="seg-card">
+        <h3>General Buyers</h3>
+        <div class="seg-tagline">Curious · Low-Medium Awareness</div>
+        <table>
+          <tr><td>Primary</td><td>AIDA — build awareness to desire</td></tr>
+          <tr><td>Social</td><td>AIDA + BAB (education + results)</td></tr>
+          <tr><td>Blog / SEO</td><td>AIDA — top of funnel content</td></tr>
+          <tr><td>Service Page</td><td>4Ps + FAB — convert the warm visitor</td></tr>
+          <tr><td>Follow-Up</td><td>PAS — re-engage cold leads</td></tr>
+          <tr><td>Avoid</td><td>FAB-only (too features-heavy for early stage)</td></tr>
+        </table>
+      </div>
+
+      <div class="seg-card">
+        <h3>Investors</h3>
+        <div class="seg-tagline">Analytical · High Awareness · Speed-First</div>
+        <table>
+          <tr><td>Primary</td><td>PAS — fast, specific, no fluff</td></tr>
+          <tr><td>Outreach</td><td>PAS in 3 lines (SMS / email / DM)</td></tr>
+          <tr><td>Social</td><td>BAB (deal result posts) + 4Ps (proof-heavy)</td></tr>
+          <tr><td>Deep Pitch</td><td>FAB — translate access/tools into ROI terms</td></tr>
+          <tr><td>Email</td><td>4Ps — promise, proof, push on the deal</td></tr>
+          <tr><td>Avoid</td><td>StoryBrand (too narrative for ROI-minded audience)</td></tr>
+        </table>
+      </div>
+
+      <div class="seg-card" style="grid-column: 1 / -1; max-width: 440px;">
+        <h3>Snowbirds / 55+ Buyers</h3>
+        <div class="seg-tagline">Patient · Aspirational · Lifestyle-Driven</div>
+        <table>
+          <tr><td>Primary</td><td>BAB — sell the lifestyle transformation</td></tr>
+          <tr><td>Social</td><td>BAB + 4Ps (before/after + proof of community)</td></tr>
+          <tr><td>Direct Mail</td><td>BAB — renting → owning transformation</td></tr>
+          <tr><td>Email</td><td>PASTOR — patient, story-led, no pressure</td></tr>
+          <tr><td>Service Page</td><td>StoryBrand — they're the hero finding their Arizona home</td></tr>
+          <tr><td>Avoid</td><td>High-agitation PAS (creates anxiety, not motivation)</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="doc-footer">
+  <strong>Dana Massey · REAL Broker</strong> · East Valley, Arizona · <strong>480.818.7554</strong> · dana@danamassey.com · danamassey.com<br>
+  <span style="opacity:0.5;font-size:10px;margin-top:6px;display:block;">This document is a private strategic resource. Not for redistribution.</span>
+</div>
+
+</body>
+</html>

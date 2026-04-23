@@ -51,10 +51,21 @@ export function AuthProvider({ children }) {
     }
     window.__DEMO_MODE__ = false
 
-    // Get initial session
+    // Get initial session — with timeout so the app never hangs on a broken Supabase connection
+    const timeout = setTimeout(() => {
+      setOnboardingComplete(true)
+      setLoading(false)
+    }, 5000)
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      checkOnboarding(session).then(() => setLoading(false))
+      checkOnboarding(session).then(() => {
+        clearTimeout(timeout)
+        setLoading(false)
+      })
+    }).catch(() => {
+      clearTimeout(timeout)
+      setLoading(false)
     })
 
     // Listen for auth changes
@@ -65,7 +76,10 @@ export function AuthProvider({ children }) {
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, [demoMode, checkOnboarding])
 
   function enterDemoMode() {

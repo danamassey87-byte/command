@@ -13,7 +13,28 @@
       "Bash(curl -s http://localhost:5173/)",
       "mcp__claude_ai_Supabase__list_projects",
       "Bash(gh --version)",
-      "Bash(gh repo:*)"
+      "Bash(gh repo:*)",
+      "mcp__claude_ai_Supabase__deploy_edge_function",
+      "mcp__claude_ai_Canva__generate-design",
+      "mcp__claude_ai_Canva__list-folder-items",
+      "Bash(npx vite:*)",
+      "Bash(supabase status:*)",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "Bash(supabase --version)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(supabase functions:*)",
+      "Bash(curl -s -w \"\\\\n---HTTP %{http_code}---\\\\n\" -X POST \"https://lfydlxhfctuiyykuyqnr.supabase.co/functions/v1/generate-content\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer sb_publishable_JDfNYZ565UOiwNZ27E2txQ_yoD4Zaxv\" -H \"apikey: sb_publishable_JDfNYZ565UOiwNZ27E2txQ_yoD4Zaxv\" -d '{\"\"type\"\":\"\"listing_checklist\"\",\"\"prompt\"\":\"\"Generate 3 test tasks. Return JSON [{\\\\\"\"label\\\\\"\":\\\\\"\"x\\\\\"\",\\\\\"\"phase\\\\\"\":\\\\\"\"analysis\\\\\"\"}]\"\",\"\"plan_type\"\":\"\"new\"\"}')",
+      "Bash(curl -s -w \"\\\\n---HTTP %{http_code}---\\\\n\" -X POST \"https://lfydlxhfctuiyykuyqnr.supabase.co/functions/v1/generate-content\" -H \"Content-Type: application/json\" -H \"Authorization: Bearer sb_publishable_JDfNYZ565UOiwNZ27E2txQ_yoD4Zaxv\" -H \"apikey: sb_publishable_JDfNYZ565UOiwNZ27E2txQ_yoD4Zaxv\" -d '{\"\"\"\"type\"\"\"\":\"\"\"\"listing_checklist\"\"\"\",\"\"\"\"prompt\"\"\"\":\"\"\"\"Generate 3 short test tasks for a new listing launch. Return a JSON array like [{\\\\\"\"\"\"label\\\\\"\"\"\":\\\\\"\"\"\"x\\\\\"\"\"\",\\\\\"\"\"\"phase\\\\\"\"\"\":\\\\\"\"\"\"prep\\\\\"\"\"\"}]\"\"\"\",\"\"\"\"plan_type\"\"\"\":\"\"\"\"new\"\"\"\"}')",
+      "Bash(grep -l \"listing_tasks\\\\|create table.*task\" frontend/scripts/*.sql supabase/migrations/*.sql)",
+      "Bash(npx supabase:*)",
+      "Bash(find '/Users/danamassey/Antigravity - Real Estate/frontend' -type f -name *router* -o -name *route* -o -name *app*)",
+      "Bash(find '/Users/danamassey/Antigravity - Real Estate/frontend/src' -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\))",
+      "WebFetch(domain:command-theta.vercel.app)",
+      "mcp__claude_ai_Vercel__get_deployment_build_logs",
+      "mcp__claude_ai_Vercel__get_project",
+      "Bash(ls \"/Users/danamassey/Antigravity - Real Estate/frontend/.env\"*)",
+      "mcp__claude_ai_Vercel__get_runtime_logs"
     ]
   }
 }

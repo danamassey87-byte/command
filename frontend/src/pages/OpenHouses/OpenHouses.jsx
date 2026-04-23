@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, Component } from 'react'
+import { Link } from 'react-router-dom'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, SlidePanel, Input, Select, Textarea, InfoTip, AddressLink } from '../../components/ui/index.jsx'
 import { useOpenHouses, useOHOutreach, useOHTasksForOH, useHostReports, useProperties, useListings } from '../../lib/hooks.js'
 import { useBrandSignature } from '../../lib/BrandContext'
@@ -769,20 +770,23 @@ function OHDetail({ oh, onBack, onEdit }) {
         />
       )}
 
-      {/* Command checklist with system badges */}
+      {/* Open House Prep checklist */}
       {typeof oh.id === 'string' && (
         <div style={{ margin: '16px 0' }}>
           <ChecklistRunner parentKind="oh" parentId={oh.id} category="oh" />
+          <Link
+            to="/content/create"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              marginTop: 10, fontSize: '0.78rem', color: 'var(--brown-mid)',
+              textDecoration: 'none', fontWeight: 500,
+            }}
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14"><rect x="2" y="2" width="12" height="12" rx="2"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
+            Create OH Content
+          </Link>
         </div>
       )}
-
-      <div className="oh-detail__tasks-section">
-        <h3 className="oh-detail__tasks-title">Process Checklist</h3>
-        {typeof oh.id === 'string'
-          ? <TasksPanel ohId={oh.id} />
-          : <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>Save this open house to DB to track tasks.</p>
-        }
-      </div>
     </div>
   )
 }
@@ -1917,10 +1921,20 @@ function ProcessTab({ openHouses, refetch }) {
             </Card>
           )}
 
-          {/* Full process checklist */}
+          {/* Open House Prep checklist */}
           <div className="process-checklist-section">
-            <h3 className="process-checklist-title">Process Checklist</h3>
-            <TasksPanel ohId={selectedOH.id} />
+            <ChecklistRunner parentKind="oh" parentId={selectedOH.id} category="oh" />
+            <Link
+              to="/content/create"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                marginTop: 12, fontSize: '0.8rem', color: 'var(--brown-mid)',
+                textDecoration: 'none', fontWeight: 500,
+              }}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14"><rect x="2" y="2" width="12" height="12" rx="2"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
+              Create OH Content
+            </Link>
           </div>
         </div>
       )}

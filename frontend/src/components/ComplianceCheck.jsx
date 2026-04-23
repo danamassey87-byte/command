@@ -52,14 +52,19 @@ export default function ComplianceCheck({ targetKind, targetId, content, onOverr
       const hasWarn = rules.some(r => r.severity === 'warn')
       const verdict = hasBlock ? 'block' : hasWarn ? 'warn' : 'pass'
 
-      const check = await DB.createComplianceCheck({
-        target_kind: targetKind,
-        target_id: targetId,
-        verdict,
-        rules_cited: rules,
-      })
+      // Only log to DB if we have a real UUID target — skip for unsaved drafts
+      let checkId = null
+      if (targetId && targetId !== 'draft') {
+        const check = await DB.createComplianceCheck({
+          target_kind: targetKind,
+          target_id: targetId,
+          verdict,
+          rules_cited: rules,
+        })
+        checkId = check.id
+      }
 
-      setResult({ verdict, rules, id: check.id })
+      setResult({ verdict, rules, id: checkId })
     } catch (e) {
       alert(e.message)
     } finally {
@@ -68,16 +73,18 @@ export default function ComplianceCheck({ targetKind, targetId, content, onOverr
   }
 
   const handleOverride = async () => {
-    if (!overrideReason.trim() || !result?.id) return
+    if (!overrideReason.trim()) return
     try {
-      // Log the override
-      await DB.createComplianceCheck({
-        target_kind: targetKind,
-        target_id: targetId,
-        verdict: 'pass',
-        rules_cited: result.rules,
-        override_reason: overrideReason.trim(),
-      })
+      // Log the override if we have a real UUID target
+      if (targetId && targetId !== 'draft') {
+        await DB.createComplianceCheck({
+          target_kind: targetKind,
+          target_id: targetId,
+          verdict: 'pass',
+          rules_cited: result.rules,
+          override_reason: overrideReason.trim(),
+        })
+      }
       setResult(prev => ({ ...prev, verdict: 'pass', overridden: true }))
       setShowOverride(false)
       onOverride?.()

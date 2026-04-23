@@ -66,6 +66,7 @@ const CreateTab = lazy(() => import('./pages/ContentHub/CreateTab'))
 const PublishTab = lazy(() => import('./pages/ContentHub/PublishTab'))
 const MeasureTab = lazy(() => import('./pages/ContentHub/MeasureTab'))
 const ContentBank = lazy(() => import('./pages/ContentHub/ContentBank'))
+const ContentSettingsTab = lazy(() => import('./pages/ContentHub/ContentSettingsTab'))
 const Vendors = lazy(() => import('./pages/Vendors/Vendors'))
 
 // ─── Section Dashboards ────────────────────────────────────────────────────────
@@ -163,7 +164,7 @@ function ComingSoon({ title }) {
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
-  if (loading) return null
+  if (loading) return <PageLoader />
   if (!user) return <Navigate to="/login" replace />
   return children
 }
@@ -175,7 +176,7 @@ function OnboardingGate({ children }) {
   // Demo users and users already on /onboarding skip the gate
   if (demoMode || location.pathname === '/onboarding') return children
   // Still loading onboarding status
-  if (onboardingComplete === null) return null
+  if (onboardingComplete === null) return <PageLoader />
   // Redirect to onboarding if not complete
   if (!onboardingComplete) return <Navigate to="/onboarding" replace />
   return children
@@ -266,6 +267,7 @@ export default function App() {
             <Route path="publish" element={<PublishTab />} />
             <Route path="measure" element={<MeasureTab />} />
             <Route path="bank" element={<ContentBank />} />
+            <Route path="settings" element={<ContentSettingsTab />} />
           </Route>
 
           {/* ─── Legacy content redirects ─── */}

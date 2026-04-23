@@ -60,7 +60,7 @@ export async function fetchPublicForm(slug) {
 
 /** Anon-safe submit. */
 export async function submitPublicForm({ formId, slug, clientName, data }) {
-  const { error } = await supabase
+  const { data: row, error } = await supabase
     .from('public_form_submissions')
     .insert({
       form_id: formId,
@@ -69,14 +69,17 @@ export async function submitPublicForm({ formId, slug, clientName, data }) {
       data: data || {},
       user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
     })
+    .select('id')
+    .single()
   if (error) throw new Error(error.message)
 
-  // Bridge to interactions (fire-and-forget)
+  // Auto-merge into contacts + notify Dana (fire-and-forget)
+  // The edge function handles: contact lookup/create, tagging, interaction logging, notification
   try {
-    const { logIntakeFormSubmission } = await import('./interactionBridges')
-    // If there's a merged contact, log the interaction
-    if (data?.email || data?.phone) {
-      logIntakeFormSubmission({ contactId: null, formName: slug || 'intake form' })
+    if (row?.id) {
+      supabase.functions.invoke('merge-form-submission', {
+        body: { submission_id: row.id },
+      }).catch(() => { /* silent — merge is best-effort from the client's perspective */ })
     }
   } catch { /* silent */ }
 }

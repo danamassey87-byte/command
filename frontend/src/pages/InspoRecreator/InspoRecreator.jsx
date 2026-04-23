@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Badge } from '../../components/ui/index.jsx'
 import * as DB from '../../lib/supabase.js'
@@ -69,9 +69,125 @@ export default function InspoRecreator() {
   const [suggestedHook, setSuggestedHook] = useState('')
   const [copied, setCopied] = useState(null)
 
+  // Chat refinement state for recreate tab
+  const [recreateChat, setRecreateChat] = useState([])
+  const [recreateRefineInput, setRecreateRefineInput] = useState('')
+  const recreateChatEndRef = useRef(null)
+
   const avatarList = avatars ?? []
   const pillarList = pillars ?? []
   const library = inspoItems ?? []
+
+  // ─── Recreate sessions — auto-save current + save/open previous ────────
+  const IR_DRAFT_KEY = 'ir_recreate_draft'
+  const IR_SAVED_KEY = 'ir_recreate_saved_sessions'
+  const [irSavedSessions, setIrSavedSessions] = useState([])
+  const [irSessionId, setIrSessionId] = useState(null)
+  const [showIrSessions, setShowIrSessions] = useState(false)
+
+  function irGetCurrentDraft() {
+    return {
+      sourceCaption, sourceUrl, sourcePlatform, targetPlatform,
+      avatarId, pillarId, analysis, recreated,
+      suggestedHashtags, suggestedHook, recreateChat,
+    }
+  }
+
+  function irLoadDraft(d) {
+    if (d.sourceCaption) setSourceCaption(d.sourceCaption)
+    if (d.sourceUrl) setSourceUrl(d.sourceUrl)
+    if (d.sourcePlatform) setSourcePlatform(d.sourcePlatform)
+    if (d.targetPlatform) setTargetPlatform(d.targetPlatform)
+    if (d.avatarId) setAvatarId(d.avatarId)
+    if (d.pillarId) setPillarId(d.pillarId)
+    if (d.analysis) setAnalysis(d.analysis)
+    if (d.recreated) setRecreated(d.recreated)
+    if (d.suggestedHashtags) setSuggestedHashtags(d.suggestedHashtags)
+    if (d.suggestedHook) setSuggestedHook(d.suggestedHook)
+    if (d.recreateChat?.length) setRecreateChat(d.recreateChat)
+  }
+
+  function irClearDraft() {
+    setSourceCaption(''); setSourceUrl(''); setSourcePlatform('instagram')
+    setTargetPlatform('instagram'); setAvatarId(''); setPillarId('')
+    setAnalysis(''); setRecreated(''); setSuggestedHashtags(''); setSuggestedHook('')
+    setRecreateChat([]); setRecreateRefineInput('')
+    setIrSessionId(null)
+    localStorage.removeItem(IR_DRAFT_KEY)
+  }
+
+  // Restore on mount
+  useEffect(() => {
+    try {
+      const sessions = JSON.parse(localStorage.getItem(IR_SAVED_KEY) || '[]')
+      setIrSavedSessions(sessions)
+    } catch { /* ignore */ }
+    try {
+      const saved = localStorage.getItem(IR_DRAFT_KEY)
+      if (saved) {
+        const d = JSON.parse(saved)
+        irLoadDraft(d)
+        if (d.sessionId) setIrSessionId(d.sessionId)
+        if (d.recreated || d.recreateChat?.length) setTab('recreate')
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  // Auto-save current draft
+  useEffect(() => {
+    if (!sourceCaption && !recreated && !recreateChat.length) {
+      localStorage.removeItem(IR_DRAFT_KEY)
+      return
+    }
+    try {
+      localStorage.setItem(IR_DRAFT_KEY, JSON.stringify({
+        ...irGetCurrentDraft(), sessionId: irSessionId, savedAt: Date.now(),
+      }))
+    } catch { /* storage full — non-fatal */ }
+  }, [sourceCaption, sourceUrl, sourcePlatform, targetPlatform, avatarId, pillarId, analysis, recreated, suggestedHashtags, suggestedHook, recreateChat, irSessionId])
+
+  function irSessionTitle(session) {
+    const caption = session.sourceCaption || session.recreated || ''
+    return caption.slice(0, 50).trim() || 'Untitled session'
+  }
+
+  function saveIrSession() {
+    if (!recreateChat.length && !recreated) return
+    const id = irSessionId || `ir_${Date.now()}`
+    const session = { id, ...irGetCurrentDraft(), savedAt: Date.now() }
+    setIrSavedSessions(prev => {
+      const filtered = prev.filter(s => s.id !== id)
+      const next = [session, ...filtered].slice(0, 20)
+      localStorage.setItem(IR_SAVED_KEY, JSON.stringify(next))
+      return next
+    })
+    setIrSessionId(id)
+    return id
+  }
+
+  function saveAndStartNewIr() {
+    saveIrSession()
+    irClearDraft()
+  }
+
+  function loadIrSession(session) {
+    if (recreateChat.length || recreated) saveIrSession()
+    irClearDraft()
+    irLoadDraft(session)
+    setIrSessionId(session.id)
+    setShowIrSessions(false)
+    setTab('recreate')
+  }
+
+  function deleteIrSession(e, id) {
+    e.stopPropagation()
+    setIrSavedSessions(prev => {
+      const next = prev.filter(s => s.id !== id)
+      localStorage.setItem(IR_SAVED_KEY, JSON.stringify(next))
+      return next
+    })
+    if (irSessionId === id) setIrSessionId(null)
+  }
 
   // ─── Filtered library ─────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -198,7 +314,7 @@ export default function InspoRecreator() {
       setQuickResult({
         analysis: parsed.analysis || '',
         recreated_text: parsed.recreated_text || parsed.recreated || '',
-        suggested_hashtags: Array.isArray(parsed.suggested_hashtags) ? parsed.suggested_hashtags.map(h => `#${h}`).join(' ') : (parsed.suggested_hashtags || ''),
+        suggested_hashtags: Array.isArray(parsed.suggested_hashtags) ? parsed.suggested_hashtags.map(h => `#${h.replace(/^#+/, '')}`).join(' ') : (parsed.suggested_hashtags || ''),
         suggested_hook: parsed.suggested_hook || '',
       })
       // Update the item in the bank as "used"
@@ -240,6 +356,7 @@ export default function InspoRecreator() {
     if (!sourceCaption.trim() && !sourceUrl.trim()) return
     setAiLoading(true)
     setAnalysis(''); setRecreated(''); setSuggestedHashtags(''); setSuggestedHook('')
+    setRecreateChat([]) // reset conversation
     try {
       const result = await DB.generateContent({
         type: 'recreate_inspo',
@@ -249,20 +366,61 @@ export default function InspoRecreator() {
         pillar: pillarList.find(p => p.id === pillarId)?.name || undefined,
         inspo_notes: loadedInspoNotes || undefined,
       })
+      let recreatedText = ''
       if (result.text) {
         try {
           const parsed = JSON.parse(result.text)
           setAnalysis(parsed.analysis || '')
-          setRecreated(parsed.recreated_text || parsed.recreated || '')
-          setSuggestedHashtags(Array.isArray(parsed.suggested_hashtags) ? parsed.suggested_hashtags.map(h => `#${h}`).join(' ') : (parsed.suggested_hashtags || ''))
+          recreatedText = parsed.recreated_text || parsed.recreated || ''
+          setRecreated(recreatedText)
+          setSuggestedHashtags(Array.isArray(parsed.suggested_hashtags) ? parsed.suggested_hashtags.map(h => `#${h.replace(/^#+/, '')}`).join(' ') : (parsed.suggested_hashtags || ''))
           setSuggestedHook(parsed.suggested_hook || '')
         } catch {
-          setRecreated(result.text)
+          recreatedText = result.text
+          setRecreated(recreatedText)
         }
+      } else if (result.recreated_text) {
+        recreatedText = result.recreated_text
+        setRecreated(recreatedText)
+        setAnalysis(result.analysis || '')
+        setSuggestedHashtags(Array.isArray(result.suggested_hashtags) ? result.suggested_hashtags.map(h => `#${h.replace(/^#+/, '')}`).join(' ') : '')
+        setSuggestedHook(result.suggested_hook || '')
+      }
+      // Seed conversation for refinement
+      if (recreatedText) {
+        setRecreateChat([
+          { role: 'user', content: `Recreate this inspo caption in my voice:\n\n"${sourceCaption || sourceUrl}"` },
+          { role: 'assistant', content: recreatedText },
+        ])
       }
     } catch (err) {
       console.error('Recreate error:', err)
       alert('Error: ' + err.message)
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  async function handleRecreateRefine(userMsg) {
+    const msg = (userMsg || recreateRefineInput).trim()
+    if (aiLoading || !msg) return
+    setAiLoading(true)
+    setRecreateRefineInput('')
+    const updatedChat = [...recreateChat, { role: 'user', content: msg }]
+    setRecreateChat(updatedChat)
+    try {
+      const result = await DB.generateContent({
+        type: 'refine',
+        conversation: updatedChat,
+        avatar_id: avatarId || undefined,
+        framework: undefined,
+      })
+      const aiReply = result?.text || ''
+      setRecreateChat(prev => [...prev, { role: 'assistant', content: aiReply }])
+      setRecreated(aiReply) // always update so "Send to Composer" grabs latest
+      setTimeout(() => recreateChatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+    } catch (err) {
+      setRecreateChat(prev => [...prev, { role: 'assistant', content: `Error: ${err.message}` }])
     } finally {
       setAiLoading(false)
     }
@@ -304,7 +462,12 @@ export default function InspoRecreator() {
         notes: suggestedHashtags || '',
         channel: targetPlatform,
       })
-      if (piece?.id) navigate(`/content/composer/${piece.id}`)
+      if (piece?.id) {
+        // Clear draft since we're done
+        localStorage.removeItem(IR_DRAFT_KEY)
+        setRecreateChat([])
+        navigate(`/content/composer/${piece.id}`)
+      }
     } catch (err) {
       alert('Error: ' + err.message)
     }
@@ -693,6 +856,90 @@ export default function InspoRecreator() {
       {/* ═══ RECREATE TAB (original AI flow) ═══ */}
       {tab === 'recreate' && (
         <>
+          {/* Session toolbar */}
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => { if (recreateChat.length || recreated) saveAndStartNewIr() }}
+              disabled={!recreateChat.length && !recreated}
+              style={{
+                padding: '5px 14px', borderRadius: 6, border: '1px solid #e0dbd6',
+                background: '#faf8f5', fontSize: '0.78rem', cursor: 'pointer',
+                color: 'var(--brown-dark)', fontFamily: 'inherit',
+                opacity: (!recreateChat.length && !recreated) ? 0.4 : 1,
+              }}
+            >
+              + New
+            </button>
+            <button
+              onClick={() => {
+                if (recreateChat.length || recreated) saveIrSession()
+                setShowIrSessions(!showIrSessions)
+              }}
+              style={{
+                padding: '5px 14px', borderRadius: 6, border: '1px solid #e0dbd6',
+                background: showIrSessions ? '#edf4ee' : '#faf8f5', fontSize: '0.78rem',
+                cursor: 'pointer', color: 'var(--brown-dark)', fontFamily: 'inherit',
+              }}
+            >
+              Saved{irSavedSessions.length > 0 ? ` (${irSavedSessions.length})` : ''}
+            </button>
+            {recreateChat.length > 0 && (
+              <button
+                onClick={saveIrSession}
+                style={{
+                  padding: '5px 14px', borderRadius: 6, border: '1px solid #e0dbd6',
+                  background: '#faf8f5', fontSize: '0.78rem', cursor: 'pointer',
+                  color: 'var(--sage-green)', fontFamily: 'inherit',
+                }}
+              >
+                Save
+              </button>
+            )}
+          </div>
+
+          {/* Saved sessions list */}
+          {showIrSessions && (
+            <div style={{
+              marginBottom: 14, border: '1px solid #e8e3de', borderRadius: 8,
+              maxHeight: 200, overflowY: 'auto', background: '#faf8f5',
+            }}>
+              {irSavedSessions.length === 0 ? (
+                <div style={{ padding: '12px 14px', fontSize: '0.82rem', color: 'var(--color-text-muted)', textAlign: 'center' }}>
+                  No saved sessions yet
+                </div>
+              ) : irSavedSessions.map(session => (
+                <div
+                  key={session.id}
+                  onClick={() => loadIrSession(session)}
+                  style={{
+                    padding: '8px 14px', cursor: 'pointer', display: 'flex',
+                    justifyContent: 'space-between', alignItems: 'center',
+                    borderBottom: '1px solid #f0ece7',
+                    background: session.id === irSessionId ? '#edf4ee' : 'transparent',
+                  }}
+                  onMouseOver={e => { if (session.id !== irSessionId) e.currentTarget.style.background = '#f5f0eb' }}
+                  onMouseOut={e => { if (session.id !== irSessionId) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--brown-dark)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {irSessionTitle(session)}
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>
+                      {new Date(session.savedAt).toLocaleDateString()} &middot; {session.recreateChat?.length || 0} messages
+                    </div>
+                  </div>
+                  <button
+                    onClick={e => deleteIrSession(e, session.id)}
+                    style={{ background: 'none', border: 'none', fontSize: '0.9rem', color: 'var(--color-text-muted)', cursor: 'pointer', padding: '0 4px', flexShrink: 0 }}
+                    title="Delete"
+                  >
+                    &times;
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="ir-input-zone">
             <div className="ir-input-zone__label">Recreate inspiration in your voice</div>
 
@@ -760,11 +1007,13 @@ export default function InspoRecreator() {
             <>
               <div className="ir-results">
                 {analysis && (
-                  <div className="ir-result-card">
-                    <div className="ir-result-card__title">Structure Analysis</div>
+                  <details className="ir-result-card" open>
+                    <summary className="ir-result-card__title" style={{ cursor: 'pointer' }}>Structure Analysis</summary>
                     <div className="ir-result-card__body">{analysis}</div>
-                  </div>
+                  </details>
                 )}
+
+                {/* Conversation history */}
                 <div className="ir-result-card">
                   <div className="ir-result-card__title" style={{ display: 'flex', justifyContent: 'space-between' }}>
                     Recreated ({targetPlatform})
@@ -775,7 +1024,45 @@ export default function InspoRecreator() {
                       {copied === 'recreated' ? 'Copied' : 'Copy'}
                     </button>
                   </div>
-                  <div className="ir-result-card__body">{recreated}</div>
+
+                  {/* Show chat messages */}
+                  {recreateChat.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+                      {recreateChat.map((msg, i) => {
+                        if (i === 0 && msg.role === 'user') return null
+                        return (
+                          <div key={i} style={{
+                            padding: '10px 14px',
+                            borderRadius: 8,
+                            fontSize: '0.85rem',
+                            lineHeight: 1.6,
+                            whiteSpace: 'pre-wrap',
+                            ...(msg.role === 'user' ? {
+                              background: '#f5f0eb',
+                              color: 'var(--brown-dark)',
+                              marginLeft: 20,
+                              borderBottomRightRadius: 2,
+                            } : {
+                              background: '#edf4ee',
+                              color: 'var(--brown-dark)',
+                              marginRight: 20,
+                              borderBottomLeftRadius: 2,
+                            }),
+                          }}>
+                            {msg.role === 'user' && (
+                              <div style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--color-text-muted)', marginBottom: 2 }}>You</div>
+                            )}
+                            {msg.role === 'assistant' && (
+                              <div style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--sage-green)', marginBottom: 2 }}>Claude</div>
+                            )}
+                            {msg.content}
+                          </div>
+                        )
+                      })}
+                      <div ref={recreateChatEndRef} />
+                    </div>
+                  )}
+
                   {suggestedHashtags && (
                     <div style={{ marginTop: 8, fontSize: '0.78rem', color: '#5b8fa8' }}>{suggestedHashtags}</div>
                   )}
@@ -784,6 +1071,55 @@ export default function InspoRecreator() {
                       Hook: {suggestedHook}
                     </div>
                   )}
+                </div>
+
+                {/* Quick refine chips */}
+                <div style={{ marginTop: 12, marginBottom: 8 }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                    Refine it
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {[
+                      { label: 'Try a different angle', msg: 'Rewrite this with a completely different angle and hook. Don\'t reuse the same points.' },
+                      { label: 'Make it shorter', msg: 'Make this more concise — cut it roughly in half while keeping the impact.' },
+                      { label: 'More emotional', msg: 'Rewrite with more emotion and storytelling. Make it feel personal.' },
+                      { label: 'More punchy / edgy', msg: 'Make this punchier and more bold. Shorter sentences, stronger hook.' },
+                      { label: 'Different hook', msg: 'Keep the same message but give me a completely different opening hook.' },
+                      { label: 'Give me 3 options', msg: 'Give me 3 different versions of this content. Number them 1, 2, 3. Each should have a different angle or hook style.' },
+                    ].map(chip => (
+                      <button
+                        key={chip.label}
+                        onClick={() => handleRecreateRefine(chip.msg)}
+                        disabled={aiLoading}
+                        style={{
+                          padding: '5px 12px', borderRadius: 20, border: '1px solid #e0dbd6',
+                          background: '#faf8f5', fontSize: '0.78rem', cursor: 'pointer',
+                          color: 'var(--brown-dark)', fontFamily: 'inherit',
+                          opacity: aiLoading ? 0.5 : 1,
+                        }}
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Free-form refine input */}
+                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                  <input
+                    value={recreateRefineInput}
+                    onChange={e => setRecreateRefineInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleRecreateRefine() } }}
+                    placeholder="Tell AI what to change..."
+                    disabled={aiLoading}
+                    style={{
+                      flex: 1, padding: '8px 12px', border: '1px solid #e0dbd6', borderRadius: 8,
+                      fontSize: '0.85rem', fontFamily: 'inherit', color: 'var(--brown-dark)', outline: 'none',
+                    }}
+                  />
+                  <Button size="sm" onClick={() => handleRecreateRefine()} disabled={aiLoading || !recreateRefineInput.trim()}>
+                    {aiLoading ? '...' : 'Send'}
+                  </Button>
                 </div>
               </div>
 

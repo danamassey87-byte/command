@@ -29,7 +29,7 @@ serve(async (req) => {
       )
     }
 
-    const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property, source, avatar_id, framework, inspo_notes } = await req.json()
+    const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property, source, avatar_id, framework, inspo_notes, conversation } = await req.json()
 
     // ─── Brand guidelines injection ──────────────────────────────────────
     // Pull brand profile from user_settings so Claude knows Dana's brand voice,
@@ -134,6 +134,28 @@ serve(async (req) => {
       }
     }
 
+    // ─── Content rules injection ────────────────────────────────────────────
+    // Hard rules the user has configured (e.g., "never use dashes").
+    // Applied to ALL generation types.
+    let contentRulesContext = ''
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      )
+      const { data: rulesRow } = await supabase
+        .from('user_settings')
+        .select('value')
+        .eq('key', 'content_rules')
+        .maybeSingle()
+      if (rulesRow?.value && Array.isArray(rulesRow.value) && rulesRow.value.length > 0) {
+        contentRulesContext = '\n\nHARD CONTENT RULES — You MUST follow these rules in ALL output. No exceptions:\n' +
+          rulesRow.value.map((r: string) => `- ${r}`).join('\n')
+      }
+    } catch (e) {
+      console.error('Content rules lookup failed (non-fatal):', e)
+    }
+
     // Listing checklist + strategy narrative.
     // Caller supplies the rendered prompt (with {source} etc already inlined)
     // plus a `source` field that we use to add source-specific framing.
@@ -212,8 +234,8 @@ Your job right now is to produce the markdown strategy document described in the
 
       // Fire both calls in parallel — tasks + narrative strategy.
       const [checklistResp, strategyResp] = await Promise.all([
-        callClaude(systemChecklist, prompt || '', 2048),
-        callClaude(systemStrategy,  strategyUserPrompt, 3072),
+        callClaude(systemChecklist + contentRulesContext, prompt || '', 2048),
+        callClaude(systemStrategy + contentRulesContext,  strategyUserPrompt, 3072),
       ])
 
       const parseAnthropicError = async (r: Response) => {
@@ -505,6 +527,57 @@ Return ONLY a valid JSON object with these keys (no extra commentary):
 }`
     }
 
+    // ─── Multi-turn refine: conversational AI content refinement ──────────
+    // When type === 'refine', the frontend sends a full conversation history.
+    // We pass it straight to Claude so it can refine without repeating itself.
+    if (type === 'refine' && Array.isArray(conversation) && conversation.length > 0) {
+      const refineSystem = SYSTEM_PROMPT + brandContext + frameworkContext + avatarContext + contentRulesContext + `
+
+REFINEMENT MODE: The user is iterating on content with you. You are having a conversation to get the perfect output.
+
+Rules:
+- Do NOT repeat the same content you already gave. Each revision should be meaningfully different.
+- If the user says "rewrite" or "try again" without specifics, ask what they'd like changed — offer 2-3 specific options (e.g. "I can try a different angle, shorten it, make it more emotional, or switch up the hook. What sounds right?")
+- When you produce new content, output ONLY the new content text — no labels, no "Here's the rewrite:", no markdown headers. Just the caption/post/script itself.
+- If suggesting hashtags, return them with a single # prefix (not ##).
+- Be concise in your questions. Don't over-explain.`
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 2048,
+          system: refineSystem,
+          messages: conversation,
+        }),
+      })
+
+      if (!response.ok) {
+        let detail = ''
+        try {
+          const errBody = await response.json()
+          detail = errBody?.error?.message || JSON.stringify(errBody)
+        } catch {
+          detail = await response.text().catch(() => '')
+        }
+        return new Response(
+          JSON.stringify({ error: `Anthropic API error (${response.status}): ${detail || 'unknown'}`, code: 'anthropic_api_error' }),
+          { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const result = await response.json()
+      const text = result.content?.[0]?.text ?? ''
+      return new Response(JSON.stringify({ text }), {
+        headers: { ...CORS, 'Content-Type': 'application/json' },
+      })
+    }
+
     // Pick model + token budget by task. listing_plan is long-form strategy
     // work — worth the Opus spend. Everything else stays on Sonnet.
     const model = type === 'listing_plan' ? 'claude-opus-4-6' : 'claude-sonnet-4-6'
@@ -520,7 +593,7 @@ Return ONLY a valid JSON object with these keys (no extra commentary):
       body: JSON.stringify({
         model,
         max_tokens: maxTokens,
-        system: SYSTEM_PROMPT + brandContext + frameworkContext + avatarContext,
+        system: SYSTEM_PROMPT + brandContext + frameworkContext + avatarContext + contentRulesContext,
         messages: [{ role: 'user', content: userMessage }],
       }),
     })
