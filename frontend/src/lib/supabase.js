@@ -682,6 +682,66 @@ export const createOHOutreach = (d)      => query(supabase.from('oh_outreach').i
 export const updateOHOutreach = (id, d)  => query(supabase.from('oh_outreach').update(d).eq('id', id).select().single())
 export const deleteOHOutreach = (id)     => query(supabase.from('oh_outreach').delete().eq('id', id))
 
+// Bulk-upsert outreach rows, skipping MLS duplicates
+export async function bulkUpsertOutreach(rows) {
+  if (!rows?.length) return { inserted: 0, skipped: 0, skippedMls: [] }
+  const mlsNumbers = rows.map(r => r.mls_number).filter(Boolean)
+  let existing = []
+  if (mlsNumbers.length) {
+    existing = await query(
+      supabase.from('oh_outreach').select('mls_number').in('mls_number', mlsNumbers)
+    )
+  }
+  const existingSet = new Set((existing || []).map(e => e.mls_number))
+  const toInsert = []
+  const skippedMls = []
+  for (const row of rows) {
+    if (row.mls_number && existingSet.has(row.mls_number)) {
+      skippedMls.push(row.mls_number)
+    } else {
+      toInsert.push(row)
+    }
+  }
+  if (toInsert.length) {
+    await query(supabase.from('oh_outreach').insert(toInsert))
+  }
+  return { inserted: toInsert.length, skipped: skippedMls.length, skippedMls }
+}
+
+// ─── OH Outreach Attempts ────────────────────────────────────────────────────
+export const getOutreachAttempts = (outreachId) =>
+  query(supabase.from('oh_outreach_attempts').select('*').eq('outreach_id', outreachId).order('attempt_date', { ascending: false }))
+
+export async function createOutreachAttempt(data) {
+  const row = await query(supabase.from('oh_outreach_attempts').insert(data).select().single())
+  // Also update parent outreach last_outreach_at
+  await query(supabase.from('oh_outreach').update({ last_outreach_at: data.attempt_date || new Date().toISOString() }).eq('id', data.outreach_id))
+  return row
+}
+
+export const deleteOutreachAttempt = (id) =>
+  query(supabase.from('oh_outreach_attempts').delete().eq('id', id))
+
+// ─── OH Outreach Templates ──────────────────────────────────────────────────
+export const getOutreachTemplates = () =>
+  query(supabase.from('oh_outreach_templates').select('*').order('is_default', { ascending: false }).order('name'))
+
+export const createOutreachTemplate = (d) =>
+  query(supabase.from('oh_outreach_templates').insert(d).select().single())
+
+export const updateOutreachTemplate = (id, d) =>
+  query(supabase.from('oh_outreach_templates').update(d).eq('id', id).select().single())
+
+export const deleteOutreachTemplate = (id) =>
+  query(supabase.from('oh_outreach_templates').delete().eq('id', id))
+
+// ─── Convert Outreach → Open House ──────────────────────────────────────────
+export async function convertOutreachToOH(outreachId, ohData) {
+  const oh = await query(supabase.from('open_houses').insert(ohData).select().single())
+  await query(supabase.from('oh_outreach').update({ open_house_id: oh.id, status: 'approved' }).eq('id', outreachId))
+  return oh
+}
+
 // ─── Campaign Enrollments (read-only for badges) ─────────────────────────────
 export const getActiveEnrollments = () =>
   query(supabase.from('campaign_enrollments').select('id, contact_id, status, campaign:campaigns(id, name)')

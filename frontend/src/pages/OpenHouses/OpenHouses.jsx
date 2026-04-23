@@ -88,11 +88,11 @@ function getOHChecklist() {
 }
 
 const OH_STATUS_OPTIONS       = ['scheduled', 'confirmed', 'completed', 'cancelled']
-const OUTREACH_STATUS_OPTIONS = ['reached_out', 'accepted', 'declined', 'no_response']
+const OUTREACH_STATUS_OPTIONS = ['not_contacted', 'reached_out', 'no_response', 'said_no', 'maybe_later', 'approved']
 
 const ohStatusVariant = { confirmed: 'success', scheduled: 'info', completed: 'default', cancelled: 'danger' }
-const outreachVariant = { reached_out: 'info', accepted: 'success', declined: 'danger', no_response: 'warning' }
-const outreachLabel   = { reached_out: 'Reached Out', accepted: 'Accepted', declined: 'Declined', no_response: 'No Response' }
+const outreachVariant = { not_contacted: 'default', reached_out: 'info', no_response: 'warning', said_no: 'danger', maybe_later: 'warning', approved: 'success' }
+const outreachLabel   = { not_contacted: 'Not Contacted', reached_out: 'Reached Out', no_response: 'No Response', said_no: 'Said No', maybe_later: 'Maybe Later', approved: 'Approved!' }
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -1205,26 +1205,59 @@ function ScheduledTab({ openHouses, loading, refetch }) {
 // ─── Outreach Form ────────────────────────────────────────────────────────────
 function OutreachForm({ record, onSave, onClose, saving, error }) {
   const isNew = !record?.id
+  const isImported = !!record?.mls_number
   const [draft, setDraft] = useState({
-    outreach_date: record?.outreach_date ?? '',
-    address:       record?.address       ?? '',
-    community:     record?.community     ?? '',
-    agent_name:    record?.agent_name    ?? '',
-    brokerage:     record?.brokerage     ?? '',
-    phone:         record?.phone         ?? '',
-    email:         record?.email         ?? '',
-    status:         record?.status         ?? 'reached_out',
-    contact_method: record?.contact_method ?? 'email',
-    notes:          record?.notes          ?? '',
+    outreach_date:   record?.outreach_date   ?? '',
+    address:         record?.address         ?? '',
+    community:       record?.community       ?? '',
+    city:            record?.city            ?? '',
+    agent_name:      record?.agent_name      ?? '',
+    brokerage:       record?.brokerage       ?? '',
+    phone:           record?.phone           ?? '',
+    email:           record?.email           ?? '',
+    mls_number:      record?.mls_number      ?? '',
+    price:           record?.price           ?? '',
+    date_listed:     record?.date_listed     ?? '',
+    photo_url:       record?.photo_url       ?? '',
+    co_agent_name:   record?.co_agent_name   ?? '',
+    co_agent_phone:  record?.co_agent_phone  ?? '',
+    listing_url:     record?.listing_url     ?? '',
+    follow_up_date:  record?.follow_up_date  ?? '',
+    status:          record?.status          ?? 'not_contacted',
+    contact_method:  record?.contact_method  ?? 'email',
+    notes:           record?.notes           ?? '',
   })
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
+
+  const fmtPrice = (val) => {
+    const num = typeof val === 'string' ? parseFloat(val.replace(/[^0-9.]/g, '')) : val
+    if (!num || isNaN(num)) return ''
+    return num.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+  }
 
   return (
     <>
       <div className="panel-section">
         <Input label="Outreach Date" type="date" value={draft.outreach_date} onChange={e => set('outreach_date', e.target.value)} />
         <Input label="Property Address *" value={draft.address} onChange={e => set('address', e.target.value)} placeholder="123 Main St, Mesa, AZ 85209" />
-        <Input label="Community / Subdivision" value={draft.community} onChange={e => set('community', e.target.value)} placeholder="e.g. Sunland Village East" />
+        <div className="panel-row">
+          <Input label="City" value={draft.city} onChange={e => set('city', e.target.value)} placeholder="Gilbert" />
+          <Input label="Community / Subdivision" value={draft.community} onChange={e => set('community', e.target.value)} placeholder="e.g. Sunland Village East" />
+        </div>
+        <div className="panel-row">
+          <Input label="MLS Number" value={draft.mls_number} onChange={e => set('mls_number', e.target.value)} disabled={isImported} />
+          <Input label="List Price" value={draft.price ? fmtPrice(draft.price) : ''} onChange={e => set('price', e.target.value.replace(/[^0-9.]/g, ''))} placeholder="$425,000" />
+        </div>
+        <div className="panel-row">
+          <Input label="Date Listed" type="date" value={draft.date_listed} onChange={e => set('date_listed', e.target.value)} />
+          <Input label="Listing URL" value={draft.listing_url} onChange={e => set('listing_url', e.target.value)} placeholder="https://..." />
+        </div>
+        <Input label="Photo URL" value={draft.photo_url} onChange={e => set('photo_url', e.target.value)} placeholder="https://..." />
+        {draft.photo_url && (
+          <div style={{ marginTop: 4 }}>
+            <img src={draft.photo_url} alt="Listing" style={{ width: 120, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--color-border)' }} onError={e => { e.target.style.display = 'none' }} />
+          </div>
+        )}
       </div>
 
       <hr className="panel-divider" />
@@ -1237,6 +1270,10 @@ function OutreachForm({ record, onSave, onClose, saving, error }) {
         <div className="panel-row">
           <Input label="Phone" type="tel" value={draft.phone} onChange={e => set('phone', e.target.value)} />
           <Input label="Email" type="email" value={draft.email} onChange={e => set('email', e.target.value)} />
+        </div>
+        <div className="panel-row">
+          <Input label="Co-Listing Agent" value={draft.co_agent_name} onChange={e => set('co_agent_name', e.target.value)} />
+          <Input label="Co-Agent Phone" type="tel" value={draft.co_agent_phone} onChange={e => set('co_agent_phone', e.target.value)} />
         </div>
       </div>
 
@@ -1256,6 +1293,9 @@ function OutreachForm({ record, onSave, onClose, saving, error }) {
             <option value="letter">Letter</option>
           </Select>
         </div>
+        {draft.status === 'maybe_later' && (
+          <Input label="Follow-up Date" type="date" value={draft.follow_up_date} onChange={e => set('follow_up_date', e.target.value)} />
+        )}
         <Textarea label="Notes" rows={3} value={draft.notes} onChange={e => set('notes', e.target.value)} placeholder="Response details, decline reason, etc." />
       </div>
 
@@ -1263,58 +1303,189 @@ function OutreachForm({ record, onSave, onClose, saving, error }) {
       <div className="panel-footer">
         <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
         <Button variant="primary" size="sm" onClick={() => onSave(draft)} disabled={saving || !draft.address.trim()}>
-          {saving ? 'Saving…' : isNew ? 'Add Outreach' : 'Save Changes'}
+          {saving ? 'Saving…' : isNew ? 'Add Prospect' : 'Save Changes'}
         </Button>
       </div>
     </>
   )
 }
 
-// ─── Outreach Tab ──────────────────────────────────────────────────────────────
-// ─── CSV import parser ────────────────────────────────────────────────────────
-// Expected columns (case-insensitive): date, address, community, agent_name, brokerage, phone, email, status, notes
-function parseOutreachCSV(text) {
+// ─── Prospecting Tab ───────────────────────────────────────────────────────────
+// ─── ARMLS CSV Parser ─────────────────────────────────────────────────────────
+function parseCSVLine(line) {
+  const cols = []
+  let cur = '', inQ = false
+  for (const ch of line) {
+    if (ch === '"') { inQ = !inQ }
+    else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = '' }
+    else cur += ch
+  }
+  cols.push(cur.trim())
+  return cols
+}
+
+function parseARMLSCSV(text) {
   const lines = text.trim().split('\n').filter(Boolean)
   if (lines.length < 2) throw new Error('CSV must have a header row and at least one data row')
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z_]/g, '_'))
+  const headers = parseCSVLine(lines[0]).map(h => h.trim())
+
+  // Build header index for quick lookup
+  const hIdx = {}
+  headers.forEach((h, i) => { hIdx[h] = i })
+  const col = (row, name) => (row[hIdx[name]] ?? '').trim()
+
   return lines.slice(1).map(line => {
-    // Handle quoted fields
-    const cols = []
-    let cur = '', inQ = false
-    for (const ch of line) {
-      if (ch === '"') { inQ = !inQ }
-      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = '' }
-      else cur += ch
-    }
-    cols.push(cur.trim())
-    const obj = {}
-    headers.forEach((h, i) => { obj[h] = cols[i] ?? '' })
+    const row = parseCSVLine(line)
+
+    // Build address from parts
+    const parts = [col(row, 'House Number'), col(row, 'Compass'), col(row, 'Street Name'), col(row, 'St Suffix')]
+    const address = parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
+
+    // Clean brokerage — remove parenthetical codes like "(realbr001)"
+    const rawBrokerage = col(row, 'Agency Name')
+    const brokerage = rawBrokerage.replace(/\s*\([^)]*\)\s*$/, '').trim()
+
+    // Parse price
+    const rawPrice = col(row, 'List Price')
+    const price = rawPrice ? parseFloat(rawPrice.replace(/[^0-9.]/g, '')) || null : null
+
+    // Extract phone from Features column
+    const features = col(row, 'Features')
+    let phone = null
+    const phoneMatch = features.match(/Contact Info\|List Agt Primary Phn\|([^|]+)/i)
+    if (phoneMatch) phone = phoneMatch[1].trim()
+
+    // Extract email from Features near contact info
+    let email = null
+    const emailMatch = features.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i)
+    if (emailMatch) email = emailMatch[1].trim()
+
+    // Public remarks truncated
+    const remarks = col(row, 'Public Remarks')
+    const notes = remarks ? remarks.substring(0, 200) : null
+
     return {
-      outreach_date: obj.date       || obj.outreach_date || null,
-      address:       obj.address    || '',
-      community:     obj.community  || null,
-      agent_name:    obj.agent_name || obj.agent || null,
-      brokerage:     obj.brokerage  || null,
-      phone:         obj.phone      || null,
-      email:         obj.email      || null,
-      status:        OUTREACH_STATUS_OPTIONS.includes(obj.status) ? obj.status : 'reached_out',
-      notes:         obj.notes      || null,
+      address:        address || '',
+      agent_name:     col(row, 'Listing Agent') || null,
+      brokerage:      brokerage || null,
+      city:           col(row, 'City/Town Code') || null,
+      community:      col(row, 'Subdivision') || null,
+      mls_number:     col(row, 'List Number') || null,
+      price:          price,
+      date_listed:    col(row, 'List Date') || null,
+      photo_url:      col(row, 'Photo URL') || null,
+      status:         'not_contacted',
+      phone:          phone,
+      email:          email,
+      co_agent_name:  col(row, 'Co-Listing Agent') || null,
+      notes:          notes,
     }
   }).filter(r => r.address)
 }
 
+// ─── Import Preview Modal ─────────────────────────────────────────────────────
+function ImportPreview({ rows, existingMls, onImport, onCancel, importing }) {
+  const [selected, setSelected] = useState(() => new Set(rows.map((_, i) => i)))
+
+  const toggleAll = () => {
+    if (selected.size === rows.length) setSelected(new Set())
+    else setSelected(new Set(rows.map((_, i) => i)))
+  }
+  const toggle = (i) => {
+    const next = new Set(selected)
+    next.has(i) ? next.delete(i) : next.add(i)
+    setSelected(next)
+  }
+
+  const newCount = rows.filter((r, i) => selected.has(i) && !existingMls.has(r.mls_number)).length
+  const dupeCount = rows.filter((r, i) => selected.has(i) && r.mls_number && existingMls.has(r.mls_number)).length
+
+  const fmtPrice = (v) => {
+    if (!v) return '—'
+    return Number(v).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+  }
+
+  return (
+    <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div>
+          <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>Import Preview — {rows.length} rows parsed</p>
+          <p style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', marginTop: 2 }}>
+            {newCount} new{dupeCount > 0 ? `, ${dupeCount} already imported (will skip)` : ''}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button variant="ghost" size="sm" onClick={onCancel}>Cancel</Button>
+          <Button variant="primary" size="sm" onClick={() => onImport([...selected])} disabled={importing || selected.size === 0}>
+            {importing ? 'Importing…' : `Import ${selected.size} Selected`}
+          </Button>
+        </div>
+      </div>
+      <div style={{ maxHeight: 360, overflow: 'auto', borderRadius: 6, border: '1px solid var(--color-border)' }}>
+        <table className="outreach-table" style={{ fontSize: '0.82rem' }}>
+          <thead>
+            <tr>
+              <th style={{ width: 36 }}>
+                <input type="checkbox" checked={selected.size === rows.length} onChange={toggleAll} />
+              </th>
+              <th>Address</th>
+              <th>Agent</th>
+              <th>Brokerage</th>
+              <th>Price</th>
+              <th>MLS#</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const isDupe = r.mls_number && existingMls.has(r.mls_number)
+              return (
+                <tr key={i} style={isDupe ? { opacity: 0.5 } : undefined}>
+                  <td><input type="checkbox" checked={selected.has(i)} onChange={() => toggle(i)} /></td>
+                  <td>{r.address}</td>
+                  <td>{r.agent_name ?? '—'}</td>
+                  <td>{r.brokerage ?? '—'}</td>
+                  <td>{fmtPrice(r.price)}</td>
+                  <td>{r.mls_number ?? '—'}</td>
+                  <td>{isDupe ? <Badge variant="warning" size="sm">Exists</Badge> : <Badge variant="default" size="sm">New</Badge>}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── Outreach Email Template ──────────────────────────────────────────────────
+function buildOutreachMailto(record, myName, myBrokerage) {
+  const subject = encodeURIComponent(`Open House Opportunity — ${record.address}`)
+  const body = encodeURIComponent(
+    `Hi ${record.agent_name ?? 'there'},\n\n` +
+    `I'm ${myName} with ${myBrokerage}. I noticed your listing at ${record.address}` +
+    (record.city ? ` in ${record.city}` : '') +
+    (record.mls_number ? ` (MLS# ${record.mls_number})` : '') +
+    (record.price ? ` listed at ${Number(record.price).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })}` : '') +
+    (record.community ? ` in the ${record.community} community` : '') +
+    `.\n\nI'd love the opportunity to host an open house for you. Would you be open to discussing?\n\n` +
+    `Best,\n${myName}\n${myBrokerage}`
+  )
+  return `mailto:${record.email ?? ''}?subject=${subject}&body=${body}`
+}
+
 function OutreachTab({ records, loading, refetch }) {
+  const { name: myName, brokerage: myBrokerage } = useBrandSignature()
   const [statusFilter, setStatusFilter] = useState('all')
   const [panelOpen, setPanelOpen]       = useState(false)
   const [editing, setEditing]           = useState(null)
   const [saving, setSaving]             = useState(false)
   const [error, setError]               = useState(null)
-  // Inline notes editing
-  const [editingNoteId, setEditingNoteId] = useState(null)
-  const [noteVal, setNoteVal]             = useState('')
+  const [converting, setConverting]     = useState(null)
   // CSV import
-  const [importing, setImporting]         = useState(false)
-  const [importError, setImportError]     = useState(null)
+  const [importing, setImporting]       = useState(false)
+  const [importError, setImportError]   = useState(null)
+  const [previewRows, setPreviewRows]   = useState(null)
   const fileRef = React.useRef()
 
   const openCreate = () => { setEditing(null); setPanelOpen(true) }
@@ -1325,22 +1496,31 @@ function OutreachTab({ records, loading, refetch }) {
     setSaving(true); setError(null)
     try {
       const row = {
-        outreach_date: draft.outreach_date || null,
-        address:       draft.address.trim(),
-        community:     draft.community.trim() || null,
-        agent_name:    draft.agent_name.trim() || null,
-        brokerage:     draft.brokerage.trim()  || null,
-        phone:          draft.phone.trim()          || null,
-        email:          draft.email.trim()          || null,
+        outreach_date:  draft.outreach_date  || null,
+        address:        draft.address.trim(),
+        community:      (draft.community || '').trim() || null,
+        city:           (draft.city || '').trim()      || null,
+        agent_name:     (draft.agent_name || '').trim()    || null,
+        brokerage:      (draft.brokerage || '').trim()     || null,
+        phone:          (draft.phone || '').trim()         || null,
+        email:          (draft.email || '').trim()         || null,
+        mls_number:     (draft.mls_number || '').trim()    || null,
+        price:          draft.price ? parseFloat(String(draft.price).replace(/[^0-9.]/g, '')) || null : null,
+        date_listed:    draft.date_listed   || null,
+        photo_url:      (draft.photo_url || '').trim()     || null,
+        co_agent_name:  (draft.co_agent_name || '').trim() || null,
+        co_agent_phone: (draft.co_agent_phone || '').trim()|| null,
+        listing_url:    (draft.listing_url || '').trim()   || null,
+        follow_up_date: draft.follow_up_date || null,
         status:         draft.status,
-        contact_method: draft.contact_method        ?? 'email',
-        notes:          draft.notes.trim()          || null,
+        contact_method: draft.contact_method ?? 'email',
+        notes:          (draft.notes || '').trim()         || null,
       }
       if (editing?.id) {
         await DB.updateOHOutreach(editing.id, row)
       } else {
         await DB.createOHOutreach(row)
-        await DB.logActivity('outreach_created', `Added OH outreach: ${draft.address}`)
+        await DB.logActivity('outreach_created', `Added OH prospect: ${draft.address}`)
       }
       await refetch()
       closePanel()
@@ -1351,36 +1531,93 @@ function OutreachTab({ records, loading, refetch }) {
     }
   }
 
-  const saveNote = async (id) => {
+  // Quick inline status change
+  const handleQuickStatus = async (id, newStatus) => {
     try {
-      await DB.updateOHOutreach(id, { notes: noteVal.trim() || null })
+      await DB.updateOHOutreach(id, { status: newStatus })
       await refetch()
-      setEditingNoteId(null)
     } catch { /* silent */ }
   }
 
-  const handleImport = async (e) => {
+  // CSV file select -> parse -> preview
+  const handleFileSelect = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    setImporting(true); setImportError(null)
+    setImportError(null)
     try {
       const text = await file.text()
-      const rows = parseOutreachCSV(text)
+      const rows = parseARMLSCSV(text)
       if (!rows.length) throw new Error('No valid rows found in CSV')
-      await Promise.all(rows.map(r => DB.createOHOutreach(r)))
+      setPreviewRows(rows)
+    } catch (e) {
+      setImportError(e.message)
+    } finally {
+      e.target.value = ''
+    }
+  }
+
+  // Import selected rows from preview
+  const existingMls = useMemo(() => new Set(records.map(r => r.mls_number).filter(Boolean)), [records])
+
+  const handleImportSelected = async (selectedIndices) => {
+    setImporting(true); setImportError(null)
+    try {
+      const rowsToImport = selectedIndices.map(i => previewRows[i]).filter(Boolean)
+      if (!rowsToImport.length) throw new Error('No rows selected')
+      const result = await DB.bulkUpsertOutreach(rowsToImport)
       await refetch()
-      await DB.logActivity('outreach_imported', `Imported ${rows.length} outreach records from CSV`)
+      await DB.logActivity('outreach_imported', `Imported ${result.inserted} prospects from ARMLS CSV${result.skipped ? ` (${result.skipped} duplicates skipped)` : ''}`)
+      setPreviewRows(null)
     } catch (e) {
       setImportError(e.message)
     } finally {
       setImporting(false)
-      e.target.value = ''
+    }
+  }
+
+  // Convert to Open House
+  const handleConvertToOH = async (record) => {
+    setConverting(record.id)
+    try {
+      const propId = await DB.ensureProperty({
+        address: record.address,
+        city: record.city || null,
+        mls_id: record.mls_number || null,
+        price: record.price || null,
+        neighborhood: record.community || null,
+      })
+      const oh = await DB.convertOutreachToOH(record.id, {
+        property_id: propId,
+        status: 'scheduled',
+        address: record.address,
+      })
+      // Seed checklist tasks
+      const tasks = getOHChecklist().map(t => ({ ...t, open_house_id: oh.id }))
+      await DB.bulkCreateOHTasks(tasks)
+      await refetch()
+      await DB.logActivity('oh_created_from_outreach', `Converted prospect ${record.address} to Open House`)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setConverting(null)
     }
   }
 
   const counts = { all: records.length }
   OUTREACH_STATUS_OPTIONS.forEach(s => { counts[s] = records.filter(r => r.status === s).length })
   const filtered = statusFilter === 'all' ? records : records.filter(r => r.status === statusFilter)
+
+  // Calculate DOM (days on market) from date_listed
+  const calcDOM = (dateListed) => {
+    if (!dateListed) return '—'
+    const diff = Math.floor((Date.now() - new Date(dateListed + 'T12:00:00').getTime()) / 86400000)
+    return diff >= 0 ? diff : '—'
+  }
+
+  const fmtPrice = (v) => {
+    if (!v) return '—'
+    return Number(v).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+  }
 
   return (
     <>
@@ -1397,89 +1634,123 @@ function OutreachTab({ records, loading, refetch }) {
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImport} />
-          <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} disabled={importing}
+          <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleFileSelect} />
+          <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>}
-          >{importing ? 'Importing…' : 'Import CSV'}</Button>
+          >Import ARMLS CSV</Button>
           <Button variant="primary" size="sm" onClick={openCreate}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}
-          >Add Outreach</Button>
+          >Add Prospect</Button>
         </div>
       </div>
-      {importError && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem' }}>{importError}</p>}
+      {importError && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem', marginBottom: 8 }}>{importError}</p>}
+      {error && !panelOpen && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem', marginBottom: 8 }}>{error}</p>}
+
+      {/* Import Preview */}
+      {previewRows && (
+        <ImportPreview
+          rows={previewRows}
+          existingMls={existingMls}
+          onImport={handleImportSelected}
+          onCancel={() => setPreviewRows(null)}
+          importing={importing}
+        />
+      )}
 
       <div className="oh-outreach-wrap">
         <table className="outreach-table">
           <thead>
             <tr>
-              <th>Date</th>
+              <th style={{ width: 48 }}>Photo</th>
               <th>Property</th>
               <th>Agent</th>
-              <th>Brokerage</th>
-              <th>Contact</th>
+              <th>Price / DOM</th>
               <th>Status</th>
-              <th>Notes</th>
-              <th></th>
+              <th>Outreach Date</th>
+              <th style={{ width: 200 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={8} className="outreach-empty">No outreach records</td></tr>
+              <tr><td colSpan={7} className="outreach-empty">No prospecting records{statusFilter !== 'all' ? ` with status "${outreachLabel[statusFilter]}"` : ''}</td></tr>
             )}
             {filtered.map(r => {
-              const agentFirst = (sig.full_name || '').split(' ')[0] || ''
-              const smsBody = encodeURIComponent(`Hi ${r.agent_name ?? 'there'}! This is ${agentFirst} with ${sig.brokerage || ''}. I'd love to host an open house at your listing at ${r.address}. Would you be open to it?`)
-              const emailBody = encodeURIComponent(`Hi ${r.agent_name ?? 'there'},\n\nThis is ${sig.full_name || ''} with ${sig.brokerage || ''}. I wanted to reach out about your listing at ${r.address}.\n\nI'd love to host an open house for you. Would you be open to discussing?\n\nBest,\n${sig.full_name || ''}\n${sig.brokerage || ''}`)
+              const myFirst = (myName || '').split(' ')[0] || ''
+              const smsBody = encodeURIComponent(`Hi ${r.agent_name ?? 'there'}! This is ${myFirst} with ${myBrokerage || ''}. I'd love to host an open house at your listing at ${r.address}. Would you be open to it?`)
               return (
               <tr key={r.id}>
-                <td className="outreach-td--date">{fmtDate(r.outreach_date)}</td>
-                <td className="outreach-td--address">
-                  <AddressLink address={r.address}>{r.address}</AddressLink>
-                  {r.community && <p className="outreach-sub">{r.community}</p>}
-                </td>
-                <td>{r.agent_name ?? '—'}</td>
-                <td>{r.brokerage ?? '—'}</td>
-                <td className="outreach-td--contact">
-                  {r.phone && <a href={`tel:${r.phone.replace(/\D/g,'')}`} className="outreach-contact-link">📞 {r.phone}</a>}
-                  {r.phone && <a href={`sms:${r.phone.replace(/\D/g,'')}&body=${smsBody}`} className="outreach-contact-link outreach-contact-link--sms">💬 Text</a>}
-                  {r.email && <a href={`mailto:${r.email}?subject=${encodeURIComponent('Open House Opportunity - ' + r.address)}&body=${emailBody}`} className="outreach-contact-link outreach-contact-link--email">✉️ Email</a>}
-                  {!r.phone && !r.email && '—'}
-                </td>
-                <td><Badge variant={outreachVariant[r.status]} size="sm">{outreachLabel[r.status]}</Badge></td>
-                <td className="outreach-td--notes">
-                  {editingNoteId === r.id ? (
-                    <div className="outreach-note-edit">
-                      <textarea
-                        className="outreach-note-textarea"
-                        value={noteVal}
-                        onChange={e => setNoteVal(e.target.value)}
-                        rows={3}
-                        autoFocus
-                        placeholder="Add a note…"
-                      />
-                      <div className="outreach-note-actions">
-                        <button className="outreach-note-save" onClick={() => saveNote(r.id)}>Save</button>
-                        <button className="outreach-note-cancel" onClick={() => setEditingNoteId(null)}>Cancel</button>
-                      </div>
-                    </div>
+                {/* Photo */}
+                <td>
+                  {r.photo_url ? (
+                    <img src={r.photo_url} alt="" style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 4 }} onError={e => { e.target.style.display = 'none' }} />
                   ) : (
-                    <span
-                      className={`outreach-note-text${!r.notes ? ' outreach-note-text--empty' : ''}`}
-                      onClick={() => { setEditingNoteId(r.id); setNoteVal(r.notes ?? '') }}
-                      title="Click to edit note"
-                    >
-                      {r.notes || 'Add note…'}
-                    </span>
+                    <div style={{ width: 40, height: 40, borderRadius: 4, background: 'var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ width: 18, height: 18 }}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                    </div>
                   )}
                 </td>
-                <td><Button size="sm" variant="ghost" onClick={() => openEdit(r)}>Edit</Button></td>
+                {/* Property */}
+                <td>
+                  <AddressLink address={r.address}><strong style={{ fontSize: '0.88rem' }}>{r.address}</strong></AddressLink>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', marginTop: 1 }}>
+                    {[r.city, r.community].filter(Boolean).join(' · ')}
+                    {r.mls_number && (
+                      <span> · <a href={`https://armls.flexmls.com/cgi-bin/mainmenu.cgi?cmd=url+other/run_hotsheet_d.cgi&hotsheet_id=&ls_id=${r.mls_number}`} target="_blank" rel="noreferrer" style={{ color: 'var(--color-primary)' }}>MLS# {r.mls_number}</a></span>
+                    )}
+                  </div>
+                </td>
+                {/* Agent */}
+                <td>
+                  <span style={{ fontWeight: 500, fontSize: '0.88rem' }}>{r.agent_name ?? '—'}</span>
+                  {r.brokerage && <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>{r.brokerage}</div>}
+                  <div style={{ fontSize: '0.78rem', display: 'flex', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+                    {r.phone && <a href={`tel:${r.phone.replace(/\D/g,'')}`} style={{ color: 'var(--color-primary)' }}>{r.phone}</a>}
+                    {r.phone && <a href={`sms:${r.phone.replace(/\D/g,'')}&body=${smsBody}`} style={{ color: 'var(--color-primary)' }}>Text</a>}
+                    {r.email && <a href={buildOutreachMailto(r, myName || '', myBrokerage || '')} style={{ color: 'var(--color-primary)' }}>Email</a>}
+                  </div>
+                </td>
+                {/* Price + DOM */}
+                <td>
+                  <span style={{ fontWeight: 500 }}>{fmtPrice(r.price)}</span>
+                  {r.date_listed && <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>{calcDOM(r.date_listed)} DOM</div>}
+                </td>
+                {/* Status */}
+                <td><Badge variant={outreachVariant[r.status] || 'default'} size="sm">{outreachLabel[r.status] || r.status}</Badge></td>
+                {/* Outreach Date */}
+                <td className="outreach-td--date">{fmtDate(r.outreach_date)}</td>
+                {/* Actions */}
+                <td>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(r)}>Edit</Button>
+                    {r.status === 'approved' && (
+                      <Button size="sm" variant="primary" onClick={() => handleConvertToOH(r)} disabled={converting === r.id}>
+                        {converting === r.id ? 'Converting…' : 'Convert to OH'}
+                      </Button>
+                    )}
+                    {r.email && (
+                      <a href={buildOutreachMailto(r, myName || '', myBrokerage || '')} style={{ textDecoration: 'none' }}>
+                        <Button size="sm" variant="ghost" as="span">Send Email</Button>
+                      </a>
+                    )}
+                    <select
+                      value={r.status}
+                      onChange={e => handleQuickStatus(r.id, e.target.value)}
+                      style={{ fontSize: '0.78rem', padding: '2px 4px', borderRadius: 4, border: '1px solid var(--color-border)', background: 'var(--color-surface)', cursor: 'pointer' }}
+                      title="Quick status change"
+                    >
+                      {OUTREACH_STATUS_OPTIONS.map(s => (
+                        <option key={s} value={s}>{outreachLabel[s]}</option>
+                      ))}
+                    </select>
+                  </div>
+                </td>
               </tr>
             )})}
           </tbody>
         </table>
       </div>
 
-      <SlidePanel open={panelOpen} onClose={closePanel} title={editing ? 'Edit Outreach' : 'Add Outreach Contact'} width={480}>
+      <SlidePanel open={panelOpen} onClose={closePanel} title={editing ? 'Edit Prospect' : 'Add Prospect'} width={520}>
         <OutreachForm record={editing} onSave={handleSave} onClose={closePanel} saving={saving} error={error} />
       </SlidePanel>
     </>
@@ -2164,7 +2435,7 @@ function OpenHouses() {
           { label: 'Scheduled',     value: 'scheduled',    count: openHouses.filter(o => !['completed','cancelled'].includes(o.status)).length },
           { label: 'Calendar',      value: 'calendar'                               },
           { label: 'Process',       value: 'process'                                },
-          { label: 'Outreach',      value: 'outreach',     count: outreach.length   },
+          { label: 'Prospecting',   value: 'outreach',     count: outreach.length   },
           { label: 'Host Reports',  value: 'host_reports', count: reports.length    },
         ]}
         active={mainTab}

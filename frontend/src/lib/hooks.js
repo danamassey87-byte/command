@@ -78,6 +78,8 @@ export const useDocumentsForListing = (listingId) =>
 
 export const useSellerShowings = ()      => useQuery(DB.getSellerShowings)
 export const useOHOutreach     = ()      => useQuery(DB.getOHOutreach)
+export const useOutreachAttempts = (outreachId) => useQuery(() => outreachId ? DB.getOutreachAttempts(outreachId) : Promise.resolve([]), [outreachId])
+export const useOutreachTemplates = ()   => useQuery(DB.getOutreachTemplates)
 export const useHostReports    = ()      => useQuery(DB.getHostReports)
 export const useOHTasksForOH   = (ohId)  => useQuery(() => DB.getOHTasksForOH(ohId), [ohId])
 
