@@ -1226,6 +1226,13 @@ function OutreachForm({ record, onSave, onClose, saving, error }) {
     status:          record?.status          ?? 'not_contacted',
     contact_method:  record?.contact_method  ?? 'email',
     notes:           record?.notes           ?? '',
+    sqft:            record?.sqft            ?? '',
+    bedrooms:        record?.bedrooms        ?? '',
+    bathrooms:       record?.bathrooms       ?? '',
+    pool:            record?.pool            ?? false,
+    year_built:      record?.year_built      ?? '',
+    is_vacant:       record?.is_vacant       ?? false,
+    listing_status:  record?.listing_status  ?? 'active',
   })
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
 
@@ -1258,6 +1265,38 @@ function OutreachForm({ record, onSave, onClose, saving, error }) {
             <img src={draft.photo_url} alt="Listing" style={{ width: 120, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--color-border)' }} onError={e => { e.target.style.display = 'none' }} />
           </div>
         )}
+      </div>
+
+      <hr className="panel-divider" />
+      <div className="panel-section">
+        <p className="panel-section-label">Property Details</p>
+        <div className="panel-row">
+          <Input label="Sq Ft" value={draft.sqft} onChange={e => set('sqft', e.target.value)} placeholder="2,400" />
+          <Input label="Beds" value={draft.bedrooms} onChange={e => set('bedrooms', e.target.value)} placeholder="4" />
+          <Input label="Baths" value={draft.bathrooms} onChange={e => set('bathrooms', e.target.value)} placeholder="3" />
+        </div>
+        <div className="panel-row">
+          <Input label="Year Built" value={draft.year_built} onChange={e => set('year_built', e.target.value)} placeholder="2005" />
+          <Select label="Listing Status" value={draft.listing_status} onChange={e => set('listing_status', e.target.value)}>
+            <option value="active">Active</option>
+            <option value="pending">Pending</option>
+            <option value="sold">Sold</option>
+            <option value="hold">Hold</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="withdrawn">Withdrawn</option>
+            <option value="backup">Backup</option>
+          </Select>
+        </div>
+        <div style={{ display: 'flex', gap: 16, marginTop: 4 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.82rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={draft.pool} onChange={e => set('pool', e.target.checked)} style={{ accentColor: 'var(--sage-green)' }} />
+            Pool
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.82rem', cursor: 'pointer' }}>
+            <input type="checkbox" checked={draft.is_vacant} onChange={e => set('is_vacant', e.target.checked)} style={{ accentColor: 'var(--sage-green)' }} />
+            Vacant
+          </label>
+        </div>
       </div>
 
       <hr className="panel-divider" />
@@ -1337,9 +1376,10 @@ function parseARMLSCSV(text) {
   return lines.slice(1).map(line => {
     const row = parseCSVLine(line)
 
-    // Build address from parts
-    const parts = [col(row, 'House Number'), col(row, 'Compass'), col(row, 'Street Name'), col(row, 'St Suffix')]
-    const address = parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
+    // Build address from parts: House Number + Compass(dir prefix) + Street Name + St Dir Sfx + St Suffix + Unit#
+    const unit = col(row, 'Unit #')
+    const parts = [col(row, 'House Number'), col(row, 'Compass'), col(row, 'Street Name'), col(row, 'St Dir Sfx'), col(row, 'St Suffix')]
+    const address = parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim() + (unit ? ` #${unit}` : '')
 
     // Clean brokerage — remove parenthetical codes like "(realbr001)"
     const rawBrokerage = col(row, 'Agency Name')
@@ -1364,6 +1404,33 @@ function parseARMLSCSV(text) {
     const remarks = col(row, 'Public Remarks')
     const notes = remarks ? remarks.substring(0, 200) : null
 
+    // Property details
+    const sqftRaw = col(row, 'Approx SQFT')
+    const sqft = sqftRaw ? parseInt(sqftRaw.replace(/[^0-9]/g, '')) || null : null
+    const bedrooms = parseInt(col(row, '# Bedrooms')) || null
+    const bathrooms = parseFloat(col(row, 'Total Bathrooms')) || null
+    const yearBuilt = parseInt(col(row, 'Year Built')) || null
+    const poolYN = col(row, 'Private Pool Y/N')
+    const pool = poolYN === 'Y'
+
+    // Vacancy — check Occupant field in Features
+    const isVacant = features.includes('Occupant - DND2|Vacant|Yes')
+
+    // DOM from CSV (snapshot at export time)
+    const domRaw = col(row, 'Days on Market')
+    const domAtImport = domRaw ? parseInt(domRaw) || 0 : 0
+
+    // Listing status from CSV Status column
+    const mlsStatus = col(row, 'Status')
+    const listingStatus = mlsStatus === 'A' ? 'active' : mlsStatus === 'P' ? 'pending' : mlsStatus === 'S' ? 'sold'
+      : mlsStatus === 'H' ? 'hold' : mlsStatus === 'C' ? 'cancelled' : mlsStatus === 'W' ? 'withdrawn'
+      : mlsStatus === 'D' ? 'deleted' : mlsStatus === 'B' ? 'backup' : mlsStatus === 'O' ? 'other' : 'active'
+
+    // Co-agent phone from Features
+    let coAgentPhone = null
+    const coPhoneMatch = features.match(/Contact Info\|CoList Primary Phn\|([^|;]+)/i)
+    if (coPhoneMatch) coAgentPhone = coPhoneMatch[1].trim()
+
     return {
       address:        address || '',
       agent_name:     col(row, 'Listing Agent') || null,
@@ -1378,7 +1445,17 @@ function parseARMLSCSV(text) {
       phone:          phone,
       email:          email,
       co_agent_name:  col(row, 'Co-Listing Agent') || null,
+      co_agent_phone: coAgentPhone,
       notes:          notes,
+      sqft,
+      bedrooms,
+      bathrooms,
+      pool,
+      year_built:     yearBuilt,
+      is_vacant:      isVacant,
+      dom_at_import:  domAtImport,
+      imported_at:    new Date().toISOString().slice(0, 10),
+      listing_status: listingStatus,
     }
   }).filter(r => r.address)
 }
@@ -1515,6 +1592,13 @@ function OutreachTab({ records, loading, refetch }) {
         status:         draft.status,
         contact_method: draft.contact_method ?? 'email',
         notes:          (draft.notes || '').trim()         || null,
+        sqft:           draft.sqft ? parseInt(String(draft.sqft).replace(/[^0-9]/g, '')) || null : null,
+        bedrooms:       draft.bedrooms ? parseInt(draft.bedrooms) || null : null,
+        bathrooms:      draft.bathrooms ? parseFloat(draft.bathrooms) || null : null,
+        pool:           !!draft.pool,
+        year_built:     draft.year_built ? parseInt(draft.year_built) || null : null,
+        is_vacant:      !!draft.is_vacant,
+        listing_status: draft.listing_status || 'active',
       }
       if (editing?.id) {
         await DB.updateOHOutreach(editing.id, row)
@@ -1603,15 +1687,22 @@ function OutreachTab({ records, loading, refetch }) {
     }
   }
 
-  const counts = { all: records.length }
-  OUTREACH_STATUS_OPTIONS.forEach(s => { counts[s] = records.filter(r => r.status === s).length })
-  const filtered = statusFilter === 'all' ? records : records.filter(r => r.status === statusFilter)
+  const [showArchived, setShowArchived] = useState(false)
+  const activeRecords = showArchived ? records : records.filter(r => !r.archived)
+  const counts = { all: activeRecords.length }
+  OUTREACH_STATUS_OPTIONS.forEach(s => { counts[s] = activeRecords.filter(r => r.status === s).length })
+  const archivedCount = records.filter(r => r.archived).length
+  const filtered = statusFilter === 'all' ? activeRecords : activeRecords.filter(r => r.status === statusFilter)
 
-  // Calculate DOM (days on market) from date_listed
-  const calcDOM = (dateListed) => {
-    if (!dateListed) return '—'
-    const diff = Math.floor((Date.now() - new Date(dateListed + 'T12:00:00').getTime()) / 86400000)
-    return diff >= 0 ? diff : '—'
+  // Listings that are no longer active can't be emailed
+  const isListingDead = (r) => ['pending', 'sold', 'cancelled', 'withdrawn', 'deleted'].includes(r.listing_status)
+
+  // Calculate live DOM: dom_at_import + days since imported_at
+  const calcDOM = (record) => {
+    const base = record.dom_at_import ?? 0
+    if (!record.imported_at) return base || '—'
+    const daysSinceImport = Math.floor((Date.now() - new Date(record.imported_at + 'T12:00:00').getTime()) / 86400000)
+    return base + Math.max(0, daysSinceImport)
   }
 
   const fmtPrice = (v) => {
@@ -1634,6 +1725,10 @@ function OutreachTab({ records, loading, refetch }) {
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)} style={{ accentColor: 'var(--brown-mid)' }} />
+            Archived ({archivedCount})
+          </label>
           <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleFileSelect} />
           <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>}
@@ -1663,16 +1758,17 @@ function OutreachTab({ records, loading, refetch }) {
             <tr>
               <th style={{ width: 48 }}>Photo</th>
               <th>Property</th>
+              <th>Details</th>
               <th>Agent</th>
               <th>Price / DOM</th>
+              <th>Listing</th>
               <th>Status</th>
-              <th>Outreach Date</th>
               <th style={{ width: 200 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={7} className="outreach-empty">No prospecting records{statusFilter !== 'all' ? ` with status "${outreachLabel[statusFilter]}"` : ''}</td></tr>
+              <tr><td colSpan={8} className="outreach-empty">No prospecting records{statusFilter !== 'all' ? ` with status "${outreachLabel[statusFilter]}"` : ''}</td></tr>
             )}
             {filtered.map(r => {
               const myFirst = (myName || '').split(' ')[0] || ''
@@ -1699,6 +1795,16 @@ function OutreachTab({ records, loading, refetch }) {
                     )}
                   </div>
                 </td>
+                {/* Property Details */}
+                <td style={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                  {r.bedrooms || r.bathrooms ? <div>{r.bedrooms ?? '—'}bd / {r.bathrooms ?? '—'}ba</div> : null}
+                  {r.sqft ? <div>{Number(r.sqft).toLocaleString()} sqft</div> : null}
+                  {r.year_built ? <div>Built {r.year_built}</div> : null}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                    {r.pool && <span style={{ color: 'var(--sage-green)', fontWeight: 500 }}>Pool</span>}
+                    {r.is_vacant && <span style={{ color: '#6366f1', fontWeight: 500 }}>Vacant</span>}
+                  </div>
+                </td>
                 {/* Agent */}
                 <td>
                   <span style={{ fontWeight: 500, fontSize: '0.88rem' }}>{r.agent_name ?? '—'}</span>
@@ -1706,18 +1812,27 @@ function OutreachTab({ records, loading, refetch }) {
                   <div style={{ fontSize: '0.78rem', display: 'flex', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
                     {r.phone && <a href={`tel:${r.phone.replace(/\D/g,'')}`} style={{ color: 'var(--color-primary)' }}>{r.phone}</a>}
                     {r.phone && <a href={`sms:${r.phone.replace(/\D/g,'')}&body=${smsBody}`} style={{ color: 'var(--color-primary)' }}>Text</a>}
-                    {r.email && <a href={buildOutreachMailto(r, myName || '', myBrokerage || '')} style={{ color: 'var(--color-primary)' }}>Email</a>}
+                    {!isListingDead(r) && r.email && <a href={buildOutreachMailto(r, myName || '', myBrokerage || '')} style={{ color: 'var(--color-primary)' }}>Email</a>}
                   </div>
                 </td>
                 {/* Price + DOM */}
                 <td>
                   <span style={{ fontWeight: 500 }}>{fmtPrice(r.price)}</span>
-                  {r.date_listed && <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>{calcDOM(r.date_listed)} DOM</div>}
+                  <div style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>{calcDOM(r)} DOM</div>
+                  {r.imported_at && <div style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>Imported {new Date(r.imported_at + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>}
                 </td>
-                {/* Status */}
+                {/* Listing Status */}
+                <td>
+                  {r.listing_status && r.listing_status !== 'active' ? (
+                    <Badge variant={r.listing_status === 'pending' ? 'warning' : r.listing_status === 'sold' ? 'danger' : 'default'} size="sm">
+                      {r.listing_status.charAt(0).toUpperCase() + r.listing_status.slice(1)}
+                    </Badge>
+                  ) : (
+                    <Badge variant="success" size="sm">Active</Badge>
+                  )}
+                </td>
+                {/* Outreach Status */}
                 <td><Badge variant={outreachVariant[r.status] || 'default'} size="sm">{outreachLabel[r.status] || r.status}</Badge></td>
-                {/* Outreach Date */}
-                <td className="outreach-td--date">{fmtDate(r.outreach_date)}</td>
                 {/* Actions */}
                 <td>
                   <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1727,11 +1842,20 @@ function OutreachTab({ records, loading, refetch }) {
                         {converting === r.id ? 'Converting…' : 'Convert to OH'}
                       </Button>
                     )}
-                    {r.email && (
+                    {!isListingDead(r) && r.email && (
                       <a href={buildOutreachMailto(r, myName || '', myBrokerage || '')} style={{ textDecoration: 'none' }}>
                         <Button size="sm" variant="ghost" as="span">Send Email</Button>
                       </a>
                     )}
+                    {isListingDead(r) && (
+                      <span style={{ fontSize: '0.68rem', color: 'var(--color-danger)', fontStyle: 'italic' }}>Off market</span>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={async () => {
+                      await DB.updateOHOutreach(r.id, { archived: !r.archived })
+                      await refetch()
+                    }} title={r.archived ? 'Unarchive' : 'Archive'}>
+                      {r.archived ? 'Unarchive' : 'Archive'}
+                    </Button>
                     <select
                       value={r.status}
                       onChange={e => handleQuickStatus(r.id, e.target.value)}

@@ -17,6 +17,19 @@ ALTER TABLE oh_outreach
   ADD COLUMN IF NOT EXISTS open_house_id    UUID REFERENCES open_houses(id),
   ADD COLUMN IF NOT EXISTS listing_url      TEXT;
 
+-- Property details (added 2026-04-23 round 2)
+ALTER TABLE oh_outreach
+  ADD COLUMN IF NOT EXISTS sqft           INTEGER,
+  ADD COLUMN IF NOT EXISTS bedrooms       INTEGER,
+  ADD COLUMN IF NOT EXISTS bathrooms      NUMERIC,
+  ADD COLUMN IF NOT EXISTS pool           BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS year_built     INTEGER,
+  ADD COLUMN IF NOT EXISTS is_vacant      BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS dom_at_import  INTEGER,
+  ADD COLUMN IF NOT EXISTS imported_at    DATE DEFAULT CURRENT_DATE,
+  ADD COLUMN IF NOT EXISTS listing_status TEXT DEFAULT 'active',
+  ADD COLUMN IF NOT EXISTS archived       BOOLEAN DEFAULT FALSE;
+
 -- ============================================================
 -- 2. Migrate legacy status values
 -- ============================================================
