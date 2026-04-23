@@ -943,7 +943,7 @@ function getDateBounds(range, customFrom, customTo) {
 
 // ─── Scheduled Tab ────────────────────────────────────────────────────────────
 function ScheduledTab({ openHouses, loading, refetch }) {
-  const [filter, setFilter]         = useState('all')
+  const [filter, setFilter]         = useState('upcoming')
   const [dateRange, setDateRange]   = useState('all')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo]     = useState('')
@@ -1084,8 +1084,13 @@ function ScheduledTab({ openHouses, loading, refetch }) {
     )
   }
 
-  const filtered = dateFiltered.filter(oh => filter === 'all' || oh.status === filter)
+  const filtered = dateFiltered.filter(oh => {
+    if (filter === 'all') return true
+    if (filter === 'upcoming') return !['completed', 'cancelled'].includes(oh.status)
+    return oh.status === filter
+  })
   const counts = {
+    upcoming:  dateFiltered.filter(o => !['completed','cancelled'].includes(o.status)).length,
     all:       dateFiltered.length,
     confirmed: dateFiltered.filter(o => o.status === 'confirmed').length,
     scheduled: dateFiltered.filter(o => o.status === 'scheduled').length,
@@ -1119,18 +1124,27 @@ function ScheduledTab({ openHouses, loading, refetch }) {
     {
       key: 'actions', label: '',
       render: (_, row) => {
-        const isPast = row.date && row.date < new Date().toISOString().slice(0, 10)
         const canComplete = !['completed', 'cancelled'].includes(row.status)
         return (
-          <div style={{ display: 'flex', gap: 6 }}>
-            {canComplete && isPast && (
-              <Button size="sm" variant="ghost" onClick={async e => {
-                e.stopPropagation()
-                await DB.updateOpenHouse(row.id, { status: 'completed' })
-                await refetch()
-              }}
-                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>}
-              >Complete</Button>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {canComplete && (
+              <label
+                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: 'var(--brown-mid)', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                onClick={e => e.stopPropagation()}
+              >
+                <input
+                  type="checkbox"
+                  checked={false}
+                  onChange={async e => {
+                    e.stopPropagation()
+                    if (!confirm(`Mark "${row.address}" as all follow-up done and move to completed?`)) return
+                    await DB.updateOpenHouse(row.id, { status: 'completed' })
+                    await refetch()
+                  }}
+                  style={{ accentColor: 'var(--sage-green)', cursor: 'pointer' }}
+                />
+                All follow-up done
+              </label>
             )}
             <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); setSelectedOH(row) }}>Tasks</Button>
             <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openEdit(row) }}
@@ -1164,10 +1178,10 @@ function ScheduledTab({ openHouses, loading, refetch }) {
       <div className="oh-tab-header">
         <TabBar
           tabs={[
-            { label: 'All',       value: 'all',       count: counts.all       },
+            { label: 'Upcoming',  value: 'upcoming',  count: counts.upcoming  },
             { label: 'Confirmed', value: 'confirmed', count: counts.confirmed },
-            { label: 'Scheduled', value: 'scheduled', count: counts.scheduled },
             { label: 'Completed', value: 'completed', count: counts.completed },
+            { label: 'All',       value: 'all',       count: counts.all       },
           ]}
           active={filter}
           onChange={setFilter}
@@ -2147,7 +2161,7 @@ function OpenHouses() {
       </div>
       <TabBar
         tabs={[
-          { label: 'Scheduled',     value: 'scheduled',    count: openHouses.length },
+          { label: 'Scheduled',     value: 'scheduled',    count: openHouses.filter(o => !['completed','cancelled'].includes(o.status)).length },
           { label: 'Calendar',      value: 'calendar'                               },
           { label: 'Process',       value: 'process'                                },
           { label: 'Outreach',      value: 'outreach',     count: outreach.length   },
