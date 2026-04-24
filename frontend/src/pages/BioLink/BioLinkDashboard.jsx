@@ -14,27 +14,22 @@ export default function BioLinkDashboard() {
         <Link to="/bio-link/page" className="bio-card">
           <span className="bio-card__icon">🔗</span>
           <h3 className="bio-card__title">My Page</h3>
-          <p className="bio-card__desc">Design and customize your landing page</p>
-        </Link>
-        <Link to="/bio-link/forms" className="bio-card">
-          <span className="bio-card__icon">📋</span>
-          <h3 className="bio-card__title">Links & Forms</h3>
-          <p className="bio-card__desc">Manage links, buttons, and embedded forms</p>
+          <p className="bio-card__desc">Design your landing page, add guides, and publish</p>
         </Link>
         <Link to="/bio-link/guides" className="bio-card">
           <span className="bio-card__icon">📖</span>
           <h3 className="bio-card__title">Guides</h3>
-          <p className="bio-card__desc">Buyer and seller guides for lead capture</p>
+          <p className="bio-card__desc">Upload buyer and seller guides with lead capture</p>
         </Link>
         <Link to="/bio-link/drips" className="bio-card">
           <span className="bio-card__icon">💧</span>
           <h3 className="bio-card__title">Drip Campaigns</h3>
-          <p className="bio-card__desc">Automated follow-ups for captured leads</p>
+          <p className="bio-card__desc">Automated email follow-ups for captured leads</p>
         </Link>
         <Link to="/bio-link/leads" className="bio-card">
           <span className="bio-card__icon">👥</span>
           <h3 className="bio-card__title">Leads Captured</h3>
-          <p className="bio-card__desc">View and manage captured lead information</p>
+          <p className="bio-card__desc">View and manage leads from your bio link page</p>
         </Link>
       </div>
     </div>

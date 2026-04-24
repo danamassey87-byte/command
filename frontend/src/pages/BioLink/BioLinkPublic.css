@@ -1,0 +1,328 @@
+/* ─── Bio Link Public Page ─── */
+.bpl-wrap {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 16px 60px;
+}
+
+.bpl-page {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Loading & Not Found ─── */
+.bpl-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #efede8;
+}
+.bpl-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #b79782;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: bpl-spin 0.7s linear infinite;
+}
+@keyframes bpl-spin { to { transform: rotate(360deg); } }
+
+.bpl-not-found {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #efede8;
+  color: #3A2A1E;
+  font-family: 'Poppins', sans-serif;
+  text-align: center;
+  gap: 8px;
+}
+.bpl-not-found h2 { font-size: 1.5rem; font-weight: 700; }
+.bpl-not-found p { font-size: 0.9rem; opacity: 0.7; }
+
+/* ─── Header Block ─── */
+.bpl-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.bpl-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.bpl-avatar-placeholder {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+.bpl-name {
+  font-weight: 700;
+}
+.bpl-subtitle {
+  font-size: 0.78rem;
+  opacity: 0.85;
+  letter-spacing: 0.5px;
+}
+
+/* ─── Link Button ─── */
+.bpl-link-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* ─── Form Card ─── */
+.bpl-form-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transition: transform 0.15s;
+}
+.bpl-form-card:hover {
+  transform: translateY(-2px);
+}
+.bpl-form-title {
+  font-weight: 600;
+  text-align: center;
+}
+.bpl-form-btn {
+  padding: 12px 28px;
+  border: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.15s;
+}
+.bpl-form-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* ─── Guide Block ─── */
+.bpl-guide {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+  overflow: hidden;
+  transition: transform 0.15s;
+}
+.bpl-guide:hover {
+  transform: translateY(-2px);
+}
+.bpl-guide__image {
+  flex-shrink: 0;
+  width: 90px;
+  min-height: 110px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.bpl-guide__image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.bpl-guide__image-ph {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.3);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+.bpl-guide__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+.bpl-guide__title {
+  font-weight: 700;
+  line-height: 1.2;
+}
+.bpl-guide__desc {
+  opacity: 0.75;
+  line-height: 1.35;
+}
+.bpl-guide__btn {
+  margin-top: 4px;
+  border: none;
+  padding: 8px 18px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: transform 0.15s, opacity 0.15s;
+}
+.bpl-guide__btn:hover {
+  transform: translateY(-1px);
+  opacity: 0.9;
+}
+
+/* ─── Footer ─── */
+.bpl-footer {
+  margin-top: 24px;
+  font-size: 0.68rem;
+  color: rgba(0, 0, 0, 0.3);
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+/* ─── Modal (Form + Thank You) ─── */
+.bpl-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+  animation: bpl-fade-in 0.2s ease;
+}
+@keyframes bpl-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.bpl-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  animation: bpl-slide-up 0.25s ease;
+}
+@keyframes bpl-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.bpl-modal__close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #999;
+  cursor: pointer;
+  line-height: 1;
+}
+.bpl-modal__close:hover { color: #333; }
+
+.bpl-modal__title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #3A2A1E;
+  text-align: center;
+}
+.bpl-modal__sub {
+  font-size: 0.85rem;
+  color: #888;
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.bpl-input {
+  padding: 12px 14px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.bpl-input:focus {
+  border-color: #b79782;
+  box-shadow: 0 0 0 3px rgba(183, 151, 130, 0.15);
+}
+
+.bpl-error {
+  color: #c0604a;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.bpl-submit-btn {
+  padding: 14px;
+  border: none;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.15s;
+  margin-top: 4px;
+}
+.bpl-submit-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  opacity: 0.9;
+}
+.bpl-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ─── Thank You Modal ─── */
+.bpl-modal--thanks {
+  text-align: center;
+  gap: 16px;
+}
+
+.bpl-download-btn {
+  display: inline-block;
+  padding: 12px 28px;
+  background: #3A2A1E;
+  color: #fff;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: transform 0.15s;
+}
+.bpl-download-btn:hover {
+  transform: translateY(-1px);
+}
+
+.bpl-dismiss-btn {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.bpl-dismiss-btn:hover { color: #666; }
+
+/* ─── Mobile ─── */
+@media (max-width: 480px) {
+  .bpl-wrap { padding: 16px 12px 48px; }
+  .bpl-modal { padding: 24px 20px; }
+}

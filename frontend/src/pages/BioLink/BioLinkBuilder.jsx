@@ -1,7 +1,9 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Button } from '../../components/ui/index.jsx'
 import { BrandColorPicker, BorderRadiusControl, FontPicker, FontSizeControl, SpacingControl } from '../../components/ui/StyleControls'
 import { PropertyPicker } from '../../components/ui/PropertyPicker'
+import { listCampaigns } from '../../lib/campaigns'
+import { loadPage as dbLoadPage, savePage as dbSavePage, publishPage, unpublishPage, isSlugAvailable, publicPageUrl } from '../../lib/biolink'
 import './BioLinkBuilder.css'
 
 // ─── Default brand colors from the app ───
@@ -52,6 +54,8 @@ function newBlock(type) {
       return { id, type, color: BRAND.mid, thickness: 1, style: 'solid', spacing: 8 }
     case 'text':
       return { id, type, content: 'Your text here...', fontSize: 14, color: BRAND.dark, align: 'center', fontFamily: '', lineHeight: 1.5, letterSpacing: 0 }
+    case 'guide':
+      return { id, type, title: 'Free Buyer Guide', description: 'Everything you need to know about buying a home in Arizona', imageUrl: '', fileUrl: '', fileName: '', guideType: 'buyer', campaignId: '', bgColor: BRAND.white, textColor: BRAND.dark, accentColor: BRAND.mid, borderRadius: 12, titleSize: 16, descSize: 13, fontFamily: '', padding: 16, buttonText: 'Get the Guide', buttonRadius: 9999 }
     case 'image':
       return { id, type, imageUrl: '', alt: '', borderRadius: 12, shadow: false }
     case 'social':
@@ -61,29 +65,31 @@ function newBlock(type) {
   }
 }
 
-function loadPage() {
+const DEFAULT_PAGE = {
+  bgColor: BRAND.cream,
+  maxWidth: 480,
+  fontFamily: "'Poppins', sans-serif",
+  headingFont: '',
+  pageRadius: 20,
+  pagePadding: 24,
+  blockGap: 12,
+  blocks: [
+    newBlock('header'),
+    { ...newBlock('guide'), title: 'Free Buyer Guide', description: 'Everything you need to know about buying a home in Arizona', guideType: 'buyer' },
+    { ...newBlock('guide'), title: 'Free Seller Guide', description: 'Maximize your home sale with this step-by-step guide', guideType: 'seller' },
+    { ...newBlock('link'), label: 'Home Valuation', url: '#' },
+    { ...newBlock('form'), title: 'Get My Free Relocation Guide', guideType: 'relocation' },
+    newBlock('divider'),
+    { ...newBlock('social'), instagram: 'danamassey', facebook: 'danamassey' },
+  ],
+}
+
+function loadPageFromLocal() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) return JSON.parse(saved)
   } catch {}
-  return {
-    bgColor: BRAND.cream,
-    maxWidth: 480,
-    fontFamily: "'Poppins', sans-serif",
-    headingFont: '',
-    pageRadius: 20,
-    pagePadding: 24,
-    blockGap: 12,
-    blocks: [
-      newBlock('header'),
-      { ...newBlock('link'), label: '🏠 Buyer Guide', url: '#', icon: '📖' },
-      { ...newBlock('link'), label: '💰 Seller Guide', url: '#', icon: '📊' },
-      { ...newBlock('link'), label: '📋 Home Valuation', url: '#', icon: '🏡' },
-      { ...newBlock('form'), title: 'Get My Free Relocation Guide', guideType: 'relocation' },
-      newBlock('divider'),
-      { ...newBlock('social'), instagram: 'danamassey', facebook: 'danamassey' },
-    ],
-  }
+  return DEFAULT_PAGE
 }
 
 // ─── Block add palette ───
@@ -91,6 +97,7 @@ const BLOCK_TYPES = [
   { type: 'header', label: 'Profile Header', emoji: '👤' },
   { type: 'link', label: 'Link Button', emoji: '🔗' },
   { type: 'form', label: 'Lead Capture', emoji: '📝' },
+  { type: 'guide', label: 'Guide', emoji: '📖' },
   { type: 'text', label: 'Text', emoji: '📄' },
   { type: 'image', label: 'Image', emoji: '🖼️' },
   { type: 'divider', label: 'Divider', emoji: '➖' },
@@ -108,6 +115,29 @@ function StyleSection({ title, children, defaultOpen = false }) {
       </button>
       {open && <div className="bio-style-section__body">{children}</div>}
     </div>
+  )
+}
+
+// ─── Campaign Picker (for linking guides to email sequences) ───
+function CampaignPicker({ value, onChange }) {
+  const [campaigns, setCampaigns] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    listCampaigns()
+      .then(data => setCampaigns(data || []))
+      .catch(() => setCampaigns([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  return (
+    <select value={value || ''} onChange={e => onChange(e.target.value)} disabled={loading}>
+      <option value="">None — no follow-up</option>
+      {campaigns.map(c => (
+        <option key={c.id} value={c.id}>{c.name}</option>
+      ))}
+      {loading && <option disabled>Loading campaigns...</option>}
+    </select>
   )
 }
 
@@ -251,6 +281,85 @@ function BlockEditor({ block, onChange, onDelete, customFonts }) {
             <BorderRadiusControl label="Card Radius" value={block.borderRadius ?? 12} onChange={v => set('borderRadius', v)} showPill={false} />
             <BorderRadiusControl label="Button Radius" value={block.buttonRadius ?? 9999} onChange={v => set('buttonRadius', v)} />
             <SpacingControl label="Padding" value={block.padding ?? 20} onChange={v => set('padding', v)} max={40} />
+          </StyleSection>
+        </>
+      )}
+
+      {/* ─── GUIDE ─── */}
+      {block.type === 'guide' && (
+        <>
+          <label className="bio-field">
+            <span>Title</span>
+            <input value={block.title} onChange={e => set('title', e.target.value)} />
+          </label>
+          <label className="bio-field">
+            <span>Description</span>
+            <textarea value={block.description} onChange={e => set('description', e.target.value)} rows={2} />
+          </label>
+          <label className="bio-field">
+            <span>Cover Image</span>
+            <input type="file" accept="image/*" onChange={e => handleImageUpload(e)} />
+          </label>
+          {block.imageUrl && (
+            <div className="bio-guide-img-preview">
+              <img src={block.imageUrl} alt="cover" style={{ width: 60, height: 80, objectFit: 'cover', borderRadius: 6 }} />
+              <button className="bio-guide-img-remove" onClick={() => set('imageUrl', '')}>Remove</button>
+            </div>
+          )}
+          <label className="bio-field">
+            <span>Guide File (PDF)</span>
+            <input type="file" accept=".pdf,.epub,.doc,.docx" onChange={e => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              const reader = new FileReader()
+              reader.onload = () => {
+                onChange({ ...block, fileUrl: reader.result, fileName: file.name })
+              }
+              reader.readAsDataURL(file)
+            }} />
+          </label>
+          {block.fileName && (
+            <div className="bio-guide-file-badge">
+              <span>Attached: {block.fileName}</span>
+              <button onClick={() => onChange({ ...block, fileUrl: '', fileName: '' })}>Remove</button>
+            </div>
+          )}
+          <label className="bio-field">
+            <span>Button Text</span>
+            <input value={block.buttonText} onChange={e => set('buttonText', e.target.value)} />
+          </label>
+          <label className="bio-field">
+            <span>Guide Type</span>
+            <select value={block.guideType} onChange={e => set('guideType', e.target.value)}>
+              <option value="buyer">Buyer Guide</option>
+              <option value="seller">Seller Guide</option>
+              <option value="relocation">Relocation Guide</option>
+              <option value="investor">Investor Guide</option>
+              <option value="first-time">First-Time Buyer</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+          <label className="bio-field">
+            <span>Email Sequence (on download)</span>
+            <CampaignPicker value={block.campaignId} onChange={v => set('campaignId', v)} />
+          </label>
+
+          <StyleSection title="Colors" defaultOpen>
+            <BrandColorPicker label="Background" value={block.bgColor} onChange={v => set('bgColor', v)} showMixes />
+            <BrandColorPicker label="Text" value={block.textColor} onChange={v => set('textColor', v)} />
+            <BrandColorPicker label="Button / Accent" value={block.accentColor} onChange={v => set('accentColor', v)} showMixes />
+          </StyleSection>
+
+          <StyleSection title="Typography">
+            <FontPicker label="Font" value={block.fontFamily} onChange={v => set('fontFamily', v)} customFonts={customFonts} />
+            <FontSizeControl label="Title Size" value={block.titleSize || 16} onChange={v => set('titleSize', v)} min={12} max={28} />
+            <FontSizeControl label="Description Size" value={block.descSize || 13} onChange={v => set('descSize', v)} min={10} max={20} />
+          </StyleSection>
+
+          <StyleSection title="Shape & Spacing">
+            <BorderRadiusControl label="Card Radius" value={block.borderRadius ?? 12} onChange={v => set('borderRadius', v)} showPill={false} />
+            <BorderRadiusControl label="Button Radius" value={block.buttonRadius ?? 9999} onChange={v => set('buttonRadius', v)} />
+            <SpacingControl label="Padding" value={block.padding ?? 16} onChange={v => set('padding', v)} max={40} />
           </StyleSection>
         </>
       )}
@@ -430,6 +539,34 @@ function PreviewBlock({ block, pageFont }) {
       </div>
     )
   }
+  if (block.type === 'guide') {
+    const font = block.fontFamily || pageFont
+    return (
+      <div className="bio-preview-guide" style={{
+        background: block.bgColor,
+        color: block.textColor,
+        borderRadius: block.borderRadius ?? 12,
+        padding: block.padding ?? 16,
+        fontFamily: font || undefined,
+      }}>
+        <div className="bio-preview-guide__image">
+          {block.imageUrl
+            ? <img src={block.imageUrl} alt={block.title} />
+            : <div className="bio-preview-guide__image-placeholder">PDF</div>
+          }
+        </div>
+        <div className="bio-preview-guide__content">
+          <p className="bio-preview-guide__title" style={{ fontSize: block.titleSize || 16 }}>{block.title}</p>
+          <p className="bio-preview-guide__desc" style={{ fontSize: block.descSize || 13 }}>{block.description}</p>
+          <button className="bio-preview-guide__btn" style={{
+            background: block.accentColor || BRAND.mid,
+            color: block.bgColor,
+            borderRadius: block.buttonRadius ?? 9999,
+          }}>{block.buttonText || 'Get the Guide'}</button>
+        </div>
+      </div>
+    )
+  }
   if (block.type === 'text') {
     const font = block.fontFamily || pageFont
     return <p style={{
@@ -498,7 +635,14 @@ function PreviewBlock({ block, pageFont }) {
 
 // ─── Main Builder ───
 export default function BioLinkBuilder() {
-  const [page, setPage] = useState(loadPage)
+  const [page, setPage] = useState(loadPageFromLocal)
+  const [dbRecord, setDbRecord] = useState(null)   // { id, slug, published }
+  const [slug, setSlug] = useState('dana')
+  const [slugStatus, setSlugStatus] = useState(null) // 'available' | 'taken' | 'checking'
+  const [saving, setSaving] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [toast, setToast] = useState('')
   const [selectedIdx, setSelectedIdx] = useState(null)
   const [dragIdx, setDragIdx] = useState(null)
   const [overIdx, setOverIdx] = useState(null)
@@ -509,9 +653,109 @@ export default function BioLinkBuilder() {
     return fonts
   })
 
+  const saveTimerRef = useRef(null)
+
+  // Load from Supabase on mount — fall back to localStorage
+  useEffect(() => {
+    dbLoadPage().then(row => {
+      if (row) {
+        setDbRecord({ id: row.id, slug: row.slug, published: row.published })
+        setSlug(row.slug)
+        const json = row.page_json
+        if (json && json.blocks) {
+          setPage(json)
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(json))
+        }
+      }
+    }).catch(() => {})
+  }, [])
+
+  // Flash toast helper
+  const flash = (msg) => {
+    setToast(msg)
+    setTimeout(() => setToast(''), 3000)
+  }
+
+  // Save locally + debounce save to Supabase
   const savePage = (newPage) => {
     setPage(newPage)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newPage))
+
+    // Debounced Supabase save
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        const payload = {
+          ...(dbRecord?.id ? { id: dbRecord.id } : {}),
+          slug,
+          title: 'My Link Page',
+          pageJson: newPage,
+          published: dbRecord?.published ?? false,
+        }
+        const saved = await dbSavePage(payload)
+        if (saved?.id && !dbRecord?.id) {
+          setDbRecord({ id: saved.id, slug: saved.slug, published: saved.published })
+        }
+      } catch (err) {
+        console.warn('[biolink] auto-save failed:', err.message)
+      }
+    }, 2000)
+  }
+
+  // Publish / Unpublish
+  const handlePublish = async () => {
+    setPublishing(true)
+    try {
+      // Ensure saved first
+      const payload = {
+        ...(dbRecord?.id ? { id: dbRecord.id } : {}),
+        slug,
+        title: 'My Link Page',
+        pageJson: page,
+        published: true,
+      }
+      const saved = await dbSavePage(payload)
+      const published = await publishPage(saved.id)
+      setDbRecord({ id: published.id, slug: published.slug, published: true })
+      flash('Published! Your page is live.')
+    } catch (err) {
+      flash('Publish failed: ' + err.message)
+    }
+    setPublishing(false)
+  }
+
+  const handleUnpublish = async () => {
+    if (!dbRecord?.id) return
+    try {
+      await unpublishPage(dbRecord.id)
+      setDbRecord(prev => ({ ...prev, published: false }))
+      flash('Page unpublished.')
+    } catch (err) {
+      flash('Unpublish failed: ' + err.message)
+    }
+  }
+
+  // Slug editing
+  const handleSlugChange = async (newSlug) => {
+    const clean = newSlug.toLowerCase().replace(/[^a-z0-9-]/g, '')
+    setSlug(clean)
+    if (!clean) { setSlugStatus(null); return }
+    setSlugStatus('checking')
+    try {
+      const available = await isSlugAvailable(clean, dbRecord?.id)
+      setSlugStatus(available ? 'available' : 'taken')
+    } catch {
+      setSlugStatus(null)
+    }
+  }
+
+  // Copy link
+  const handleCopyLink = () => {
+    const url = publicPageUrl(slug)
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
   }
 
   const handleFontUpload = (e) => {
@@ -576,8 +820,12 @@ export default function BioLinkBuilder() {
     setOverIdx(null)
   }
 
+  const isPublished = dbRecord?.published
+
   return (
     <div className="bio-builder">
+      {toast && <div className="bio-toast">{toast}</div>}
+
       {/* ─── Left: Block palette + editor ─── */}
       <div className="bio-builder__sidebar">
         <div className="bio-builder__palette">
@@ -594,6 +842,22 @@ export default function BioLinkBuilder() {
 
         <div className="bio-builder__page-settings">
           <h4 className="bio-builder__palette-title">Page Settings</h4>
+
+          {/* Slug / URL */}
+          <label className="bio-field">
+            <span>Page URL Slug</span>
+            <div className="bio-slug-row">
+              <span className="bio-slug-prefix">/p/</span>
+              <input
+                value={slug}
+                onChange={e => handleSlugChange(e.target.value)}
+                placeholder="dana"
+                className={slugStatus === 'taken' ? 'bio-slug-taken' : ''}
+              />
+              {slugStatus === 'available' && <span className="bio-slug-ok">Available</span>}
+              {slugStatus === 'taken' && <span className="bio-slug-err">Taken</span>}
+            </div>
+          </label>
 
           <BrandColorPicker label="Page Background" value={page.bgColor} onChange={v => savePage({ ...page, bgColor: v })} showMixes />
 
@@ -624,11 +888,34 @@ export default function BioLinkBuilder() {
       <div className="bio-builder__preview-wrap">
         <div className="bio-builder__preview-toolbar">
           <div className="bio-builder__preview-tabs">
-            <button className={`bio-preview-tab ${previewMode === 'desktop' ? 'bio-preview-tab--active' : ''}`} onClick={() => setPreviewMode('desktop')}>🖥️ Desktop</button>
-            <button className={`bio-preview-tab ${previewMode === 'mobile' ? 'bio-preview-tab--active' : ''}`} onClick={() => setPreviewMode('mobile')}>📱 Mobile</button>
+            <button className={`bio-preview-tab ${previewMode === 'desktop' ? 'bio-preview-tab--active' : ''}`} onClick={() => setPreviewMode('desktop')}>Desktop</button>
+            <button className={`bio-preview-tab ${previewMode === 'mobile' ? 'bio-preview-tab--active' : ''}`} onClick={() => setPreviewMode('mobile')}>Mobile</button>
           </div>
-          <Button size="sm" variant="primary" onClick={() => { /* TODO: publish */ }}>Publish</Button>
+
+          <div className="bio-builder__toolbar-actions">
+            {isPublished && (
+              <>
+                <button className="bio-copy-btn" onClick={handleCopyLink}>
+                  {copied ? 'Copied!' : 'Copy Link'}
+                </button>
+                <a className="bio-view-btn" href={publicPageUrl(slug)} target="_blank" rel="noopener noreferrer">View Live</a>
+              </>
+            )}
+            {isPublished ? (
+              <Button size="sm" variant="outline" onClick={handleUnpublish}>Unpublish</Button>
+            ) : (
+              <Button size="sm" variant="primary" onClick={handlePublish} disabled={publishing || slugStatus === 'taken'}>
+                {publishing ? 'Publishing...' : 'Publish'}
+              </Button>
+            )}
+          </div>
         </div>
+
+        {isPublished && (
+          <div className="bio-published-banner">
+            Live at <a href={publicPageUrl(slug)} target="_blank" rel="noopener noreferrer">{publicPageUrl(slug)}</a>
+          </div>
+        )}
 
         <div className={`bio-builder__preview-device ${previewMode === 'mobile' ? 'bio-builder__preview-device--mobile' : ''}`}>
           <div className="bio-builder__preview-page" style={{

@@ -42,6 +42,7 @@ const EmailBuilder = lazy(() => import('./pages/EmailBuilder/EmailBuilder'))
 const NewslettersPage = lazy(() => import('./pages/Newsletters/Newsletters'))
 const IntakeForms = lazy(() => import('./pages/IntakeForms/IntakeForms'))
 const PublicForm = lazy(() => import('./pages/PublicForm/PublicForm'))
+const BioLinkPublic = lazy(() => import('./pages/BioLink/BioLinkPublic'))
 const OHSignIn = lazy(() => import('./pages/OHSignIn/OHSignIn'))
 const GoogleCallback = lazy(() => import('./pages/Auth/GoogleCallback'))
 const Notifications = lazy(() => import('./pages/Notifications/Notifications'))
@@ -190,6 +191,7 @@ export default function App() {
       <Routes>
         {/* Public client-facing pages (unauthed) */}
         <Route path="/form/:slug" element={<PublicForm />} />
+        <Route path="/p/:slug" element={<BioLinkPublic />} />
         <Route path="/oh-signin/:openHouseId" element={<OHSignIn />} />
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
 

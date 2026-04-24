@@ -9,10 +9,6 @@ const COMING_SOON = new Set([
   '/content/stats',
   '/resources/email',
   '/resources/sms',
-  '/bio-link/forms',
-  '/bio-link/guides',
-  '/bio-link/drips',
-  '/bio-link/leads',
 ])
 
 /* ─── Section definitions (consolidated 7-tab nav) ─── */
