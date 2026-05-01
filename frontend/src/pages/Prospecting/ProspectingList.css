@@ -298,6 +298,13 @@
   padding: 2px 4px;
 }
 
+.pl-campaigns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
 /* Labels Editor (panel) */
 .labels-editor {
   display: flex;

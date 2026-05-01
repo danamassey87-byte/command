@@ -1,6 +1,6 @@
-import { useState, useMemo, useRef, useCallback } from 'react'
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { Button, Badge, SectionHeader, TabBar, DataTable, SlidePanel, Input, Select, Textarea } from '../../components/ui/index.jsx'
-import { useProspects } from '../../lib/hooks.js'
+import { useProspects, useActiveEnrollments } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 import './ProspectingList.css'
 
@@ -12,6 +12,8 @@ const SOURCE_META = {
   soi:        { label: 'Personal Circle',  color: 'accent',  icon: 'heart' },
   referral:   { label: 'Referral',         color: 'success', icon: 'user' },
   open_house: { label: 'OH Lead',          color: 'default', icon: 'users' },
+  bio_link:   { label: 'Bio Link',         color: 'accent',  icon: 'link' },
+  online:     { label: 'Online',           color: 'info',    icon: 'globe' },
 }
 
 const STATUSES = ['new', 'contacted', 'nurturing', 'hot', 'converted', 'dead']
@@ -101,6 +103,24 @@ const WORKFLOWS = {
     { id: 'add_to_drip',    label: 'Add to Drip Campaign',           group: 'Nurture' },
     { id: 'set_showing',    label: 'Set Private Showing',             group: 'Conversion' },
     { id: 'buyer_consult',  label: 'Buyer Consultation Booked',       group: 'Conversion' },
+  ],
+  bio_link: [
+    { id: 'review_lead',    label: 'Review Lead Details',             group: 'Day 1' },
+    { id: 'thank_email',    label: 'Thank You Email — Same Day',      group: 'Day 1' },
+    { id: 'call1',          label: 'Initial Call — Introduce',         group: 'Follow-Up' },
+    { id: 'text1',          label: 'Text — Quick Follow-Up',           group: 'Follow-Up' },
+    { id: 'email_resources',label: 'Email — Send Requested Resource',  group: 'Follow-Up' },
+    { id: 'needs_assess',   label: 'Needs Assessment / Qualify',       group: 'Qualify' },
+    { id: 'add_to_drip',    label: 'Add to Drip Campaign',            group: 'Nurture' },
+    { id: 'set_appt',       label: 'Set Appointment / Consult',        group: 'Conversion' },
+  ],
+  online: [
+    { id: 'initial_contact', label: 'Initial Contact — Email/Text',    group: 'Contact' },
+    { id: 'call1',           label: 'Follow-Up Call',                   group: 'Follow-Up' },
+    { id: 'text1',           label: 'Text — Quick Touch',               group: 'Follow-Up' },
+    { id: 'needs_assess',    label: 'Needs Assessment',                 group: 'Qualify' },
+    { id: 'add_to_drip',     label: 'Add to Drip Campaign',            group: 'Nurture' },
+    { id: 'set_appt',        label: 'Set Appointment',                  group: 'Conversion' },
   ],
 }
 
@@ -660,10 +680,27 @@ function ProspectForm({ prospect, defaultSource, onSave, onDelete, onConvert, on
 }
 
 // ─── Main ProspectingList ───────────────────────────────────────────────────
-export default function ProspectingList({ source, title, subtitle }) {
+export default function ProspectingList({ source, title, subtitle, extraRows }) {
   // If source is null, show ALL prospects (unified view)
   const { data: raw, loading, refetch } = useProspects(source)
-  const prospects = raw ?? []
+  const { data: enrollmentsRaw } = useActiveEnrollments()
+  const prospects = useMemo(() => {
+    const base = raw ?? []
+    // Merge any extra rows (e.g. OH sign-ins, bio link leads) into the list
+    if (extraRows?.length) return [...base, ...extraRows]
+    return base
+  }, [raw, extraRows])
+
+  // Build email→campaign lookup from enrollments
+  const campaignByContactId = useMemo(() => {
+    const map = {}
+    for (const e of (enrollmentsRaw ?? [])) {
+      if (!e.contact_id) continue
+      if (!map[e.contact_id]) map[e.contact_id] = []
+      map[e.contact_id].push(e)
+    }
+    return map
+  }, [enrollmentsRaw])
 
   const [statusFilter, setStatusFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
@@ -884,6 +921,25 @@ export default function ProspectingList({ source, title, subtitle }) {
       },
     },
     { key: 'last_contacted', label: 'Last Contact', render: v => fmtDate(v) },
+    {
+      key: '_campaign', label: 'Campaign',
+      render: (_, row) => {
+        // Match by converted_contact_id or _contact_id (injected from extra rows)
+        const cid = row.converted_contact_id || row._contact_id
+        const enrollments = cid ? (campaignByContactId[cid] || []) : []
+        if (!enrollments.length) return <span className="pl-muted">—</span>
+        return (
+          <div className="pl-campaigns">
+            {enrollments.slice(0, 2).map(e => (
+              <Badge key={e.id} variant={e.status === 'paused' ? 'warning' : 'success'} size="sm">
+                {e.campaign?.name || 'Campaign'}
+              </Badge>
+            ))}
+            {enrollments.length > 2 && <span className="pl-label-more">+{enrollments.length - 2}</span>}
+          </div>
+        )
+      },
+    },
   ]
 
   if (loading && !prospects.length) return <div className="page-loading">Loading prospects…</div>

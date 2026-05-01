@@ -27,6 +27,7 @@ const pageTitles = {
   '/prospecting/soi':         'Personal Circle',
   '/prospecting/referrals':   'Referrals',
   '/prospecting/oh-leads':    'Open House Leads',
+  '/prospecting/bio-link':    'Bio Link Leads',
   '/crm':                'CRM',
   '/crm/buyers':         'Buyers',
   '/crm/sellers':        'Sellers',

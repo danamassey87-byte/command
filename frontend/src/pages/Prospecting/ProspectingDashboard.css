@@ -617,7 +617,7 @@
 /* ─── Quick Links ─── */
 .prospect-lux__quick-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--space-md);
 }
 
@@ -652,6 +652,85 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   OH Sign-In Quick Links
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.oh-signin-section {
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+}
+.oh-signin-section__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-lg);
+}
+.oh-signin-section__title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--brown-dark);
+}
+.oh-signin-section__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.oh-signin-section__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--cream-3, #F6F4EE);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  text-decoration: none;
+  color: var(--brown-dark);
+  transition: all 0.15s ease;
+}
+.oh-signin-section__item:hover {
+  border-color: var(--brown-mid);
+  box-shadow: var(--shadow-sm);
+}
+.oh-signin-section__icon {
+  color: var(--brown-mid);
+  flex-shrink: 0;
+  display: flex;
+}
+.oh-signin-section__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.oh-signin-section__address {
+  font-weight: 600;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.oh-signin-section__date {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  margin-top: 1px;
+}
+.oh-signin-section__badge {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #fff;
+  background: var(--brown-dark);
+  padding: 4px 12px;
+  border-radius: var(--radius-full, 999px);
+  flex-shrink: 0;
 }
 
 /* ─── Mobile ─── */

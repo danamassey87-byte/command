@@ -40,6 +40,7 @@ const SECTIONS = {
       { label: 'Referrals',             path: '/prospecting/referrals', icon: 'user' },
       { label: 'OH Prospecting',          path: '/prospecting/oh-leads',  icon: 'users',        group: 'Open Houses' },
       { label: 'Open Houses',            path: '/open-houses',           icon: 'eye' },
+      { label: 'Bio Link Leads',         path: '/prospecting/bio-link',  icon: 'link',         group: 'Lead Capture' },
       { label: 'Home Value',             path: '/home-value',            icon: 'home',         group: 'Seller Leads' },
     ],
   },

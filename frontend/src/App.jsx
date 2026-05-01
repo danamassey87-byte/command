@@ -107,6 +107,7 @@ const CircleProspecting = lazy(() => import('./pages/Prospecting/CircleProspecti
 const PersonalCircle = lazy(() => import('./pages/Prospecting/PersonalCircle'))
 const Referrals = lazy(() => import('./pages/Prospecting/Referrals'))
 const OHLeads = lazy(() => import('./pages/Prospecting/OHLeads'))
+const BioLinkLeads = lazy(() => import('./pages/Prospecting/BioLinkLeads'))
 
 // ─── Smart Campaigns ────────────────────────────────────────────────────────
 const SmartCampaigns = lazy(() => import('./pages/Campaigns/SmartCampaigns'))
@@ -214,7 +215,8 @@ export default function App() {
           <Route path="/prospecting/circle"     element={<CircleProspecting />} />
           <Route path="/prospecting/soi"        element={<PersonalCircle />} />
           <Route path="/prospecting/referrals"  element={<Referrals />} />
-          <Route path="/prospecting/oh-leads"   element={<OHLeads />} />
+          <Route path="/prospecting/oh-leads"      element={<OHLeads />} />
+          <Route path="/prospecting/bio-link"      element={<BioLinkLeads />} />
 
           {/* ─── CRM ─── */}
           <Route path="/crm"              element={<CrmDashboard />} />

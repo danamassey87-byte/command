@@ -142,6 +142,7 @@ const SOURCE_META = {
   soi:           { label: 'SOI / Personal',       icon: 'share',  sub: 'Sphere of Influence' },
   referral:      { label: 'Referral',             icon: 'share',  sub: 'Agent / Client' },
   fsbo:          { label: 'FSBO',                 icon: 'file',   sub: 'For Sale By Owner' },
+  bio_link:      { label: 'Bio Link',             icon: 'share',  sub: 'Link in Bio' },
   online:        { label: 'Online / Website',     icon: 'share',  sub: 'Digital' },
   other:         { label: 'Other Sources',        icon: 'file',   sub: 'Misc' },
 }
@@ -466,6 +467,35 @@ export default function ProspectingDashboard() {
       {/* ─── Lead Source Breakdown ─── */}
       <LeadSourceBreakdown leads={ld} />
 
+      {/* ─── OH Sign-In Quick Links ─── */}
+      {oh.length > 0 && (
+        <div className="oh-signin-section">
+          <div className="oh-signin-section__header">
+            <h2 className="oh-signin-section__title">Open House Sign-In</h2>
+            <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Quick Launch</span>
+          </div>
+          <div className="oh-signin-section__list">
+            {[...oh]
+              .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+              .slice(0, 5)
+              .map(o => (
+                <Link key={o.id} to={`/oh-signin/${o.id}`} className="oh-signin-section__item">
+                  <span className="oh-signin-section__icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
+                      <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
+                    </svg>
+                  </span>
+                  <div className="oh-signin-section__info">
+                    <span className="oh-signin-section__address">{o.property?.address || 'TBD'}</span>
+                    <span className="oh-signin-section__date">{fmtDate(o.date)}</span>
+                  </div>
+                  <span className="oh-signin-section__badge">SIGN-IN</span>
+                </Link>
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* ─── Market Pulse + Timeline Row ─── */}
       <div className="prospect-lux__row prospect-lux__row--pulse">
         <div className="prospect-lux__col prospect-lux__col--links">
@@ -487,6 +517,12 @@ export default function ProspectingDashboard() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="var(--brown-dark)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="22" height="22"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
               </span>
               <span>Open House Leads</span>
+            </Link>
+            <Link to="/prospecting/bio-link" className="pr-quick-link">
+              <span className="pr-quick-link__icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--brown-dark)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="22" height="22"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+              </span>
+              <span>Bio Link Leads</span>
             </Link>
           </div>
           <Timeline events={timeline} />
