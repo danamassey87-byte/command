@@ -41,6 +41,14 @@ export default function OHSignIn() {
   const [timeframe, setTimeframe] = useState('')
   const [needToSell, setNeedToSell] = useState(false)
 
+  // Property feedback (flows back to the seller's listing record)
+  const [interestLevel, setInterestLevel] = useState('')
+  const [pricePerception, setPricePerception] = useState('')
+  const [wouldOffer, setWouldOffer] = useState('')
+  const [liked, setLiked] = useState('')
+  const [concerns, setConcerns] = useState('')
+  const [comments, setComments] = useState('')
+
   // Submit state
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -169,6 +177,12 @@ export default function OHSignIn() {
             lender_name: preApproved ? lenderName.trim() : '',
             timeframe: timeframe || null,
             need_to_sell: needToSell,
+            interest_level: interestLevel || null,
+            price_perception: pricePerception || null,
+            would_offer: wouldOffer || null,
+            liked: liked.trim() || null,
+            concerns: concerns.trim() || null,
+            comments: comments.trim() || null,
             is_partial: false,
             skip_trace_needed: needsSkipTrace,
           })
@@ -197,6 +211,12 @@ export default function OHSignIn() {
             lender_name: preApproved ? lenderName.trim() : '',
             timeframe: timeframe || null,
             need_to_sell: needToSell,
+            interest_level: interestLevel || null,
+            price_perception: pricePerception || null,
+            would_offer: wouldOffer || null,
+            liked: liked.trim() || null,
+            concerns: concerns.trim() || null,
+            comments: comments.trim() || null,
             source: 'kiosk',
             is_partial: false,
             skip_trace_needed: needsSkipTrace,
@@ -263,6 +283,12 @@ export default function OHSignIn() {
     setLenderName('')
     setTimeframe('')
     setNeedToSell(false)
+    setInterestLevel('')
+    setPricePerception('')
+    setWouldOffer('')
+    setLiked('')
+    setConcerns('')
+    setComments('')
     setSubmitted(false)
     setSubmitError('')
     partialSavedRef.current = null
@@ -475,6 +501,120 @@ export default function OHSignIn() {
                         <option key={t} value={t}>{t}</option>
                       ))}
                     </select>
+                  </div>
+                )}
+
+                {show('show_feedback') && (
+                  <div style={{ margin: '24px 0 6px', paddingTop: 18, borderTop: '1px solid rgba(90,65,54,0.12)' }}>
+                    <div className="oh-kiosk__label" style={{ marginBottom: 4, fontSize: 14, fontWeight: 600 }}>
+                      Your Thoughts on the Home
+                    </div>
+                    <p style={{ fontSize: 12, color: '#8b7a68', marginBottom: 14, fontStyle: 'italic' }}>
+                      Optional — helps us share feedback with the seller.
+                    </p>
+
+                    {show('show_interest_level') && (
+                      <div className="oh-kiosk__field">
+                        <label className="oh-kiosk__label">How interested are you?</label>
+                        <div className="oh-kiosk__pill-row">
+                          {[
+                            { v: 'hot',           l: 'Very interested' },
+                            { v: 'warm',          l: 'Maybe' },
+                            { v: 'cool',          l: 'Not for me' },
+                            { v: 'just_browsing', l: 'Just browsing' },
+                          ].map(opt => (
+                            <button
+                              key={opt.v}
+                              type="button"
+                              className={`oh-kiosk__pill${interestLevel === opt.v ? ' oh-kiosk__pill--on' : ''}`}
+                              onClick={() => setInterestLevel(interestLevel === opt.v ? '' : opt.v)}
+                            >{opt.l}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {show('show_price_perception') && (
+                      <div className="oh-kiosk__field">
+                        <label className="oh-kiosk__label">How does the price feel?</label>
+                        <div className="oh-kiosk__pill-row">
+                          {[
+                            { v: 'too_high',    l: 'Too high' },
+                            { v: 'fair',        l: 'About right' },
+                            { v: 'great_deal',  l: 'Great deal' },
+                          ].map(opt => (
+                            <button
+                              key={opt.v}
+                              type="button"
+                              className={`oh-kiosk__pill${pricePerception === opt.v ? ' oh-kiosk__pill--on' : ''}`}
+                              onClick={() => setPricePerception(pricePerception === opt.v ? '' : opt.v)}
+                            >{opt.l}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {show('show_would_offer') && (
+                      <div className="oh-kiosk__field">
+                        <label className="oh-kiosk__label">Would you consider an offer?</label>
+                        <div className="oh-kiosk__pill-row">
+                          {[
+                            { v: 'yes',   l: 'Yes' },
+                            { v: 'maybe', l: 'Maybe' },
+                            { v: 'no',    l: 'No' },
+                          ].map(opt => (
+                            <button
+                              key={opt.v}
+                              type="button"
+                              className={`oh-kiosk__pill${wouldOffer === opt.v ? ' oh-kiosk__pill--on' : ''}`}
+                              onClick={() => setWouldOffer(wouldOffer === opt.v ? '' : opt.v)}
+                            >{opt.l}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {show('show_liked') && (
+                      <div className="oh-kiosk__field">
+                        <label className="oh-kiosk__label">What did you like?</label>
+                        <textarea
+                          className="oh-kiosk__input"
+                          value={liked}
+                          onChange={e => setLiked(e.target.value)}
+                          placeholder="Kitchen, backyard, location..."
+                          rows={2}
+                          style={{ fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }}
+                        />
+                      </div>
+                    )}
+
+                    {show('show_concerns') && (
+                      <div className="oh-kiosk__field">
+                        <label className="oh-kiosk__label">Any concerns?</label>
+                        <textarea
+                          className="oh-kiosk__input"
+                          value={concerns}
+                          onChange={e => setConcerns(e.target.value)}
+                          placeholder="Layout, condition, price..."
+                          rows={2}
+                          style={{ fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }}
+                        />
+                      </div>
+                    )}
+
+                    {show('show_comments') && (
+                      <div className="oh-kiosk__field">
+                        <label className="oh-kiosk__label">Anything else?</label>
+                        <textarea
+                          className="oh-kiosk__input"
+                          value={comments}
+                          onChange={e => setComments(e.target.value)}
+                          placeholder="Open comments..."
+                          rows={2}
+                          style={{ fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 

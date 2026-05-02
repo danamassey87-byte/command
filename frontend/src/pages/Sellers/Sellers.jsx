@@ -9,6 +9,7 @@ import { useListings, useTasksForListing, useDeletedTasksForListing, useAllCheck
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
+import { getOHChecklist } from '../OpenHouses/OpenHouses.jsx'
 import { emit as emitNotification, emitListingContentReminder } from '../../lib/notifications.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
 import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
@@ -3099,11 +3100,28 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
   const hasTasks = dbTasks && dbTasks.length > 0
 
   // Open house history for this listing
-  const { data: allOHs } = useOpenHouses()
+  const { data: allOHs, refetch: refetchOHs } = useOpenHouses()
   const listingOHs = useMemo(() =>
-    (allOHs ?? []).filter(oh => oh.listing_id === listing.id)
+    (allOHs ?? []).filter(oh => oh.listing_id === listing.id || oh.property_id === listing.property_id)
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-  , [allOHs, listing.id])
+  , [allOHs, listing.id, listing.property_id])
+
+  // Sign-ins (with feedback) for this listing's open houses
+  const [ohSignIns, setOHSignIns] = useState([])
+  useEffect(() => {
+    const ohIds = listingOHs.map(o => o.id).filter(Boolean)
+    if (!ohIds.length) { setOHSignIns([]); return }
+    DB.getAllOHSignIns()
+      .then(all => setOHSignIns((all ?? []).filter(si => ohIds.includes(si.open_house_id))))
+      .catch(() => setOHSignIns([]))
+  }, [listingOHs.map(o => o.id).join(',')])
+
+  const ohFeedback = useMemo(() => ohSignIns.filter(si =>
+    si.interest_level || si.price_perception || si.would_offer || si.liked || si.concerns || si.comments
+  ), [ohSignIns])
+
+  // Inline OH scheduler modal
+  const [showScheduleOH, setShowScheduleOH] = useState(false)
 
   // Buyer showing feedback for this listing's property
   const { data: allShowingSessions } = useShowingSessions()
@@ -3816,9 +3834,16 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
       <div className="sellers-plan__section">
         <div className="sellers-plan__section-header">
           <h3 className="sellers-plan__section-title">Open Houses ({listingOHs.length})</h3>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/open-houses')}>
-            {listingOHs.length > 0 ? 'View All' : 'Schedule OH'}
-          </Button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Button variant="primary" size="sm" onClick={() => setShowScheduleOH(true)}>
+              + Schedule OH
+            </Button>
+            {listingOHs.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => navigate('/open-houses')}>
+                View All
+              </Button>
+            )}
+          </div>
         </div>
         {listingOHs.length === 0 ? (
           <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>No open houses linked to this listing yet.</p>
@@ -3853,6 +3878,29 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         )}
       </div>
 
+      {/* ── Open House Visitor Feedback ── */}
+      {ohSignIns.length > 0 && (
+        <div className="sellers-plan__section">
+          <div className="sellers-plan__section-header">
+            <h3 className="sellers-plan__section-title">Visitor Feedback ({ohFeedback.length})</h3>
+          </div>
+          {ohFeedback.length === 0 ? (
+            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+              {ohSignIns.length} sign-in{ohSignIns.length !== 1 ? 's' : ''} but no property feedback captured yet.
+            </p>
+          ) : (
+            <>
+              <FeedbackSummary feedback={ohFeedback} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                {ohFeedback.map(si => (
+                  <FeedbackCard key={si.id} signIn={si} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       </>}
 
       {/* ── Modals ── */}
@@ -3878,6 +3926,13 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
           onSaved={() => { refetchTasks(); onBack() }}
         />
       )}
+      {showScheduleOH && (
+        <ScheduleOHModal
+          listing={listing}
+          onClose={() => setShowScheduleOH(false)}
+          onScheduled={() => { setShowScheduleOH(false); refetchOHs() }}
+        />
+      )}
 
       {/* Offscreen printable layout — used by both Print and Export PDF. */}
       <PrintablePlan
@@ -3888,6 +3943,154 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         plan={plan}
         isNew={isNew}
       />
+    </div>
+  )
+}
+
+// ─── OH Visitor Feedback Components ─────────────────────────────────────────
+const INTEREST_LABELS = { hot: 'Very interested', warm: 'Maybe', cool: 'Not for me', just_browsing: 'Just browsing' }
+const PRICE_LABELS    = { too_high: 'Too high', fair: 'About right', great_deal: 'Great deal' }
+const OFFER_LABELS    = { yes: 'Yes', maybe: 'Maybe', no: 'No' }
+
+function FeedbackSummary({ feedback }) {
+  const tally = (key, labels) => {
+    const counts = {}
+    for (const f of feedback) {
+      const v = f[key]
+      if (!v) continue
+      counts[v] = (counts[v] || 0) + 1
+    }
+    return Object.entries(counts).map(([k, n]) => ({ key: k, label: labels[k] || k, count: n }))
+  }
+  const interest = tally('interest_level', INTEREST_LABELS)
+  const price    = tally('price_perception', PRICE_LABELS)
+  const offers   = tally('would_offer', OFFER_LABELS)
+
+  const Cell = ({ title, items }) => items.length === 0 ? null : (
+    <div style={{ background: 'var(--cream)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
+      <p style={{ fontSize: '0.66rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 6 }}>{title}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {items.map(i => (
+          <div key={i.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--brown-dark)' }}>
+            <span>{i.label}</span>
+            <span style={{ fontWeight: 600 }}>{i.count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
+      <Cell title="Interest" items={interest} />
+      <Cell title="Price Reaction" items={price} />
+      <Cell title="Would Offer?" items={offers} />
+    </div>
+  )
+}
+
+function FeedbackCard({ signIn }) {
+  const name = [signIn.first_name, signIn.last_name].filter(Boolean).join(' ') || 'Anonymous visitor'
+  const dateStr = signIn.created_at ? new Date(signIn.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+  const interestVar = signIn.interest_level === 'hot' ? 'success' : signIn.interest_level === 'warm' ? 'info' : signIn.interest_level === 'cool' ? 'warning' : 'default'
+
+  return (
+    <div style={{ background: 'var(--white, #fff)', border: '1px solid var(--color-border-light)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--brown-dark)' }}>{name}</p>
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+          {signIn.interest_level && <Badge variant={interestVar} size="sm">{INTEREST_LABELS[signIn.interest_level]}</Badge>}
+          {dateStr && <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{dateStr}</span>}
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: signIn.liked || signIn.concerns || signIn.comments ? 8 : 0 }}>
+        {signIn.price_perception && <Badge variant="default" size="sm">Price: {PRICE_LABELS[signIn.price_perception]}</Badge>}
+        {signIn.would_offer && <Badge variant={signIn.would_offer === 'yes' ? 'success' : signIn.would_offer === 'maybe' ? 'info' : 'default'} size="sm">Offer: {OFFER_LABELS[signIn.would_offer]}</Badge>}
+      </div>
+      {signIn.liked && (
+        <p style={{ fontSize: '0.78rem', color: 'var(--brown-dark)', marginBottom: 4 }}>
+          <span style={{ fontWeight: 600 }}>Liked: </span>{signIn.liked}
+        </p>
+      )}
+      {signIn.concerns && (
+        <p style={{ fontSize: '0.78rem', color: 'var(--brown-dark)', marginBottom: 4 }}>
+          <span style={{ fontWeight: 600 }}>Concerns: </span>{signIn.concerns}
+        </p>
+      )}
+      {signIn.comments && (
+        <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+          "{signIn.comments}"
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ─── Inline OH Scheduler ────────────────────────────────────────────────────
+function ScheduleOHModal({ listing, onClose, onScheduled }) {
+  const [date, setDate] = useState('')
+  const [startTime, setStartTime] = useState('11:00')
+  const [endTime, setEndTime] = useState('14:00')
+  const [hostedBy, setHostedBy] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  const handleSave = async (e) => {
+    e?.preventDefault?.()
+    if (!date) { setError('Pick a date'); return }
+    setSaving(true)
+    setError(null)
+    try {
+      let propertyId = listing.property_id
+      if (!propertyId) {
+        propertyId = await DB.ensureProperty({
+          address: listing.address || listing.property?.address,
+          city: listing.city || listing.property?.city || null,
+        })
+      }
+      const created = await DB.createOpenHouse({
+        property_id: propertyId,
+        listing_id:  listing.id,
+        date,
+        start_time:  startTime || null,
+        end_time:    endTime   || null,
+        status:      'scheduled',
+        agent_name:  hostedBy.trim() || null,
+      })
+      await DB.logActivity('open_house_created', `Scheduled open house: ${listing.address || ''} on ${date}`, { propertyId, listingId: listing.id })
+      try { await DB.bulkCreateOHTasks(getOHChecklist().map(t => ({ ...t, open_house_id: created.id }))) } catch {}
+      onScheduled?.()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <form onSubmit={handleSave} onClick={e => e.stopPropagation()} style={{ background: 'var(--white, #fff)', borderRadius: 'var(--radius-lg)', padding: 24, width: '100%', maxWidth: 440, boxShadow: 'var(--shadow-lg)' }}>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontStyle: 'italic', color: 'var(--brown-dark)', marginBottom: 4 }}>Schedule Open House</h3>
+        <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: 16 }}>{listing.address || listing.property?.address || 'This listing'}</p>
+
+        {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem', marginBottom: 8 }}>{error}</p>}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Input label="Date *" type="date" value={date} onChange={e => setDate(e.target.value)} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Input label="Start" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+            <Input label="End" type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
+          </div>
+          <Input label="Hosted by (leave blank if you host)" value={hostedBy} onChange={e => setHostedBy(e.target.value)} placeholder="e.g. Agent name" />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+          <Button variant="ghost" size="sm" onClick={onClose} type="button">Cancel</Button>
+          <Button variant="primary" size="sm" type="submit" disabled={saving || !date}>
+            {saving ? 'Scheduling…' : 'Schedule'}
+          </Button>
+        </div>
+      </form>
     </div>
   )
 }

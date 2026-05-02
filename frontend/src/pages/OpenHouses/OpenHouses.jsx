@@ -79,7 +79,7 @@ export const DEFAULT_OH_TASKS = [
   { task_name: 'Add hot leads to Lofty & schedule follow-up call',     category: 'post',   sort_order: 28 },
 ]
 
-function getOHChecklist() {
+export function getOHChecklist() {
   try {
     const saved = JSON.parse(localStorage.getItem(OH_CHECKLIST_KEY))
     if (Array.isArray(saved) && saved.length > 0) return saved

@@ -177,6 +177,38 @@
   font-size: 0.82rem; margin-bottom: 12px;
 }
 
+/* ─── Pill selectors (feedback section) ─── */
+.oh-kiosk__pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.oh-kiosk__pill {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 11px 14px;
+  border-radius: 8px;
+  border: 1.5px solid #E8DCC9;
+  background: #FFF8EE;
+  color: #5A4136;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
+  font-family: inherit;
+}
+.oh-kiosk__pill:hover {
+  border-color: #B79782;
+}
+.oh-kiosk__pill--on {
+  background: #5A4136;
+  border-color: #5A4136;
+  color: #FFF8EE;
+}
+
 /* ─── iPad / Tablet (768px+) ─── */
 @media (min-width: 768px) {
   .oh-kiosk__hero { padding: 36px 32px 32px; }
