@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { SectionHeader, Button, Badge } from '../../components/ui/index.jsx'
 import { useOnHoldContacts } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
+import { ensureOnHoldFollowUpsToday, generateOnHoldFollowUps } from '../../lib/onHoldFollowUps.js'
 import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
 import SocialProfilesPanel from '../../components/SocialProfilesPanel.jsx'
 import LifeEventsPanel from '../../components/LifeEventsPanel.jsx'
@@ -23,6 +24,23 @@ export default function OnHoldContacts() {
   const [sortDir, setSortDir]   = useState('newest')  // newest | oldest | longest
   const [reactivating, setReactivating] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
+  const [genStatus, setGenStatus] = useState(null) // null | 'running' | { created, scanned }
+
+  // Auto-run the daily re-engagement task generator (gated to once/day)
+  useEffect(() => { ensureOnHoldFollowUpsToday() }, [])
+
+  const handleGenerateFollowUps = async () => {
+    setGenStatus('running')
+    try {
+      const result = await generateOnHoldFollowUps()
+      setGenStatus(result)
+      setTimeout(() => setGenStatus(null), 4000)
+    } catch (e) {
+      console.error(e)
+      setGenStatus({ error: true })
+      setTimeout(() => setGenStatus(null), 4000)
+    }
+  }
 
   const contacts = useMemo(() => {
     let list = (data ?? []).slice()
@@ -74,6 +92,18 @@ export default function OnHoldContacts() {
       <SectionHeader
         title="On Hold"
         subtitle="Paused clients — not lost, not forgotten"
+        actions={
+          <button
+            onClick={handleGenerateFollowUps}
+            disabled={genStatus === 'running'}
+            style={{ padding: '8px 14px', background: 'var(--brown-mid)', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', opacity: genStatus === 'running' ? 0.6 : 1 }}
+          >
+            {genStatus === 'running' ? 'Generating…'
+              : genStatus?.error ? 'Failed'
+              : genStatus?.created != null ? `Created ${genStatus.created}`
+              : 'Generate Re-Engagement Tasks'}
+          </button>
+        }
       />
 
       {/* Stats */}

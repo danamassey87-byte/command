@@ -309,6 +309,64 @@ export default function ROIAnalytics() {
     }
   }, [allOHSignIns, allOH])
 
+  // ─── On-Hold Analytics ─────────────────────────────────────────────────
+  const onHoldAnalytics = useMemo(() => {
+    const now = Date.now()
+    const currentlyPaused = allContacts.filter(c => c.on_hold_at)
+    const reactivated = allContacts.filter(c => !c.on_hold_at && c.reactivated_at)
+    const everPaused = currentlyPaused.length + reactivated.length
+
+    // Days paused (currently paused only)
+    const daysPaused = currentlyPaused.map(c => Math.floor((now - new Date(c.on_hold_at)) / 86400000))
+    const avgDaysPaused = daysPaused.length > 0 ? Math.round(daysPaused.reduce((s, d) => s + d, 0) / daysPaused.length) : 0
+    const longPaused = currentlyPaused.filter(c => Math.floor((now - new Date(c.on_hold_at)) / 86400000) >= 90).length
+
+    // Reactivation rate
+    const reactivationRate = everPaused > 0 ? (reactivated.length / everPaused) * 100 : 0
+
+    // Closed after reactivation: deals tied to a contact who has reactivated_at, where deal closed AFTER reactivation
+    const reactivatedIds = new Set(reactivated.map(c => c.id))
+    const closedAfterReact = allDeals.filter(d => {
+      if (!reactivatedIds.has(d.contact_id)) return false
+      if (!(d.status ?? '').toLowerCase().includes('closed')) return false
+      const c = reactivated.find(x => x.id === d.contact_id)
+      if (!c?.reactivated_at) return false
+      const closeDate = d.closing_date || d.updated_at
+      if (!closeDate) return true
+      return new Date(closeDate) >= new Date(c.reactivated_at)
+    })
+    const closedAfterReactRate = reactivated.length > 0 ? (closedAfterReact.length / reactivated.length) * 100 : 0
+
+    // Reasons distribution (currently paused only — reactivated contacts have reason cleared)
+    const reasonsTally = currentlyPaused.reduce((acc, c) => {
+      const r = (c.on_hold_reason || '').trim() || '(no reason given)'
+      acc[r] = (acc[r] || 0) + 1
+      return acc
+    }, {})
+    const topReasons = Object.entries(reasonsTally).sort((a, b) => b[1] - a[1]).slice(0, 8)
+
+    // By type
+    const byType = (c) => c.type === 'both' ? 'Buyer & Seller' : c.type === 'seller' ? 'Seller' : 'Buyer'
+    const typeBreakdown = currentlyPaused.reduce((acc, c) => {
+      const t = byType(c)
+      acc[t] = (acc[t] || 0) + 1
+      return acc
+    }, {})
+
+    return {
+      currentlyPaused: currentlyPaused.length,
+      reactivated: reactivated.length,
+      everPaused,
+      avgDaysPaused,
+      longPaused,
+      reactivationRate,
+      closedAfterReact: closedAfterReact.length,
+      closedAfterReactRate,
+      topReasons,
+      typeBreakdown,
+    }
+  }, [allContacts, allDeals])
+
   // ─── Lead Gen / Letter Analytics ────────────────────────────────────────
   const letterAnalytics = useMemo(() => {
     const totalLeads = allLeads.length
@@ -675,6 +733,7 @@ export default function ROIAnalytics() {
           { value: 'letters',   label: 'Letter ROI' },
           { value: 'sources',   label: 'Lead Sources' },
           { value: 'pricing',   label: 'Price Reductions' },
+          { value: 'onhold',    label: 'On Hold' },
         ]}
         active={tab}
         onChange={setTab}
@@ -1701,6 +1760,101 @@ export default function ROIAnalytics() {
                 )}
               </>
             )
+          )}
+
+          {/* ═══ On Hold ═══ */}
+          {tab === 'onhold' && (
+            <>
+              <div className="pnl-chart-row">
+                <Card padding>
+                  <p className="pnl-bar-chart__title">On-Hold Pipeline</p>
+                  <div className="roi-metric-list">
+                    <div className="roi-metric">
+                      <span className="roi-metric__label">Currently Paused</span>
+                      <span className="roi-metric__value">{onHoldAnalytics.currentlyPaused}</span>
+                    </div>
+                    <div className="roi-metric">
+                      <span className="roi-metric__label">Reactivated</span>
+                      <span className="roi-metric__value">{onHoldAnalytics.reactivated}</span>
+                    </div>
+                    <div className="roi-metric">
+                      <span className="roi-metric__label">Ever Paused</span>
+                      <span className="roi-metric__value">{onHoldAnalytics.everPaused}</span>
+                    </div>
+                    <div className="roi-metric">
+                      <span className="roi-metric__label">Paused 90+ Days</span>
+                      <span className="roi-metric__value" style={{ color: onHoldAnalytics.longPaused > 0 ? '#c0604a' : 'var(--brown-dark)' }}>{onHoldAnalytics.longPaused}</span>
+                    </div>
+                    <div className="roi-metric">
+                      <span className="roi-metric__label">Avg Days Paused</span>
+                      <span className="roi-metric__value">{onHoldAnalytics.avgDaysPaused > 0 ? `${onHoldAnalytics.avgDaysPaused}d` : '—'}</span>
+                    </div>
+                  </div>
+                </Card>
+
+                <Card padding>
+                  <p className="pnl-bar-chart__title">Recovery Performance</p>
+                  <div className="roi-metric-list">
+                    <div className="roi-metric roi-metric--highlight">
+                      <span className="roi-metric__label">Reactivation Rate</span>
+                      <span className="roi-metric__value" style={{ color: onHoldAnalytics.reactivationRate >= 30 ? 'var(--color-success)' : 'var(--brown-dark)' }}>
+                        {onHoldAnalytics.everPaused > 0 ? fmtPct(onHoldAnalytics.reactivationRate) : '—'}
+                      </span>
+                    </div>
+                    <div className="roi-metric">
+                      <span className="roi-metric__label">Closed After Reactivation</span>
+                      <span className="roi-metric__value" style={{ color: 'var(--color-success)' }}>{onHoldAnalytics.closedAfterReact}</span>
+                    </div>
+                    <div className="roi-metric roi-metric--highlight">
+                      <span className="roi-metric__label">Reactivation → Close Rate</span>
+                      <span className="roi-metric__value" style={{ color: onHoldAnalytics.closedAfterReactRate >= 20 ? 'var(--color-success)' : 'var(--brown-dark)' }}>
+                        {onHoldAnalytics.reactivated > 0 ? fmtPct(onHoldAnalytics.closedAfterReactRate) : '—'}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginTop: 12 }}>
+                <Card padding>
+                  <p className="pnl-bar-chart__title">Top On-Hold Reasons (Currently Paused)</p>
+                  {onHoldAnalytics.topReasons.length === 0 ? (
+                    <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', margin: '8px 0 0' }}>No paused contacts yet.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                      {onHoldAnalytics.topReasons.map(([reason, count]) => {
+                        const pct = onHoldAnalytics.currentlyPaused > 0 ? Math.round((count / onHoldAnalytics.currentlyPaused) * 100) : 0
+                        return (
+                          <div key={reason} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ flex: 1, fontSize: '0.82rem', color: 'var(--brown-dark)' }}>{reason}</span>
+                            <div style={{ flex: 2, height: 6, background: 'var(--color-border-light)', borderRadius: 3, overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${pct}%`, background: 'var(--brown-mid)' }} />
+                            </div>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--color-text-muted)', minWidth: 60, textAlign: 'right' }}>{count} ({pct}%)</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </Card>
+
+                <Card padding>
+                  <p className="pnl-bar-chart__title">By Type</p>
+                  {Object.keys(onHoldAnalytics.typeBreakdown).length === 0 ? (
+                    <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', margin: '8px 0 0' }}>—</p>
+                  ) : (
+                    <div className="roi-metric-list">
+                      {Object.entries(onHoldAnalytics.typeBreakdown).map(([type, count]) => (
+                        <div key={type} className="roi-metric">
+                          <span className="roi-metric__label">{type}</span>
+                          <span className="roi-metric__value">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              </div>
+            </>
           )}
         </>
       )}

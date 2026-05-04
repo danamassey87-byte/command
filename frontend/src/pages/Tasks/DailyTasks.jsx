@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, Badge, Card, SlidePanel, Input, Select, Textarea, TabBar, EmptyState } from '../../components/ui/index.jsx'
 import { useDailyTasks, useAllDailyTasks, useDailyStreaks, useVendors, useVendorAssignments, useTransactions, useContacts, useShowingSessions, useOpenHouses, useListingAppointments } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
+import { ensureOnHoldFollowUpsToday } from '../../lib/onHoldFollowUps.js'
 import './DailyTasks.css'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -115,6 +116,10 @@ export default function DailyTasks() {
     DB.rollOverTasks(YESTERDAY, TODAY).then(rolled => {
       if (rolled.length > 0) refetchTasks()
     }).catch(() => {})
+    // Materialize on-hold re-engagement tasks (gated to once/day)
+    ensureOnHoldFollowUpsToday().then(result => {
+      if (result?.created > 0) refetchTasks()
+    })
   }, [allTasks, rolledOver, refetchTasks])
 
   // ─── Aggregate external events into "today" view ─────────────────────────────
