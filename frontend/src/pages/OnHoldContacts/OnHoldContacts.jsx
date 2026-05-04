@@ -3,6 +3,7 @@ import { SectionHeader, Button, Badge } from '../../components/ui/index.jsx'
 import { useOnHoldContacts } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 import { ensureOnHoldFollowUpsToday, generateOnHoldFollowUps } from '../../lib/onHoldFollowUps.js'
+import { listCampaigns } from '../../lib/campaigns.js'
 import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
 import SocialProfilesPanel from '../../components/SocialProfilesPanel.jsx'
 import LifeEventsPanel from '../../components/LifeEventsPanel.jsx'
@@ -25,9 +26,31 @@ export default function OnHoldContacts() {
   const [reactivating, setReactivating] = useState(null)
   const [expandedId, setExpandedId] = useState(null)
   const [genStatus, setGenStatus] = useState(null) // null | 'running' | { created, scanned }
+  const [campaigns, setCampaigns] = useState([])
+  const [defaultCampaignId, setDefaultCampaignId] = useState('')
+  const [savingDefault, setSavingDefault] = useState(false)
 
   // Auto-run the daily re-engagement task generator (gated to once/day)
   useEffect(() => { ensureOnHoldFollowUpsToday() }, [])
+
+  // Load campaigns + current default for the auto-enroll picker
+  useEffect(() => {
+    listCampaigns().then(setCampaigns).catch(() => {})
+    DB.getOnHoldSettings().then(s => setDefaultCampaignId(s?.default_campaign_id || '')).catch(() => {})
+  }, [])
+
+  const handleDefaultCampaignChange = async (e) => {
+    const id = e.target.value
+    setDefaultCampaignId(id)
+    setSavingDefault(true)
+    try {
+      await DB.updateOnHoldSettings({ default_campaign_id: id || null })
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSavingDefault(false)
+    }
+  }
 
   const handleGenerateFollowUps = async () => {
     setGenStatus('running')
@@ -105,6 +128,25 @@ export default function OnHoldContacts() {
           </button>
         }
       />
+
+      {/* Auto-enroll nurture campaign setting */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--cream-3, #F6F4EE)', border: '1px solid var(--color-border)', borderRadius: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)' }}>Auto-enroll on pause:</span>
+        <select
+          value={defaultCampaignId}
+          onChange={handleDefaultCampaignChange}
+          disabled={savingDefault}
+          style={{ padding: '6px 10px', fontSize: '0.78rem', border: '1px solid var(--color-border)', borderRadius: 6, background: '#fff', fontFamily: 'inherit', minWidth: 220 }}
+        >
+          <option value="">— None (manual enroll only) —</option>
+          {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
+          {defaultCampaignId
+            ? 'New paused contacts are automatically enrolled in this nurture campaign.'
+            : 'Pick a campaign to auto-enroll buyers/sellers when they go on hold.'}
+        </span>
+      </div>
 
       {/* Stats */}
       <div className="on-hold__stats">

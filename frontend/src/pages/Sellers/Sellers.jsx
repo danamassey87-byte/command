@@ -9,6 +9,7 @@ import { useListings, useTasksForListing, useDeletedTasksForListing, useAllCheck
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
+import { pauseContactWithAutoEnroll } from '../../lib/onHoldFollowUps.js'
 import { getOHChecklist } from '../OpenHouses/OpenHouses.jsx'
 import { emit as emitNotification, emitListingContentReminder } from '../../lib/notifications.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
@@ -4556,8 +4557,10 @@ export default function Sellers() {
   }
   const confirmPutOnHold = async () => {
     try {
-      await DB.putContactOnHold(editingListing.contact_id, onHoldReason.trim())
-      await DB.logActivity('contact_on_hold', `Put seller on hold: ${editingListing.seller_name || editingListing.address}`, { contactId: editingListing.contact_id })
+      const result = await pauseContactWithAutoEnroll(editingListing.contact_id, onHoldReason.trim())
+      const label = editingListing.seller_name || editingListing.address
+      const detail = `Put seller on hold: ${label}${result.enrolled ? ' (auto-enrolled in nurture campaign)' : ''}`
+      await DB.logActivity('contact_on_hold', detail, { contactId: editingListing.contact_id, autoEnrolled: result.enrolled, campaignId: result.campaignId })
       await refetch()
       setOnHoldModal(false)
       closePanel()

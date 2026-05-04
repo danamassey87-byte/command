@@ -1,4 +1,6 @@
 import supabase from './supabase'
+import { putContactOnHold, getOnHoldSettings } from './supabase'
+import { enrollContact } from './campaigns'
 
 const MILESTONES = [30, 60, 90, 180] // days
 const SOURCE_PREFIX = 'onhold-followup://'
@@ -62,6 +64,30 @@ export async function generateOnHoldFollowUps() {
   const { error } = await supabase.from('daily_tasks').insert(toCreate)
   if (error) throw error
   return { created: toCreate.length, scanned: contacts.length }
+}
+
+/**
+ * Pause a contact AND auto-enroll them in the configured nurture campaign
+ * (if one is set in user_settings.on_hold_settings.default_campaign_id).
+ * Returns { paused: true, enrolled: boolean, campaignId }.
+ *
+ * If no default campaign is set, behaves identically to putContactOnHold.
+ */
+export async function pauseContactWithAutoEnroll(contactId, reason) {
+  await putContactOnHold(contactId, reason)
+  let enrolled = false
+  let campaignId = null
+  try {
+    const settings = await getOnHoldSettings()
+    campaignId = settings?.default_campaign_id || null
+    if (campaignId) {
+      await enrollContact(campaignId, contactId)
+      enrolled = true
+    }
+  } catch (e) {
+    console.warn('on-hold auto-enrollment failed', e)
+  }
+  return { paused: true, enrolled, campaignId }
 }
 
 /**

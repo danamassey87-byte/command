@@ -14,6 +14,7 @@ import FamilyLinksPanel from '../../components/FamilyLinksPanel.jsx'
 import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
 import * as DB from '../../lib/supabase.js'
 import supabase from '../../lib/supabase.js'
+import { pauseContactWithAutoEnroll } from '../../lib/onHoldFollowUps.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
 import './Buyers.css'
 
@@ -984,8 +985,9 @@ export default function Buyers() {
   }
   const confirmPutOnHold = async () => {
     try {
-      await DB.putContactOnHold(editingBuyer.id, onHoldReason.trim())
-      await DB.logActivity('contact_on_hold', `Put on hold: ${editingBuyer.name}`, { contactId: editingBuyer.id })
+      const result = await pauseContactWithAutoEnroll(editingBuyer.id, onHoldReason.trim())
+      const detail = `Put on hold: ${editingBuyer.name}${result.enrolled ? ' (auto-enrolled in nurture campaign)' : ''}`
+      await DB.logActivity('contact_on_hold', detail, { contactId: editingBuyer.id, autoEnrolled: result.enrolled, campaignId: result.campaignId })
       await refetch()
       setOnHoldModal(false)
       closePanel()

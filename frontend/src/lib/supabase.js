@@ -46,6 +46,16 @@ export const putContactOnHold = (id, reason) =>
 export const reactivateContact = (id) =>
   updateContact(id, { on_hold_at: null, on_hold_reason: null, reactivated_at: new Date().toISOString() })
 
+// On-Hold workflow settings (which campaign to auto-enroll into when paused)
+export const getOnHoldSettings = async () => {
+  const row = await query(supabase.from('user_settings').select('value').eq('key', 'on_hold_settings').maybeSingle())
+  return row?.value || { default_campaign_id: null }
+}
+export const updateOnHoldSettings = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'on_hold_settings', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())
+
 // ─── Properties ──────────────────────────────────────────────────────────────
 export const getProperties  = ()      => query(supabase.from('properties').select('*')
   .is('deleted_at', null).is('archived_at', null).order('address'))
