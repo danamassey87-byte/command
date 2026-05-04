@@ -291,6 +291,29 @@ export const updateCannonballTemplates = (value) =>
     .upsert({ key: 'cannonball_templates', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
     .select().single())
 
+// ─── Expired Cannonball Tracker Data (user_settings, cloud-backed) ──────────
+// The full contacts array (status, letters, follow-ups, outreach steps, notes).
+// Replaces localStorage so data persists across devices + browser clears.
+export const getExpiredCannonballData = async () => {
+  const row = await query(supabase.from('user_settings').select('*').eq('key', 'expired_cannonball_data').maybeSingle())
+  return row?.value ?? null
+}
+
+export const updateExpiredCannonballData = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'expired_cannonball_data', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())
+
+export const getExpiredCannonballScripts = async () => {
+  const row = await query(supabase.from('user_settings').select('*').eq('key', 'expired_cannonball_scripts').maybeSingle())
+  return row?.value ?? null
+}
+
+export const updateExpiredCannonballScripts = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'expired_cannonball_scripts', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())
+
 // ─── Listing Ad Campaigns (Meta attribution) ────────────────────────────────
 export const getAdCampaignsForListing = (listingId) =>
   query(supabase.from('listing_ad_campaigns').select('*')

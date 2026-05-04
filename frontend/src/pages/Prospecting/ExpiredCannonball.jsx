@@ -287,7 +287,11 @@ function StatusPill({ status, onSelect }) {
 }
 
 // ─── Load / Save ─────────────────────────────────────────────────────────────
-function loadData() {
+// Primary store: Supabase user_settings (cloud-backed, multi-device).
+// localStorage is kept as a synchronous fast-path cache so the page renders
+// immediately on load without waiting for the network round-trip.
+
+function loadDataFromCache() {
   try {
     const raw = localStorage.getItem(LS_KEY)
     if (raw) {
@@ -302,16 +306,26 @@ function loadData() {
     followUpDate: '',
     followUpDone: false,
     cbSteps: {},
-    outreach: {},  // { call1: { done: false, date: '' }, text1: {...}, email1: {...} }
+    outreach: {},
     notes: '',
   }))
 }
 
 function saveData(data) {
+  // Write-through: cache locally for instant reads, and persist to DB (debounced).
   localStorage.setItem(LS_KEY, JSON.stringify(data))
+  scheduleCloudSync(data)
 }
 
-function loadScripts() {
+let _cloudSyncTimer = null
+function scheduleCloudSync(data) {
+  if (_cloudSyncTimer) clearTimeout(_cloudSyncTimer)
+  _cloudSyncTimer = setTimeout(() => {
+    DB.updateExpiredCannonballData(data).catch(err => console.warn('[ExpiredCannonball] cloud sync failed:', err.message))
+  }, 800)
+}
+
+function loadScriptsFromCache() {
   try {
     const raw = localStorage.getItem(SCRIPTS_KEY)
     if (raw) return { ...DEFAULT_SCRIPTS, ...JSON.parse(raw) }
@@ -321,6 +335,15 @@ function loadScripts() {
 
 function saveScripts(scripts) {
   localStorage.setItem(SCRIPTS_KEY, JSON.stringify(scripts))
+  scheduleScriptsCloudSync(scripts)
+}
+
+let _scriptsSyncTimer = null
+function scheduleScriptsCloudSync(scripts) {
+  if (_scriptsSyncTimer) clearTimeout(_scriptsSyncTimer)
+  _scriptsSyncTimer = setTimeout(() => {
+    DB.updateExpiredCannonballScripts(scripts).catch(err => console.warn('[ExpiredCannonball] scripts sync failed:', err.message))
+  }, 800)
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
@@ -362,8 +385,42 @@ function TemplateEditorModal({ links, onSave, onClose }) {
 }
 
 export default function ExpiredCannonball() {
-  const [contacts, setContacts] = useState(loadData)
-  const [scripts, setScripts] = useState(loadScripts)
+  const [contacts, setContacts] = useState(loadDataFromCache)
+  const [scripts, setScripts] = useState(loadScriptsFromCache)
+  const [cloudSynced, setCloudSynced] = useState(false)
+
+  // Hydrate from cloud on mount. If the cloud row is empty but we have local data,
+  // push the local cache up so this device becomes the source of truth.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [cloudData, cloudScripts] = await Promise.all([
+          DB.getExpiredCannonballData(),
+          DB.getExpiredCannonballScripts(),
+        ])
+        if (cancelled) return
+        if (Array.isArray(cloudData) && cloudData.length) {
+          const migrated = cloudData.map(migrateStatus)
+          setContacts(migrated)
+          localStorage.setItem(LS_KEY, JSON.stringify(migrated))
+        } else {
+          // Cloud is empty — seed it with whatever we have locally so other devices catch up
+          const local = loadDataFromCache()
+          if (local.length) DB.updateExpiredCannonballData(local).catch(() => {})
+        }
+        if (cloudScripts && typeof cloudScripts === 'object') {
+          setScripts({ ...DEFAULT_SCRIPTS, ...cloudScripts })
+          localStorage.setItem(SCRIPTS_KEY, JSON.stringify(cloudScripts))
+        }
+        setCloudSynced(true)
+      } catch (err) {
+        console.warn('[ExpiredCannonball] cloud hydrate failed, using local cache:', err.message)
+        setCloudSynced(true)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [panelOpen, setPanelOpen] = useState(false)
@@ -1276,7 +1333,7 @@ ${labelHtml}
     <div className="ec-page">
       <SectionHeader
         title="Expired Listing Tracker"
-        subtitle={`${stats.total} contacts across all mail waves`}
+        subtitle={`${stats.total} contacts across all mail waves${cloudSynced ? ' · synced' : ''}`}
         actions={
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <Button variant="ghost" size="md" onClick={() => setShowProcess(!showProcess)}>
