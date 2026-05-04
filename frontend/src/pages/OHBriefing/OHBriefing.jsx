@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { createClient } from '@supabase/supabase-js'
+import PropertyMap from '../../components/PropertyMap.jsx'
 import './OHBriefing.css'
 
 // Public Supabase client (anon key, no auth required — same pattern as OHSignIn)
@@ -92,6 +93,23 @@ export default function OHBriefing() {
       </div>
 
       <div className="oh-brief__body">
+        {/* Map */}
+        {property?.address && (
+          <section className="oh-brief__section" style={{ padding: 0, overflow: 'hidden' }}>
+            <PropertyMap
+              singleMarker
+              height="260px"
+              properties={[{
+                address: property.address,
+                city:    property.city,
+                lat:     property.latitude,
+                lng:     property.longitude,
+                price:   property.price,
+              }]}
+            />
+          </section>
+        )}
+
         {/* Hosting Agent */}
         {(oh.agent_name || oh.agent_phone || oh.agent_email) && (
           <section className="oh-brief__section">

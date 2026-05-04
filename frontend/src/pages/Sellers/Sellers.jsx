@@ -18,6 +18,7 @@ import LifeEventsPanel from '../../components/LifeEventsPanel.jsx'
 import FamilyLinksPanel from '../../components/FamilyLinksPanel.jsx'
 import ChecklistRunner from '../../components/ChecklistRunner.jsx'
 import SellerWeeklyUpdate from '../../components/SellerWeeklyUpdate.jsx'
+import PropertyMap from '../../components/PropertyMap.jsx'
 import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
 import './Sellers.css'
 
@@ -3845,6 +3846,24 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Map ── */}
+      {(listing.address || listing.property?.address) && (
+        <div className="sellers-plan__section">
+          <PropertyMap
+            singleMarker
+            height="260px"
+            properties={[{
+              address: listing.address || listing.property?.address,
+              city:    listing.city    || listing.property?.city,
+              lat:     listing.property?.latitude,
+              lng:     listing.property?.longitude,
+              price:   listing.price ?? listing.list_price,
+              status:  listing.status,
+            }]}
+          />
         </div>
       )}
 
