@@ -179,6 +179,25 @@ serve(async (req) => {
             pre_approved: signIn.pre_approved,
           },
         })
+
+      // Auto-create a follow-up task on tomorrow's daily tasks so the hot lead doesn't slip
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      await supabase
+        .from('daily_tasks')
+        .insert({
+          title:       `Follow up with ${guestName} (hot OH lead)`,
+          description: `Signed in at ${propertyAddr || 'an open house'}. ${reasons.join(' · ')}.${signIn.phone ? ` Phone: ${signIn.phone}.` : ''}${signIn.email ? ` Email: ${signIn.email}.` : ''}`,
+          category:    'follow-up',
+          priority:    'high',
+          status:      'pending',
+          due_date:    tomorrow,
+          contact_id:  contactId,
+          source_type: 'oh_sign_in',
+          source_link: `/contact/${contactId}`,
+          is_recurring: false,
+          vendor_ids:  [],
+        })
+        .then(() => {}, (err: any) => console.warn('[merge-oh-signin] daily task insert failed:', err.message))
     }
 
     return new Response(
