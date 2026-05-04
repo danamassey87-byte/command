@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { SectionHeader, Card, Button, SlidePanel, Input, Select } from '../../components/ui/index.jsx'
-import { useMileageLog } from '../../lib/hooks.js'
+import { useMileageLog, useTransactions, useContacts } from '../../lib/hooks.js'
 import { useBrand } from '../../lib/BrandContext.jsx'
 import {
   createMileageEntry, updateMileageEntry, deleteMileageEntry,
@@ -21,6 +21,8 @@ const EMPTY = {
   end_address: '',
   round_trip: true,
   source: 'manual',
+  transaction_id: '',
+  contact_id: '',
 }
 
 export default function MileageLog() {
@@ -32,6 +34,8 @@ export default function MileageLog() {
   const homeAddress = brand?.signature?.home_address ?? ''
 
   const mileage = useMileageLog(from, to)
+  const { data: transactionsData } = useTransactions()
+  const { data: contactsData }     = useContacts()
   const [panel, setPanel]             = useState(null)   // null | 'add' | entry object
   const [draft, setDraft]             = useState(EMPTY)
   const [saving, setSaving]           = useState(false)
@@ -66,13 +70,15 @@ export default function MileageLog() {
 
   function openEdit(entry) {
     setDraft({
-      date:          entry.date,
-      description:   entry.description ?? '',
-      miles:         entry.miles ?? '',
-      start_address: entry.start_address ?? homeAddress,
-      end_address:   entry.end_address ?? homeAddress,
-      round_trip:    entry.round_trip ?? true,
-      source:        entry.source ?? 'manual',
+      date:           entry.date,
+      description:    entry.description ?? '',
+      miles:          entry.miles ?? '',
+      start_address:  entry.start_address ?? homeAddress,
+      end_address:    entry.end_address ?? homeAddress,
+      round_trip:     entry.round_trip ?? true,
+      source:         entry.source ?? 'manual',
+      transaction_id: entry.transaction_id ?? '',
+      contact_id:     entry.contact_id ?? '',
     })
     setPanel(entry)
   }
@@ -81,13 +87,15 @@ export default function MileageLog() {
     setSaving(true)
     try {
       const payload = {
-        date:          draft.date,
-        description:   draft.description || null,
-        miles:         Number(draft.miles),
-        start_address: draft.start_address || null,
-        end_address:   draft.end_address || null,
-        round_trip:    draft.round_trip,
-        source:        draft.source || 'manual',
+        date:           draft.date,
+        description:    draft.description || null,
+        miles:          Number(draft.miles),
+        start_address:  draft.start_address || null,
+        end_address:    draft.end_address || null,
+        round_trip:     draft.round_trip,
+        source:         draft.source || 'manual',
+        transaction_id: draft.transaction_id || null,
+        contact_id:     draft.contact_id     || null,
       }
       if (panel === 'add') await createMileageEntry(payload)
       else await updateMileageEntry(panel.id, payload)
@@ -308,6 +316,40 @@ export default function MileageLog() {
               Reset to home address
             </button>
           )}
+
+          <div className="pnl-form__row">
+            <Select
+              label="Link to Transaction (optional)"
+              value={draft.transaction_id}
+              onChange={e => {
+                const txId = e.target.value
+                const tx = (transactionsData ?? []).find(t => t.id === txId)
+                setDraft(d => ({
+                  ...d,
+                  transaction_id: txId,
+                  // Auto-fill contact from the transaction if not already set
+                  contact_id: d.contact_id || tx?.contact_id || '',
+                }))
+              }}
+            >
+              <option value="">— None —</option>
+              {(transactionsData ?? []).map(t => {
+                const addr = t.property?.address || t.address || 'Unknown property'
+                const status = t.status || 'active'
+                return <option key={t.id} value={t.id}>{addr} · {status}</option>
+              })}
+            </Select>
+            <Select
+              label="Link to Client (optional)"
+              value={draft.contact_id}
+              onChange={e => setDraft(d => ({ ...d, contact_id: e.target.value }))}
+            >
+              <option value="">— None —</option>
+              {(contactsData ?? []).map(c => (
+                <option key={c.id} value={c.id}>{c.name || c.email || 'Unnamed'}</option>
+              ))}
+            </Select>
+          </div>
 
           <div className="pnl-form__row">
             <Input
