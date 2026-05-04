@@ -46,6 +46,7 @@ const BioLinkPublic = lazy(() => import('./pages/BioLink/BioLinkPublic'))
 const OHSignIn = lazy(() => import('./pages/OHSignIn/OHSignIn'))
 const OHBriefing = lazy(() => import('./pages/OHBriefing/OHBriefing'))
 const OHHostReport = lazy(() => import('./pages/OHBriefing/OHHostReport'))
+const PropertyWebsite = lazy(() => import('./pages/PropertyWebsite/PropertyWebsite'))
 const GoogleCallback = lazy(() => import('./pages/Auth/GoogleCallback'))
 const Notifications = lazy(() => import('./pages/Notifications/Notifications'))
 const CalendarSchedule = lazy(() => import('./pages/Calendar/CalendarSchedule'))
@@ -198,6 +199,7 @@ export default function App() {
         <Route path="/oh-signin/:openHouseId" element={<OHSignIn />} />
         <Route path="/oh/:openHouseId/briefing"    element={<OHBriefing />} />
         <Route path="/oh/:openHouseId/host-report" element={<OHHostReport />} />
+        <Route path="/listing/:listingId"           element={<PropertyWebsite />} />
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
         <Route path="/login" element={<LoginGate />} />
