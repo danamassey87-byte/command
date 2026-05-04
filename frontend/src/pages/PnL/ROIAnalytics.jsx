@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { SectionHeader, Card, TabBar, Badge } from '../../components/ui/index.jsx'
-import { useContacts, useTransactions, useOpenHouses, useLeads, useAllIncomeEntries, useAllExpenses, useListingAppointments, useShowingSessions, usePriceAnalytics, useListings } from '../../lib/hooks.js'
+import { useContacts, useTransactions, useOpenHouses, useOHSignIns, useLeads, useAllIncomeEntries, useAllExpenses, useListingAppointments, useShowingSessions, usePriceAnalytics, useListings } from '../../lib/hooks.js'
 import './PnL.css'
 
 const fmt = (v) => v < 0
@@ -47,6 +47,7 @@ export default function ROIAnalytics() {
   const contacts     = useContacts()
   const transactions = useTransactions()
   const openHouses   = useOpenHouses()
+  const ohSignInsHook = useOHSignIns()
   const leads        = useLeads()
   const income       = useAllIncomeEntries()
   const expenses     = useAllExpenses()
@@ -59,6 +60,7 @@ export default function ROIAnalytics() {
   const allContacts = contacts.data ?? []
   const allDeals    = transactions.data ?? []
   const allOH       = openHouses.data ?? []
+  const allOHSignIns = ohSignInsHook.data ?? []
   const allLeads    = leads.data ?? []
   const allIncome   = income.data ?? []
   const allAppts    = listingAppts.data ?? []
@@ -272,6 +274,40 @@ export default function ROIAnalytics() {
       ohPerClient: ohClosed.length > 0 ? totalOH / ohClosed.length : 0,
     }
   }, [allOH, allContacts, allDeals, costItems])
+
+  // ─── OH Kiosk Feedback Signals ──────────────────────────────────────────
+  const ohFeedback = useMemo(() => {
+    const total = allOHSignIns.length
+    const withFeedback = allOHSignIns.filter(si =>
+      si.would_offer || si.interest_level || si.price_perception || si.liked || si.concerns || si.comments
+    )
+    const tally = (key) => allOHSignIns.reduce((acc, si) => {
+      const v = si[key]
+      if (!v) return acc
+      acc[v] = (acc[v] || 0) + 1
+      return acc
+    }, {})
+    const wouldOffer = tally('would_offer')         // yes/maybe/no
+    const pricePerception = tally('price_perception') // under/right/over (or similar)
+    const interestLevel = tally('interest_level')   // hot/warm/cold (or similar)
+
+    const yesCount = wouldOffer.yes || 0
+    const offerSignalRate = total > 0 ? (yesCount / total) * 100 : 0
+    const feedbackCaptureRate = total > 0 ? (withFeedback.length / total) * 100 : 0
+    const signInsPerOH = allOH.length > 0 ? total / allOH.length : 0
+
+    return {
+      totalSignIns: total,
+      withFeedback: withFeedback.length,
+      feedbackCaptureRate,
+      signInsPerOH,
+      wouldOffer,
+      pricePerception,
+      interestLevel,
+      offerSignalRate,
+      yesCount,
+    }
+  }, [allOHSignIns, allOH])
 
   // ─── Lead Gen / Letter Analytics ────────────────────────────────────────
   const letterAnalytics = useMemo(() => {
@@ -750,6 +786,11 @@ export default function ROIAnalytics() {
                   </div>
                   <div className="roi-funnel__arrow">→</div>
                   <div className="roi-funnel__step">
+                    <span className="roi-funnel__count">{ohFeedback.totalSignIns}</span>
+                    <span className="roi-funnel__label">Kiosk Sign-Ins</span>
+                  </div>
+                  <div className="roi-funnel__arrow">→</div>
+                  <div className="roi-funnel__step">
                     <span className="roi-funnel__count">{ohAnalytics.totalLeads}</span>
                     <span className="roi-funnel__label">Leads Generated</span>
                   </div>
@@ -817,6 +858,40 @@ export default function ROIAnalytics() {
                   </div>
                 </Card>
               </div>
+
+              {/* Buyer Feedback Signals from kiosk */}
+              <Card padding style={{ marginTop: 12 }}>
+                <p className="pnl-bar-chart__title">Buyer Feedback Signals (Kiosk)</p>
+                {ohFeedback.totalSignIns === 0 ? (
+                  <p style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', margin: '8px 0 0' }}>
+                    No kiosk sign-ins yet. Once buyers sign in at an open house, their feedback signals will roll up here.
+                  </p>
+                ) : (
+                  <>
+                    <div className="roi-metric-list">
+                      <div className="roi-metric">
+                        <span className="roi-metric__label">Sign-Ins per Open House</span>
+                        <span className="roi-metric__value">{ohFeedback.signInsPerOH.toFixed(1)}</span>
+                      </div>
+                      <div className="roi-metric">
+                        <span className="roi-metric__label">Feedback Capture Rate</span>
+                        <span className="roi-metric__value">{fmtPct(ohFeedback.feedbackCaptureRate)}</span>
+                      </div>
+                      <div className="roi-metric roi-metric--highlight">
+                        <span className="roi-metric__label">"Would Offer: Yes" Rate</span>
+                        <span className="roi-metric__value" style={{ color: ohFeedback.offerSignalRate >= 10 ? 'var(--color-success)' : 'var(--brown-dark)' }}>
+                          {ohFeedback.yesCount} ({fmtPct(ohFeedback.offerSignalRate)})
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 14 }}>
+                      <FeedbackBreakdown title="Would Offer" data={ohFeedback.wouldOffer} order={['yes','maybe','no']} />
+                      <FeedbackBreakdown title="Price Perception" data={ohFeedback.pricePerception} />
+                      <FeedbackBreakdown title="Interest Level" data={ohFeedback.interestLevel} />
+                    </div>
+                  </>
+                )}
+              </Card>
             </>
           )}
 
@@ -1630,5 +1705,38 @@ export default function ROIAnalytics() {
         </>
       )}
     </>
+  )
+}
+
+// ─── Feedback Breakdown Bar List ────────────────────────────────────────────
+function FeedbackBreakdown({ title, data, order }) {
+  const entries = Object.entries(data || {})
+  if (entries.length === 0) {
+    return (
+      <div style={{ background: 'var(--cream-3, #F6F4EE)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 10 }}>
+        <p style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--color-text-muted)', margin: '0 0 6px' }}>{title}</p>
+        <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', margin: 0 }}>—</p>
+      </div>
+    )
+  }
+  const total = entries.reduce((s, [, n]) => s + n, 0)
+  const sorted = order
+    ? [...entries].sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]))
+    : [...entries].sort((a, b) => b[1] - a[1])
+  return (
+    <div style={{ background: 'var(--cream-3, #F6F4EE)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 10 }}>
+      <p style={{ fontSize: '0.7rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--color-text-muted)', margin: '0 0 8px' }}>{title}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {sorted.map(([key, n]) => {
+          const pct = total > 0 ? Math.round((n / total) * 100) : 0
+          return (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.76rem' }}>
+              <span style={{ flex: 1, textTransform: 'capitalize', color: 'var(--brown-dark)' }}>{key.replace(/_/g, ' ')}</span>
+              <span style={{ color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>{n} ({pct}%)</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }

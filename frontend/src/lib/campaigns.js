@@ -5,7 +5,13 @@
 // React error boundaries.
 // ─────────────────────────────────────────────────────────────────────────────
 import supabase from './supabase'
-import { logEmailSend } from './interactionBridges'
+import { logEmailSend, logCampaignEnrollmentChange } from './interactionBridges'
+
+async function fetchCampaignName(campaignId) {
+  if (!campaignId) return ''
+  const { data } = await supabase.from('campaigns').select('name').eq('id', campaignId).maybeSingle()
+  return data?.name || ''
+}
 
 async function run(promise) {
   const { data, error } = await promise
@@ -283,6 +289,7 @@ export async function pauseEnrollment(id) {
       .update({ status: 'paused', paused_at: new Date().toISOString() })
       .eq('id', id).select().single()
   )
+  const campaignName = await fetchCampaignName(updated.campaign_id)
   await logAction({
     enrollment_id: id,
     campaign_id: updated.campaign_id,
@@ -290,6 +297,7 @@ export async function pauseEnrollment(id) {
     action: 'paused',
     detail: 'Campaign paused',
   })
+  logCampaignEnrollmentChange({ contactId: updated.contact_id, action: 'paused', campaignName })
   return updated
 }
 
@@ -299,6 +307,7 @@ export async function resumeEnrollment(id) {
       .update({ status: 'active', paused_at: null })
       .eq('id', id).select().single()
   )
+  const campaignName = await fetchCampaignName(updated.campaign_id)
   await logAction({
     enrollment_id: id,
     campaign_id: updated.campaign_id,
@@ -306,6 +315,7 @@ export async function resumeEnrollment(id) {
     action: 'resumed',
     detail: 'Campaign resumed',
   })
+  logCampaignEnrollmentChange({ contactId: updated.contact_id, action: 'resumed', campaignName })
   return updated
 }
 
@@ -315,6 +325,7 @@ export async function stopEnrollment(id) {
       .update({ status: 'stopped', stopped_at: new Date().toISOString() })
       .eq('id', id).select().single()
   )
+  const campaignName = await fetchCampaignName(updated.campaign_id)
   await logAction({
     enrollment_id: id,
     campaign_id: updated.campaign_id,
@@ -322,6 +333,7 @@ export async function stopEnrollment(id) {
     action: 'stopped',
     detail: 'Campaign stopped',
   })
+  logCampaignEnrollmentChange({ contactId: updated.contact_id, action: 'stopped', campaignName })
   return updated
 }
 

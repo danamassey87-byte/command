@@ -113,6 +113,18 @@ export function logNoteCreated({ contactId, notePreview }) {
   })
 }
 
+/** Log a campaign enrollment status change (paused/resumed/stopped) as an interaction */
+export function logCampaignEnrollmentChange({ contactId, action, campaignName }) {
+  const verb = action === 'paused' ? 'Paused' : action === 'resumed' ? 'Resumed' : action === 'stopped' ? 'Unenrolled from' : 'Updated'
+  logQuiet({
+    contact_id: contactId,
+    kind: 'campaign-enrollment',
+    channel: 'command',
+    body: `${verb} campaign: ${campaignName || 'unnamed'}`,
+    metadata: { action, campaign: campaignName },
+  })
+}
+
 /** Log a Slack post as an interaction */
 export function logSlackPost({ contactId, channelName, message }) {
   logQuiet({

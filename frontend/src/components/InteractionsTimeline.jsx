@@ -16,6 +16,7 @@ const KIND_META = {
   note:              { icon: '📌', label: 'Note',           color: 'var(--brown-warm, #5A4136)' },
   'slack-post':      { icon: '💼', label: 'Slack',          color: 'var(--brown-warm, #5A4136)' },
   'transact-milestone': { icon: '✓', label: 'Transact',    color: 'var(--sage-green, #8B9A7B)' },
+  'campaign-enrollment': { icon: '📨', label: 'Campaign',    color: 'var(--brown-mid)' },
   meeting:           { icon: '🤝', label: 'Meeting',        color: 'var(--brown-dark)' },
   other:             { icon: '•',  label: 'Other',          color: 'var(--brown-mid)' },
 }

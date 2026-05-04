@@ -51,6 +51,7 @@ export const useOfferHistory  = (contactId) => useQuery(() => contactId ? DB.get
 export const useStatusLog     = (txnId) => useQuery(() => txnId ? DB.getStatusLog(txnId) : Promise.resolve([]), [txnId])
 export const useShowingSessions = () => useQuery(DB.getShowingSessions)
 export const useOpenHouses    = () => useQuery(DB.getOpenHouses)
+export const useOHSignIns     = () => useQuery(DB.getAllOHSignIns)
 export const useLeads         = () => useQuery(DB.getLeads)
 export const useProspects     = (source) => useQuery(() => DB.getProspects(source), [source])
 export const useInvestors     = () => useQuery(DB.getInvestors)
