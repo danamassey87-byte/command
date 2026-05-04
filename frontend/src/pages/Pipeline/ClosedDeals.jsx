@@ -83,6 +83,32 @@ export default function ClosedDeals() {
     return { count: ytd.length, volume, grossCommission, totalFees, totalSpend, totalMileageCost, net }
   }, [closedDeals, allExpenses, mileageEntries, allListings, year])
 
+  // Lead source ROI rollup — groups closed deals by source so Dana can see
+  // which channels actually pay out
+  const sourceRollup = useMemo(() => {
+    const ytd = closedDeals.filter(d => {
+      if (!d.closing_date) return false
+      return new Date(d.closing_date + 'T12:00:00').getFullYear() === year
+    })
+    const map = {}
+    for (const deal of ytd) {
+      const source = (deal.lead_source || 'Unknown').trim() || 'Unknown'
+      if (!map[source]) map[source] = { source, count: 0, volume: 0, gross: 0, fees: 0, spend: 0, mileage: 0, net: 0 }
+      const row = map[source]
+      const costs = computeDealCosts(deal)
+      const dealGross = num(deal.actual_commission || deal.expected_commission)
+      const dealFees  = num(deal.broker_fee) + num(deal.referral_fee) + num(deal.tc_fee) + num(deal.lead_source_fee)
+      row.count++
+      row.volume  += Number(deal.property?.price) || Number(deal.offer_price) || 0
+      row.gross   += dealGross
+      row.fees    += dealFees
+      row.spend   += costs.marketingSpend
+      row.mileage += costs.mileageCost
+      row.net     += dealGross - dealFees - costs.marketingSpend - costs.mileageCost
+    }
+    return Object.values(map).sort((a, b) => b.net - a.net)
+  }, [closedDeals, allExpenses, mileageEntries, allListings, year])
+
   if (loading) return <div className="closed-loading">Loading closed deals...</div>
 
   return (
@@ -114,6 +140,52 @@ export default function ClosedDeals() {
           <span className="closed__stat-label">True Net</span>
         </div>
       </div>
+
+      {/* Lead source ROI breakdown */}
+      {sourceRollup.length > 0 && (
+        <div style={{ marginTop: 16, marginBottom: 16, background: 'var(--white, #fff)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg, 12px)', overflow: 'hidden' }}>
+          <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--color-border-light)' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontStyle: 'italic', fontWeight: 400, color: 'var(--brown-dark)', margin: 0 }}>
+              Lead Source ROI · {year}
+            </h3>
+            <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+              Closed deals grouped by lead source. True net subtracts fees, marketing, and mileage.
+            </p>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ background: 'var(--cream-3, #F6F4EE)' }}>
+                  <th style={{ textAlign: 'left',  padding: '10px 14px', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Source</th>
+                  <th style={{ textAlign: 'right', padding: '10px 14px', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Deals</th>
+                  <th style={{ textAlign: 'right', padding: '10px 14px', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Volume</th>
+                  <th style={{ textAlign: 'right', padding: '10px 14px', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Gross</th>
+                  <th style={{ textAlign: 'right', padding: '10px 14px', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Costs</th>
+                  <th style={{ textAlign: 'right', padding: '10px 14px', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>True Net</th>
+                  <th style={{ textAlign: 'right', padding: '10px 14px', fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>Avg / Deal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sourceRollup.map(r => {
+                  const costs = r.fees + r.spend + r.mileage
+                  const avg = r.count > 0 ? r.net / r.count : 0
+                  return (
+                    <tr key={r.source} style={{ borderTop: '1px solid var(--color-border-light)' }}>
+                      <td style={{ padding: '10px 14px', fontWeight: 600, color: 'var(--brown-dark)' }}>{r.source}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right' }}>{r.count}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--color-text-muted)' }}>{fmtDollar(r.volume)}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right' }}>{fmtDollar(r.gross)}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', color: 'var(--color-danger)' }}>({fmtDollar(costs)})</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: 700, color: r.net > 0 ? 'var(--color-success)' : 'var(--color-text-muted)' }}>{fmtDollar(r.net)}</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', fontFamily: 'var(--font-display)', fontStyle: 'italic' }}>{fmtDollar(avg)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {closedDeals.length === 0 ? (
         <EmptyState
