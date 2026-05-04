@@ -4,7 +4,7 @@ import { Button, Badge, SectionHeader, TabBar, DataTable, Card, SlidePanel, Inpu
 import LeadSourcePicker from '../../components/ui/LeadSourcePicker.jsx'
 import { TagPicker, TagBadge } from '../../components/ui/TagPicker.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
-import { useBuyers, useTransactions, useShowingSessionsForContact, useContactTags, useNotesForContact, useVendors, useProperties, useExpensesForContact } from '../../lib/hooks.js'
+import { useBuyers, useTransactions, useShowingSessionsForContact, useContactTags, useNotesForContact, useVendors, useProperties, useExpensesForContact, useMileageLog } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
@@ -416,6 +416,13 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
   const { openNote, createAndOpen } = useNotesContext()
   const { data: propertiesData } = useProperties()
   const { data: buyerExpenses } = useExpensesForContact(buyer.id)
+  const _yr = new Date().getFullYear()
+  const { data: yearMileage } = useMileageLog(`${_yr}-01-01`, `${_yr}-12-31`)
+  const buyerMileage = useMemo(() => {
+    const matching = (yearMileage ?? []).filter(m => m.contact_id === buyer.id)
+    const miles = matching.reduce((s, m) => s + (m.round_trip ? Number(m.miles || 0) * 2 : Number(m.miles || 0)), 0)
+    return { miles, cost: miles * 0.70, count: matching.length }
+  }, [yearMileage, buyer.id])
   const sessions = sessionsData ?? []
 
   // OH attendance for this buyer (from oh_sign_ins linked by contact_id)
@@ -569,6 +576,12 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
             <div className="buyer-detail__stat">
               <p className="buyer-detail__stat-value">${Math.round(expenseTotal).toLocaleString()}</p>
               <p className="buyer-detail__stat-label">Spend</p>
+            </div>
+          )}
+          {buyerMileage.miles > 0 && (
+            <div className="buyer-detail__stat" title={`${buyerMileage.count} trip${buyerMileage.count !== 1 ? 's' : ''} · $${buyerMileage.cost.toFixed(0)} deductible`}>
+              <p className="buyer-detail__stat-value">{buyerMileage.miles.toFixed(0)} mi</p>
+              <p className="buyer-detail__stat-label">Mileage</p>
             </div>
           )}
         </div>

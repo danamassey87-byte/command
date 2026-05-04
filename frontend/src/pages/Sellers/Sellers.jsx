@@ -5,7 +5,7 @@ import LeadSourcePicker from '../../components/ui/LeadSourcePicker.jsx'
 import PartiesSection from '../../components/parties/PartiesSection.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
-import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses, usePriceHistory, usePlatformStats, usePlatformTotals, useOffersForListing, useStatTasksForListing, useAdCampaignsForListing, useExpensesForListing, useExpenseCategories, useAllExpenses, useShowingSessions } from '../../lib/hooks.js'
+import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses, usePriceHistory, usePlatformStats, usePlatformTotals, useOffersForListing, useStatTasksForListing, useAdCampaignsForListing, useExpensesForListing, useExpenseCategories, useAllExpenses, useShowingSessions, useMileageLog } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
@@ -3145,6 +3145,17 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
 
   // ROI rollup — total marketing spend + activity counts for this listing
   const { data: rollupExpenses } = useExpensesForListing(isDbRow ? listing.id : null)
+  const _yearForMileage = new Date().getFullYear()
+  const { data: yearMileage } = useMileageLog(`${_yearForMileage}-01-01`, `${_yearForMileage}-12-31`)
+  const listingMileage = useMemo(() => {
+    if (!listing.property_id && !contactId) return { miles: 0, cost: 0, count: 0 }
+    const matching = (yearMileage ?? []).filter(m =>
+      (listing.property_id && m.property_id === listing.property_id) ||
+      (contactId && m.contact_id === contactId)
+    )
+    const miles = matching.reduce((s, m) => s + (m.round_trip ? Number(m.miles || 0) * 2 : Number(m.miles || 0)), 0)
+    return { miles, cost: miles * 0.70, count: matching.length }
+  }, [yearMileage, listing.property_id, contactId])
   const totalSpend = useMemo(() => (rollupExpenses ?? []).reduce((s, e) => s + Number(e.amount || 0), 0), [rollupExpenses])
   const totalOHs = listingOHs.length
   const totalOHSignIns = ohSignIns.length
@@ -3915,6 +3926,7 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
           <RollupStat label="Total Spend"  value={`$${totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} sub={spendPctOfPrice > 0 ? `${spendPctOfPrice.toFixed(2)}% of list price` : `${(rollupExpenses ?? []).length} entries`} />
+          <RollupStat label="Mileage" value={listingMileage.miles > 0 ? `${listingMileage.miles.toFixed(0)} mi` : '—'} sub={listingMileage.cost > 0 ? `$${listingMileage.cost.toFixed(0)} deductible · ${listingMileage.count} trip${listingMileage.count !== 1 ? 's' : ''}` : 'No miles logged'} />
           <RollupStat label="Open Houses"  value={totalOHs}         sub={`${totalOHSignIns} sign-ins`} />
           <RollupStat label="Private Showings" value={totalShowings} sub={totalShowings === 1 ? '1 buyer' : `${totalShowings} buyers`} />
           <RollupStat label="Hot Interest" value={hotInterest}      sub={hotInterest > 0 ? 'across all activity' : '—'} accent={hotInterest > 0} />
