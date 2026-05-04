@@ -3141,6 +3141,17 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
     ).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
   }, [allShowingSessions, listing.property_id])
 
+  // ROI rollup — total marketing spend + activity counts for this listing
+  const { data: rollupExpenses } = useExpensesForListing(isDbRow ? listing.id : null)
+  const totalSpend = useMemo(() => (rollupExpenses ?? []).reduce((s, e) => s + Number(e.amount || 0), 0), [rollupExpenses])
+  const totalOHs = listingOHs.length
+  const totalOHSignIns = ohSignIns.length
+  const totalShowings = buyerFeedback.length
+  const hotInterest = ohFeedback.filter(f => f.interest_level === 'hot').length
+    + buyerFeedback.filter(f => f.wouldOffer === 'yes' || f.interest === 'high' || f.interest === 'hot').length
+  const listPrice = Number(listing.price ?? listing.list_price ?? 0)
+  const spendPctOfPrice = listPrice > 0 ? (totalSpend / listPrice) * 100 : 0
+
   // Documents
   const { data: docs, refetch: refetchDocs } = useDocumentsForListing(isDbRow ? listing.id : null)
   const fileInputRef = useRef(null)
@@ -3830,6 +3841,22 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         </div>
       )}
 
+      {/* ── Investment & Activity Rollup ── */}
+      <div className="sellers-plan__section">
+        <div className="sellers-plan__section-header">
+          <h3 className="sellers-plan__section-title">Investment & Activity</h3>
+          <Button variant="ghost" size="sm" onClick={() => setDetailTab('expenses')}>
+            View Expenses
+          </Button>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+          <RollupStat label="Total Spend"  value={`$${totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} sub={spendPctOfPrice > 0 ? `${spendPctOfPrice.toFixed(2)}% of list price` : `${(rollupExpenses ?? []).length} entries`} />
+          <RollupStat label="Open Houses"  value={totalOHs}         sub={`${totalOHSignIns} sign-ins`} />
+          <RollupStat label="Private Showings" value={totalShowings} sub={totalShowings === 1 ? '1 buyer' : `${totalShowings} buyers`} />
+          <RollupStat label="Hot Interest" value={hotInterest}      sub={hotInterest > 0 ? 'across all activity' : '—'} accent={hotInterest > 0} />
+        </div>
+      </div>
+
       {/* ── Open House History ── */}
       <div className="sellers-plan__section">
         <div className="sellers-plan__section-header">
@@ -3943,6 +3970,22 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         plan={plan}
         isNew={isNew}
       />
+    </div>
+  )
+}
+
+// ─── Investment & Activity Rollup Stat ──────────────────────────────────────
+function RollupStat({ label, value, sub, accent }) {
+  return (
+    <div style={{
+      background: accent ? 'rgba(192,96,74,0.06)' : 'var(--cream, #f6f1e8)',
+      border: `1px solid ${accent ? 'rgba(192,96,74,0.2)' : 'var(--color-border, #e5e1d8)'}`,
+      borderRadius: 'var(--radius-md, 8px)',
+      padding: '10px 12px',
+    }}>
+      <p style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-text-muted, #8b7a68)', marginBottom: 4 }}>{label}</p>
+      <p style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.4rem', fontWeight: 400, color: accent ? '#c0604a' : 'var(--brown-dark, #3A2A1E)', lineHeight: 1 }}>{value}</p>
+      {sub && <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted, #8b7a68)', marginTop: 4 }}>{sub}</p>}
     </div>
   )
 }

@@ -57,22 +57,26 @@ serve(async (req) => {
     const propertyAddr = signIn.open_house?.property?.address || ''
     const now = new Date().toISOString()
 
-    // Try to find existing contact by email or phone
+    // Try to find existing contact by normalized email or phone (so formatting differences don't create dupes)
+    const normEmail = email || null
+    const normPhone = phone ? phone.replace(/[^0-9]/g, '') : null
     let existingContact = null
-    if (email) {
+    if (normEmail) {
       const { data } = await supabase
         .from('contacts')
         .select('id')
-        .ilike('email', email)
+        .eq('email_normalized', normEmail)
+        .is('deleted_at', null)
         .limit(1)
         .maybeSingle()
       if (data) existingContact = data
     }
-    if (!existingContact && phone) {
+    if (!existingContact && normPhone) {
       const { data } = await supabase
         .from('contacts')
         .select('id')
-        .eq('phone', phone)
+        .eq('phone_normalized', normPhone)
+        .is('deleted_at', null)
         .limit(1)
         .maybeSingle()
       if (data) existingContact = data

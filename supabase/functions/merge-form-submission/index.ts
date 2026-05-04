@@ -109,22 +109,26 @@ serve(async (req) => {
       )
     }
 
-    // ─── Look up existing contact ───────────────────────────────────────
+    // ─── Look up existing contact (matches normalized columns so formatting differences don't create dupes) ───
+    const normEmail = email ? email.trim().toLowerCase() : null
+    const normPhone = phone ? phone.replace(/[^0-9]/g, '') : null
     let existingContact: { id: string; tags?: string[] } | null = null
-    if (email) {
+    if (normEmail) {
       const { data } = await supabase
         .from('contacts')
         .select('id, tags')
-        .ilike('email', email)
+        .eq('email_normalized', normEmail)
+        .is('deleted_at', null)
         .limit(1)
         .maybeSingle()
       if (data) existingContact = data
     }
-    if (!existingContact && phone) {
+    if (!existingContact && normPhone) {
       const { data } = await supabase
         .from('contacts')
         .select('id, tags')
-        .eq('phone', phone)
+        .eq('phone_normalized', normPhone)
+        .is('deleted_at', null)
         .limit(1)
         .maybeSingle()
       if (data) existingContact = data

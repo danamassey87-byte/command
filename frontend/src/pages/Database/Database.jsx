@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { SectionHeader, Badge, Card, SlidePanel, Input, Select, Textarea, EmptyState, TabBar } from '../../components/ui/index.jsx'
 import { TagPicker, TagBadge, TagManager } from '../../components/ui/TagPicker.jsx'
+import CampaignBadgePopover from '../../components/ui/CampaignBadgePopover.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { useContactsWithTags, useTags, useListings, useTransactions, useReplyLogForContact, useActiveEnrollments, useLatestComms } from '../../lib/hooks.js'
 import { useNavigate } from 'react-router-dom'
@@ -53,7 +54,7 @@ export default function Database() {
   const { data: contacts, loading, refetch } = useContactsWithTags()
   const { data: allTags } = useTags()
   const { data: allListings } = useListings()
-  const { data: enrollments } = useActiveEnrollments()
+  const { data: enrollments, refetch: refetchEnrollments } = useActiveEnrollments()
   const { data: latestCommsData } = useLatestComms()
 
   // Build map of contact_id → latest communication date
@@ -66,13 +67,13 @@ export default function Database() {
     return map
   }, [latestCommsData])
 
-  // Build a map of contact_id → active campaign names
+  // Build a map of contact_id → active enrollments (full record so the popover can pause/stop)
   const enrollmentMap = useMemo(() => {
     const map = {}
     for (const e of (enrollments ?? [])) {
       if (!e.contact_id) continue
       if (!map[e.contact_id]) map[e.contact_id] = []
-      map[e.contact_id].push({ name: e.campaign?.name || 'Campaign', status: e.status })
+      map[e.contact_id].push(e)
     }
     return map
   }, [enrollments])
@@ -525,10 +526,10 @@ export default function Database() {
                           {c.last_reply_scan_at && (
                             <span className="db-replied-badge" title={`Replied to campaign email${c.reply_count > 1 ? ` (${c.reply_count}x)` : ''}`}>Replied</span>
                           )}
-                          {enrollmentMap[c.id]?.map((en, i) => (
-                            <Badge key={i} variant={en.status === 'active' ? 'info' : 'warning'} size="sm" style={{ marginLeft: 4 }}>
-                              {en.name}
-                            </Badge>
+                          {enrollmentMap[c.id]?.map((en) => (
+                            <span key={en.id} style={{ marginLeft: 4 }}>
+                              <CampaignBadgePopover enrollment={en} onChange={refetchEnrollments} />
+                            </span>
                           ))}
                         </td>
                         <td className="db-table__contact">

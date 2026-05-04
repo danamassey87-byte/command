@@ -1,6 +1,6 @@
 // ─── Bio Link — Supabase persistence + public lead capture ──────────────────
 import supabase from './supabase'
-import { createContact } from './supabase'
+import { ensureContact } from './supabase'
 import { enrollContact } from './campaigns'
 
 function run(promise) {
@@ -128,32 +128,21 @@ export async function submitLead({ pageId, blockId, name, email, phone, guideTyp
       .single()
   )
 
-  // 2. Upsert contact (dedup on email)
+  // 2. Dedup-aware upsert via ensureContact (matches by email_normalized → phone_normalized → name)
   let contact = null
-  if (email) {
-    // Check if contact already exists
-    const { data: existing } = await supabase.from('contacts')
-      .select('id')
-      .eq('email', email)
-      .maybeSingle()
-
-    if (existing) {
-      contact = existing
-    } else {
-      contact = await createContact({
-        name: name || email.split('@')[0],
-        email,
-        phone: phone || null,
-        type: guideType === 'seller' ? 'seller' : 'buyer',
-        lead_intent: guideType || 'general',
-        lead_source: 'biolink',
-      })
-    }
-
-    // Link lead → contact
-    if (contact?.id) {
+  if (email || phone) {
+    const contactId = await ensureContact({
+      name: name || email?.split('@')[0] || 'Unknown',
+      email: email || null,
+      phone: phone || null,
+      type: guideType === 'seller' ? 'seller' : 'buyer',
+      lead_source: 'biolink',
+    })
+    if (contactId) {
+      contact = { id: contactId }
+      // Link lead → contact
       await supabase.from('biolink_leads')
-        .update({ contact_id: contact.id })
+        .update({ contact_id: contactId })
         .eq('id', lead.id)
     }
   }

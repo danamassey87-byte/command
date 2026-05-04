@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { Button, Badge, SectionHeader, TabBar, DataTable, SlidePanel, Input, Select, Textarea } from '../../components/ui/index.jsx'
+import CampaignBadgePopover from '../../components/ui/CampaignBadgePopover.jsx'
 import { useProspects, useActiveEnrollments } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 import './ProspectingList.css'
@@ -683,7 +684,7 @@ function ProspectForm({ prospect, defaultSource, onSave, onDelete, onConvert, on
 export default function ProspectingList({ source, title, subtitle, extraRows }) {
   // If source is null, show ALL prospects (unified view)
   const { data: raw, loading, refetch } = useProspects(source)
-  const { data: enrollmentsRaw } = useActiveEnrollments()
+  const { data: enrollmentsRaw, refetch: refetchEnrollments } = useActiveEnrollments()
   const prospects = useMemo(() => {
     const base = raw ?? []
     // Merge any extra rows (e.g. OH sign-ins, bio link leads) into the list
@@ -929,11 +930,9 @@ export default function ProspectingList({ source, title, subtitle, extraRows }) 
         const enrollments = cid ? (campaignByContactId[cid] || []) : []
         if (!enrollments.length) return <span className="pl-muted">—</span>
         return (
-          <div className="pl-campaigns">
+          <div className="pl-campaigns" onClick={e => e.stopPropagation()}>
             {enrollments.slice(0, 2).map(e => (
-              <Badge key={e.id} variant={e.status === 'paused' ? 'warning' : 'success'} size="sm">
-                {e.campaign?.name || 'Campaign'}
-              </Badge>
+              <CampaignBadgePopover key={e.id} enrollment={e} onChange={refetchEnrollments} />
             ))}
             {enrollments.length > 2 && <span className="pl-label-more">+{enrollments.length - 2}</span>}
           </div>
