@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Badge, EmptyState } from '../../components/ui/index.jsx'
-import { useTransactions } from '../../lib/hooks.js'
+import { useTransactions, useAllExpenses, useMileageLog, useListings } from '../../lib/hooks.js'
 import './ClosedDeals.css'
+
+const IRS_RATE = 0.70 // 2026 IRS standard mileage rate
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -23,6 +25,10 @@ function netCommission(deal) {
 
 export default function ClosedDeals() {
   const { data: transactions, loading } = useTransactions()
+  const { data: allExpenses }  = useAllExpenses()
+  const { data: allListings }  = useListings()
+  const year = new Date().getFullYear()
+  const { data: mileageEntries } = useMileageLog(`${year}-01-01`, `${year}-12-31`)
   const [expandedId, setExpandedId] = useState(null)
 
   const closedDeals = useMemo(() =>
@@ -32,8 +38,38 @@ export default function ClosedDeals() {
     }).sort((a, b) => (b.closing_date ?? '').localeCompare(a.closing_date ?? ''))
   , [transactions])
 
+  // Per-deal: marketing spend + mileage cost (resolves expenses by transaction's listing/contact and mileage by transaction_id/contact_id)
+  function computeDealCosts(deal) {
+    const exps = allExpenses ?? []
+    const miles = mileageEntries ?? []
+
+    // Find the listing tied to this deal's property if any
+    const listing = (allListings ?? []).find(l =>
+      l.property_id === deal.property_id ||
+      (l.contact_id === deal.contact_id && l.property_id === deal.property_id)
+    )
+
+    const matchingExpenses = exps.filter(e =>
+      (listing && e.listing_id === listing.id) ||
+      (deal.contact_id && e.contact_id === deal.contact_id)
+    )
+    const marketingSpend = matchingExpenses.reduce((s, e) => s + num(e.amount), 0)
+
+    const matchingMileage = miles.filter(m =>
+      m.transaction_id === deal.id ||
+      (deal.contact_id && m.contact_id === deal.contact_id) ||
+      (deal.property_id && m.property_id === deal.property_id)
+    )
+    const totalMiles = matchingMileage.reduce((s, m) => {
+      const base = num(m.miles)
+      return s + (m.round_trip ? base * 2 : base)
+    }, 0)
+    const mileageCost = totalMiles * IRS_RATE
+
+    return { marketingSpend, totalMiles, mileageCost, expensesCount: matchingExpenses.length, mileageCount: matchingMileage.length }
+  }
+
   const ytdStats = useMemo(() => {
-    const year = new Date().getFullYear()
     const ytd = closedDeals.filter(d => {
       if (!d.closing_date) return false
       return new Date(d.closing_date + 'T12:00:00').getFullYear() === year
@@ -41,9 +77,11 @@ export default function ClosedDeals() {
     const volume = ytd.reduce((s, d) => s + (Number(d.property?.price) || Number(d.offer_price) || 0), 0)
     const grossCommission = ytd.reduce((s, d) => s + num(d.actual_commission || d.expected_commission), 0)
     const totalFees = ytd.reduce((s, d) => s + num(d.broker_fee) + num(d.referral_fee) + num(d.tc_fee) + num(d.lead_source_fee), 0)
-    const net = grossCommission - totalFees
-    return { count: ytd.length, volume, grossCommission, totalFees, net }
-  }, [closedDeals])
+    const totalSpend = ytd.reduce((s, d) => s + computeDealCosts(d).marketingSpend, 0)
+    const totalMileageCost = ytd.reduce((s, d) => s + computeDealCosts(d).mileageCost, 0)
+    const net = grossCommission - totalFees - totalSpend - totalMileageCost
+    return { count: ytd.length, volume, grossCommission, totalFees, totalSpend, totalMileageCost, net }
+  }, [closedDeals, allExpenses, mileageEntries, allListings, year])
 
   if (loading) return <div className="closed-loading">Loading closed deals...</div>
 
@@ -67,9 +105,13 @@ export default function ClosedDeals() {
           <span className="closed__stat-num closed__stat-num--deduct">{fmtDollar(ytdStats.totalFees)}</span>
           <span className="closed__stat-label">Total Fees</span>
         </div>
+        <div className="closed__stat">
+          <span className="closed__stat-num closed__stat-num--deduct">{fmtDollar(ytdStats.totalSpend + ytdStats.totalMileageCost)}</span>
+          <span className="closed__stat-label">Marketing + Mileage</span>
+        </div>
         <div className="closed__stat closed__stat--highlight">
           <span className="closed__stat-num">{fmtDollar(ytdStats.net)}</span>
-          <span className="closed__stat-label">Net to You</span>
+          <span className="closed__stat-label">True Net</span>
         </div>
       </div>
 
@@ -87,7 +129,9 @@ export default function ClosedDeals() {
             const referral = num(deal.referral_fee)
             const tc = num(deal.tc_fee)
             const leadFee = num(deal.lead_source_fee)
-            const net = gross - broker - referral - tc - leadFee
+            const costs = computeDealCosts(deal)
+            const netAfterFees = gross - broker - referral - tc - leadFee
+            const net = netAfterFees - costs.marketingSpend - costs.mileageCost
             const isExpanded = expandedId === deal.id
 
             return (
@@ -159,10 +203,28 @@ export default function ClosedDeals() {
                             <span>({fmtDollar(leadFee)})</span>
                           </div>
                         )}
+                        {costs.marketingSpend > 0 && (
+                          <div className="closed__fee-row closed__fee-row--deduct">
+                            <span>Marketing Spend ({costs.expensesCount} {costs.expensesCount === 1 ? 'expense' : 'expenses'})</span>
+                            <span>({fmtDollar(costs.marketingSpend)})</span>
+                          </div>
+                        )}
+                        {costs.mileageCost > 0 && (
+                          <div className="closed__fee-row closed__fee-row--deduct">
+                            <span>Mileage ({costs.totalMiles.toFixed(0)} mi @ {`$${IRS_RATE.toFixed(2)}/mi`})</span>
+                            <span>({fmtDollar(costs.mileageCost)})</span>
+                          </div>
+                        )}
                         <div className="closed__fee-row closed__fee-row--total">
-                          <span>Net to You</span>
+                          <span>True Net Profit</span>
                           <span>{fmtDollar(net)}</span>
                         </div>
+                        {gross > 0 && (
+                          <div className="closed__fee-row" style={{ borderTop: 'none', fontSize: '0.7rem', color: 'var(--color-text-muted)', paddingTop: 4 }}>
+                            <span>Profit margin</span>
+                            <span>{((net / gross) * 100).toFixed(1)}%</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
