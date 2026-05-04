@@ -1,6 +1,7 @@
 import supabase from './supabase'
 import { putContactOnHold, getOnHoldSettings } from './supabase'
 import { enrollContact } from './campaigns'
+import { emit as emitNotification } from './notifications'
 
 const MILESTONES = [30, 60, 90, 180] // days
 const SOURCE_PREFIX = 'onhold-followup://'
@@ -63,6 +64,22 @@ export async function generateOnHoldFollowUps() {
 
   const { error } = await supabase.from('daily_tasks').insert(toCreate)
   if (error) throw error
+
+  // Emit a notification per task so Dana sees milestone alerts in the bell.
+  // Fire-and-forget — notification failures must not block task creation.
+  for (const t of toCreate) {
+    const m = parseInt(t.source_link.match(/\/(\d+)d$/)?.[1] || '0', 10)
+    emitNotification({
+      type: 'onhold_milestone',
+      title: t.title,
+      body: t.description,
+      link: '/on-hold',
+      source_table: 'contacts',
+      source_id: t.contact_id,
+      metadata: { milestone_days: m, source_link: t.source_link },
+    }).catch(() => {})
+  }
+
   return { created: toCreate.length, scanned: contacts.length }
 }
 
