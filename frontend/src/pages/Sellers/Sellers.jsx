@@ -3475,7 +3475,14 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
 
           {/* Seller weekly update */}
           <div style={{ marginTop: 12 }}>
-            <SellerWeeklyUpdate listing={listing} />
+            <SellerWeeklyUpdate
+              listing={listing}
+              listingOHs={listingOHs}
+              ohSignIns={ohSignIns}
+              ohFeedback={ohFeedback}
+              buyerFeedback={buyerFeedback}
+              expenses={rollupExpenses ?? []}
+            />
           </div>
 
           {/* Listing checklist */}

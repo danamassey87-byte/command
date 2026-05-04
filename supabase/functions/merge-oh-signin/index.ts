@@ -149,11 +149,44 @@ serve(async (req) => {
       .update({ contact_id: contactId, merged_at: now })
       .eq('id', sign_in_id)
 
+    // Hot-lead notification: high interest OR offer-yes OR pre-approved + no agent
+    const isHot = signIn.interest_level === 'hot'
+      || signIn.would_offer === 'yes'
+      || (signIn.pre_approved && !signIn.working_with_agent)
+
+    if (isHot) {
+      const guestName = [signIn.first_name, signIn.last_name].filter(Boolean).join(' ') || 'A buyer'
+      const reasons: string[] = []
+      if (signIn.interest_level === 'hot') reasons.push('very interested')
+      if (signIn.would_offer === 'yes')    reasons.push('would consider an offer')
+      if (signIn.pre_approved && !signIn.working_with_agent) reasons.push('pre-approved, no agent')
+
+      await supabase
+        .from('notifications')
+        .insert({
+          type: 'oh_hot_lead',
+          title: `Hot OH lead — ${guestName}`,
+          body: `${guestName} signed in at ${propertyAddr || 'an open house'} and ${reasons.join(' · ')}. Follow up within 24 hours.`,
+          link: `/contact/${contactId}`,
+          source_table: 'oh_sign_ins',
+          source_id: sign_in_id,
+          metadata: {
+            contact_id: contactId,
+            open_house_id: signIn.open_house_id,
+            property_address: propertyAddr,
+            interest_level: signIn.interest_level,
+            would_offer: signIn.would_offer,
+            pre_approved: signIn.pre_approved,
+          },
+        })
+    }
+
     return new Response(
       JSON.stringify({
         ok: true,
         contact_id: contactId,
         action: existingContact ? 'updated' : 'created',
+        hot: isHot,
       }),
       { headers: { ...CORS, 'Content-Type': 'application/json' } }
     )
