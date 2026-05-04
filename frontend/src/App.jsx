@@ -44,6 +44,8 @@ const IntakeForms = lazy(() => import('./pages/IntakeForms/IntakeForms'))
 const PublicForm = lazy(() => import('./pages/PublicForm/PublicForm'))
 const BioLinkPublic = lazy(() => import('./pages/BioLink/BioLinkPublic'))
 const OHSignIn = lazy(() => import('./pages/OHSignIn/OHSignIn'))
+const OHBriefing = lazy(() => import('./pages/OHBriefing/OHBriefing'))
+const OHHostReport = lazy(() => import('./pages/OHBriefing/OHHostReport'))
 const GoogleCallback = lazy(() => import('./pages/Auth/GoogleCallback'))
 const Notifications = lazy(() => import('./pages/Notifications/Notifications'))
 const CalendarSchedule = lazy(() => import('./pages/Calendar/CalendarSchedule'))
@@ -194,6 +196,8 @@ export default function App() {
         <Route path="/form/:slug" element={<PublicForm />} />
         <Route path="/p/:slug" element={<BioLinkPublic />} />
         <Route path="/oh-signin/:openHouseId" element={<OHSignIn />} />
+        <Route path="/oh/:openHouseId/briefing"    element={<OHBriefing />} />
+        <Route path="/oh/:openHouseId/host-report" element={<OHHostReport />} />
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
         <Route path="/login" element={<LoginGate />} />

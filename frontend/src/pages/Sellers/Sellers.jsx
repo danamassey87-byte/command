@@ -3892,8 +3892,8 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
                 const dateStr = oh.date ? new Date(oh.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—'
                 const timeStr = oh.start_time ? (oh.end_time ? `${oh.start_time} – ${oh.end_time}` : oh.start_time) : ''
                 return (
-                  <div key={oh.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--cream)', borderRadius: 'var(--radius-md)', borderLeft: `3px solid ${isHosted ? '#6366f1' : 'var(--brown-mid)'}` }}>
-                    <div>
+                  <div key={oh.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--cream)', borderRadius: 'var(--radius-md)', borderLeft: `3px solid ${isHosted ? '#6366f1' : 'var(--brown-mid)'}`, gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--brown-dark)' }}>
                         {dateStr}{timeStr ? ` · ${timeStr}` : ''}
                       </p>
@@ -3903,7 +3903,23 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
                         {oh.leads_count > 0 && ` · ${oh.leads_count} hot leads`}
                       </p>
                     </div>
-                    <Badge variant={oh.status === 'completed' ? 'default' : oh.status === 'confirmed' ? 'success' : 'info'} size="sm">{oh.status}</Badge>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        title="Copy briefing link"
+                        onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/oh/${oh.id}/briefing`); alert('Briefing link copied') }}
+                        style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 4, padding: '3px 8px', fontSize: '0.7rem', cursor: 'pointer', color: 'var(--brown-dark)' }}
+                      >📋 Briefing</button>
+                      {isHosted && (
+                        <button
+                          type="button"
+                          title="Copy host report link"
+                          onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/oh/${oh.id}/host-report`); alert('Host report link copied') }}
+                          style={{ background: 'none', border: '1px solid var(--color-border)', borderRadius: 4, padding: '3px 8px', fontSize: '0.7rem', cursor: 'pointer', color: 'var(--brown-dark)' }}
+                        >📝 Host Report</button>
+                      )}
+                      <Badge variant={oh.status === 'completed' ? 'default' : oh.status === 'confirmed' ? 'success' : 'info'} size="sm">{oh.status}</Badge>
+                    </div>
                   </div>
                 )
               })}
@@ -4084,6 +4100,8 @@ function ScheduleOHModal({ listing, onClose, onScheduled }) {
   const [hostedBy, setHostedBy] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [createdOhId, setCreatedOhId] = useState(null)
+  const [copied, setCopied] = useState(null)
 
   const handleSave = async (e) => {
     e?.preventDefault?.()
@@ -4109,12 +4127,19 @@ function ScheduleOHModal({ listing, onClose, onScheduled }) {
       })
       await DB.logActivity('open_house_created', `Scheduled open house: ${listing.address || ''} on ${date}`, { propertyId, listingId: listing.id })
       try { await DB.bulkCreateOHTasks(getOHChecklist().map(t => ({ ...t, open_house_id: created.id }))) } catch {}
+      setCreatedOhId(created.id)
       onScheduled?.()
     } catch (err) {
       setError(err.message)
     } finally {
       setSaving(false)
     }
+  }
+
+  const copyToClipboard = (label, url) => {
+    navigator.clipboard.writeText(url)
+    setCopied(label)
+    setTimeout(() => setCopied(null), 2000)
   }
 
   return (
@@ -4125,22 +4150,72 @@ function ScheduleOHModal({ listing, onClose, onScheduled }) {
 
         {error && <p style={{ color: 'var(--color-danger)', fontSize: '0.82rem', marginBottom: 8 }}>{error}</p>}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <Input label="Date *" type="date" value={date} onChange={e => setDate(e.target.value)} />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Input label="Start" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
-            <Input label="End" type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
-          </div>
-          <Input label="Hosted by (leave blank if you host)" value={hostedBy} onChange={e => setHostedBy(e.target.value)} placeholder="e.g. Agent name" />
-        </div>
+        {!createdOhId ? (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <Input label="Date *" type="date" value={date} onChange={e => setDate(e.target.value)} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Input label="Start" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+                <Input label="End" type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
+              </div>
+              <Input label="Hosted by (leave blank if you host)" value={hostedBy} onChange={e => setHostedBy(e.target.value)} placeholder="e.g. Agent name" />
+            </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
-          <Button variant="ghost" size="sm" onClick={onClose} type="button">Cancel</Button>
-          <Button variant="primary" size="sm" type="submit" disabled={saving || !date}>
-            {saving ? 'Scheduling…' : 'Schedule'}
-          </Button>
-        </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+              <Button variant="ghost" size="sm" onClick={onClose} type="button">Cancel</Button>
+              <Button variant="primary" size="sm" type="submit" disabled={saving || !date}>
+                {saving ? 'Scheduling…' : 'Schedule'}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--brown-dark)' }}>
+              ✓ Scheduled. {hostedBy.trim() ? `Send these links to ${hostedBy.trim()}:` : 'Useful links:'}
+            </p>
+            <ShareLinkRow
+              label="Briefing Packet"
+              hint="Property details, talking points, sign-in QR — printable"
+              url={`${window.location.origin}/oh/${createdOhId}/briefing`}
+              copied={copied === 'briefing'}
+              onCopy={() => copyToClipboard('briefing', `${window.location.origin}/oh/${createdOhId}/briefing`)}
+            />
+            <ShareLinkRow
+              label="Sign-In Kiosk"
+              hint="Open on iPad at the door, or text guests to scan QR"
+              url={`${window.location.origin}/oh-signin/${createdOhId}`}
+              copied={copied === 'signin'}
+              onCopy={() => copyToClipboard('signin', `${window.location.origin}/oh-signin/${createdOhId}`)}
+            />
+            {hostedBy.trim() && (
+              <ShareLinkRow
+                label="Host Report Form"
+                hint="Send this for the host to fill in after the OH"
+                url={`${window.location.origin}/oh/${createdOhId}/host-report`}
+                copied={copied === 'host'}
+                onCopy={() => copyToClipboard('host', `${window.location.origin}/oh/${createdOhId}/host-report`)}
+              />
+            )}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+              <Button variant="primary" size="sm" onClick={onClose} type="button">Done</Button>
+            </div>
+          </div>
+        )}
       </form>
+    </div>
+  )
+}
+
+function ShareLinkRow({ label, hint, url, copied, onCopy }) {
+  return (
+    <div style={{ background: 'var(--cream, #f6f1e8)', borderRadius: 'var(--radius-md, 8px)', padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)' }}>{label}</p>
+        <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{hint}</p>
+      </div>
+      <Button variant="ghost" size="sm" type="button" onClick={onCopy}>
+        {copied ? 'Copied!' : 'Copy'}
+      </Button>
     </div>
   )
 }

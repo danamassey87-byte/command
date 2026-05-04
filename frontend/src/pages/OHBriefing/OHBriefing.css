@@ -1,0 +1,181 @@
+/* ─── OH Briefing — Public Page (mobile-first, print-friendly) ──────────── */
+
+.oh-brief {
+  min-height: 100vh;
+  background: #FFF8EE;
+  color: #3A2A1E;
+  font-family: 'Nunito Sans', -apple-system, system-ui, sans-serif;
+}
+
+.oh-brief__hero {
+  padding: 36px 24px 28px;
+  background: linear-gradient(180deg, #5A4136 0%, #3A2A1E 100%);
+  color: #FFF8EE;
+  text-align: center;
+}
+.oh-brief__welcome {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #C8C3B9;
+  margin-bottom: 10px;
+}
+.oh-brief__address {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 30px;
+  font-weight: 400;
+  margin: 0 0 6px;
+  line-height: 1.15;
+}
+.oh-brief__sub {
+  font-size: 14px;
+  color: #C8C3B9;
+  margin: 0 0 6px;
+}
+.oh-brief__when {
+  font-size: 14px;
+  color: #FFF8EE;
+  margin: 8px 0 4px;
+}
+.oh-brief__price {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 24px;
+  font-style: italic;
+  margin: 6px 0 0;
+  color: #E8DCC9;
+}
+
+.oh-brief__body {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px 20px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.oh-brief__section {
+  background: #fff;
+  border: 1px solid #E8DCC9;
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+.oh-brief__section--cta {
+  background: #5A4136;
+  border-color: #5A4136;
+  color: #FFF8EE;
+  text-align: center;
+}
+.oh-brief__section--cta .oh-brief__h2 {
+  color: #FFF8EE;
+}
+.oh-brief__section--cta .oh-brief__paragraph {
+  color: #C8C3B9;
+}
+
+.oh-brief__h2 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 20px;
+  font-weight: 400;
+  font-style: italic;
+  color: #3A2A1E;
+  margin: 0 0 10px;
+}
+
+.oh-brief__line {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 4px 0;
+  color: #5A4136;
+}
+.oh-brief__line a {
+  color: #5A4136;
+  text-decoration: underline;
+}
+
+.oh-brief__paragraph {
+  font-size: 14px;
+  line-height: 1.65;
+  color: #5A4136;
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+.oh-brief__hint {
+  font-size: 12px;
+  color: #B79782;
+  font-style: italic;
+  margin: 6px 0 0;
+}
+
+.oh-brief__signin-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-top: 10px;
+}
+.oh-brief__qr {
+  width: 120px;
+  height: 120px;
+  border: 1px solid #E8DCC9;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.oh-brief__link {
+  font-size: 13px;
+  word-break: break-all;
+  color: #5A4136;
+}
+
+.oh-brief__cta-btn {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 12px 28px;
+  background: #FFF8EE;
+  color: #5A4136;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+.oh-brief__footer {
+  text-align: center;
+  padding: 18px 16px 32px;
+  font-size: 12px;
+  color: #B79782;
+  letter-spacing: 0.5px;
+}
+
+@media (min-width: 768px) {
+  .oh-brief__hero { padding: 60px 32px 48px; }
+  .oh-brief__address { font-size: 40px; }
+  .oh-brief__signin-row { gap: 20px; }
+  .oh-brief__qr { width: 160px; height: 160px; }
+}
+
+@media print {
+  .oh-brief { background: #fff; }
+  .oh-brief__hero {
+    background: #fff !important;
+    color: #3A2A1E !important;
+    padding: 20px 0 !important;
+    border-bottom: 2px solid #3A2A1E;
+  }
+  .oh-brief__welcome { color: #5A4136 !important; }
+  .oh-brief__sub, .oh-brief__when, .oh-brief__price { color: #5A4136 !important; }
+  .oh-brief__section { box-shadow: none; page-break-inside: avoid; }
+  .oh-brief__section--cta {
+    background: #fff !important;
+    color: #3A2A1E !important;
+    border: 2px solid #3A2A1E;
+  }
+  .oh-brief__section--cta .oh-brief__h2,
+  .oh-brief__section--cta .oh-brief__paragraph { color: #3A2A1E !important; }
+  .oh-brief__cta-btn {
+    background: #3A2A1E !important;
+    color: #FFF8EE !important;
+  }
+}
