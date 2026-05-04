@@ -13,8 +13,8 @@ import LifeEventsPanel from '../../components/LifeEventsPanel.jsx'
 import FamilyLinksPanel from '../../components/FamilyLinksPanel.jsx'
 import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
 import * as DB from '../../lib/supabase.js'
-import SendEmailModal from '../../components/email/SendEmailModal'
 import supabase from '../../lib/supabase.js'
+import SendEmailModal from '../../components/email/SendEmailModal'
 import './Buyers.css'
 
 // Map Supabase contact row → internal buyer shape
@@ -389,6 +389,17 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
   const { data: buyerExpenses } = useExpensesForContact(buyer.id)
   const sessions = sessionsData ?? []
 
+  // OH attendance for this buyer (from oh_sign_ins linked by contact_id)
+  const [buyerOHs, setBuyerOHs] = useState([])
+  useEffect(() => {
+    if (!buyer.id) return
+    supabase.from('oh_sign_ins')
+      .select('*, open_house:open_houses(id, date, property:properties(id, address, city))')
+      .eq('contact_id', buyer.id)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setBuyerOHs(data ?? []))
+  }, [buyer.id])
+
   // Expense summary for this buyer
   const expenseTotal = (buyerExpenses ?? []).reduce((s, e) => s + Number(e.amount || 0), 0)
 
@@ -686,6 +697,46 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
 
       {/* ── Activity Timeline ── */}
       <InteractionsTimeline contactId={buyer.id} />
+
+      {/* ── Open Houses Attended ── */}
+      {buyerOHs.length > 0 && (
+        <div className="buyer-detail__showings-section">
+          <div className="buyer-detail__showings-header">
+            <h3>Open Houses Attended ({buyerOHs.length})</h3>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {buyerOHs.map(si => {
+              const dateStr = si.open_house?.date ? new Date(si.open_house.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+              const interestLabel = { hot: 'Very interested', warm: 'Maybe', cool: 'Not for me', just_browsing: 'Just browsing' }[si.interest_level]
+              const priceLabel = { too_high: 'Too high', fair: 'About right', great_deal: 'Great deal' }[si.price_perception]
+              const offerLabel = { yes: 'Yes', maybe: 'Maybe', no: 'No' }[si.would_offer]
+              const hasFeedback = si.interest_level || si.price_perception || si.would_offer || si.liked || si.concerns || si.comments
+              return (
+                <div key={si.id} style={{ padding: '10px 12px', background: 'var(--cream-3, #F6F4EE)', border: '1px solid var(--color-border)', borderRadius: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: hasFeedback ? 6 : 0 }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--brown-dark)' }}>
+                      {si.open_house?.property?.address || 'Open House'}
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{dateStr}</span>
+                  </div>
+                  {hasFeedback && (
+                    <>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: si.liked || si.concerns || si.comments ? 6 : 0 }}>
+                        {interestLabel && <Badge variant={si.interest_level === 'hot' ? 'success' : si.interest_level === 'warm' ? 'info' : 'default'} size="sm">{interestLabel}</Badge>}
+                        {priceLabel && <Badge variant="default" size="sm">Price: {priceLabel}</Badge>}
+                        {offerLabel && <Badge variant={si.would_offer === 'yes' ? 'success' : 'default'} size="sm">Offer: {offerLabel}</Badge>}
+                      </div>
+                      {si.liked    && <p style={{ fontSize: '0.78rem', color: 'var(--brown-warm)', marginBottom: 2 }}><strong>Liked:</strong> {si.liked}</p>}
+                      {si.concerns && <p style={{ fontSize: '0.78rem', color: 'var(--brown-warm)', marginBottom: 2 }}><strong>Concerns:</strong> {si.concerns}</p>}
+                      {si.comments && <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>"{si.comments}"</p>}
+                    </>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Showings ── */}
       <div className="buyer-detail__showings-section">

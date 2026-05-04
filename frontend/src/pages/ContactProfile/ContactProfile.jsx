@@ -23,20 +23,29 @@ export default function ContactProfile() {
   const [contact, setContact] = useState(null)
   const [deals, setDeals] = useState([])
   const [showings, setShowings] = useState([])
+  const [ohSignIns, setOHSignIns] = useState([])
+  const [biolinkLeads, setBiolinkLeads] = useState([])
+  const [formSubmissions, setFormSubmissions] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!id) return
     async function load() {
       setLoading(true)
-      const [{ data: c }, { data: d }, { data: s }] = await Promise.all([
+      const [{ data: c }, { data: d }, { data: s }, { data: oh }, { data: bl }, { data: fs }] = await Promise.all([
         supabase.from('contacts').select('*').eq('id', id).single(),
         supabase.from('transactions').select('*, property:properties(address, city)').eq('contact_id', id).order('created_at', { ascending: false }),
-        supabase.from('showings').select('*, property:properties(address, city)').eq('contact_id', id).order('created_at', { ascending: false }).limit(20),
+        supabase.from('showings').select('*, property:properties(address, city), session:showing_sessions(date)').eq('contact_id', id).order('created_at', { ascending: false }).limit(20),
+        supabase.from('oh_sign_ins').select('*, open_house:open_houses(id, date, property:properties(id, address, city))').eq('contact_id', id).order('created_at', { ascending: false }).limit(20),
+        supabase.from('biolink_leads').select('*').eq('contact_id', id).order('created_at', { ascending: false }).limit(20),
+        supabase.from('public_form_submissions').select('id, form_slug, created_at, data').eq('merged_contact_id', id).order('created_at', { ascending: false }).limit(20),
       ])
       setContact(c)
       setDeals(d ?? [])
       setShowings(s ?? [])
+      setOHSignIns(oh ?? [])
+      setBiolinkLeads(bl ?? [])
+      setFormSubmissions(fs ?? [])
       setLoading(false)
     }
     load()
@@ -131,6 +140,12 @@ export default function ContactProfile() {
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', lineHeight: 1 }}>{showings.length}</div>
           <div style={{ fontSize: '0.58rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 4 }}>Showings</div>
         </div>
+        {ohSignIns.length > 0 && (
+          <div style={{ background: 'var(--cream-3)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 12, textAlign: 'center' }}>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', lineHeight: 1 }}>{ohSignIns.length}</div>
+            <div style={{ fontSize: '0.58rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.06em', marginTop: 4 }}>OHs Attended</div>
+          </div>
+        )}
         {contact.budget_min && (
           <div style={{ background: 'var(--cream-3)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 12, textAlign: 'center' }}>
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', lineHeight: 1 }}>
@@ -201,6 +216,97 @@ export default function ContactProfile() {
                 <Badge variant={d.status === 'closed' ? 'success' : 'default'} size="sm">{d.status}</Badge>
                 {d.offer_price && <span style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--color-text-muted)' }}>${Number(d.offer_price).toLocaleString()}</span>}
               </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Open House Attendance */}
+      {ohSignIns.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 500, margin: '0 0 8px' }}>
+            Open Houses Attended ({ohSignIns.length})
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {ohSignIns.map(si => {
+              const dateStr = si.open_house?.date ? new Date(si.open_house.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+              const interestLabel = { hot: 'Very interested', warm: 'Maybe', cool: 'Not for me', just_browsing: 'Just browsing' }[si.interest_level]
+              const priceLabel = { too_high: 'Too high', fair: 'About right', great_deal: 'Great deal' }[si.price_perception]
+              const offerLabel = { yes: 'Yes', maybe: 'Maybe', no: 'No' }[si.would_offer]
+              const hasFeedback = si.interest_level || si.price_perception || si.would_offer || si.liked || si.concerns || si.comments
+              return (
+                <div key={si.id} style={{ padding: '10px 12px', background: 'var(--cream-3)', border: '1px solid var(--color-border)', borderRadius: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: hasFeedback ? 6 : 0 }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--brown-dark)' }}>
+                      {si.open_house?.property?.address || 'Open House'}
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>{dateStr}</span>
+                  </div>
+                  {hasFeedback && (
+                    <>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: si.liked || si.concerns || si.comments ? 6 : 0 }}>
+                        {interestLabel && <Badge variant={si.interest_level === 'hot' ? 'success' : si.interest_level === 'warm' ? 'info' : 'default'} size="sm">{interestLabel}</Badge>}
+                        {priceLabel && <Badge variant="default" size="sm">Price: {priceLabel}</Badge>}
+                        {offerLabel && <Badge variant={si.would_offer === 'yes' ? 'success' : 'default'} size="sm">Offer: {offerLabel}</Badge>}
+                      </div>
+                      {si.liked    && <p style={{ fontSize: '0.78rem', color: 'var(--brown-warm)', marginBottom: 2 }}><strong>Liked:</strong> {si.liked}</p>}
+                      {si.concerns && <p style={{ fontSize: '0.78rem', color: 'var(--brown-warm)', marginBottom: 2 }}><strong>Concerns:</strong> {si.concerns}</p>}
+                      {si.comments && <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>"{si.comments}"</p>}
+                    </>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Showings */}
+      {showings.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 500, margin: '0 0 8px' }}>
+            Private Showings ({showings.length})
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {showings.slice(0, 8).map(sh => (
+              <div key={sh.id} style={{ padding: '8px 12px', background: 'var(--color-bg-subtle, #faf8f5)', borderRadius: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 500, color: 'var(--brown-dark)' }}>{sh.property?.address || '—'}</span>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    {sh.interest_level && <Badge variant={sh.interest_level === 'high' || sh.interest_level === 'hot' ? 'success' : sh.interest_level === 'medium' || sh.interest_level === 'warm' ? 'info' : 'default'} size="sm">{sh.interest_level}</Badge>}
+                    {sh.would_offer === 'yes' && <Badge variant="success" size="sm">Offer: Yes</Badge>}
+                    {sh.session?.date && <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{new Date(sh.session.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
+                  </div>
+                </div>
+                {sh.buyer_feedback && <p style={{ fontSize: '0.74rem', color: 'var(--brown-warm)', marginTop: 4 }}>{sh.buyer_feedback}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Lead Capture (bio link + intake forms) */}
+      {(biolinkLeads.length > 0 || formSubmissions.length > 0) && (
+        <div style={{ marginBottom: 16 }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 500, margin: '0 0 8px' }}>
+            Lead Capture ({biolinkLeads.length + formSubmissions.length})
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {biolinkLeads.map(bl => (
+              <div key={`bl-${bl.id}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--color-bg-subtle, #faf8f5)', borderRadius: 6 }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--brown-warm)' }}>
+                  Bio Link · {bl.guide_type ? `${bl.guide_type} guide` : 'form submission'}
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{new Date(bl.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              </div>
+            ))}
+            {formSubmissions.map(fs => (
+              <div key={`fs-${fs.id}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', background: 'var(--color-bg-subtle, #faf8f5)', borderRadius: 6 }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--brown-warm)' }}>
+                  Form · {fs.form_slug}
+                </span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{new Date(fs.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              </div>
             ))}
           </div>
         </div>

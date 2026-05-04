@@ -47,14 +47,23 @@ function buildMlsUrl(mls) {
 // Standard expired letter sequence (L1/L2/L3) goes to all new contacts.
 // Cannonball letters (CB1/CB2) are the premium handwritten-style sequence sent to
 // hand-picked high-priority homes — BEFORE (or instead of) the standard sequence.
-// Swap these Canva URLs out as new templates are designed.
-const LETTER_LINKS = {
+// Live URLs come from user_settings.cannonball_templates so Dana can swap them
+// without a code change. These are the seed/fallback values.
+const DEFAULT_LETTER_LINKS = {
   l1: 'https://canva.link/og51v330nxcpmw0',
   l2: 'https://canva.link/d26zrhaoynb2u25',
   l3: 'https://canva.link/45c06yt714dwau7',
   l1_6mo: 'https://canva.link/0d0kq7ekrbk7fb3',
-  cb1: 'https://canva.link/og51v330nxcpmw0', // TODO: replace with cannonball letter 1 template
-  cb2: 'https://canva.link/d26zrhaoynb2u25', // TODO: replace with cannonball letter 2 template
+  cb1: 'https://canva.link/og51v330nxcpmw0',
+  cb2: 'https://canva.link/d26zrhaoynb2u25',
+}
+const LETTER_LABELS = {
+  l1:     'Letter 1 (initial)',
+  l2:     'Letter 2 (follow-up)',
+  l3:     'Letter 3 (final)',
+  l1_6mo: 'Letter 1 (6mo+ expired variant)',
+  cb1:    'Cannonball Letter 1',
+  cb2:    'Cannonball Letter 2',
 }
 
 // ─── Cannonball Process Steps ────────────────────────────────────────────────
@@ -315,6 +324,43 @@ function saveScripts(scripts) {
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
+function TemplateEditorModal({ links, onSave, onClose }) {
+  const [draft, setDraft] = useState({ ...links })
+  const [saving, setSaving] = useState(false)
+  const handleSave = async () => {
+    setSaving(true)
+    await onSave(draft)
+    setSaving(false)
+  }
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 'var(--radius-lg, 12px)', padding: 24, width: '100%', maxWidth: 540, maxHeight: '90vh', overflow: 'auto', boxShadow: 'var(--shadow-lg, 0 12px 40px rgba(0,0,0,0.15))' }}>
+        <h3 style={{ fontFamily: 'var(--font-display, serif)', fontSize: '1.4rem', fontStyle: 'italic', color: 'var(--brown-dark)', marginBottom: 4 }}>Letter Template URLs</h3>
+        <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginBottom: 16 }}>
+          Paste Canva share links. Saved to your Settings — use across devices.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {Object.keys(LETTER_LABELS).map(key => (
+            <Input
+              key={key}
+              label={LETTER_LABELS[key]}
+              value={draft[key] || ''}
+              onChange={e => setDraft(d => ({ ...d, [key]: e.target.value }))}
+              placeholder="https://canva.link/..."
+            />
+          ))}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving…' : 'Save Templates'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ExpiredCannonball() {
   const [contacts, setContacts] = useState(loadData)
   const [scripts, setScripts] = useState(loadScripts)
@@ -339,6 +385,24 @@ export default function ExpiredCannonball() {
   const [apptSaving, setApptSaving] = useState(false)
   const [apptError, setApptError] = useState(null)
   const [apptDateInput, setApptDateInput] = useState('') // actual appointment date (yyyy-mm-dd)
+
+  // Letter template URLs from DB (user_settings.cannonball_templates), seed with defaults
+  const [LETTER_LINKS, setLetterLinks] = useState(DEFAULT_LETTER_LINKS)
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false)
+  useEffect(() => {
+    DB.getCannonballTemplates()
+      .then(stored => { if (stored && typeof stored === 'object') setLetterLinks({ ...DEFAULT_LETTER_LINKS, ...stored }) })
+      .catch(() => {})
+  }, [])
+  const saveLetterLinks = async (next) => {
+    try {
+      await DB.updateCannonballTemplates(next)
+      setLetterLinks(next)
+      setShowTemplateEditor(false)
+    } catch (e) {
+      alert(`Failed to save: ${e.message}`)
+    }
+  }
 
   // Won / Lost outcome modals (live on contacts already in appt_scheduled status)
   const [wonModal, setWonModal] = useState(null)   // { contact }
@@ -1234,9 +1298,20 @@ ${labelHtml}
             <a href={LETTER_LINKS.l2} target="_blank" rel="noopener noreferrer" className="ec-template-link">L2</a>
             <a href={LETTER_LINKS.l3} target="_blank" rel="noopener noreferrer" className="ec-template-link">L3</a>
             <a href={LETTER_LINKS.l1_6mo} target="_blank" rel="noopener noreferrer" className="ec-template-link ec-template-link--alt">L1 (6mo+)</a>
+            <Button variant="ghost" size="sm" onClick={() => setShowTemplateEditor(true)} title="Edit Canva template URLs">
+              Edit Templates
+            </Button>
           </div>
         }
       />
+
+      {showTemplateEditor && (
+        <TemplateEditorModal
+          links={LETTER_LINKS}
+          onSave={saveLetterLinks}
+          onClose={() => setShowTemplateEditor(false)}
+        />
+      )}
 
       {/* ── Data source toggle ── */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>

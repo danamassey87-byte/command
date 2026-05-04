@@ -279,6 +279,18 @@ export const updateMetaAdsConfig = (value) =>
     .upsert({ key: 'meta_ads_config', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
     .select().single())
 
+// ─── Cannonball / Expired Letter Templates (user_settings) ──────────────────
+// Editable from Settings so Dana can swap Canva templates without a code change.
+export const getCannonballTemplates = async () => {
+  const row = await query(supabase.from('user_settings').select('*').eq('key', 'cannonball_templates').maybeSingle())
+  return row?.value || null
+}
+
+export const updateCannonballTemplates = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'cannonball_templates', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())
+
 // ─── Listing Ad Campaigns (Meta attribution) ────────────────────────────────
 export const getAdCampaignsForListing = (listingId) =>
   query(supabase.from('listing_ad_campaigns').select('*')
