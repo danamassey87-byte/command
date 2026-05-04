@@ -1,8 +1,11 @@
 import { useState, useMemo } from 'react'
 import { Badge, EmptyState, TabBar, Button } from '../../components/ui/index.jsx'
-import { useTransactions, useListings } from '../../lib/hooks.js'
+import { useTransactions, useListings, useAllExpenses, useMileageLog } from '../../lib/hooks.js'
 import SendEmailModal from '../../components/email/SendEmailModal'
 import './EscrowTracker.css'
+
+const IRS_RATE = 0.70 // 2026 IRS standard mileage rate
+function num(v) { return Number(v) || 0 }
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -180,9 +183,33 @@ function flatCount(checklist) { return checklist.reduce((s, sec) => s + sec.item
 export default function EscrowTracker() {
   const { data: transactions, loading } = useTransactions()
   const { data: listingsData } = useListings()
+  const { data: allExpenses }  = useAllExpenses()
+  const year = new Date().getFullYear()
+  const { data: mileageEntries } = useMileageLog(`${year}-01-01`, `${year}-12-31`)
   const [checklists, setChecklists] = useState(() => loadChecklists())
   const [expandedId, setExpandedId] = useState(null)
   const [emailContact, setEmailContact] = useState(null)
+
+  // Same projected-net logic as Closed Deals: subtract fees, marketing spend, and mileage cost from gross
+  function computeProjectedNet(deal) {
+    const gross = num(deal.expected_commission || deal.actual_commission)
+    const fees = num(deal.broker_fee) + num(deal.referral_fee) + num(deal.tc_fee) + num(deal.lead_source_fee)
+    const listing = (listingsData ?? []).find(l => l.property_id === deal.property_id)
+    const exps = (allExpenses ?? []).filter(e =>
+      (listing && e.listing_id === listing.id) ||
+      (deal.contact_id && e.contact_id === deal.contact_id)
+    )
+    const marketingSpend = exps.reduce((s, e) => s + num(e.amount), 0)
+    const miles = (mileageEntries ?? []).filter(m =>
+      m.transaction_id === deal.id ||
+      (deal.contact_id && m.contact_id === deal.contact_id) ||
+      (deal.property_id && m.property_id === deal.property_id)
+    )
+    const totalMiles = miles.reduce((s, m) => s + (m.round_trip ? num(m.miles) * 2 : num(m.miles)), 0)
+    const mileageCost = totalMiles * IRS_RATE
+    const projectedNet = gross - fees - marketingSpend - mileageCost
+    return { gross, fees, marketingSpend, totalMiles, mileageCost, projectedNet }
+  }
 
   // Build a set of property IDs that have active listings (seller side)
   const listingPropertyIds = useMemo(() => {
@@ -260,6 +287,7 @@ export default function EscrowTracker() {
         const pct = Math.round((done / total) * 100)
         const isExpanded = expandedId === deal.id
         const checks = getChecklist(deal.id)
+        const projection = computeProjectedNet(deal)
 
         return (
           <div key={deal.id} className="escrow__deal">
@@ -290,6 +318,14 @@ export default function EscrowTracker() {
                   </span>
                 )}
               </div>
+              {projection.gross > 0 && (
+                <div className="escrow__deal-net" title={`Gross ${fmtDollar(projection.gross)} − fees ${fmtDollar(projection.fees)} − marketing ${fmtDollar(projection.marketingSpend)} − mileage ${fmtDollar(projection.mileageCost)}`}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Projected Net</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 600, color: projection.projectedNet > 0 ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                    {fmtDollar(projection.projectedNet)}
+                  </span>
+                </div>
+              )}
               <div className="escrow__deal-progress">
                 <div className="escrow__progress-bar">
                   <div className="escrow__progress-fill" style={{ width: `${pct}%` }} />
@@ -303,6 +339,32 @@ export default function EscrowTracker() {
 
             {isExpanded && (
               <div className="escrow__checklist">
+                {projection.gross > 0 && (
+                  <div style={{ background: 'var(--cream-3, #F6F4EE)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md, 8px)', padding: '12px 14px', marginBottom: 12 }}>
+                    <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 8 }}>Projected Profitability if Closed Today</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', rowGap: 4, fontSize: '0.82rem', columnGap: 16 }}>
+                      <span>Expected Commission</span>
+                      <span style={{ textAlign: 'right' }}>{fmtDollar(projection.gross)}</span>
+                      {projection.fees > 0 && (<>
+                        <span style={{ color: 'var(--color-danger)' }}>Fees (broker / referral / TC / lead)</span>
+                        <span style={{ textAlign: 'right', color: 'var(--color-danger)' }}>({fmtDollar(projection.fees)})</span>
+                      </>)}
+                      {projection.marketingSpend > 0 && (<>
+                        <span style={{ color: 'var(--color-danger)' }}>Marketing Spend (to date)</span>
+                        <span style={{ textAlign: 'right', color: 'var(--color-danger)' }}>({fmtDollar(projection.marketingSpend)})</span>
+                      </>)}
+                      {projection.mileageCost > 0 && (<>
+                        <span style={{ color: 'var(--color-danger)' }}>Mileage ({projection.totalMiles.toFixed(0)} mi)</span>
+                        <span style={{ textAlign: 'right', color: 'var(--color-danger)' }}>({fmtDollar(projection.mileageCost)})</span>
+                      </>)}
+                      <span style={{ fontWeight: 700, borderTop: '1px solid var(--color-border)', paddingTop: 6, marginTop: 4 }}>Projected Net</span>
+                      <span style={{ textAlign: 'right', fontWeight: 700, fontFamily: 'var(--font-display)', borderTop: '1px solid var(--color-border)', paddingTop: 6, marginTop: 4, color: projection.projectedNet > 0 ? 'var(--color-success)' : 'var(--color-text-muted)' }}>{fmtDollar(projection.projectedNet)}</span>
+                    </div>
+                    <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 8, fontStyle: 'italic' }}>
+                      Costs accumulate as the deal progresses — the net moves until close.
+                    </p>
+                  </div>
+                )}
                 <div className="escrow__checklist-header">
                   <span className="escrow__checklist-side">{isSeller ? 'Seller' : 'Buyer'} Side Checklist — Arizona</span>
                   <span className="escrow__checklist-pct">{pct}% complete</span>
