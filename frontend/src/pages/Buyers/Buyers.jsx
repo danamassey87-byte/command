@@ -379,6 +379,34 @@ function EmailEngagement({ contactId }) {
 }
 
 // ─── Buyer Detail ─────────────────────────────────────────────────────────────
+function BuyerDriveButton({ buyer }) {
+  const [busy, setBusy] = useState(false)
+  const [url, setUrl] = useState(buyer.drive_folder_url || null)
+  const handleClick = async () => {
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer')
+      return
+    }
+    setBusy(true)
+    try {
+      const result = await DB.createDriveFolder({ kind: 'contact', id: buyer.id, name: buyer.name || 'Buyer' })
+      if (result?.folder_url) {
+        setUrl(result.folder_url)
+        window.open(result.folder_url, '_blank', 'noopener,noreferrer')
+      }
+    } catch (err) {
+      alert(err.message || 'Could not create Drive folder')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Button variant="ghost" size="sm" onClick={handleClick} disabled={busy} title={url ? 'Open Drive folder' : 'Create Drive folder for this client'}>
+      {busy ? 'Creating…' : '📁 Drive'}
+    </Button>
+  )
+}
+
 function BuyerDetail({ buyer, onBack, onEdit }) {
   const navigate = useNavigate()
   const { data: allTransactions } = useTransactions()
@@ -491,6 +519,7 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
           <Button variant="ghost" size="sm" onClick={() => setShowScheduler(!showScheduler)}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>}
           >{showScheduler ? 'Cancel' : 'Schedule Showing'}</Button>
+          <BuyerDriveButton buyer={buyer} />
           <Button variant="ghost" size="sm" onClick={onEdit}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
           >Edit Buyer</Button>

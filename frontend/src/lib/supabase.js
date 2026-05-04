@@ -2248,6 +2248,26 @@ export const updateGoogleTokens = (value) =>
 export const clearGoogleTokens = () =>
   query(supabase.from('user_settings').delete().eq('key', 'google_tokens'))
 
+/** Create or link a Drive folder for a contact or listing. */
+export async function createDriveFolder({ kind, id, name, subfolders = null }) {
+  const { data, error } = await supabase.functions.invoke('google-drive', {
+    body: { action: 'create_folder', kind, id, name, subfolders: subfolders || undefined },
+  })
+  if (error) {
+    let detail = error.message
+    try {
+      const ctx = error.context
+      if (ctx && typeof ctx.json === 'function') {
+        const body = await ctx.json()
+        detail = body.error || body.detail || detail
+      }
+    } catch (_) {}
+    throw new Error(detail)
+  }
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
 /** Start Google OAuth flow — calls google-auth edge function to get consent URL. */
 export async function startGoogleAuth() {
   const redirectUri = `${window.location.origin}/auth/google/callback`

@@ -3310,6 +3310,26 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
   const completed = Object.values(checks).filter(Boolean).length
   const pct = totalItems > 0 ? Math.round((completed / totalItems) * 100) : 0
 
+  // Drive folder handler
+  const [drivingFolder, setDrivingFolder] = useState(false)
+  const [driveFolderUrl, setDriveFolderUrl] = useState(listing.drive_folder_url || null)
+  const handleCreateDriveFolder = async () => {
+    if (!isDbRow) return
+    setDrivingFolder(true)
+    try {
+      const folderName = listing.address || listing.property?.address || `Listing ${listing.id?.slice?.(0, 8)}`
+      const result = await DB.createDriveFolder({ kind: 'listing', id: listing.id, name: folderName })
+      if (result?.folder_url) {
+        setDriveFolderUrl(result.folder_url)
+        window.open(result.folder_url, '_blank', 'noopener,noreferrer')
+      }
+    } catch (err) {
+      alert(err.message || 'Could not create Drive folder')
+    } finally {
+      setDrivingFolder(false)
+    }
+  }
+
   // File upload handler
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files)
@@ -3597,6 +3617,15 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
                     style={{ display: 'none' }}
                     onChange={handleFileUpload}
                   />
+                  {driveFolderUrl ? (
+                    <Button variant="ghost" size="sm" onClick={() => window.open(driveFolderUrl, '_blank', 'noopener,noreferrer')}>
+                      📁 Drive
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" size="sm" onClick={handleCreateDriveFolder} disabled={drivingFolder} title="Create a Google Drive folder for this listing">
+                      {drivingFolder ? 'Creating…' : '📁 Drive'}
+                    </Button>
+                  )}
                   <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}
                     icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>}
                   >{uploading ? 'Uploading...' : 'Attach'}</Button>
