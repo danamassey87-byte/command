@@ -3122,6 +3122,16 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
     si.interest_level || si.price_perception || si.would_offer || si.liked || si.concerns || si.comments
   ), [ohSignIns])
 
+  // Host reports for this listing's open houses (when another agent hosts)
+  const [hostReports, setHostReports] = useState([])
+  useEffect(() => {
+    const ohIds = listingOHs.map(o => o.id).filter(Boolean)
+    if (!ohIds.length) { setHostReports([]); return }
+    DB.getHostReports()
+      .then(all => setHostReports((all ?? []).filter(r => ohIds.includes(r.open_house_id))))
+      .catch(() => setHostReports([]))
+  }, [listingOHs.map(o => o.id).join(',')])
+
   // Inline OH scheduler modal
   const [showScheduleOH, setShowScheduleOH] = useState(false)
 
@@ -4017,6 +4027,42 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Host Agent Reports (when another agent hosts the OH) ── */}
+      {hostReports.length > 0 && (
+        <div className="sellers-plan__section">
+          <div className="sellers-plan__section-header">
+            <h3 className="sellers-plan__section-title">Host Agent Reports ({hostReports.length})</h3>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+            {hostReports.map(r => (
+              <div key={r.id} style={{ background: 'var(--cream-3, #F6F4EE)', border: '1px solid var(--color-border)', borderRadius: 8, padding: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--brown-dark)' }}>{r.agent_name || 'Hosting agent'}</span>
+                    {r.agent_brokerage && <span style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)', marginLeft: 6 }}>· {r.agent_brokerage}</span>}
+                  </div>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)' }}>
+                    {r.oh_date ? new Date(r.oh_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8, fontSize: '0.78rem' }}>
+                  {r.groups_through != null && <span style={{ padding: '2px 8px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12 }}>{r.groups_through} groups</span>}
+                  {r.sign_in_count != null && <span style={{ padding: '2px 8px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12 }}>{r.sign_in_count} sign-ins</span>}
+                  {r.leads_count != null && <span style={{ padding: '2px 8px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12 }}>{r.leads_count} leads</span>}
+                  {r.overall_impression && <span style={{ padding: '2px 8px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, textTransform: 'capitalize' }}>Vibes: {r.overall_impression.replace(/_/g, ' ')}</span>}
+                  {r.price_perception && <span style={{ padding: '2px 8px', background: '#fff', border: '1px solid var(--color-border)', borderRadius: 12, textTransform: 'capitalize' }}>Price: {r.price_perception.replace(/_/g, ' ')}</span>}
+                </div>
+                {r.overall_feedback && <p style={{ fontSize: '0.82rem', color: 'var(--brown-dark)', marginTop: 8, marginBottom: 0 }}><strong>Feedback:</strong> {r.overall_feedback}</p>}
+                {r.condition_notes && <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 6, marginBottom: 0 }}><strong>Condition:</strong> {r.condition_notes}</p>}
+                {r.common_questions && <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 6, marginBottom: 0 }}><strong>Common questions:</strong> {r.common_questions}</p>}
+                {r.offer_interest && <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 6, marginBottom: 0 }}><strong>Offer interest:</strong> {r.offer_interest}</p>}
+                {r.notes && <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', marginTop: 6, marginBottom: 0 }}>{r.notes}</p>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

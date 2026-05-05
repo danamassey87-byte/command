@@ -17,6 +17,7 @@ export const NOTIFICATION_TYPES = {
   oh_report_overdue: { label: 'OH Report Overdue', icon: '⚠️', color: '#b91c1c' },
   campaign_reply:    { label: 'Campaign Reply',   icon: '💌', color: '#7a93b7' },
   onhold_milestone:  { label: 'On-Hold Check-In', icon: '⏸️', color: '#c8a05a' },
+  host_report_received: { label: 'Host Report',  icon: '🤝', color: '#7c6350' },
 }
 
 export function typeMeta(type) {

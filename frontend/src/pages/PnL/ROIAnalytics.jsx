@@ -456,7 +456,7 @@ export default function ROIAnalytics() {
     const sources = {}
     allDeals.forEach(deal => {
       const src = deal.lead_source || 'Unknown'
-      if (!sources[src]) sources[src] = { deals: 0, closed: 0, volume: 0, commission: 0, costs: 0 }
+      if (!sources[src]) sources[src] = { deals: 0, closed: 0, volume: 0, commission: 0, costs: 0, mileageCost: 0 }
       sources[src].deals++
       if ((deal.status ?? '').toLowerCase().includes('closed')) {
         sources[src].closed++
@@ -476,16 +476,33 @@ export default function ROIAnalytics() {
       })
     })
 
+    // Attribute mileage to lead source via deal → lead_source
+    allMileage.forEach(m => {
+      const miles = (m.round_trip ? num(m.miles) * 2 : num(m.miles))
+      let dealRef = null
+      if (m.transaction_id) dealRef = allDeals.find(d => d.id === m.transaction_id)
+      if (!dealRef && m.contact_id) dealRef = allDeals.find(d => d.contact_id === m.contact_id)
+      if (!dealRef && m.property_id) dealRef = allDeals.find(d => d.property_id === m.property_id)
+      if (!dealRef) return
+      const src = dealRef.lead_source || 'Unknown'
+      if (!sources[src]) return
+      sources[src].mileageCost += miles * IRS_MILEAGE_RATE
+    })
+
     return Object.entries(sources)
-      .map(([source, data]) => ({
-        source,
-        ...data,
-        netProfit: data.commission - data.costs,
-        closeRate: data.deals > 0 ? (data.closed / data.deals) * 100 : 0,
-        roi: data.costs > 0 ? ((data.commission - data.costs) / data.costs) * 100 : 0,
-      }))
+      .map(([source, data]) => {
+        const totalCosts = data.costs + data.mileageCost
+        return {
+          source,
+          ...data,
+          totalCosts,
+          netProfit: data.commission - totalCosts,
+          closeRate: data.deals > 0 ? (data.closed / data.deals) * 100 : 0,
+          roi: totalCosts > 0 ? ((data.commission - totalCosts) / totalCosts) * 100 : 0,
+        }
+      })
       .sort((a, b) => b.commission - a.commission)
-  }, [allDeals, costItems])
+  }, [allDeals, costItems, allMileage])
 
   // ─── Listing Cost Analysis ──────────────────────────────────────────────
   const listingCosts = useMemo(() => {
@@ -1133,11 +1150,11 @@ export default function ROIAnalytics() {
                         <td>{fmtPct(s.closeRate)}</td>
                         <td className="pnl-table__amount">{fmt(s.volume)}</td>
                         <td className="pnl-table__amount" style={{ color: 'var(--color-success)' }}>{fmt(s.commission)}</td>
-                        <td className="pnl-table__amount" style={{ color: s.costs > 0 ? 'var(--color-danger)' : 'var(--brown-light)' }}>
-                          {s.costs > 0 ? fmt(s.costs) : '—'}
+                        <td className="pnl-table__amount" style={{ color: s.totalCosts > 0 ? 'var(--color-danger)' : 'var(--brown-light)' }} title={s.mileageCost > 0 ? `Includes ${fmt(s.mileageCost)} mileage` : ''}>
+                          {s.totalCosts > 0 ? fmt(s.totalCosts) : '—'}
                         </td>
                         <td className="pnl-table__amount" style={{ fontWeight: 600, color: s.roi >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                          {s.costs > 0 ? fmtPct(s.roi) : '—'}
+                          {s.totalCosts > 0 ? fmtPct(s.roi) : '—'}
                         </td>
                       </tr>
                     ))}
