@@ -18,6 +18,7 @@ export const NOTIFICATION_TYPES = {
   campaign_reply:    { label: 'Campaign Reply',   icon: '💌', color: '#7a93b7' },
   onhold_milestone:  { label: 'On-Hold Check-In', icon: '⏸️', color: '#c8a05a' },
   host_report_received: { label: 'Host Report',  icon: '🤝', color: '#7c6350' },
+  oh_hot_lead:       { label: 'Hot OH Lead',     icon: '🔥', color: '#c0604a' },
 }
 
 export function typeMeta(type) {
