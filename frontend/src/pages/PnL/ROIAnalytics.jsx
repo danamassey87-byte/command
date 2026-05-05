@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { SectionHeader, Card, TabBar, Badge } from '../../components/ui/index.jsx'
-import { useContacts, useTransactions, useOpenHouses, useOHSignIns, useLeads, useAllIncomeEntries, useAllExpenses, useListingAppointments, useShowingSessions, usePriceAnalytics, useListings } from '../../lib/hooks.js'
+import { useContacts, useTransactions, useOpenHouses, useOHSignIns, useLeads, useAllIncomeEntries, useAllExpenses, useListingAppointments, useShowingSessions, usePriceAnalytics, useListings, useMileageLog } from '../../lib/hooks.js'
 import './PnL.css'
 
 const fmt = (v) => v < 0
@@ -8,6 +8,7 @@ const fmt = (v) => v < 0
   : `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const fmtPct = (v) => `${v.toFixed(1)}%`
 const num = (v) => Number(v) || 0
+const IRS_MILEAGE_RATE = 0.70 // 2026 IRS standard mileage rate (matches EscrowTracker)
 
 // ─── LocalStorage cost data ──────────────────────────────────────────────────
 const ITEMS_KEY = 'cost_tracker_items'
@@ -70,6 +71,8 @@ export default function ROIAnalytics() {
   const listingsHook   = useListings()
   const allPriceData = priceAnalytics.data ?? []
   const allListings  = listingsHook.data ?? []
+  const mileageLog   = useMileageLog(`${new Date().getFullYear()}-01-01`, `${new Date().getFullYear()}-12-31`)
+  const allMileage   = mileageLog.data ?? []
   const loading = contacts.loading || transactions.loading || openHouses.loading || leads.loading || income.loading
 
   // ─── Price Reduction Analytics ──────────────────────────────────────────
@@ -167,6 +170,8 @@ export default function ROIAnalytics() {
         tcFee: 0,
         leadSourceFee: 0,
         costTrackerTotal: 0,
+        mileageMiles: 0,
+        mileageCost: 0,
         saleVolume: 0,
         closingDate: null,
         leadSource: null,
@@ -185,6 +190,24 @@ export default function ROIAnalytics() {
       if (deal.lead_source) map[cid].leadSource = deal.lead_source
       map[cid].status = deal.status
       if (!map[cid].type || map[cid].type === 'unknown') map[cid].type = type
+    })
+
+    // Attribute mileage to clients (by transaction → contact, then property → contact, then contact directly)
+    allMileage.forEach(m => {
+      const miles = (m.round_trip ? num(m.miles) * 2 : num(m.miles))
+      let cid = m.contact_id || null
+      if (!cid && m.transaction_id) {
+        const deal = allDeals.find(d => d.id === m.transaction_id)
+        cid = deal?.contact_id || deal?.contact?.id || null
+      }
+      if (!cid && m.property_id) {
+        const deal = allDeals.find(d => d.property_id === m.property_id)
+        cid = deal?.contact_id || deal?.contact?.id || null
+      }
+      if (cid && map[cid]) {
+        map[cid].mileageMiles += miles
+        map[cid].mileageCost += miles * IRS_MILEAGE_RATE
+      }
     })
 
     // Add cost tracker items
@@ -212,12 +235,12 @@ export default function ROIAnalytics() {
     return Object.values(map)
       .map(c => {
         const totalFees = c.brokerFee + c.referralFee + c.tcFee + c.leadSourceFee
-        const netProfit = c.grossCommission - totalFees - c.costTrackerTotal
+        const netProfit = c.grossCommission - totalFees - c.costTrackerTotal - c.mileageCost
         const isClosed = (c.status ?? '').toLowerCase().includes('closed')
         return { ...c, totalFees, netProfit, isClosed }
       })
       .sort((a, b) => b.netProfit - a.netProfit)
-  }, [allDeals, costItems])
+  }, [allDeals, costItems, allMileage])
 
   const closedClients = clientProfits.filter(c => c.isClosed)
   const totalNetProfit = closedClients.reduce((s, c) => s + c.netProfit, 0)
@@ -537,7 +560,7 @@ export default function ROIAnalytics() {
   const takeHomeAnalytics = useMemo(() => {
     const closed = clientProfits.filter(c => c.isClosed && c.grossCommission > 0)
     const totalGross = closed.reduce((s, c) => s + c.grossCommission, 0)
-    const totalCosts = closed.reduce((s, c) => s + c.totalFees + c.costTrackerTotal, 0)
+    const totalCosts = closed.reduce((s, c) => s + c.totalFees + c.costTrackerTotal + (c.mileageCost || 0), 0)
     const totalNet = totalGross - totalCosts
     const takeHomePct = totalGross > 0 ? (totalNet / totalGross) * 100 : 0
     const afterTax = totalNet * (1 - TAX_RATE)
@@ -553,7 +576,7 @@ export default function ROIAnalytics() {
       const bracket = bracketFor(c.saleVolume)
       const bd = bracketData[bracket.label]
       bd.deals++
-      bd.totalCosts += c.totalFees + c.costTrackerTotal
+      bd.totalCosts += c.totalFees + c.costTrackerTotal + (c.mileageCost || 0)
       bd.totalGross += c.grossCommission
       bd.totalNet += c.netProfit
     })
@@ -765,6 +788,7 @@ export default function ROIAnalytics() {
                         <th>Gross Comm.</th>
                         <th>Fees</th>
                         <th>Costs</th>
+                        <th>Mileage</th>
                         <th>Net Profit</th>
                       </tr>
                     </thead>
@@ -788,6 +812,9 @@ export default function ROIAnalytics() {
                           <td className="pnl-table__amount" style={{ color: 'var(--color-danger)' }}>
                             {c.costTrackerTotal > 0 ? `(${fmt(c.costTrackerTotal)})` : '—'}
                           </td>
+                          <td className="pnl-table__amount" style={{ color: 'var(--color-danger)' }} title={c.mileageMiles > 0 ? `${Math.round(c.mileageMiles)} mi @ $${IRS_MILEAGE_RATE.toFixed(2)}/mi` : 'No mileage logged'}>
+                            {c.mileageCost > 0 ? `(${fmt(c.mileageCost)})` : '—'}
+                          </td>
                           <td className="pnl-table__amount" style={{ fontWeight: 700, color: c.netProfit >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
                             {fmt(c.netProfit)}
                           </td>
@@ -801,6 +828,7 @@ export default function ROIAnalytics() {
                         <td className="pnl-table__amount" style={{ color: 'var(--color-success)' }}>{fmt(clientProfits.reduce((s, c) => s + c.grossCommission, 0))}</td>
                         <td className="pnl-table__amount" style={{ color: 'var(--color-danger)' }}>({fmt(clientProfits.reduce((s, c) => s + c.totalFees, 0))})</td>
                         <td className="pnl-table__amount" style={{ color: 'var(--color-danger)' }}>({fmt(clientProfits.reduce((s, c) => s + c.costTrackerTotal, 0))})</td>
+                        <td className="pnl-table__amount" style={{ color: 'var(--color-danger)' }}>({fmt(clientProfits.reduce((s, c) => s + c.mileageCost, 0))})</td>
                         <td className="pnl-table__amount" style={{ color: totalNetProfit >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
                           {fmt(clientProfits.reduce((s, c) => s + c.netProfit, 0))}
                         </td>
