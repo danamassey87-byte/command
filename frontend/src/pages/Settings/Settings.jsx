@@ -9,6 +9,7 @@ const SystemHealthEmbed = lazy(() => import('../SystemHealth/SystemHealth'))
 const NotificationRulesEmbed = lazy(() => import('../../components/NotificationRulesEditor.jsx'))
 const LoftySyncEmbed = lazy(() => import('../../components/LoftySyncPanel.jsx'))
 import IntakeForms from '../IntakeForms/IntakeForms'
+import LeadSourcesTab from './LeadSourcesTab'
 import './Settings.css'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ const SOCIAL_CHANNELS = [
   { key: 'linktree',     label: 'Linktree / Bio', icon: '🔗', placeholder: 'https://linktr.ee/yourlink' },
 ]
 
-const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'connected', 'ai_prompts', 'lists', 'intake_forms', 'notifications', 'notification_rules', 'lofty_sync', 'tech_stack', 'system_health', 'recovery']
+const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'connected', 'ai_prompts', 'lists', 'lead_sources', 'intake_forms', 'notifications', 'notification_rules', 'lofty_sync', 'tech_stack', 'system_health', 'recovery']
 
 // Each entry = one user-managed dropdown list shown in the Lists tab.
 const DROPDOWN_LISTS_META = [
@@ -81,7 +82,7 @@ export default function Settings() {
             className={`settings-tab${tab === t ? ' settings-tab--active' : ''}`}
             onClick={() => setTab(t)}
           >
-            {{ signature: 'Signature', templates: 'Templates & Scripts', guidelines: 'Brand Guidelines', assets: 'Logos & Headshots', social: 'Social Channels', connected: 'Connected Accounts', ai_prompts: 'AI Prompts', lists: 'Lists & Tags', intake_forms: 'Intake Forms', notifications: 'Notifications', notification_rules: 'Routing Rules', lofty_sync: 'Lofty Sync', tech_stack: 'Tech Stack', system_health: 'System Health', recovery: 'Trash & Archive' }[t] || t}
+            {{ signature: 'Signature', templates: 'Templates & Scripts', guidelines: 'Brand Guidelines', assets: 'Logos & Headshots', social: 'Social Channels', connected: 'Connected Accounts', ai_prompts: 'AI Prompts', lists: 'Lists & Tags', lead_sources: 'Lead Sources', intake_forms: 'Intake Forms', notifications: 'Notifications', notification_rules: 'Routing Rules', lofty_sync: 'Lofty Sync', tech_stack: 'Tech Stack', system_health: 'System Health', recovery: 'Trash & Archive' }[t] || t}
           </button>
         ))}
       </div>
@@ -94,6 +95,7 @@ export default function Settings() {
       {tab === 'connected'  && <ConnectedAccountsTab />}
       {tab === 'ai_prompts' && <AiPromptsTab />}
       {tab === 'lists'      && <ListsTab />}
+      {tab === 'lead_sources' && <LeadSourcesTab />}
       {tab === 'intake_forms' && <IntakeForms />}
       {tab === 'notifications' && <NotificationsTab />}
       {tab === 'notification_rules' && <Suspense fallback={<p>Loading...</p>}><NotificationRulesEmbed /></Suspense>}
@@ -1015,6 +1017,9 @@ function ConnectedAccountsTab() {
       {/* Gamma */}
       <GammaConfigCard />
 
+      {/* Replicate (Virtual Staging + AI image gen) */}
+      <ReplicateConnectionCard />
+
       {/* Canva */}
       <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16, opacity: 0.6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1461,6 +1466,71 @@ function GoogleAccountCard() {
         )}
       </div>
     </>
+  )
+}
+
+// ─── Replicate Connection Card (inside Connected Accounts) ──────────────────
+// Token lives in Supabase Function Secrets (REPLICATE_API_TOKEN), not in
+// user_settings — there's no need to expose it client-side. This card
+// reads the secret indirectly via the virtual-staging edge function's
+// `ping` action: a successful ping confirms the token is live.
+function ReplicateConnectionCard() {
+  const [status, setStatus] = useState('unknown') // unknown | testing | ok | bad
+  const [detail, setDetail] = useState(null)
+  const [testing, setTesting] = useState(false)
+
+  async function runTest() {
+    setTesting(true); setStatus('testing'); setDetail(null)
+    try {
+      const data = await DB.generateStaging({ ping: true })
+      setStatus('ok')
+      setDetail(`Connected to ${data.model} (${(data.model_run_count || 0).toLocaleString()} runs to date)`)
+    } catch (err) {
+      setStatus('bad')
+      setDetail(err.message || 'Test failed')
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <span style={{ fontSize: '1.3rem' }}>🪑</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.95rem' }}>Replicate</div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>Virtual Staging + AI image generation</div>
+        </div>
+        {status === 'ok' && (
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#137333', background: '#e6f4ea', padding: '3px 10px', borderRadius: 6 }}>Connected</span>
+        )}
+        {status === 'bad' && (
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#a50e0e', background: '#fdecea', padding: '3px 10px', borderRadius: 6 }}>Not connected</span>
+        )}
+      </div>
+
+      <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+        API token lives in Supabase Function Secrets as <code style={{ background: 'var(--cream, #faf8f5)', padding: '1px 6px', borderRadius: 4, fontSize: '0.78rem' }}>REPLICATE_API_TOKEN</code>.
+        Manage at <a href="https://replicate.com/account/api-tokens" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brown-warm)' }}>replicate.com/account/api-tokens</a> · billing at <a href="https://replicate.com/account/billing" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brown-warm)' }}>replicate.com/account/billing</a>.
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Button size="sm" onClick={runTest} disabled={testing}>
+          {testing ? 'Testing…' : 'Test connection'}
+        </Button>
+        {detail && (
+          <span style={{ fontSize: '0.78rem', color: status === 'ok' ? '#137333' : status === 'bad' ? '#a50e0e' : 'var(--color-text-muted)' }}>
+            {detail}
+          </span>
+        )}
+      </div>
+
+      <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: 12, marginBottom: 0, lineHeight: 1.4 }}>
+        🪑 <strong>Stage a Room</strong> button on each listing detail uses the{' '}
+        <a href="https://replicate.com/adirik/interior-design" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brown-warm)' }}>adirik/interior-design</a>{' '}
+        model. Typical cost: ~3¢ per stage. Costs roll into per-listing True Net automatically.
+      </p>
+    </div>
   )
 }
 

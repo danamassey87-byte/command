@@ -1536,6 +1536,105 @@ export async function sendListingEmailBlast({ recipients, subject, html, fromDom
   return results
 }
 
+// ─── Virtual Staging ─────────────────────────────────────────────────────────
+// Replicate-backed AI staging for empty-room photos. Original media_asset is
+// preserved; the staged version is a NEW row with staged_from_id pointing
+// at the original.
+
+/** Upload a source photo to the public staging-photos bucket. */
+export async function uploadStagingSourcePhoto(file, listingId) {
+  if (!file) throw new Error('uploadStagingSourcePhoto: file required')
+  const ext = (file.name?.split('.').pop() || 'jpg').toLowerCase()
+  const stamp = Date.now()
+  const dir = listingId ? `${listingId}/source` : 'misc/source'
+  const path = `${dir}/${stamp}.${ext}`
+  const { error } = await supabase.storage.from('staging-photos').upload(path, file, {
+    contentType: file.type || 'image/jpeg',
+    upsert: false,
+  })
+  if (error) throw new Error(error.message)
+  const { data } = supabase.storage.from('staging-photos').getPublicUrl(path)
+  return { path, publicUrl: data.publicUrl }
+}
+
+/** Fetch a remote image URL and re-upload it to staging-photos so Replicate
+ *  can fetch it (Drive webContentLinks aren't always public). */
+export async function copyToStagingBucket(remoteUrl, listingId) {
+  if (!remoteUrl) throw new Error('copyToStagingBucket: remoteUrl required')
+  if (/staging-photos\//.test(remoteUrl)) return { path: null, publicUrl: remoteUrl }
+  const resp = await fetch(remoteUrl, { mode: 'cors' })
+  if (!resp.ok) throw new Error(`Could not fetch source image (${resp.status}). If this is a Drive photo, the file needs to be "Anyone with the link" sharable before it can be staged.`)
+  const blob = await resp.blob()
+  if (blob.size === 0) throw new Error('Source image was empty')
+  const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg')
+  const stamp = Date.now()
+  const dir = listingId ? `${listingId}/source` : 'misc/source'
+  const path = `${dir}/${stamp}.${ext}`
+  const { error } = await supabase.storage.from('staging-photos').upload(path, blob, {
+    contentType: blob.type || 'image/jpeg',
+    upsert: false,
+  })
+  if (error) throw new Error(error.message)
+  const { data } = supabase.storage.from('staging-photos').getPublicUrl(path)
+  return { path, publicUrl: data.publicUrl }
+}
+
+/** Invoke virtual-staging edge function. */
+export async function generateStaging(payload) {
+  const { data, error } = await supabase.functions.invoke('virtual-staging', { body: payload })
+  if (error) {
+    let detail = error.message
+    try {
+      if (error.context && typeof error.context.json === 'function') {
+        const body = await error.context.json()
+        detail = body?.error || detail
+      }
+    } catch { /* ignore */ }
+    throw new Error(detail)
+  }
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
+/** Replicate returns a temporary CDN URL; download + re-upload to
+ *  staging-photos so we own the asset (Replicate's CDN expires it after
+ *  ~24h). */
+export async function persistStagedOutput(stagedUrl, listingId, originalAssetId) {
+  if (!stagedUrl) throw new Error('persistStagedOutput: stagedUrl required')
+  const resp = await fetch(stagedUrl)
+  if (!resp.ok) throw new Error(`Could not fetch staged image (${resp.status})`)
+  const blob = await resp.blob()
+  const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+  const stamp = Date.now()
+  const dir = listingId ? `${listingId}/staged` : 'misc/staged'
+  const fileBase = originalAssetId ? `from-${originalAssetId.slice(0, 8)}-${stamp}` : `${stamp}`
+  const path = `${dir}/${fileBase}.${ext}`
+  const { error } = await supabase.storage.from('staging-photos').upload(path, blob, {
+    contentType: blob.type || 'image/png',
+    upsert: false,
+  })
+  if (error) throw new Error(error.message)
+  const { data } = supabase.storage.from('staging-photos').getPublicUrl(path)
+  return { path, publicUrl: data.publicUrl }
+}
+
+/** Save the staged result as a new media_assets row linked to its original. */
+export async function saveStagedMediaAsset({ publicUrl, propertyId, listingId, stagedFromId = null, style, roomType, prompt, costCents, model }) {
+  return query(supabase.from('media_assets').insert({
+    kind: 'photo',
+    property_id: propertyId,
+    storage_url: publicUrl,
+    thumbnail_url: publicUrl,
+    staged_from_id: stagedFromId,
+    staged_at: new Date().toISOString(),
+    staging_style: style,
+    staging_room_type: roomType,
+    staging_prompt: prompt,
+    staging_cost_cents: costCents ?? null,
+    staging_model: model || 'adirik/interior-design',
+  }).select().single())
+}
+
 // ─── CMA Tracker ──────────────────────────────────────────────────────────────
 // Upload a CMA PDF (built externally in NARRPR), parse its comps via Claude,
 // then revisit weekly to confirm the valuation still holds.
@@ -2171,6 +2270,156 @@ export const bulkAddContactTags = (rows) =>
 export const getContactsWithTags = () =>
   query(supabase.from('contacts').select('*, contact_tags(tag:tags(id, name, color, category))')
     .is('deleted_at', null).is('archived_at', null).order('name'))
+
+// ─── Lead Sources (PAC vendors + cash-offer routes) ─────────────────────────
+// Each row encodes the vendor's payout: % of GCI or flat $ per side, plus the
+// sides_supplied flag and FK links to auto-generated tags ("<Name> — Buyer" /
+// "<Name> — Seller", category="Lead Source"). Pcts/flats are referenced as a
+// SNAPSHOT on lead_attributions at lead arrival — editing here only affects
+// future leads (Phase-9 invariant).
+export const listLeadSources = (opts = {}) => {
+  const { includeArchived = false } = opts
+  let q = supabase.from('lead_sources')
+    .select('*, buyer_tag:tags!buyer_tag_id(id, name, color, category), seller_tag:tags!seller_tag_id(id, name, color, category)')
+    .order('display_name')
+  if (!includeArchived) q = q.neq('status', 'archived')
+  return query(q)
+}
+
+export const getLeadSource = (id) =>
+  query(supabase.from('lead_sources')
+    .select('*, buyer_tag:tags!buyer_tag_id(id, name, color, category), seller_tag:tags!seller_tag_id(id, name, color, category)')
+    .eq('id', id).single())
+
+// Helper — slugify a display name for the unique slug field.
+function slugifySource(s) {
+  return String(s || '').toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'source'
+}
+
+// Ensure a tag named exactly `name` (category 'Lead Source') exists. Returns id.
+async function ensureLeadSourceTag(name, color = '#7c3aed') {
+  const { data: existing } = await supabase.from('tags')
+    .select('id').eq('name', name).eq('category', 'Lead Source').maybeSingle()
+  if (existing?.id) return existing.id
+  const { data: created, error } = await supabase.from('tags')
+    .insert({ name, color, category: 'Lead Source' }).select('id').single()
+  if (error) throw error
+  return created.id
+}
+
+// Create or update a lead source. Auto-handles tag creation:
+//   • sides_supplied='buyer'  → only buyer_tag_id set
+//   • sides_supplied='seller' → only seller_tag_id set
+//   • sides_supplied='both'   → both tags ensured
+// On display_name change, the existing tag is renamed in place (FK preserved).
+export async function upsertLeadSource(input) {
+  const id = input.id || null
+  const display_name = (input.display_name || '').trim()
+  if (!display_name) throw new Error('display_name required')
+
+  // 1 · Resolve / pre-fetch existing row to detect renames.
+  let existing = null
+  if (id) {
+    const { data } = await supabase.from('lead_sources').select('*').eq('id', id).single()
+    existing = data
+  }
+
+  const slug = input.slug || existing?.slug || slugifySource(display_name)
+  const sides_supplied = input.sides_supplied || existing?.sides_supplied || 'both'
+
+  // 2 · Build the row to write.
+  const row = {
+    slug,
+    display_name,
+    cost_model:        input.cost_model        ?? existing?.cost_model        ?? 'pay_at_close',
+    monthly_fee_cents: input.monthly_fee_cents ?? existing?.monthly_fee_cents ?? null,
+    buyer_fee_type:    input.buyer_fee_type    ?? existing?.buyer_fee_type    ?? 'pct',
+    buyer_pct:         input.buyer_pct         ?? existing?.buyer_pct         ?? null,
+    buyer_flat_cents:  input.buyer_flat_cents  ?? existing?.buyer_flat_cents  ?? null,
+    seller_fee_type:   input.seller_fee_type   ?? existing?.seller_fee_type   ?? 'pct',
+    seller_pct:        input.seller_pct        ?? existing?.seller_pct        ?? null,
+    seller_flat_cents: input.seller_flat_cents ?? existing?.seller_flat_cents ?? null,
+    sides_supplied,
+    attribution_window: input.attribution_window ?? existing?.attribution_window ?? 'per_deal',
+    who_pays:           input.who_pays           ?? existing?.who_pays           ?? 'agent',
+    intake:             input.intake             ?? existing?.intake             ?? {},
+    dashboard_url:      input.dashboard_url      ?? existing?.dashboard_url      ?? null,
+    status:             input.status             ?? existing?.status             ?? 'active',
+    notes:              input.notes              ?? existing?.notes              ?? null,
+    updated_at:         new Date().toISOString(),
+  }
+
+  // 3 · Save the row.
+  let saved
+  if (id) {
+    const { data, error } = await supabase.from('lead_sources').update(row).eq('id', id).select().single()
+    if (error) throw error
+    saved = data
+  } else {
+    const { data, error } = await supabase.from('lead_sources').insert(row).select().single()
+    if (error) throw error
+    saved = data
+  }
+
+  // 4 · Sync tags. Cases:
+  //   a) display_name changed → rename existing buyer_tag / seller_tag rows in-place.
+  //   b) sides_supplied changed → ensure required tags exist; existing FKs to no-longer-needed tags stay (don't delete; tags may be in use).
+  const renamed = existing && existing.display_name !== display_name
+  const wantBuyer  = sides_supplied === 'buyer'  || sides_supplied === 'both'
+  const wantSeller = sides_supplied === 'seller' || sides_supplied === 'both'
+
+  let buyer_tag_id  = saved.buyer_tag_id  ?? null
+  let seller_tag_id = saved.seller_tag_id ?? null
+
+  if (renamed && existing.buyer_tag_id) {
+    await supabase.from('tags').update({ name: `${display_name} — Buyer` }).eq('id', existing.buyer_tag_id)
+  }
+  if (renamed && existing.seller_tag_id) {
+    await supabase.from('tags').update({ name: `${display_name} — Seller` }).eq('id', existing.seller_tag_id)
+  }
+
+  if (wantBuyer && !buyer_tag_id) {
+    buyer_tag_id = await ensureLeadSourceTag(`${display_name} — Buyer`)
+  }
+  if (wantSeller && !seller_tag_id) {
+    seller_tag_id = await ensureLeadSourceTag(`${display_name} — Seller`)
+  }
+
+  if (buyer_tag_id !== saved.buyer_tag_id || seller_tag_id !== saved.seller_tag_id) {
+    const { data, error } = await supabase.from('lead_sources')
+      .update({ buyer_tag_id, seller_tag_id })
+      .eq('id', saved.id).select().single()
+    if (error) throw error
+    saved = data
+  }
+
+  return saved
+}
+
+export const archiveLeadSource = (id) =>
+  query(supabase.from('lead_sources').update({ status: 'archived', updated_at: new Date().toISOString() }).eq('id', id).select().single())
+
+// ─── Cash Offer Routings (FastCashOffers + future cash-offer vendors) ───────
+// Each row tracks one address submitted to a cash-offer vendor with a 24h SLA.
+// outcome: pending → accepted | declined | expired | withdrawn.
+export const listCashOfferRoutings = (filter = {}) => {
+  let q = supabase.from('cash_offer_routings')
+    .select('*, lead_source:lead_sources(slug, display_name), contact:contacts(id, name)')
+    .order('submitted_at', { ascending: false })
+  if (filter.contact_id) q = q.eq('contact_id', filter.contact_id)
+  if (filter.outcome)    q = q.eq('outcome', filter.outcome)
+  return query(q)
+}
+
+export const createCashOfferRouting = (d) =>
+  query(supabase.from('cash_offer_routings').insert({
+    ...d,
+    sla_due_at: d.sla_due_at || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+  }).select().single())
+
+export const updateCashOfferRouting = (id, d) =>
+  query(supabase.from('cash_offer_routings').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
 
 // ─── Ensure Contact (deduplicated upsert) ───────────────────────────────────
 // Matches by email → phone → name. Returns the contact id (existing or new).

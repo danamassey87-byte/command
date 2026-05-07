@@ -26,6 +26,8 @@ import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
 import ListingContentModal from '../../components/content/ListingContentModal.jsx'
 import ListingEmailBlastModal from '../../components/email/ListingEmailBlastModal.jsx'
 import CmaTracker from '../../components/cma/CmaTracker.jsx'
+import VirtualStagingModal from '../../components/staging/VirtualStagingModal.jsx'
+import GetCashOfferButton from '../../components/cash-offer/GetCashOfferButton.jsx'
 import { autoSeedOnUnderContract } from '../../lib/autoSeedWorkflow.js'
 import './Sellers.css'
 
@@ -3456,6 +3458,7 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
 
   // 📧 Email Blast modal — bulk send to a recipient segment for this listing
   const [emailBlastOpen, setEmailBlastOpen] = useState(false)
+  const [stagingOpen, setStagingOpen] = useState(false)
 
   // Manual "Share with TC" — looks up TC parties on this listing, prompts to confirm.
   const [sharingTC, setSharingTC] = useState(false)
@@ -3597,6 +3600,10 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>}
             title="Send a one-off email blast to a recipient segment, pre-filled with the latest banked email content for this listing"
           >Email Blast</Button>
+          <Button variant="ghost" size="sm" onClick={() => setStagingOpen(true)}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M3 21V8a2 2 0 012-2h14a2 2 0 012 2v13"/><path d="M3 13h18"/><path d="M7 6V3"/><path d="M17 6V3"/></svg>}
+            title="AI-stage an empty room photo (modern, scandinavian, luxury…) — original always preserved"
+          >Stage a Room</Button>
           <Button variant="ghost" size="sm" onClick={() => navigate(`/content/plan?listing=${listing.id}`)}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>}
             title="View every post tied to this listing on the Content Calendar"
@@ -3605,6 +3612,27 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>}
             title="Generate a Gamma listing presentation pre-filled with this property"
           >Listing Presentation</Button>
+          {contactId && (
+            <GetCashOfferButton
+              contactId={contactId}
+              propertyId={listing.property_id || null}
+              contactName={listing.contact_name || listing.contact?.name || ''}
+              property={{
+                address:           listing.address,
+                city:              listing.city,
+                state:             listing.state,
+                zip:               listing.zip,
+                beds:              listing.beds,
+                baths:             listing.baths,
+                sqft:              listing.sqft,
+                year_built:        listing.year_built,
+                list_price_cents:  listing.list_price_cents ?? (listing.list_price != null ? Math.round(listing.list_price * 100) : null),
+                condition_notes:   listing.condition_notes || null,
+              }}
+              size="sm"
+              variant="ghost"
+            />
+          )}
           <Button variant="ghost" size="sm" onClick={handlePrint}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>}
           >Print</Button>
@@ -4332,6 +4360,14 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         open={emailBlastOpen}
         onClose={() => setEmailBlastOpen(false)}
         listing={listing}
+      />
+      <VirtualStagingModal
+        open={stagingOpen}
+        onClose={() => setStagingOpen(false)}
+        listingId={listing.id}
+        propertyId={listing.property_id}
+        addressLabel={listing.address || listing.property?.address || ''}
+        existingPhotos={[]}
       />
 
       {/* Offscreen printable layout — used by both Print and Export PDF. */}
