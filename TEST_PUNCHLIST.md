@@ -75,6 +75,34 @@
 - [ ] Open a Pipeline deal detail — confirm "Projected Net if Closed" panel renders
 - [ ] Confirm fees / marketing / mileage line items match what's logged
 
+### CMA Tracker (NEW 2026-05-07 — listing detail)
+- [ ] Open a listing detail page; scroll to the new "CMA Tracker" section
+- [ ] Build a real CMA in NARRPR; export PDF
+- [ ] Click **+ Upload CMA PDF**; pick the file; wait ~10–30 sec for parse
+- [ ] Verify the subject estimate (range / recommended) populated
+- [ ] Verify comps table shows: address / specs / original sale price + status / now editable / last-check
+- [ ] Click **✓ Checked** on a comp — verify timestamp populates
+- [ ] Edit a comp's "Now" status (e.g. flip Sold → Active) + current price; verify save
+- [ ] Click a verdict button (Still valid / Reprice / Stale) — verify badge appears on the row header
+- [ ] Click **↻ Re-parse** — confirm comps replace cleanly without dupes
+- [ ] Click **📄 Open PDF** — confirm the original PDF opens in a new tab
+
+### Polish — 🔄 Weekly Listing Data Sync (NEW 2026-05-07)
+- [ ] Open Dashboard → Today tab; find "🔄 Listing Data Sync" widget
+- [ ] If you have active listings with no `last_data_synced_at`, they show as "needs check"
+- [ ] Click an address → goes to /sellers; update price/status/DOM if needed
+- [ ] Come back to Dashboard, click "Synced" — verify days-since-sync resets to 0
+- [ ] Confirm "Mark all" bulk action shows confirm dialog before firing
+- [ ] When all are fresh, widget shows "All N active listings are fresh ✓"
+
+### Polish — Expired Leads single-entry shortcut (NEW 2026-05-07)
+- [ ] Go to Prospecting → Expired Cannonball
+- [ ] Click "+ Add One" in the toolbar — verify it switches to Database view + opens add form
+- [ ] Fill address + city, click Add — verify lead appears
+
+### Polish — Home Valuation Coming Soon (NEW 2026-05-07)
+- [ ] Visit `/home-value` — verify the Coming Soon placeholder renders (full impl parked)
+
 ### Drive — 🎥 Meet Recording Sync
 - [ ] Record at least one Google Meet (so the "Meet Recordings" Drive folder exists)
 - [ ] Open Settings → Connected Accounts → Google Drive card
