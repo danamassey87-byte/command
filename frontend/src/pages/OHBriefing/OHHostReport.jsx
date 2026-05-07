@@ -101,8 +101,12 @@ export default function OHHostReport() {
         leads_json:         [],
       }
 
-      const { error } = await supabase.from('host_reports').insert(row)
+      const { data: insertedRows, error } = await supabase
+        .from('host_reports')
+        .insert(row)
+        .select('id')
       if (error) throw error
+      const insertedReportId = insertedRows?.[0]?.id || null
 
       // Notify Dana
       const guestName = hostName.trim()
@@ -113,14 +117,26 @@ export default function OHHostReport() {
         body: `${guestName} submitted a recap of the open house at ${propertyAddr}. ${groupsThrough ? `${groupsThrough} groups through.` : ''}${overallImpression ? ` Overall: ${overallImpression}.` : ''}`,
         link: `/open-houses`,
         source_table: 'host_reports',
+        source_id: insertedReportId,
         metadata: {
           open_house_id: openHouseId,
+          host_report_id: insertedReportId,
           property_address: propertyAddr,
           host_name: guestName,
           overall_impression: overallImpression,
           price_perception: pricePerception,
         },
       }).then(() => {}, () => {})
+
+      // O4 — escalate strong-signal reports into follow-up tasks for every
+      // merged sign-in attendee. Best-effort: never blocks the success state.
+      if (insertedReportId) {
+        supabase.functions.invoke('host-report-followup', {
+          body: { host_report_id: insertedReportId },
+        }).catch(err => {
+          console.warn('[host-report-followup] invoke failed:', err?.message)
+        })
+      }
 
       setSubmitted(true)
     } catch (err) {

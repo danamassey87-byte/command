@@ -18,6 +18,7 @@ export const NOTIFICATION_TYPES = {
   campaign_reply:    { label: 'Campaign Reply',   icon: '💌', color: '#7a93b7' },
   onhold_milestone:  { label: 'On-Hold Check-In', icon: '⏸️', color: '#c8a05a' },
   host_report_received: { label: 'Host Report',  icon: '🤝', color: '#7c6350' },
+  host_report_followup: { label: 'Host Follow-Up', icon: '🔥', color: '#c0604a' },
   oh_hot_lead:       { label: 'Hot OH Lead',     icon: '🔥', color: '#c0604a' },
   drive_shared:      { label: 'Drive Shared',    icon: '📁', color: '#7a9b76' },
   drive_share_failed:{ label: 'Drive Share Failed', icon: '⚠️', color: '#b91c1c' },
