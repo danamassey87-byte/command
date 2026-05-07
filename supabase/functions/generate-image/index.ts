@@ -13,6 +13,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { maybeNotifyLowReplicateCredit, isReplicate402 } from '../_shared/replicate-notify.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -64,6 +66,11 @@ serve(async (req) => {
   try {
     const apiToken = Deno.env.get('REPLICATE_API_TOKEN')
     if (!apiToken) return json({ error: 'REPLICATE_API_TOKEN not configured' }, 503)
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    )
 
     const body = await req.json().catch(() => ({}))
     const {
@@ -117,6 +124,16 @@ serve(async (req) => {
 
     if (!createResp.ok) {
       const errBody = await createResp.text().catch(() => '')
+      // 402 = insufficient credit → drop a notification so Dana sees the bell.
+      if (isReplicate402(createResp.status, errBody)) {
+        await maybeNotifyLowReplicateCredit(supabase, 'Generate Image', errBody)
+        return json({
+          error: 'Replicate is out of credit. Top up at replicate.com/account/billing to keep generating images.',
+          code: 'replicate_insufficient_credit',
+          billing_url: 'https://replicate.com/account/billing',
+          prompt_used: fullPrompt,
+        }, 402)
+      }
       return json({
         error: `Replicate predictions create failed (${createResp.status})`,
         detail: errBody.slice(0, 400),

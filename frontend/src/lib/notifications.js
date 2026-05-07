@@ -28,6 +28,7 @@ export const NOTIFICATION_TYPES = {
   deadline_1d:       { label: 'Deadline 1d',     icon: '🚨', color: '#c0604a' },
   deadline_missed:   { label: 'Deadline MISSED', icon: '❌', color: '#b91c1c' },
   oh_reminder:       { label: 'OH Reminder',     icon: '⏰', color: '#c8a05a' },
+  replicate_low_credit: { label: 'Replicate Credit', icon: '💳', color: '#b91c1c' },
 }
 
 export function typeMeta(type) {

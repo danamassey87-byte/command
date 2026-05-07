@@ -16,6 +16,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { maybeNotifyLowReplicateCredit, isReplicate402 } from '../_shared/replicate-notify.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -144,6 +145,15 @@ serve(async (req) => {
 
     if (!createResp.ok) {
       const errBody = await createResp.text().catch(() => '')
+      // 402 = insufficient credit → drop a notification so Dana sees the bell.
+      if (isReplicate402(createResp.status, errBody)) {
+        await maybeNotifyLowReplicateCredit(supabase, 'Virtual Staging', errBody)
+        return json({
+          error: 'Replicate is out of credit. Top up at replicate.com/account/billing to keep staging.',
+          code: 'replicate_insufficient_credit',
+          billing_url: 'https://replicate.com/account/billing',
+        }, 402)
+      }
       return json({
         error: `Replicate predictions create failed (${createResp.status})`,
         detail: errBody.slice(0, 400),

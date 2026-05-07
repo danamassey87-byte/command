@@ -69,7 +69,12 @@ export default function NotificationsBell() {
     }
     if (n.link) {
       setOpen(false)
-      navigate(n.link)
+      // External URLs (http/https) open in a new tab; internal routes use react-router.
+      if (/^https?:\/\//i.test(n.link)) {
+        window.open(n.link, '_blank', 'noopener,noreferrer')
+      } else {
+        navigate(n.link)
+      }
     }
   }
 

@@ -88,7 +88,13 @@ export default function Notifications() {
   // ─── actions ───
   const handleClick = async (n) => {
     if (n.status === 'unread') { await markRead(n.id).catch(()=>{}); load() }
-    if (n.link) navigate(n.link)
+    if (n.link) {
+      if (/^https?:\/\//i.test(n.link)) {
+        window.open(n.link, '_blank', 'noopener,noreferrer')
+      } else {
+        navigate(n.link)
+      }
+    }
   }
   const doKeep    = async (id) => { await keep(id);    load() }
   const doDismiss = async (id) => { await dismiss(id); load() }
