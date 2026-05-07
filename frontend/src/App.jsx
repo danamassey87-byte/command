@@ -30,7 +30,10 @@ const Recovery = lazy(() => import('./pages/Recovery/Recovery'))
 const SystemHealth = lazy(() => import('./pages/SystemHealth/SystemHealth'))
 const PostClose = lazy(() => import('./pages/PostClose/PostClose.jsx'))
 const MediaLibrary = lazy(() => import('./pages/MediaLibrary/MediaLibrary.jsx'))
-const HomeValue = lazy(() => import('./pages/HomeValue/HomeValue.jsx'))
+// HomeValue: full implementation parked in HomeValue.jsx (Dana 2026-05-07
+// queued waaay later — needs a non-MLS comp data source first). For now
+// route to the Coming Soon stub.
+const HomeValue = lazy(() => import('./pages/HomeValue/HomeValueComingSoon.jsx'))
 const PrintDelivery = lazy(() => import('./pages/PrintDelivery/PrintDelivery.jsx'))
 const SeoAeo = lazy(() => import('./pages/SeoAeo/SeoAeo.jsx'))
 const AIAssistant = lazy(() => import('./pages/AIAssistant/AIAssistant.jsx'))
