@@ -1470,6 +1470,72 @@ export async function saveListingContentDrafts({ drafts, listingId = null, openH
   return query(supabase.from('content_pieces').insert(rows).select())
 }
 
+/**
+ * Fetch the most recent banked email-channel content_piece tied to a listing.
+ * Used to pre-fill the Email Blast modal on listing detail.
+ * Returns null if none banked.
+ */
+export async function getLatestEmailDraftForListing(listingId) {
+  if (!listingId) return null
+  const { data, error } = await supabase
+    .from('content_pieces')
+    .select('id, title, body_text, channel, content_type, banked_at, notes')
+    .eq('listing_id', listingId)
+    .eq('channel', 'email')
+    .eq('status', 'banked')
+    .order('banked_at', { ascending: false })
+    .limit(1)
+  if (error) throw error
+  return (data && data[0]) || null
+}
+
+/**
+ * Bulk send a one-off email to many recipients via the send-one-off-email
+ * edge function. Loops sequentially with a small delay so we don't hammer
+ * Resend's rate limit. Returns { sent, suppressed, failed:[{email, error}] }.
+ */
+export async function sendListingEmailBlast({ recipients, subject, html, fromDomain = 'primary' }) {
+  const results = { sent: 0, suppressed: 0, failed: [] }
+  for (const r of recipients) {
+    try {
+      const { data, error } = await supabase.functions.invoke('send-one-off-email', {
+        body: {
+          to_email: r.email,
+          to_name: r.name || '',
+          subject,
+          html,
+          from_domain: fromDomain,
+          contact_id: r.id || null,
+        },
+      })
+      if (error) {
+        // Try to extract suppressed flag from FunctionsHttpError
+        let suppressed = false
+        let msg = error.message || 'Send failed'
+        try {
+          if (error.context && typeof error.context.json === 'function') {
+            const body = await error.context.json()
+            if (body?.suppressed) suppressed = true
+            if (body?.error) msg = body.error
+          }
+        } catch { /* ignore */ }
+        if (suppressed) results.suppressed++
+        else results.failed.push({ email: r.email, error: msg })
+      } else if (data?.error) {
+        if (data.suppressed) results.suppressed++
+        else results.failed.push({ email: r.email, error: data.error })
+      } else {
+        results.sent++
+      }
+    } catch (err) {
+      results.failed.push({ email: r.email, error: err.message || 'unknown error' })
+    }
+    // Small pacing — Resend allows ~10/sec free tier, we go ~5/sec to be safe.
+    await new Promise(res => setTimeout(res, 200))
+  }
+  return results
+}
+
 // ─── AI Content Generation ────────────────────────────────────────────────────
 export async function generateContent(payload) {
   const { data, error } = await supabase.functions.invoke('generate-content', { body: payload })
