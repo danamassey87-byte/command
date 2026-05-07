@@ -185,6 +185,7 @@ export const useUpcomingLifeEvents     = (days) => useQuery(() => DB.getUpcoming
 export const useReviews                = ()    => useQuery(DB.getReviews)
 export const useReferrals              = ()    => useQuery(DB.getReferrals)
 export const useMediaAssets            = (pid) => useQuery(() => DB.getMediaAssets(pid), [pid])
+export const useStagingCostsByProperty  = ()    => useQuery(DB.getStagingCostsByProperty)
 export const useContactTagsList        = (cid) => useQuery(() => cid ? DB.getContactTags(cid) : Promise.resolve([]), [cid])
 export const useNotificationRules      = ()    => useQuery(DB.getNotificationRules)
 

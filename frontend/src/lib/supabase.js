@@ -1618,6 +1618,27 @@ export async function persistStagedOutput(stagedUrl, listingId, originalAssetId)
   return { path, publicUrl: data.publicUrl }
 }
 
+/**
+ * Per-property AI staging cost rollup. Returns map of
+ * { [property_id]: total_cents }. Used in Sellers list + listing detail
+ * to fold AI costs into True Net.
+ */
+export async function getStagingCostsByProperty() {
+  const { data, error } = await supabase
+    .from('media_assets')
+    .select('property_id, staging_cost_cents')
+    .not('staging_cost_cents', 'is', null)
+    .is('deleted_at', null)
+  if (error) throw error
+  const map = {}
+  for (const row of data || []) {
+    if (!row.property_id) continue
+    if (!map[row.property_id]) map[row.property_id] = 0
+    map[row.property_id] += Number(row.staging_cost_cents) || 0
+  }
+  return map
+}
+
 /** Save the staged result as a new media_assets row linked to its original. */
 export async function saveStagedMediaAsset({ publicUrl, propertyId, listingId, stagedFromId = null, style, roomType, prompt, costCents, model }) {
   return query(supabase.from('media_assets').insert({

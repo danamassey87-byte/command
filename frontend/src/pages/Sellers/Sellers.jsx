@@ -5,7 +5,7 @@ import LeadSourcePicker from '../../components/ui/LeadSourcePicker.jsx'
 import PartiesSection from '../../components/parties/PartiesSection.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
-import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses, usePriceHistory, usePlatformStats, usePlatformTotals, useOffersForListing, useStatTasksForListing, useAdCampaignsForListing, useExpensesForListing, useExpenseCategories, useAllExpenses, useShowingSessions, useMileageLog } from '../../lib/hooks.js'
+import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses, usePriceHistory, usePlatformStats, usePlatformTotals, useOffersForListing, useStatTasksForListing, useAdCampaignsForListing, useExpensesForListing, useExpenseCategories, useAllExpenses, useShowingSessions, useMileageLog, useStagingCostsByProperty } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
@@ -4650,6 +4650,19 @@ export default function Sellers() {
     return map
   }, [mileageEntriesData, dbData])
 
+  // AI staging cost per listing — sum of media_assets.staging_cost_cents
+  // grouped by property_id, then mapped to listing_id. Folds into True Net.
+  const { data: stagingCostsByProperty } = useStagingCostsByProperty()
+  const aiCostByListing = useMemo(() => {
+    const map = {}
+    if (!stagingCostsByProperty) return map
+    for (const l of (dbData ?? [])) {
+      const cents = stagingCostsByProperty[l.property_id]
+      if (cents) map[l.id] = cents / 100 // dollars
+    }
+    return map
+  }, [stagingCostsByProperty, dbData])
+
   // Build a map of listing_id → next upcoming open house
   const nextOHByListing = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
@@ -5153,12 +5166,14 @@ export default function Sellers() {
         const commission = price * (rate / 100)
         const spend = expenseByListing[row.id] || 0
         const mileage = mileageCostByListing[row.id] || 0
+        const aiCost = aiCostByListing[row.id] || 0
         if (!price) return <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>—</span>
-        const net = commission - spend - mileage
+        const net = commission - spend - mileage - aiCost
         const tooltipParts = [
           `Gross commission: $${Math.round(commission).toLocaleString()} (${rate}%)`,
           spend ? `− Marketing: $${Math.round(spend).toLocaleString()}` : null,
           mileage ? `− Mileage: $${Math.round(mileage).toLocaleString()}` : null,
+          aiCost ? `− AI staging: $${aiCost.toFixed(2)}` : null,
           `= True Net: $${Math.round(net).toLocaleString()}`,
         ].filter(Boolean)
         return (
@@ -5170,7 +5185,7 @@ export default function Sellers() {
               ${Math.round(net).toLocaleString()}
             </span>
             <br /><span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>
-              {rate}% − ${Math.round(spend + mileage).toLocaleString()} costs
+              {rate}% − ${Math.round(spend + mileage + aiCost).toLocaleString()} costs
             </span>
           </div>
         )
