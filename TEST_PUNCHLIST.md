@@ -75,6 +75,17 @@
 - [ ] Open a Pipeline deal detail — confirm "Projected Net if Closed" panel renders
 - [ ] Confirm fees / marketing / mileage line items match what's logged
 
+### Drive — 🎥 Meet Recording Sync
+- [ ] Record at least one Google Meet (so the "Meet Recordings" Drive folder exists)
+- [ ] Open Settings → Connected Accounts → Google Drive card
+- [ ] Expand "🎥 Meet Recordings" section
+- [ ] Pick a look-back window, click **Scan recordings**
+- [ ] Verify list shows file with thumbnail, name (links to Drive), date, duration
+- [ ] Use the contact picker to attach one to a real contact, click **Link**
+- [ ] Verify the row flips to "✓ Linked"
+- [ ] Open that contact's profile — confirm a `meet_recording` interaction exists with link back to Drive
+- [ ] Click **Scan** again — verify the linked row stays marked (idempotency)
+
 ---
 
 ## How to clear
