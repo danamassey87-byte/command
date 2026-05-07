@@ -5,7 +5,7 @@ import LeadSourcePicker from '../../components/ui/LeadSourcePicker.jsx'
 import PartiesSection from '../../components/parties/PartiesSection.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
-import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses, usePriceHistory, usePlatformStats, usePlatformTotals, useOffersForListing, useStatTasksForListing, useAdCampaignsForListing, useExpensesForListing, useExpenseCategories, useAllExpenses, useShowingSessions, useMileageLog, useStagingCostsByProperty } from '../../lib/hooks.js'
+import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses, usePriceHistory, usePlatformStats, usePlatformTotals, useOffersForListing, useStatTasksForListing, useAdCampaignsForListing, useExpensesForListing, useExpenseCategories, useAllExpenses, useShowingSessions, useMileageLog, useStagingCostsByProperty, useMediaAssets } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import * as DB from '../../lib/supabase.js'
@@ -3251,6 +3251,9 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
 
   // Documents
   const { data: docs, refetch: refetchDocs } = useDocumentsForListing(isDbRow ? listing.id : null)
+  // Listing photos (for Virtual Staging existing-photo picker). Reuses
+  // the same media_assets loader as PostComposer's gallery picker.
+  const { data: listingPhotos } = useMediaAssets(listing.property_id || null)
   const fileInputRef = useRef(null)
   const [uploading, setUploading] = useState(false)
 
@@ -4367,7 +4370,7 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         listingId={listing.id}
         propertyId={listing.property_id}
         addressLabel={listing.address || listing.property?.address || ''}
-        existingPhotos={[]}
+        existingPhotos={listingPhotos || []}
       />
 
       {/* Offscreen printable layout — used by both Print and Export PDF. */}
