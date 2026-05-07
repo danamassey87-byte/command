@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Badge, EmptyState } from '../../components/ui/index.jsx'
+import { Badge, EmptyState, Button } from '../../components/ui/index.jsx'
 import { useTransactions, useAllExpenses, useMileageLog, useListings } from '../../lib/hooks.js'
 import { IRS_MILEAGE_RATE as IRS_RATE } from '../../lib/financials'
+import ClosingRecapModal from '../../components/email/ClosingRecapModal'
 import './ClosedDeals.css'
 
 function fmtDate(d) {
@@ -29,6 +30,7 @@ export default function ClosedDeals() {
   const year = new Date().getFullYear()
   const { data: mileageEntries } = useMileageLog(`${year}-01-01`, `${year}-12-31`)
   const [expandedId, setExpandedId] = useState(null)
+  const [recapDeal, setRecapDeal] = useState(null)
 
   const closedDeals = useMemo(() =>
     (transactions ?? []).filter(t => {
@@ -298,6 +300,20 @@ export default function ClosedDeals() {
                         )}
                       </div>
                     </div>
+
+                    {/* ─── Post-close client actions ─── */}
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--color-border-light)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => { e.stopPropagation(); setRecapDeal(deal) }}
+                        disabled={!deal.contact?.email}
+                        title={deal.contact?.email ? 'Send a closing recap email to the client (deal-aware buyer/seller language pre-filled)' : 'Add an email to the contact first'}
+                        icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></svg>}
+                      >
+                        Send Closing Recap
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -305,6 +321,12 @@ export default function ClosedDeals() {
           })}
         </div>
       )}
+
+      <ClosingRecapModal
+        open={!!recapDeal}
+        onClose={() => setRecapDeal(null)}
+        deal={recapDeal}
+      />
     </div>
   )
 }
