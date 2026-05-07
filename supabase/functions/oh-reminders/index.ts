@@ -65,7 +65,7 @@ serve(async (req) => {
 
     const { data: ohs, error } = await supabase
       .from('open_houses')
-      .select('id, date, start_time, end_time, address, city, listing_id, reminders_sent, status')
+      .select('id, date, start_time, end_time, listing_id, property_id, reminders_sent, status, property:properties(address, city)')
       .gte('date', todayISO)
       .lte('date', horizonISO)
       .neq('status', 'cancelled')
@@ -92,7 +92,8 @@ serve(async (req) => {
           weekday: 'long', month: 'short', day: 'numeric',
         })
         const timeLabel = oh.start_time ? oh.start_time.slice(0, 5) : ''
-        const addressLabel = `${oh.address || 'OH'}${oh.city ? ', ' + oh.city : ''}`
+        const prop = (oh as any).property
+        const addressLabel = `${prop?.address || 'OH'}${prop?.city ? ', ' + prop.city : ''}`
 
         let title = ''
         let body = ''
