@@ -103,6 +103,20 @@
 ### Polish — Home Valuation Coming Soon (NEW 2026-05-07)
 - [ ] Visit `/home-value` — verify the Coming Soon placeholder renders (full impl parked)
 
+### 🪑 Virtual Staging Studio (NEW 2026-05-07)
+- [ ] Open Settings → Connected Accounts → find new "🪑 Replicate" card
+- [ ] Click **Test connection** — should show "Connected to adirik/interior-design (X runs to date)"
+- [ ] Open any listing → click **🪑 Stage a Room** in the toolbar
+- [ ] Upload an empty-room photo (or pick from existing — empty for v1)
+- [ ] Pick a style (try Modern first) + Room type (Living)
+- [ ] Click **✨ Generate Staging** → wait 15-30s
+- [ ] Verify before/after preview shows the original + staged version
+- [ ] Verify cost shows on the result line (~3¢)
+- [ ] Click **↻ Regenerate** — verify a fresh staging runs
+- [ ] Click **← Try different style** — pick Luxury, regenerate, compare
+- [ ] Click **Save to listing photos** → confirms saved + new media_asset row created
+- [ ] Verify the original photo is unchanged (staged is a NEW row with staged_from_id pointing at original)
+
 ### Drive — 🎥 Meet Recording Sync
 - [ ] Record at least one Google Meet (so the "Meet Recordings" Drive folder exists)
 - [ ] Open Settings → Connected Accounts → Google Drive card
