@@ -90,26 +90,53 @@ export default function RecurringExpenses() {
     setPanel(null)
   }
 
-  // Generate expenses for current month
+  // Generate expenses for current month — idempotent per template per month.
+  // Each template carries `last_generated_ym` ('2026-05') so re-clicking the
+  // button later in the same month is a safe no-op.
   async function generateMonth() {
-    if (!confirm(`This will create ${templates.filter(t => t.frequency === 'monthly' || t.frequency === 'weekly').length} expense entries for this month. Continue?`)) return
     setGenerating(true)
     const now = new Date()
     const y = now.getFullYear()
-    const m = now.getMonth()
+    const m = now.getMonth() // 0-indexed
+    const ymKey = `${y}-${String(m + 1).padStart(2, '0')}`
+    const quarterStart = [0, 3, 6, 9].includes(m)
+    const annualStart = m === 0
+
+    // Pre-flight: which templates are eligible AND not yet generated for this month?
+    const eligible = templates.filter(t => {
+      if (t.last_generated_ym === ymKey) return false
+      if (t.frequency === 'monthly' || t.frequency === 'weekly') return true
+      if (t.frequency === 'quarterly' && quarterStart) return true
+      if (t.frequency === 'annually' && annualStart) return true
+      return false
+    })
+
+    const skipped = templates.length - eligible.length
+    if (eligible.length === 0) {
+      alert(`Nothing to generate for ${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.\n\n${skipped} template${skipped === 1 ? '' : 's'} already generated this month or not due yet.`)
+      setGenerating(false)
+      return
+    }
+
+    if (!confirm(`Generate ${eligible.length} expense entr${eligible.length === 1 ? 'y' : 'ies'} for ${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}?${skipped > 0 ? `\n\n(${skipped} already done this month — will be skipped.)` : ''}`)) {
+      setGenerating(false)
+      return
+    }
+
     let created = 0
+    const updatedTemplates = [...templates]
 
     try {
-      for (const t of templates) {
+      for (const t of eligible) {
         const dates = []
         if (t.frequency === 'monthly') {
           const day = Math.min(Number(t.day_of_month) || 1, 28)
           dates.push(new Date(y, m, day))
         } else if (t.frequency === 'weekly') {
           for (let d = 1; d <= 28; d += 7) dates.push(new Date(y, m, d))
-        } else if (t.frequency === 'quarterly' && [0, 3, 6, 9].includes(m)) {
+        } else if (t.frequency === 'quarterly') {
           dates.push(new Date(y, m, Number(t.day_of_month) || 1))
-        } else if (t.frequency === 'annually' && m === 0) {
+        } else if (t.frequency === 'annually') {
           dates.push(new Date(y, 0, Number(t.day_of_month) || 1))
         }
 
@@ -126,8 +153,14 @@ export default function RecurringExpenses() {
           })
           created++
         }
+
+        // Mark this template as generated for this month.
+        const idx = updatedTemplates.findIndex(x => x.id === t.id)
+        if (idx >= 0) updatedTemplates[idx] = { ...updatedTemplates[idx], last_generated_ym: ymKey }
       }
-      alert(`Created ${created} expense entries for ${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.`)
+      saveTemplates(updatedTemplates)
+      setTemplates(updatedTemplates)
+      alert(`Created ${created} expense entr${created === 1 ? 'y' : 'ies'} for ${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.`)
     } catch (e) { alert(e.message) }
     finally { setGenerating(false) }
   }
@@ -179,21 +212,34 @@ export default function RecurringExpenses() {
                 <th>Vendor</th>
                 <th>Category</th>
                 <th>Frequency</th>
+                <th>This Month</th>
                 <th>Amount</th>
               </tr>
             </thead>
             <tbody>
-              {templates.map((t, i) => (
-                <tr key={t.id || i} onClick={() => openEdit(i)}>
-                  <td>
-                    <span className="pnl-table__vendor">{t.vendor || '—'}</span>
-                    {t.description && <><br /><span style={{ fontSize: '0.73rem', color: 'var(--brown-light)' }}>{t.description}</span></>}
-                  </td>
-                  <td>{t.category_id ? <span className="pnl-table__cat">{catName(t.category_id)}</span> : '—'}</td>
-                  <td><Badge variant="default" size="sm">{t.frequency}</Badge></td>
-                  <td className="pnl-table__amount">{fmt(t.amount)}</td>
-                </tr>
-              ))}
+              {(() => {
+                const now = new Date()
+                const ymKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+                return templates.map((t, i) => {
+                  const generated = t.last_generated_ym === ymKey
+                  return (
+                    <tr key={t.id || i} onClick={() => openEdit(i)}>
+                      <td>
+                        <span className="pnl-table__vendor">{t.vendor || '—'}</span>
+                        {t.description && <><br /><span style={{ fontSize: '0.73rem', color: 'var(--brown-light)' }}>{t.description}</span></>}
+                      </td>
+                      <td>{t.category_id ? <span className="pnl-table__cat">{catName(t.category_id)}</span> : '—'}</td>
+                      <td><Badge variant="default" size="sm">{t.frequency}</Badge></td>
+                      <td>
+                        {generated
+                          ? <Badge variant="success" size="sm">✓ Done</Badge>
+                          : <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Pending</span>}
+                      </td>
+                      <td className="pnl-table__amount">{fmt(t.amount)}</td>
+                    </tr>
+                  )
+                })
+              })()}
             </tbody>
           </table>
         )}
