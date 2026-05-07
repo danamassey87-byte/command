@@ -103,6 +103,18 @@
 ### Polish — Home Valuation Coming Soon (NEW 2026-05-07)
 - [ ] Visit `/home-value` — verify the Coming Soon placeholder renders (full impl parked)
 
+### 🎨 Generate Fresh Image (NEW 2026-05-07 — PostComposer)
+- [ ] **First: add a payment method at https://replicate.com/account/billing** — FLUX models aren't covered by trial credit
+- [ ] Open PostComposer (any post / new draft)
+- [ ] Click 🎨 **Generate fresh image** (next to the Media label)
+- [ ] Pick a starter prompt OR write your own ("modern AZ home exterior at golden hour, professional photo")
+- [ ] Pick a style (Photography for v1) and aspect ratio (Square for IG)
+- [ ] Click ✨ **Generate** → 3–8 sec wait
+- [ ] Verify image preview + cost line shows (~⅓¢ for fast, ~4¢ for quality)
+- [ ] Toggle **Quality mode** on, regenerate — confirm sharper detail
+- [ ] Click **Add to post** → image lands in mediaFiles
+- [ ] Optional: try a vertical 9:16 aspect for a Stories/Reels visual
+
 ### 🪑 Virtual Staging Studio (NEW 2026-05-07)
 - [ ] Open Settings → Connected Accounts → find new "🪑 Replicate" card
 - [ ] Click **Test connection** — should show "Connected to adirik/interior-design (X runs to date)"
@@ -116,6 +128,13 @@
 - [ ] Click **← Try different style** — pick Luxury, regenerate, compare
 - [ ] Click **Save to listing photos** → confirms saved + new media_asset row created
 - [ ] Verify the original photo is unchanged (staged is a NEW row with staged_from_id pointing at original)
+
+### Lofty Webhook Receiver (NEW 2026-05-07 — scaffold for Lofty integration)
+- [ ] After Lofty support enables API access, paste this URL into their webhook config:
+      `https://lfydlxhfctuiyykuyqnr.supabase.co/functions/v1/lofty-webhook`
+- [ ] Trigger an event in Lofty (create test lead, change status)
+- [ ] In Supabase dashboard → Tables → `lofty_inbound_events`, verify the row appeared with raw_payload + headers
+- [ ] Send me the captured payload shape — I'll build the mapper that turns it into contacts upserts
 
 ### Drive — 🎥 Meet Recording Sync
 - [ ] Record at least one Google Meet (so the "Meet Recordings" Drive folder exists)
