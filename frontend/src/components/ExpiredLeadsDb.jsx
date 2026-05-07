@@ -10,10 +10,13 @@ const STATUS_META = {
   dead:       { label: 'Dead',      variant: 'danger' },
 }
 
-export default function ExpiredLeadsDb() {
+export default function ExpiredLeadsDb({ defaultShowAdd = false } = {}) {
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showAdd, setShowAdd] = useState(false)
+  const [showAdd, setShowAdd] = useState(!!defaultShowAdd)
+  // Re-open the form when defaultShowAdd flips true (e.g. user clicked
+  // the toolbar's "Add One Expired" button after the panel was closed).
+  useEffect(() => { if (defaultShowAdd) setShowAdd(true) }, [defaultShowAdd])
   const [saving, setSaving] = useState(false)
   const [filter, setFilter] = useState('all')
   const [draft, setDraft] = useState({ address: '', city: '', listed_price: '', days_on_market: '', data_source: 'manual' })

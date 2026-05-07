@@ -434,6 +434,7 @@ export default function ExpiredCannonball() {
   const [checkAllIndex, setCheckAllIndex] = useState(0)
   const [showLabelModal, setShowLabelModal] = useState(false)
   const [dataSource, setDataSource] = useState('local') // 'local' | 'db'
+  const [dbAddOpen, setDbAddOpen] = useState(false) // forces ExpiredLeadsDb's add panel open
   const [labelSelections, setLabelSelections] = useState({}) // { [id]: 'property' | 'mailing' | false }
   const [labelSelectAll, setLabelSelectAll] = useState(false)
   const [showStatusHelp, setShowStatusHelp] = useState(false)
@@ -1348,6 +1349,20 @@ ${labelHtml}
             <Button variant="ghost" size="md" onClick={() => setShowCsvUpload(true)}>
               Upload CSV
             </Button>
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={() => {
+                // Single-entry path: jump to DB view + open the inline add form.
+                setDataSource('db')
+                setDbAddOpen(true)
+                // Reset the flag on the next tick so subsequent clicks re-trigger.
+                setTimeout(() => setDbAddOpen(false), 50)
+              }}
+              title="Add one expired lead to the database (alternative to CSV upload)"
+            >
+              + Add One
+            </Button>
             <Button variant="ghost" size="md" onClick={openLabelModal}>
               Print Labels
             </Button>
@@ -1387,7 +1402,7 @@ ${labelHtml}
       </div>
 
       {dataSource === 'db' ? (
-        <ExpiredLeadsDb />
+        <ExpiredLeadsDb defaultShowAdd={dbAddOpen} />
       ) : (
       <>
 
