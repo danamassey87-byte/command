@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import supabase from '../../lib/supabase'
 import GlobalActionBar from '../quick-add/GlobalActionBar'
 import NotificationsBell from '../notifications/NotificationsBell'
+import UniversalSearch from './UniversalSearch'
 import './TopNav.css'
 
 // Shared mobile menu context so Layout can control sidebar too
@@ -150,6 +151,7 @@ export default function TopNav() {
             <span className="topnav__tagline">Command Center</span>
           </div>
           <div className="topnav__right">
+            <UniversalSearch />
             <GlobalActionBar />
             <NotificationsBell />
             <span className="topnav__date">{today}</span>
