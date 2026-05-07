@@ -25,6 +25,7 @@ import PropertyMap from '../../components/PropertyMap.jsx'
 import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
 import ListingContentModal from '../../components/content/ListingContentModal.jsx'
 import ListingEmailBlastModal from '../../components/email/ListingEmailBlastModal.jsx'
+import CmaTracker from '../../components/cma/CmaTracker.jsx'
 import { autoSeedOnUnderContract } from '../../lib/autoSeedWorkflow.js'
 import './Sellers.css'
 
@@ -4119,6 +4120,17 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
           <RollupStat label="Hot Interest" value={hotInterest}      sub={hotInterest > 0 ? 'across all activity' : '—'} accent={hotInterest > 0} />
         </div>
       </div>
+
+      {/* ── CMA Tracker — uploaded NARRPR CMAs + weekly comp review ── */}
+      {isDbRow && (
+        <div className="sellers-plan__section">
+          <CmaTracker
+            listingId={listing.id}
+            propertyId={listing.property_id}
+            addressLabel={listing.address || ''}
+          />
+        </div>
+      )}
 
       {/* ── Open House ROI funnel — only show if there's any OH activity ── */}
       {totalOHs > 0 && (() => {

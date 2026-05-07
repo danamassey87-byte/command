@@ -1536,6 +1536,83 @@ export async function sendListingEmailBlast({ recipients, subject, html, fromDom
   return results
 }
 
+// ─── CMA Tracker ──────────────────────────────────────────────────────────────
+// Upload a CMA PDF (built externally in NARRPR), parse its comps via Claude,
+// then revisit weekly to confirm the valuation still holds.
+
+/** Upload a CMA PDF to storage. Returns { path, url, signedUrl }. */
+export async function uploadCmaPdf(file, cmaId) {
+  if (!file || !cmaId) throw new Error('uploadCmaPdf: file + cmaId required')
+  const ext = (file.name?.split('.').pop() || 'pdf').toLowerCase()
+  const path = `${cmaId}.${ext}`
+  const { error } = await supabase.storage.from('cma-uploads').upload(path, file, {
+    contentType: file.type || 'application/pdf',
+    upsert: true,
+  })
+  if (error) throw new Error(error.message)
+  // Bucket is private — generate a 1-day signed URL for inline viewing.
+  const { data: signed } = await supabase.storage.from('cma-uploads').createSignedUrl(path, 60 * 60 * 24)
+  return { path, url: signed?.signedUrl || null }
+}
+
+/** Create a new CMA row (status='pending' parse) with optional listing/contact ties. */
+export const createCma = (d) =>
+  query(supabase.from('cmas').insert({ ...d, parse_status: 'pending' }).select().single())
+
+export const updateCma = (id, d) =>
+  query(supabase.from('cmas').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+
+export const getCmas = ({ listingId = null, contactId = null } = {}) => {
+  let q = supabase.from('cmas').select('*, comps:cma_comps(*)').is('deleted_at', null).order('uploaded_at', { ascending: false })
+  if (listingId) q = q.eq('listing_id', listingId)
+  if (contactId) q = q.eq('contact_id', contactId)
+  return query(q)
+}
+
+export const getCma = (id) =>
+  query(supabase.from('cmas').select('*, comps:cma_comps(*)').eq('id', id).maybeSingle())
+
+export const softDeleteCma = (id) =>
+  query(supabase.from('cmas').update({ deleted_at: new Date().toISOString() }).eq('id', id))
+
+/** Trigger the cma-parse edge function to extract comps from the uploaded PDF. */
+export async function parseCma(cmaId) {
+  const { data, error } = await supabase.functions.invoke('cma-parse', { body: { cma_id: cmaId } })
+  if (error) {
+    let detail = error.message
+    try {
+      if (error.context && typeof error.context.json === 'function') {
+        const body = await error.context.json()
+        detail = body?.error || detail
+      }
+    } catch { /* ignore */ }
+    throw new Error(detail)
+  }
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
+/** Per-comp updates during weekly review. */
+export const updateCmaComp = (id, d) =>
+  query(supabase.from('cma_comps').update({ ...d, updated_at: new Date().toISOString() }).eq('id', id).select().single())
+
+/** Mark a comp as just-checked (one click during review). */
+export const markCmaCompChecked = (id, patch = {}) =>
+  query(supabase.from('cma_comps').update({
+    last_checked_at: new Date().toISOString(),
+    ...patch,
+    updated_at: new Date().toISOString(),
+  }).eq('id', id).select().single())
+
+/** Mark the whole CMA as reviewed with a verdict. */
+export const setCmaReviewVerdict = (id, verdict, notes) =>
+  query(supabase.from('cmas').update({
+    last_reviewed_at: new Date().toISOString(),
+    review_verdict: verdict,
+    notes: notes ?? undefined,
+    updated_at: new Date().toISOString(),
+  }).eq('id', id).select().single())
+
 // ─── AI Content Generation ────────────────────────────────────────────────────
 export async function generateContent(payload) {
   const { data, error } = await supabase.functions.invoke('generate-content', { body: payload })
