@@ -8,6 +8,7 @@ import { useDashboardData, useAllDailyTasks, useDailyStreaks, useProperties, use
 import { useNotesContext } from '../../lib/NotesContext'
 import * as DB from '../../lib/supabase.js'
 import StaleRecordsWidget from '../../components/StaleRecordsWidget'
+import StaleListingsWidget from '../../components/StaleListingsWidget'
 import ClosedDealsMap from '../../components/ClosedDealsMap'
 import PropertyMap from '../../components/PropertyMap'
 import DayBriefingCard from '../../components/DayBriefingCard'
@@ -46,7 +47,7 @@ const TABS = [
 
 // ─── Default widget keys per tab ──────────────────────────────────────────────
 const DEFAULT_WIDGET_ORDER = {
-  today:       ['briefing', 'listingAlerts', 'tasks', 'goals', 'week', 'campaigns', 'stale'],
+  today:       ['briefing', 'listingAlerts', 'tasks', 'goals', 'week', 'campaigns', 'stale', 'staleListings'],
   pipeline:    ['pipeline', 'funnel', 'clients', 'oh', 'leads', 'closedMap', 'propertyMap'],
   performance: ['production', 'roi', 'pnl', 'goals', 'week'],
   activity:    ['activityOverview', 'feed', 'investors', 'showings'],
@@ -1015,6 +1016,8 @@ function getWidgetByKey(key, ctx) {
       return <CampaignsWidget />
     case 'stale':
       return <StaleRecordsWidget />
+    case 'staleListings':
+      return <StaleListingsWidget />
     case 'pipeline':
       return <PipelineMiniWidget transactions={transactions} listings={listings} pipelineValue={kpis.pipelineValue} listingValue={listingValue} avgDOM={avgDOM} onExpand={() => openDrill('pipeline')} />
     case 'funnel':
