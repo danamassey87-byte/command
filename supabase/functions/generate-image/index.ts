@@ -14,7 +14,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-import { maybeNotifyLowReplicateCredit, isReplicate402 } from '../_shared/replicate-notify.ts'
+import { maybeNotifyLowReplicateCredit, isReplicate402, logAiGeneration } from '../_shared/replicate-notify.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -191,6 +191,17 @@ serve(async (req) => {
       costUsd = COST_BY_MODEL[model]
     }
     const costCents = Math.round(costUsd * 100 * 10) / 10 // tenths of a cent
+
+    // Log to ai_generation_log for the AI Spend widget.
+    await logAiGeneration(supabase, {
+      service: 'replicate',
+      model,
+      kind: 'generate_image',
+      prompt: fullPrompt,
+      cost_cents: costCents,
+      prediction_id: predictionId,
+      succeeded: true,
+    })
 
     return json({
       ok: true,

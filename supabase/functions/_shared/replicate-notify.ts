@@ -48,3 +48,41 @@ export function isReplicate402(status: number, body: string): boolean {
   if (!body) return true
   return /insufficient credit|insufficient_credit|payment required/i.test(body)
 }
+
+/**
+ * Append one row to ai_generation_log. Best-effort — never throws so a
+ * logging failure can't break the user-facing call. Powers the AI Spend
+ * dashboard widget.
+ */
+export async function logAiGeneration(
+  supabase: ReturnType<typeof createClient>,
+  entry: {
+    service: 'replicate' | 'anthropic' | 'other'
+    model?: string
+    kind?: string
+    prompt?: string
+    cost_cents?: number
+    listing_id?: string | null
+    property_id?: string | null
+    contact_id?: string | null
+    prediction_id?: string
+    succeeded?: boolean
+  }
+) {
+  try {
+    await supabase.from('ai_generation_log').insert({
+      service: entry.service,
+      model: entry.model || null,
+      kind: entry.kind || null,
+      prompt: entry.prompt?.slice(0, 1000) || null,  // cap prompt size
+      cost_cents: entry.cost_cents ?? null,
+      listing_id: entry.listing_id || null,
+      property_id: entry.property_id || null,
+      contact_id: entry.contact_id || null,
+      prediction_id: entry.prediction_id || null,
+      succeeded: entry.succeeded ?? true,
+    })
+  } catch (err: any) {
+    console.warn('[ai-log] insert failed:', err?.message)
+  }
+}

@@ -9,6 +9,7 @@ import { useNotesContext } from '../../lib/NotesContext'
 import * as DB from '../../lib/supabase.js'
 import StaleRecordsWidget from '../../components/StaleRecordsWidget'
 import StaleListingsWidget from '../../components/StaleListingsWidget'
+import AiSpendWidget from '../../components/AiSpendWidget'
 import ClosedDealsMap from '../../components/ClosedDealsMap'
 import PropertyMap from '../../components/PropertyMap'
 import DayBriefingCard from '../../components/DayBriefingCard'
@@ -49,7 +50,7 @@ const TABS = [
 const DEFAULT_WIDGET_ORDER = {
   today:       ['briefing', 'listingAlerts', 'tasks', 'goals', 'week', 'campaigns', 'stale', 'staleListings'],
   pipeline:    ['pipeline', 'funnel', 'clients', 'oh', 'leads', 'closedMap', 'propertyMap'],
-  performance: ['production', 'roi', 'pnl', 'goals', 'week'],
+  performance: ['production', 'roi', 'pnl', 'goals', 'week', 'aiSpend'],
   activity:    ['activityOverview', 'feed', 'investors', 'showings'],
 }
 
@@ -1018,6 +1019,8 @@ function getWidgetByKey(key, ctx) {
       return <StaleRecordsWidget />
     case 'staleListings':
       return <StaleListingsWidget />
+    case 'aiSpend':
+      return <AiSpendWidget />
     case 'pipeline':
       return <PipelineMiniWidget transactions={transactions} listings={listings} pipelineValue={kpis.pipelineValue} listingValue={listingValue} avgDOM={avgDOM} onExpand={() => openDrill('pipeline')} />
     case 'funnel':
