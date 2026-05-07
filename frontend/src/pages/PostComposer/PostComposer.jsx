@@ -5,6 +5,7 @@ import ComplianceCheck from '../../components/ComplianceCheck.jsx'
 import supabase from '../../lib/supabase.js'
 import { PropertyPicker } from '../../components/ui/PropertyPicker.jsx'
 import { HashtagPicker } from '../../components/ui/HashtagPicker.jsx'
+import GenerateImageModal from '../../components/staging/GenerateImageModal.jsx'
 import * as DB from '../../lib/supabase.js'
 import {
   useContentPillars, useClientAvatars, useProperties, useSeoKeywordSets,
@@ -52,6 +53,7 @@ export default function PostComposer() {
   const [mediaFiles, setMediaFiles]       = useState([]) // [{ file, preview, url }]
   const [dragOver, setDragOver]           = useState(false)
   const [listingMedia, setListingMedia]   = useState([]) // media_assets for the active property
+  const [genImageOpen, setGenImageOpen]   = useState(false) // 🎨 Generate fresh image modal
 
   // Metadata
   const [pillarId, setPillarId]     = useState('')
@@ -868,7 +870,17 @@ export default function PostComposer() {
 
           {/* Media upload */}
           <div className="pc-media">
-            <div className="pc-media__label">Media</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <div className="pc-media__label">Media</div>
+              <button
+                type="button"
+                onClick={() => setGenImageOpen(true)}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--brown-warm, #8b6f53)', background: 'transparent', color: 'var(--brown-warm)', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer' }}
+                title="Generate a brand-new image from a text prompt (FLUX via Replicate)"
+              >
+                🎨 Generate fresh image
+              </button>
+            </div>
 
             {/* Listing photo gallery — surfaces media_assets for the active property
                 so Dana can drop in synced Drive photos with one tap. */}
@@ -1450,6 +1462,25 @@ export default function PostComposer() {
           </div>
         </div>
       )}
+
+      {/* 🎨 Generate Fresh Image (Replicate FLUX) */}
+      <GenerateImageModal
+        open={genImageOpen}
+        onClose={() => setGenImageOpen(false)}
+        onGenerated={(img) => {
+          setMediaFiles(prev => [...prev, {
+            file: null,
+            preview: img.url,
+            url: img.url,
+            name: `Generated · ${img.prompt?.slice(0, 40) || 'image'}`,
+            type: 'image',
+            fromAi: true,
+            ai_prompt: img.prompt,
+            ai_model: img.model,
+            ai_cost_cents: img.cost_cents,
+          }])
+        }}
+      />
     </div>
   )
 }
