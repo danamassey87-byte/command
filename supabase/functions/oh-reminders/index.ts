@@ -1,0 +1,153 @@
+// oh-reminders — scans upcoming open houses and drops reminder notifications
+// at three windows: 7 days out, 24 hours out, 2 hours out.
+//
+// Each OH row has a `reminders_sent text[]` column. When a window fires, its
+// label ("7d" | "24h" | "2h") is appended so the next run won't re-fire.
+//
+// Triggered hourly via pg_cron (see schedule below). Idempotent — safe to
+// re-run, won't double-notify.
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+type Window = '7d' | '24h' | '2h'
+
+interface ReminderSpec {
+  key: Window
+  label: string
+  // Earliest hours-from-now we'll fire this window (inclusive).
+  // Latest hours-from-now we'll fire this window (exclusive).
+  // Tuned with a 90-min buffer so a cron that runs hourly still catches it.
+  minHoursOut: number
+  maxHoursOut: number
+}
+
+const WINDOWS: ReminderSpec[] = [
+  // 7-day reminder fires anywhere from 6.5 → 7.5 days out.
+  { key: '7d',  label: '7 days', minHoursOut: 6.5 * 24, maxHoursOut: 7.5 * 24 },
+  // 24-hour reminder fires anywhere from 22.5 → 25.5 hours out.
+  { key: '24h', label: '24 hours', minHoursOut: 22.5, maxHoursOut: 25.5 },
+  // 2-hour reminder fires anywhere from 1 → 3 hours out.
+  { key: '2h',  label: '2 hours', minHoursOut: 1, maxHoursOut: 3 },
+]
+
+function combineDateTime(date: string, time: string | null): Date | null {
+  if (!date) return null
+  const t = time && /^\d{2}:\d{2}/.test(time) ? time : '11:00'
+  // Treat the OH date+time as Phoenix-local (no DST). Fall back to local.
+  // For correctness we'd inject the agent's timezone; for Dana that's MST/Phoenix.
+  // ISO with -07:00 is good enough since Arizona doesn't observe DST.
+  return new Date(`${date}T${t.length === 5 ? t + ':00' : t}-07:00`)
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: CORS })
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    )
+
+    // Pull upcoming OHs in the next 8 days (covers all three windows + a buffer).
+    const today = new Date()
+    const horizon = new Date(today)
+    horizon.setDate(horizon.getDate() + 8)
+    const todayISO = today.toISOString().slice(0, 10)
+    const horizonISO = horizon.toISOString().slice(0, 10)
+
+    const { data: ohs, error } = await supabase
+      .from('open_houses')
+      .select('id, date, start_time, end_time, address, city, listing_id, reminders_sent, status')
+      .gte('date', todayISO)
+      .lte('date', horizonISO)
+      .neq('status', 'cancelled')
+
+    if (error) throw new Error(`open_houses query failed: ${error.message}`)
+
+    let firedCount = 0
+    const fired: Array<{ oh_id: string; window: Window }> = []
+
+    for (const oh of ohs || []) {
+      const eventAt = combineDateTime(oh.date, oh.start_time)
+      if (!eventAt) continue
+      const hoursOut = (eventAt.getTime() - Date.now()) / (1000 * 60 * 60)
+      if (hoursOut <= 0) continue
+
+      const already = new Set(oh.reminders_sent || [])
+
+      for (const w of WINDOWS) {
+        if (already.has(w.key)) continue
+        if (hoursOut < w.minHoursOut || hoursOut >= w.maxHoursOut) continue
+
+        // Build notification body.
+        const dateLabel = new Date(oh.date + 'T12:00:00').toLocaleDateString('en-US', {
+          weekday: 'long', month: 'short', day: 'numeric',
+        })
+        const timeLabel = oh.start_time ? oh.start_time.slice(0, 5) : ''
+        const addressLabel = `${oh.address || 'OH'}${oh.city ? ', ' + oh.city : ''}`
+
+        let title = ''
+        let body = ''
+        if (w.key === '7d') {
+          title = `OH in 7 days: ${addressLabel}`
+          body = `${dateLabel}${timeLabel ? ' at ' + timeLabel : ''}. Time to schedule the promo posts and email blast.`
+        } else if (w.key === '24h') {
+          title = `OH tomorrow: ${addressLabel}`
+          body = `${dateLabel}${timeLabel ? ' at ' + timeLabel : ''}. Finalize prep — supplies, signage, briefing packet.`
+        } else if (w.key === '2h') {
+          title = `OH starts in 2h: ${addressLabel}`
+          body = `${timeLabel ? 'Starts ' + timeLabel + '. ' : ''}Heading-out time. Lockbox, snacks, sign-in tablet.`
+        }
+
+        const { error: notifErr } = await supabase
+          .from('notifications')
+          .insert({
+            type: 'oh_reminder',
+            title,
+            body,
+            link: `/open-houses/${oh.id}`,
+            source_table: 'open_houses',
+            source_id: oh.id,
+            metadata: { window: w.key, oh_date: oh.date, oh_time: oh.start_time, listing_id: oh.listing_id },
+          })
+
+        if (notifErr) {
+          console.error(`Failed to insert oh_reminder for ${oh.id}/${w.key}:`, notifErr)
+          continue
+        }
+
+        // Mark this window as fired so we don't repeat.
+        const nextSent = Array.from(new Set([...(oh.reminders_sent || []), w.key]))
+        const { error: updErr } = await supabase
+          .from('open_houses')
+          .update({ reminders_sent: nextSent })
+          .eq('id', oh.id)
+        if (updErr) {
+          console.error(`Failed to mark reminders_sent for ${oh.id}:`, updErr)
+        }
+
+        firedCount++
+        fired.push({ oh_id: oh.id, window: w.key })
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ ok: true, scanned: (ohs || []).length, fired: firedCount, details: fired }),
+      { headers: { ...CORS, 'Content-Type': 'application/json' } }
+    )
+  } catch (err: any) {
+    console.error('oh-reminders error:', err)
+    return new Response(
+      JSON.stringify({ error: err.message || 'Internal error', code: 'internal_error' }),
+      { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } }
+    )
+  }
+})

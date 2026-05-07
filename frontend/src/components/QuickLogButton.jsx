@@ -55,7 +55,7 @@ export default function QuickLogButton() {
         onClick={() => setOpen(!open)}
         title="Quick log interaction"
         style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 900,
+          position: 'fixed', bottom: 24, right: 24, zIndex: 150,
           width: 48, height: 48, borderRadius: '50%',
           background: 'var(--brown-dark, #3A2A1E)', color: 'var(--cream, #EFEDE8)',
           border: 'none', cursor: 'pointer', fontSize: '1.2rem',
@@ -71,7 +71,7 @@ export default function QuickLogButton() {
       {/* Popover */}
       {open && (
         <div style={{
-          position: 'fixed', bottom: 80, right: 24, zIndex: 901,
+          position: 'fixed', bottom: 80, right: 24, zIndex: 151,
           width: 320, background: '#fff', borderRadius: 12,
           border: '1px solid var(--color-border, #C8C3B9)',
           boxShadow: '0 8px 32px rgba(58,42,30,.12)',

@@ -156,7 +156,31 @@
   .oh-brief__qr { width: 160px; height: 160px; }
 }
 
+/* Print bar (button row above the hero) */
+.oh-brief__print-bar {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 14px 24px 0;
+  display: flex;
+  justify-content: flex-end;
+}
+.oh-brief__print-btn {
+  background: #3A2A1E;
+  color: #FFF8EE;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.oh-brief__print-btn:hover { background: #5A4136; }
+
 @media print {
+  .no-print { display: none !important; }
   .oh-brief { background: #fff; }
   .oh-brief__hero {
     background: #fff !important;

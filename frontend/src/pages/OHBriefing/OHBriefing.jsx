@@ -84,6 +84,13 @@ export default function OHBriefing() {
 
   return (
     <div className="oh-brief">
+      {/* Print button — hidden in print output via CSS */}
+      <div className="oh-brief__print-bar no-print">
+        <button onClick={() => window.print()} className="oh-brief__print-btn" title="Print this briefing as a host runsheet">
+          🖨️ Print Runsheet
+        </button>
+      </div>
+
       <div className="oh-brief__hero">
         <span className="oh-brief__welcome">Open House Briefing</span>
         <h1 className="oh-brief__address">{addr}</h1>
@@ -131,11 +138,19 @@ export default function OHBriefing() {
           </section>
         )}
 
-        {/* Talking Points (from oh.notes) */}
-        {oh.notes && (
+        {/* Talking Points — prefer the dedicated field, fall back to notes */}
+        {(oh.talking_points || oh.notes) && (
           <section className="oh-brief__section">
             <h2 className="oh-brief__h2">Key Talking Points</h2>
-            <p className="oh-brief__paragraph">{oh.notes}</p>
+            <p className="oh-brief__paragraph">{oh.talking_points || oh.notes}</p>
+          </section>
+        )}
+
+        {/* Parking & Arrival (host-facing only) */}
+        {oh.parking_notes && (
+          <section className="oh-brief__section">
+            <h2 className="oh-brief__h2">Parking &amp; Arrival</h2>
+            <p className="oh-brief__paragraph">{oh.parking_notes}</p>
           </section>
         )}
 
@@ -168,6 +183,22 @@ export default function OHBriefing() {
             {oh.access_notes && <p className="oh-brief__paragraph">{oh.access_notes}</p>}
           </section>
         )}
+
+        {/* Host-only runsheet notes (emergency / what to avoid / tips) */}
+        {oh.host_runsheet_notes && (
+          <section className="oh-brief__section">
+            <h2 className="oh-brief__h2">Host Notes</h2>
+            <p className="oh-brief__paragraph" style={{ whiteSpace: 'pre-line' }}>{oh.host_runsheet_notes}</p>
+          </section>
+        )}
+
+        {/* Emergency — always shown so hosts have something to fall back on */}
+        <section className="oh-brief__section">
+          <h2 className="oh-brief__h2">Emergency</h2>
+          <p className="oh-brief__line"><strong>911</strong> — fire, medical, police</p>
+          <p className="oh-brief__line"><strong>Listing Agent (Dana):</strong> <a href="tel:+14805551234">call/text immediately</a></p>
+          <p className="oh-brief__hint">If anything feels unsafe (uninvited contractor, suspicious behavior, water leak, etc.) end the OH and call Dana.</p>
+        </section>
 
         {/* Listing Agent (Dana) */}
         <section className="oh-brief__section">

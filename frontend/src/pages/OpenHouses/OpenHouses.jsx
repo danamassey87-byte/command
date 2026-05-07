@@ -6,6 +6,7 @@ import { useBrandSignature } from '../../lib/BrandContext'
 import * as DB from '../../lib/supabase.js'
 import ChecklistRunner from '../../components/ChecklistRunner.jsx'
 import WeatherPrepFlags from '../../components/WeatherPrepFlags.jsx'
+import ListingContentModal from '../../components/content/ListingContentModal.jsx'
 import './OpenHouses.css'
 
 // ─── Error Boundary ──────────────────────────────────────────────────────────
@@ -260,6 +261,11 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
     groups_through:      oh?.groups_through      ?? 0,
     leads_converted:     oh?.leads_converted     ?? 0,
     notes:               oh?.notes               ?? '',
+    lockbox_code:        oh?.lockbox_code        ?? '',
+    access_notes:        oh?.access_notes        ?? '',
+    parking_notes:       oh?.parking_notes       ?? '',
+    talking_points:      oh?.talking_points      ?? '',
+    host_runsheet_notes: oh?.host_runsheet_notes ?? '',
     sign_in_config:      oh?.sign_in_config      ?? {
       show_email: true,
       show_phone: true,
@@ -418,6 +424,17 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
           <Input label="Leads → Sales" type="number" min="0" value={draft.leads_converted} onChange={e => set('leads_converted', e.target.value)} />
         </div>
       </div>
+
+      <hr className="panel-divider" />
+      <h4 style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '8px 0' }}>Host Runsheet</h4>
+      <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: 10 }}>These fields render only on the host briefing page (private link). Never shown publicly.</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <Input label="Lockbox Code" value={draft.lockbox_code} onChange={e => set('lockbox_code', e.target.value)} placeholder="e.g. 4231" />
+        <Input label="Parking" value={draft.parking_notes} onChange={e => set('parking_notes', e.target.value)} placeholder="Driveway, street, neighbor sensitivities" />
+      </div>
+      <Textarea label="Access / Entry Notes" rows={2} value={draft.access_notes} onChange={e => set('access_notes', e.target.value)} placeholder="Side door, gate code, dog in yard, alarm…" />
+      <Textarea label="Talking Points" rows={3} value={draft.talking_points} onChange={e => set('talking_points', e.target.value)} placeholder="3 things to lead with — recent renos, neighborhood, schools…" />
+      <Textarea label="Host-Only Notes" rows={3} value={draft.host_runsheet_notes} onChange={e => set('host_runsheet_notes', e.target.value)} placeholder="Anything the host should know — what to avoid showing, special tips, emergency procedures…" />
 
       <hr className="panel-divider" />
       <Textarea label="Notes" rows={3} value={draft.notes} onChange={e => set('notes', e.target.value)} placeholder="Prep notes, feedback, follow-up actions…" />
@@ -654,6 +671,7 @@ function TasksPanel({ ohId }) {
 
 // ─── OH Detail ────────────────────────────────────────────────────────────────
 function OHDetail({ oh, onBack, onEdit }) {
+  const [promoteOpen, setPromoteOpen] = useState(false)
   return (
     <div className="oh-detail">
       <div className="oh-detail__nav">
@@ -663,9 +681,23 @@ function OHDetail({ oh, onBack, onEdit }) {
           </svg>
           Back to Open Houses
         </button>
-        <Button variant="ghost" size="sm" onClick={onEdit}
-          icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
-        >Edit</Button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Button variant="ghost" size="sm" onClick={() => setPromoteOpen(true)}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7-6.3-4.6L5.7 21l2.3-7-6-4.6h7.6z"/></svg>}
+            title="Generate social posts + email blast for this open house"
+          >Promote OH</Button>
+          {typeof oh.id === 'string' && (
+            <Link to={`/content/plan?oh=${oh.id}`} style={{ textDecoration: 'none' }}>
+              <Button variant="ghost" size="sm"
+                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>}
+                title="View every post tied to this open house on the Content Calendar"
+              >Calendar</Button>
+            </Link>
+          )}
+          <Button variant="ghost" size="sm" onClick={onEdit}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
+          >Edit</Button>
+        </div>
       </div>
 
       <div className="oh-detail__header">
@@ -787,6 +819,16 @@ function OHDetail({ oh, onBack, onEdit }) {
           </Link>
         </div>
       )}
+      <ListingContentModal
+        open={promoteOpen}
+        onClose={() => setPromoteOpen(false)}
+        context="oh"
+        ohId={oh.id}
+        listingId={oh.listing_id}
+        propertyId={oh.property_id}
+        addressLabel={`${oh.address || ''} · ${oh.date ? new Date(oh.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''}${oh.time ? ' · ' + oh.time : ''}`}
+        defaultVariant="oh_promo"
+      />
     </div>
   )
 }
@@ -1042,6 +1084,11 @@ function ScheduledTab({ openHouses, loading, refetch }) {
         groups_through:      Number(draft.groups_through) || 0,
         leads_converted:     Number(draft.leads_converted) || 0,
         notes:               (draft.notes ?? '').trim()   || null,
+        lockbox_code:        (draft.lockbox_code ?? '').trim() || null,
+        access_notes:        (draft.access_notes ?? '').trim() || null,
+        parking_notes:       (draft.parking_notes ?? '').trim() || null,
+        talking_points:      (draft.talking_points ?? '').trim() || null,
+        host_runsheet_notes: (draft.host_runsheet_notes ?? '').trim() || null,
         sign_in_config:      draft.sign_in_config        || null,
       }
       await DB.updateOpenHouse(editingOH.id, dbRow)
