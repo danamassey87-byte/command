@@ -103,6 +103,37 @@
 ### Polish — Home Valuation Coming Soon (NEW 2026-05-07)
 - [ ] Visit `/home-value` — verify the Coming Soon placeholder renders (full impl parked)
 
+### 🤖 AI Spend Widget (NEW 2026-05-07 — Dashboard → Performance tab)
+- [ ] Stage at least one room or generate at least one image first (otherwise widget is hidden)
+- [ ] Open Dashboard → Performance tab
+- [ ] Verify "🤖 AI Spend · {Month} MTD" widget shows total spend
+- [ ] Verify per-kind breakdown lists each service with call count + subtotal
+- [ ] Click "↗ Replicate billing" link in footer — opens billing in new tab
+- [ ] Verify hidden again at start of next month if no AI activity yet (or shows last month vs $0 this month)
+
+### 🔍 Universal Search Deep-Links (NEW 2026-05-07)
+- [ ] ⌘K from anywhere; type a listing address (≥2 chars)
+- [ ] Click the listing result OR press Enter
+- [ ] Verify it lands directly on the LISTING DETAIL panel (not just /sellers list)
+- [ ] Try same with an open house — verify lands on OH detail
+- [ ] Try same with a contact — already worked (contact profile detail route)
+- [ ] Try same with an active deal — verify lands on Pipeline with the deal's detail panel open
+
+### 💧 Virtual Staging Watermark (NEW 2026-05-07)
+- [ ] Stage a room (Virtual Staging Studio)
+- [ ] Click **Save to listing photos**
+- [ ] Open the saved staged photo (in /staging-photos bucket or via media_assets)
+- [ ] Verify "VIRTUALLY STAGED" pill is rendered in bottom-right corner
+- [ ] Confirm pill scales reasonably with image size (not too small / not dominant)
+
+### 💳 Replicate Low-Credit Notification (NEW 2026-05-07)
+- [ ] (When you actually run out, or when testing manually): trigger a 402 by setting Replicate balance to $0
+- [ ] Click 🪑 Stage a Room or 🎨 Generate Image
+- [ ] Modal should show "Replicate is out of credit. Top up at replicate.com/account/billing"
+- [ ] Verify 💳 "Replicate Credit" notification appears in bell icon
+- [ ] Click the notification — confirm replicate.com/account/billing opens in NEW TAB
+- [ ] Click again immediately while still 402'd — confirm only ONE notification (24h dedup)
+
 ### 🎨 Generate Fresh Image (NEW 2026-05-07 — PostComposer)
 - [ ] **First: add a payment method at https://replicate.com/account/billing** — FLUX models aren't covered by trial credit
 - [ ] Open PostComposer (any post / new draft)
