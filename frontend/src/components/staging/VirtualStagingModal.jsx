@@ -293,7 +293,7 @@ export default function VirtualStagingModal({ open, onClose, listingId, property
                     </Button>
                   </div>
                   <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 10, textAlign: 'center', fontStyle: 'italic' }}>
-                    Reminder: any AI-staged photo published to MLS or syndicated portals must be labelled "Virtually Staged" per ARMLS rules.
+                    Saving applies a "Virtually Staged" watermark automatically (ARMLS-compliant for syndicated listings). Original photo stays untouched.
                   </p>
                 </>
               )}

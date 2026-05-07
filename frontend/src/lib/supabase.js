@@ -1596,21 +1596,84 @@ export async function generateStaging(payload) {
   return data
 }
 
-/** Replicate returns a temporary CDN URL; download + re-upload to
- *  staging-photos so we own the asset (Replicate's CDN expires it after
- *  ~24h). */
+/**
+ * Apply a "Virtually Staged" watermark to a staged image client-side via
+ * canvas. ARMLS requires this label on AI-staged photos in any syndicated
+ * listing. Returns a JPEG blob.
+ *
+ * Failure is non-fatal — if CORS or canvas toBlob fails, we fall back to
+ * the un-watermarked source so Dana doesn't lose the staging output.
+ * Watermark missing is a softer problem than the image vanishing.
+ */
+async function watermarkStagedImage(sourceBlob) {
+  try {
+    const bitmap = await createImageBitmap(sourceBlob)
+    const W = bitmap.width
+    const H = bitmap.height
+    const canvas = document.createElement('canvas')
+    canvas.width = W
+    canvas.height = H
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(bitmap, 0, 0)
+
+    // Watermark: bottom-right pill with "Virtually Staged" text.
+    const padX = Math.round(W * 0.022)
+    const padY = Math.round(H * 0.022)
+    const fontSize = Math.max(14, Math.round(H * 0.024))
+    ctx.font = `600 ${fontSize}px 'Nunito Sans', Arial, sans-serif`
+    const text = 'VIRTUALLY STAGED'
+    const textW = ctx.measureText(text).width
+    const boxPadX = Math.round(fontSize * 0.7)
+    const boxPadY = Math.round(fontSize * 0.5)
+    const boxW = textW + boxPadX * 2
+    const boxH = fontSize + boxPadY * 2
+    const boxX = W - boxW - padX
+    const boxY = H - boxH - padY
+
+    // Translucent dark pill background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)'
+    const radius = Math.round(boxH / 2)
+    ctx.beginPath()
+    ctx.moveTo(boxX + radius, boxY)
+    ctx.arcTo(boxX + boxW, boxY, boxX + boxW, boxY + boxH, radius)
+    ctx.arcTo(boxX + boxW, boxY + boxH, boxX, boxY + boxH, radius)
+    ctx.arcTo(boxX, boxY + boxH, boxX, boxY, radius)
+    ctx.arcTo(boxX, boxY, boxX + boxW, boxY, radius)
+    ctx.closePath()
+    ctx.fill()
+
+    // White text
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.96)'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, boxX + boxPadX, boxY + boxH / 2 + 1)
+
+    const out = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92))
+    if (!out) throw new Error('canvas.toBlob returned null')
+    return out
+  } catch (err) {
+    console.warn('[watermarkStagedImage] failed, falling back to un-watermarked:', err.message)
+    return sourceBlob
+  }
+}
+
+/** Replicate returns a temporary CDN URL; download, **watermark with
+ *  "Virtually Staged"** (ARMLS rule for AI-staged photos), and re-upload to
+ *  staging-photos so we own the asset (Replicate's CDN expires it after ~24h). */
 export async function persistStagedOutput(stagedUrl, listingId, originalAssetId) {
   if (!stagedUrl) throw new Error('persistStagedOutput: stagedUrl required')
   const resp = await fetch(stagedUrl)
   if (!resp.ok) throw new Error(`Could not fetch staged image (${resp.status})`)
-  const blob = await resp.blob()
-  const ext = (blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+  const sourceBlob = await resp.blob()
+  // Apply mandatory watermark before persisting.
+  const blob = await watermarkStagedImage(sourceBlob)
   const stamp = Date.now()
   const dir = listingId ? `${listingId}/staged` : 'misc/staged'
   const fileBase = originalAssetId ? `from-${originalAssetId.slice(0, 8)}-${stamp}` : `${stamp}`
+  // Always JPEG out (watermark function emits JPEG). Falls back to source ext only when watermarking failed.
+  const ext = blob.type === 'image/jpeg' ? 'jpg' : ((blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg'))
   const path = `${dir}/${fileBase}.${ext}`
   const { error } = await supabase.storage.from('staging-photos').upload(path, blob, {
-    contentType: blob.type || 'image/png',
+    contentType: blob.type || 'image/jpeg',
     upsert: false,
   })
   if (error) throw new Error(error.message)
