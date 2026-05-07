@@ -19,6 +19,14 @@ export const NOTIFICATION_TYPES = {
   onhold_milestone:  { label: 'On-Hold Check-In', icon: '⏸️', color: '#c8a05a' },
   host_report_received: { label: 'Host Report',  icon: '🤝', color: '#7c6350' },
   oh_hot_lead:       { label: 'Hot OH Lead',     icon: '🔥', color: '#c0604a' },
+  drive_shared:      { label: 'Drive Shared',    icon: '📁', color: '#7a9b76' },
+  drive_share_failed:{ label: 'Drive Share Failed', icon: '⚠️', color: '#b91c1c' },
+  workflow_seeded:   { label: 'Workflow Seeded', icon: '📋', color: '#7a9b76' },
+  deadline_7d:       { label: 'Deadline 7d',     icon: '🗓️', color: '#9b8a7a' },
+  deadline_3d:       { label: 'Deadline 3d',     icon: '⏰', color: '#c8a05a' },
+  deadline_1d:       { label: 'Deadline 1d',     icon: '🚨', color: '#c0604a' },
+  deadline_missed:   { label: 'Deadline MISSED', icon: '❌', color: '#b91c1c' },
+  oh_reminder:       { label: 'OH Reminder',     icon: '⏰', color: '#c8a05a' },
 }
 
 export function typeMeta(type) {

@@ -9,6 +9,7 @@ import * as DB from '../../lib/supabase.js'
 import ChecklistRunner from '../../components/ChecklistRunner.jsx'
 import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
 import { logDealStageChange } from '../../lib/interactionBridges.js'
+import { autoSeedOnUnderContract } from '../../lib/autoSeedWorkflow.js'
 import './Pipeline.css'
 
 // ─── Arizona Transaction Stages ──────────────────────────────────────────────
@@ -795,6 +796,23 @@ export default function Pipeline() {
         update.offer_submitted_at = new Date().toISOString()
       }
       await DB.updateTransaction(dragDeal.id, update)
+
+      // Auto-seed M1–M10 required documents + contract deadlines when a deal
+      // moves into Under Contract. Buyer-scoped (parent_kind='contact') so the
+      // BuyerDetail page picks up the same data the user sees in DocumentsTracker
+      // / DeadlineTracker. Idempotent — re-runs are no-ops.
+      if (stageValue === 'under_contract' && dragDeal.contact_id) {
+        const buyerName = dragDeal.contact?.name || dragDeal.contact?.first_name || ''
+        autoSeedOnUnderContract({
+          parentKind: 'contact',
+          parentId:   dragDeal.contact_id,
+          appliesTo:  'buyer',
+          contractAcceptanceDate: new Date().toISOString().slice(0, 10),
+          label: buyerName,
+          link:  `/buyers`,
+        }).catch(err => console.error('Workflow auto-seed (buyer) failed:', err))
+      }
+
       refetch()
     } catch (err) {
       alert('Error moving deal: ' + err.message)

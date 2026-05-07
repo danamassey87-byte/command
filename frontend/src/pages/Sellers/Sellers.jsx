@@ -18,9 +18,13 @@ import SocialProfilesPanel from '../../components/SocialProfilesPanel.jsx'
 import LifeEventsPanel from '../../components/LifeEventsPanel.jsx'
 import FamilyLinksPanel from '../../components/FamilyLinksPanel.jsx'
 import ChecklistRunner from '../../components/ChecklistRunner.jsx'
+import DocumentsTracker from '../../components/DocumentsTracker.jsx'
+import DeadlineTracker from '../../components/DeadlineTracker.jsx'
 import SellerWeeklyUpdate from '../../components/SellerWeeklyUpdate.jsx'
 import PropertyMap from '../../components/PropertyMap.jsx'
 import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
+import ListingContentModal from '../../components/content/ListingContentModal.jsx'
+import { autoSeedOnUnderContract } from '../../lib/autoSeedWorkflow.js'
 import './Sellers.css'
 
 // ─── Checklist definitions ────────────────────────────────────────────────────
@@ -226,6 +230,70 @@ const cashOfferVariant = {
   none: 'default', requested: 'warning', received: 'info', reviewing: 'info', accepted: 'success', declined: 'danger',
 }
 
+// ─── Auto-share listing's Drive folder with TC when deal goes Under Contract ──
+async function shareListingFolderWithTC({ listingId, folderId, address }) {
+  if (!listingId) return
+  const parties = await DB.getPartiesForListing(listingId).catch(() => [])
+  const tcs = (parties || []).filter(p => p.role === 'transaction_coordinator')
+  if (!tcs.length) return
+
+  // Auto-create the Drive folder if the listing doesn't have one yet — going
+  // Under Contract is exactly when the TC needs access.
+  let activeFolderId = folderId
+  if (!activeFolderId) {
+    try {
+      const created = await DB.createDriveFolder({
+        kind: 'listing',
+        id: listingId,
+        name: address || `Listing ${listingId.slice(0, 8)}`,
+      })
+      activeFolderId = created?.folder_id
+    } catch (err) {
+      console.error('Auto-create Drive folder failed:', err)
+      emitNotification({
+        type: 'drive_share_failed',
+        title: 'Drive auto-share skipped',
+        body: `${address}: couldn't create Drive folder — ${err.message || 'unknown error'}`,
+        link: '/sellers',
+        source_table: 'listings',
+        source_id: listingId,
+      }).catch(() => {})
+      return
+    }
+  }
+  if (!activeFolderId) return
+
+  const seen = new Set()
+  for (const tc of tcs) {
+    const email = (tc.email || tc.vendor?.email || '').trim()
+    if (!email || seen.has(email.toLowerCase())) continue
+    seen.add(email.toLowerCase())
+    try {
+      const result = await DB.shareDriveFolder({ folderId: activeFolderId, email, role: 'writer', notify: true })
+      const tcName = tc.name || tc.vendor?.name || email
+      emitNotification({
+        type: 'drive_shared',
+        title: `Drive folder shared with ${tcName}`,
+        body: `${address}: TC now has writer access to the listing folder${result.action === 'already_shared' ? ' (was already shared)' : ''}.`,
+        link: '/sellers',
+        source_table: 'listings',
+        source_id: listingId,
+        metadata: { tc_email: email, folder_id: activeFolderId, action: result.action },
+      }).catch(err => console.error('drive_shared notification failed', err))
+    } catch (err) {
+      console.error(`Failed to share folder with TC ${email}:`, err)
+      emitNotification({
+        type: 'drive_share_failed',
+        title: `Failed to share Drive with TC`,
+        body: `${address}: ${err.message || 'Unknown error'}`,
+        link: '/sellers',
+        source_table: 'listings',
+        source_id: listingId,
+      }).catch(() => {})
+    }
+  }
+}
+
 // ─── Map Supabase listing row → local shape ───────────────────────────────────
 function mapListing(row) {
   const p = row.property ?? {}
@@ -271,6 +339,8 @@ function mapListing(row) {
     agreement_expires_date:   row.agreement_expires_date ?? '',
     pre_inspection_done:      row.pre_inspection_done ?? false,
     home_warranty_offered:    row.home_warranty_offered ?? false,
+    drive_folder_id:          row.drive_folder_id ?? null,
+    drive_folder_url:         row.drive_folder_url ?? null,
     // Property details (from properties table)
     bedrooms:         p.bedrooms ?? '',
     bathrooms:        p.bathrooms ?? '',
@@ -3352,6 +3422,81 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
     }
   }
 
+  // Photo sync handler (pulls Photos subfolder → media_assets)
+  const [syncingPhotos, setSyncingPhotos] = useState(false)
+  const handleSyncDrivePhotos = async () => {
+    if (!isDbRow) return
+    setSyncingPhotos(true)
+    try {
+      const result = await DB.syncDrivePhotos({ listingId: listing.id })
+      const { imported = 0, skipped = 0, total = 0 } = result || {}
+      if (!total) {
+        alert('No photos found in the Drive "Photos" subfolder.')
+      } else if (!imported) {
+        alert(`All ${total} photos were already imported. Nothing new to sync.`)
+      } else {
+        alert(`Imported ${imported} new photo${imported === 1 ? '' : 's'} from Drive (${skipped} already in library).`)
+      }
+    } catch (err) {
+      alert(err.message || 'Could not sync photos')
+    } finally {
+      setSyncingPhotos(false)
+    }
+  }
+
+  // ✨ Generate Content modal (Just Listed / Coming Soon / Price Drop / Just Sold)
+  const [contentModalOpen, setContentModalOpen] = useState(false)
+  const [contentDefaultVariant, setContentDefaultVariant] = useState('just_listed')
+  const openContentModal = (variant) => {
+    setContentDefaultVariant(variant || 'just_listed')
+    setContentModalOpen(true)
+  }
+
+  // Manual "Share with TC" — looks up TC parties on this listing, prompts to confirm.
+  const [sharingTC, setSharingTC] = useState(false)
+  const handleShareWithTC = async () => {
+    if (!isDbRow || !driveFolderUrl) return
+    setSharingTC(true)
+    try {
+      const parties = await DB.getPartiesForListing(listing.id)
+      const tcs = (parties || []).filter(p => p.role === 'transaction_coordinator')
+      if (!tcs.length) {
+        alert('No Transaction Coordinator on this listing yet. Add one under Parties & Vendors first.')
+        return
+      }
+      const targets = tcs
+        .map(tc => ({ name: tc.name || tc.vendor?.name || '(unnamed)', email: (tc.email || tc.vendor?.email || '').trim() }))
+        .filter(t => t.email)
+      if (!targets.length) {
+        alert('TC on this listing has no email on file. Add an email to the TC vendor record first.')
+        return
+      }
+      const list = targets.map(t => `• ${t.name} <${t.email}>`).join('\n')
+      if (!confirm(`Share Drive folder with:\n\n${list}\n\nThey'll get a Google invite email and writer access.`)) return
+
+      const folderId = listing.drive_folder_id
+      let shared = 0, alreadyShared = 0
+      for (const t of targets) {
+        try {
+          const res = await DB.shareDriveFolder({ folderId, email: t.email, role: 'writer', notify: true })
+          if (res.action === 'already_shared') alreadyShared++
+          else shared++
+        } catch (e) {
+          alert(`Failed to share with ${t.email}: ${e.message}`)
+          return
+        }
+      }
+      const parts = []
+      if (shared) parts.push(`Shared with ${shared}.`)
+      if (alreadyShared) parts.push(`${alreadyShared} already had access.`)
+      alert(parts.join(' ') || 'Done.')
+    } catch (err) {
+      alert(err.message || 'Could not share with TC')
+    } finally {
+      setSharingTC(false)
+    }
+  }
+
   // File upload handler
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files)
@@ -3439,6 +3584,18 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
           <Button variant="ghost" size="sm" onClick={() => setShowPriceReduction(true)}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="5 12 12 19 19 12"/></svg>}
           >Price Reduction</Button>
+          <Button variant="ghost" size="sm" onClick={() => openContentModal(listing.status === 'closed' ? 'just_sold' : (listing.status === 'coming_soon' ? 'coming_soon' : 'just_listed'))}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7-6.3-4.6L5.7 21l2.3-7-6-4.6h7.6z"/></svg>}
+            title="Generate Just Listed / Coming Soon / Price Drop / Just Sold posts for this listing"
+          >Generate Content</Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/content/plan?listing=${listing.id}`)}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>}
+            title="View every post tied to this listing on the Content Calendar"
+          >Content Calendar</Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/content/gamma?listing=${listing.id}&type=listing`)}
+            icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>}
+            title="Generate a Gamma listing presentation pre-filled with this property"
+          >Listing Presentation</Button>
           <Button variant="ghost" size="sm" onClick={handlePrint}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>}
           >Print</Button>
@@ -3528,10 +3685,12 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
             />
           </div>
 
-          {/* Listing checklist */}
+          {/* M1–M10 Listing Workflow */}
           {typeof listing.id === 'string' && (
-            <div style={{ marginTop: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
               <ChecklistRunner parentKind="listing" parentId={listing.id} category="listing" />
+              <DeadlineTracker  parentKind="listing" parentId={listing.id} appliesTo="listing" defaultCollapsed />
+              <DocumentsTracker parentKind="listing" parentId={listing.id} appliesTo="listing" defaultCollapsed />
             </div>
           )}
         </div>
@@ -3646,6 +3805,16 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
                   ) : (
                     <Button variant="ghost" size="sm" onClick={handleCreateDriveFolder} disabled={drivingFolder} title="Create a Google Drive folder for this listing">
                       {drivingFolder ? 'Creating…' : '📁 Drive'}
+                    </Button>
+                  )}
+                  {driveFolderUrl && (
+                    <Button variant="ghost" size="sm" onClick={handleSyncDrivePhotos} disabled={syncingPhotos} title="Pull every image from the Drive Photos subfolder into this listing's media library">
+                      {syncingPhotos ? 'Syncing…' : '🖼️ Sync Photos'}
+                    </Button>
+                  )}
+                  {driveFolderUrl && (
+                    <Button variant="ghost" size="sm" onClick={handleShareWithTC} disabled={sharingTC} title="Grant the listing's Transaction Coordinator(s) writer access to this Drive folder">
+                      {sharingTC ? 'Sharing…' : '🤝 Share with TC'}
                     </Button>
                   )}
                   <Button variant="ghost" size="sm" title="Copy public property page link"
@@ -3943,6 +4112,38 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
         </div>
       </div>
 
+      {/* ── Open House ROI funnel — only show if there's any OH activity ── */}
+      {totalOHs > 0 && (() => {
+        const ohHotLeads = ohSignIns.filter(si =>
+          si.interest_level === 'hot' || si.would_offer === 'yes'
+        ).length
+        const ohContactsCreated = ohSignIns.filter(si => si.contact_id).length
+        const leadsConverted = listingOHs.reduce((s, oh) => s + (Number(oh.leads_converted) || 0), 0)
+        const groupsThrough = listingOHs.reduce((s, oh) => s + (Number(oh.groups_through) || 0), 0)
+        const costPerSignIn = totalOHSignIns > 0 ? totalSpend / totalOHSignIns : 0
+        const costPerHotLead = ohHotLeads > 0 ? totalSpend / ohHotLeads : 0
+        const fmt$ = n => n > 0 ? `$${n.toFixed(0)}` : '—'
+        return (
+          <div className="sellers-plan__section">
+            <div className="sellers-plan__section-header">
+              <h3 className="sellers-plan__section-title">Open House ROI</h3>
+              <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
+                {totalOHs} OH{totalOHs === 1 ? '' : 's'} · funnel from attendance to offers
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+              <RollupStat label="Groups Through" value={groupsThrough || '—'} sub={groupsThrough > 0 ? 'across all OHs' : 'not tracked yet'} />
+              <RollupStat label="Sign-Ins"       value={totalOHSignIns}        sub={totalOHs > 0 ? `${(totalOHSignIns / totalOHs).toFixed(1)} per OH` : '—'} />
+              <RollupStat label="→ Contacts"      value={ohContactsCreated}    sub={totalOHSignIns > 0 ? `${Math.round((ohContactsCreated / totalOHSignIns) * 100)}% capture rate` : '—'} />
+              <RollupStat label="Hot Leads"      value={ohHotLeads}            sub={ohHotLeads > 0 ? 'high interest / would offer' : '—'} accent={ohHotLeads > 0} />
+              <RollupStat label="→ Sales"         value={leadsConverted}       sub={leadsConverted > 0 ? 'OH-attributed' : '—'} accent={leadsConverted > 0} />
+              <RollupStat label="Cost / Sign-In" value={fmt$(costPerSignIn)}   sub={totalSpend > 0 ? `$${totalSpend.toFixed(0)} listing spend` : 'No spend logged'} />
+              <RollupStat label="Cost / Hot Lead" value={fmt$(costPerHotLead)} sub={ohHotLeads > 0 ? '' : 'no hot leads yet'} />
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── Open House History ── */}
       <div className="sellers-plan__section">
         <div className="sellers-plan__section-header">
@@ -4098,6 +4299,15 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
           onScheduled={() => { setShowScheduleOH(false); refetchOHs() }}
         />
       )}
+      <ListingContentModal
+        open={contentModalOpen}
+        onClose={() => setContentModalOpen(false)}
+        context="listing"
+        listingId={listing.id}
+        propertyId={listing.property_id}
+        addressLabel={listing.address || listing.property?.address || ''}
+        defaultVariant={contentDefaultVariant}
+      />
 
       {/* Offscreen printable layout — used by both Print and Export PDF. */}
       <PrintablePlan
@@ -4388,8 +4598,29 @@ export default function Sellers() {
   const [error, setError]                 = useState(null)
   const [emailContact, setEmailContact]   = useState(null)
   const [quickExpListing, setQuickExpListing] = useState(null) // listing to add expense to
-  const [quickExpDraft, setQuickExpDraft] = useState({ date: '', vendor: '', description: '', amount: '' })
+  const [quickExpDraft, setQuickExpDraft] = useState({ date: '', vendor: '', description: '', amount: '', category_id: '', paid_by: '' })
   const [quickExpSaving, setQuickExpSaving] = useState(false)
+  // Preset listing-budget categories surfaced in the quick-add modal — seeded by
+  // 20260506_listing_budget_categories.sql and grouped by `phase`. Picking one
+  // pre-fills the description + default_amount + paid_by so the line item
+  // matches what's tracked on the M1–M10 Listing Budget tab.
+  const [budgetPresets, setBudgetPresets] = useState([])
+  useEffect(() => {
+    let cancelled = false
+    DB.getExpenseCategories('expense').then(({ data }) => {
+      if (cancelled) return
+      setBudgetPresets((data ?? []).filter(c => c.applies_to === 'listing'))
+    }).catch(err => console.error('Failed to load budget presets:', err))
+    return () => { cancelled = true }
+  }, [])
+  const presetsByPhase = useMemo(() => {
+    const out = {}
+    for (const c of budgetPresets) {
+      const k = c.phase || 'Other'
+      ;(out[k] = out[k] || []).push(c)
+    }
+    return out
+  }, [budgetPresets])
 
   const openCreate = () => { setEditingListing(null); setPanelOpen(true) }
   const openEdit   = (l) => { setEditingListing(l); setPanelOpen(true) }
@@ -4514,6 +4745,34 @@ export default function Sellers() {
             source_id: editingListing.id,
             metadata: { from: prevStatus, to: draft.status, address: draft.address },
           }).catch(err => console.error('notification emit failed', err))
+
+          // Auto-share Drive folder with TC when listing goes Under Contract.
+          // Off by default — Dana enables in Settings if she's not using a TC service
+          // (Transact, Lone Wolf, etc.) that already pulls docs from a separate system.
+          if (draft.status === 'pending') {
+            DB.getDriveShareSettings()
+              .then(prefs => {
+                if (!prefs?.auto_share_with_tc) return
+                return shareListingFolderWithTC({
+                  listingId: editingListing.id,
+                  folderId: editingListing.drive_folder_id || null,
+                  address: draft.address,
+                })
+              })
+              .catch(err => console.error('TC drive share check failed:', err))
+
+            // Auto-seed M1–M10 required documents + contract deadlines.
+            // Idempotent — skips template_keys already present, so re-saves
+            // never duplicate. Notification only fires when something is added.
+            autoSeedOnUnderContract({
+              parentKind: 'listing',
+              parentId:   editingListing.id,
+              appliesTo:  'listing',
+              contractAcceptanceDate: new Date().toISOString().slice(0, 10),
+              label: draft.address,
+              link:  '/sellers',
+            }).catch(err => console.error('Workflow auto-seed (listing) failed:', err))
+          }
         }
       } else {
         const newListing = await DB.createListing(dbRow)
@@ -4931,6 +5190,43 @@ export default function Sellers() {
           <div className="on-hold-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
             <h3 style={{ margin: '0 0 4px' }}>Add Expense</h3>
             <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', margin: '0 0 12px' }}>{quickExpListing.address} — {quickExpListing.contact_name}</p>
+
+            {/* Listing-budget preset picker — pre-fills description/amount/paid_by */}
+            {budgetPresets.length > 0 && (
+              <label style={{ display: 'block', marginBottom: 8 }}>
+                <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, marginBottom: 2 }}>Listing Budget Category</span>
+                <select
+                  value={quickExpDraft.category_id}
+                  onChange={e => {
+                    const cid = e.target.value
+                    const preset = budgetPresets.find(p => p.id === cid)
+                    setQuickExpDraft(d => ({
+                      ...d,
+                      category_id: cid,
+                      // Only auto-fill blank fields — never clobber user input.
+                      description: d.description || preset?.name || '',
+                      amount: d.amount || (preset?.default_amount != null ? String(preset.default_amount) : ''),
+                      paid_by: d.paid_by || preset?.default_paid_by || '',
+                    }))
+                  }}
+                  style={{ width: '100%', padding: '7px 8px', border: '1px solid var(--color-border)', borderRadius: 6, fontSize: '0.82rem', fontFamily: 'inherit', background: '#fff' }}
+                >
+                  <option value="">— Custom expense (no preset) —</option>
+                  {Object.entries(presetsByPhase).map(([phase, list]) => (
+                    <optgroup key={phase} label={phase}>
+                      {list.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                          {c.default_amount != null ? ` · ~$${Number(c.default_amount).toFixed(0)}` : ''}
+                          {c.default_paid_by ? ` · ${c.default_paid_by}-paid` : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+            )}
+
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <label style={{ flex: 1 }}>
                 <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: 600, marginBottom: 2 }}>Date</span>
@@ -4960,6 +5256,7 @@ export default function Sellers() {
                     amount: Number(quickExpDraft.amount),
                     listing_id: quickExpListing.id,
                     contact_id: quickExpListing.contact_id || null,
+                    category_id: quickExpDraft.category_id || null,
                     is_deductible: true,
                     is_split: false,
                   })

@@ -12,6 +12,9 @@ import SocialProfilesPanel from '../../components/SocialProfilesPanel.jsx'
 import LifeEventsPanel from '../../components/LifeEventsPanel.jsx'
 import FamilyLinksPanel from '../../components/FamilyLinksPanel.jsx'
 import IntakeFormTracker from '../../components/IntakeFormTracker.jsx'
+import ChecklistRunner from '../../components/ChecklistRunner.jsx'
+import DocumentsTracker from '../../components/DocumentsTracker.jsx'
+import DeadlineTracker from '../../components/DeadlineTracker.jsx'
 import * as DB from '../../lib/supabase.js'
 import supabase from '../../lib/supabase.js'
 import { pauseContactWithAutoEnroll } from '../../lib/onHoldFollowUps.js'
@@ -723,6 +726,15 @@ function BuyerDetail({ buyer, onBack, onEdit }) {
             <a href="/email/reporting" style={{ fontSize: '0.78rem', color: 'var(--brown-mid)' }}>View All Reporting</a>
           </div>
           <EmailEngagement contactId={buyer.id} />
+        </div>
+      )}
+
+      {/* ── M1–M10 Buyer Workflow ── */}
+      {typeof buyer.id === 'string' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+          <ChecklistRunner parentKind="contact" parentId={buyer.id} category="buyer" />
+          <DeadlineTracker  parentKind="contact" parentId={buyer.id} appliesTo="buyer" defaultCollapsed />
+          <DocumentsTracker parentKind="contact" parentId={buyer.id} appliesTo="buyer" defaultCollapsed />
         </div>
       )}
 

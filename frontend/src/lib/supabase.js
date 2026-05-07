@@ -1428,6 +1428,48 @@ export const getNewsletterRecipients = (newsletterId) =>
 export const bulkCreateNewsletterRecipients = (rows) =>
   query(supabase.from('newsletter_recipients').insert(rows))
 
+// ─── AI Listing Content Generation (Just Listed / Coming Soon / Price Drop / Just Sold / OH Promo) ──
+// Variants are server-side. Channels = [{ channel, format }] or strings like "instagram:post".
+export async function generateListingContent({ variant, listingId = null, ohId = null, channels = null }) {
+  const payload = { type: 'listing_content', variant, listing_id: listingId, oh_id: ohId }
+  if (channels) payload.channels = channels
+  const { data, error } = await supabase.functions.invoke('generate-content', { body: payload })
+  if (error) {
+    let detail = error.message
+    let code = null
+    try {
+      if (error.context && typeof error.context.json === 'function') {
+        const body = await error.context.json()
+        if (body?.error) detail = body.error
+        if (body?.code) code = body.code
+      }
+    } catch {}
+    const e = new Error(detail)
+    e.code = code
+    throw e
+  }
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
+/** Persist generated listing content drafts as content_pieces rows (status='banked'). */
+export async function saveListingContentDrafts({ drafts, listingId = null, openHouseId = null, propertyId = null }) {
+  if (!Array.isArray(drafts) || !drafts.length) return []
+  const rows = drafts.map(d => ({
+    title: d.title || '(untitled)',
+    body_text: d.body_text || '',
+    channel: d.channel || null,
+    content_type: d.format || null,
+    listing_id: listingId,
+    open_house_id: openHouseId,
+    property_id: propertyId,
+    status: 'banked',
+    banked_at: new Date().toISOString(),
+    notes: Array.isArray(d.hashtags) && d.hashtags.length ? `Hashtags: ${d.hashtags.join(' ')}` : null,
+  }))
+  return query(supabase.from('content_pieces').insert(rows).select())
+}
+
 // ─── AI Content Generation ────────────────────────────────────────────────────
 export async function generateContent(payload) {
   const { data, error } = await supabase.functions.invoke('generate-content', { body: payload })
@@ -2278,6 +2320,59 @@ export async function createDriveFolder({ kind, id, name, subfolders = null }) {
   return data
 }
 
+/** Grant a person access to an existing Drive folder. Idempotent. */
+export async function shareDriveFolder({ folderId, email, role = 'writer', notify = true }) {
+  const { data, error } = await supabase.functions.invoke('google-drive', {
+    body: { action: 'share_folder', folder_id: folderId, email, role, notify },
+  })
+  if (error) {
+    let detail = error.message
+    try {
+      const ctx = error.context
+      if (ctx && typeof ctx.json === 'function') {
+        const body = await ctx.json()
+        detail = body.error || body.detail || detail
+      }
+    } catch (_) {}
+    throw new Error(detail)
+  }
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
+/** Drive share preferences (auto-share with TC on Pending, etc). */
+export async function getDriveShareSettings() {
+  const row = await query(
+    supabase.from('user_settings').select('value').eq('key', 'drive_share_settings').maybeSingle()
+  )
+  return row?.value || { auto_share_with_tc: false }
+}
+
+export const updateDriveShareSettings = (value) =>
+  query(supabase.from('user_settings')
+    .upsert({ key: 'drive_share_settings', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .select().single())
+
+/** Pull every image from the listing's Drive Photos subfolder into media_assets. */
+export async function syncDrivePhotos({ listingId, subfolder = 'Photos' } = {}) {
+  const { data, error } = await supabase.functions.invoke('google-drive', {
+    body: { action: 'sync_photos', listing_id: listingId, subfolder },
+  })
+  if (error) {
+    let detail = error.message
+    try {
+      const ctx = error.context
+      if (ctx && typeof ctx.json === 'function') {
+        const body = await ctx.json()
+        detail = body.error || body.detail || detail
+      }
+    } catch (_) {}
+    throw new Error(detail)
+  }
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
 /** Start Google OAuth flow — calls google-auth edge function to get consent URL. */
 export async function startGoogleAuth() {
   const redirectUri = `${window.location.origin}/auth/google/callback`
@@ -2580,3 +2675,90 @@ export const getAutoContentConfig = async () => {
   return data?.value || { enabled: false, time: '05:00', platforms: ['instagram', 'facebook'], auto_publish: false, avatar_ids: [] }
 }
 export const saveAutoContentConfig = (config) => upsertUserSetting('auto_content_config', config)
+
+// ─── Transaction Documents (M1–M10 workflow) ────────────────────────────────
+export const getTransactionDocuments = (parentKind, parentId) =>
+  query(supabase.from('transaction_documents').select('*')
+    .eq('parent_kind', parentKind).eq('parent_id', parentId)
+    .order('sort_order', { ascending: true }))
+
+export const getTransactionDocumentTemplates = (appliesTo) =>
+  query(supabase.from('transaction_document_templates').select('*')
+    .in('applies_to', appliesTo === 'both' ? ['buyer', 'listing', 'both'] : [appliesTo, 'both'])
+    .eq('active', true).order('sort_order', { ascending: true }))
+
+export const createTransactionDocument = (d) =>
+  query(supabase.from('transaction_documents').insert(d).select().single())
+
+export const updateTransactionDocument = (id, d) =>
+  query(supabase.from('transaction_documents').update({ ...d, updated_at: new Date().toISOString() })
+    .eq('id', id).select().single())
+
+export const deleteTransactionDocument = (id) =>
+  query(supabase.from('transaction_documents').delete().eq('id', id))
+
+// Bulk-seed required documents from templates onto a parent (idempotent — skips template_keys already present)
+export const seedTransactionDocuments = async (parentKind, parentId, appliesTo) => {
+  const { data: templates } = await getTransactionDocumentTemplates(appliesTo)
+  if (!templates?.length) return { data: [] }
+  const { data: existing } = await getTransactionDocuments(parentKind, parentId)
+  const haveKeys = new Set((existing ?? []).map(d => d.template_key).filter(Boolean))
+  const rows = templates
+    .filter(t => !haveKeys.has(t.template_key))
+    .map(t => ({
+      parent_kind: parentKind, parent_id: parentId,
+      name: t.name, phase: t.phase, required_by: t.required_by,
+      responsible_party: t.responsible_party, sort_order: t.sort_order,
+      template_key: t.template_key, status: 'Not Received',
+    }))
+  if (!rows.length) return { data: [] }
+  return query(supabase.from('transaction_documents').insert(rows).select())
+}
+
+// ─── Transaction Deadlines (M1–M10 workflow) ────────────────────────────────
+export const getTransactionDeadlines = (parentKind, parentId) =>
+  query(supabase.from('transaction_deadlines').select('*')
+    .eq('parent_kind', parentKind).eq('parent_id', parentId)
+    .order('sort_order', { ascending: true }))
+
+export const getTransactionDeadlineTemplates = (appliesTo) =>
+  query(supabase.from('transaction_deadline_templates').select('*')
+    .in('applies_to', appliesTo === 'both' ? ['buyer', 'listing', 'both'] : [appliesTo, 'both'])
+    .eq('active', true).order('sort_order', { ascending: true }))
+
+export const createTransactionDeadline = (d) =>
+  query(supabase.from('transaction_deadlines').insert(d).select().single())
+
+export const updateTransactionDeadline = (id, d) =>
+  query(supabase.from('transaction_deadlines').update({ ...d, updated_at: new Date().toISOString() })
+    .eq('id', id).select().single())
+
+export const deleteTransactionDeadline = (id) =>
+  query(supabase.from('transaction_deadlines').delete().eq('id', id))
+
+// Bulk-seed deadlines from templates, computing calendar_date from contractAcceptanceDate + offset
+export const seedTransactionDeadlines = async (parentKind, parentId, appliesTo, contractAcceptanceDate) => {
+  const { data: templates } = await getTransactionDeadlineTemplates(appliesTo)
+  if (!templates?.length) return { data: [] }
+  const { data: existing } = await getTransactionDeadlines(parentKind, parentId)
+  const haveKeys = new Set((existing ?? []).map(d => d.template_key).filter(Boolean))
+  const acceptDate = contractAcceptanceDate ? new Date(contractAcceptanceDate) : null
+  const rows = templates
+    .filter(t => !haveKeys.has(t.template_key))
+    .map(t => {
+      let calendarDate = null
+      if (acceptDate && t.default_offset != null) {
+        const d = new Date(acceptDate)
+        d.setDate(d.getDate() + t.default_offset)
+        calendarDate = d.toISOString().slice(0, 10)
+      }
+      return {
+        parent_kind: parentKind, parent_id: parentId,
+        description: t.description, contract_day_offset: t.default_offset,
+        calendar_date: calendarDate, responsible_party: t.responsible_party,
+        sort_order: t.sort_order, template_key: t.template_key, status: 'Pending',
+      }
+    })
+  if (!rows.length) return { data: [] }
+  return query(supabase.from('transaction_deadlines').insert(rows).select())
+}

@@ -173,6 +173,8 @@ export const useInteractionsForDeal    = (did) => useQuery(() => did ? DB.getInt
 export const useRecentInteractions     = (limit) => useQuery(() => DB.getRecentInteractions(limit))
 export const useChecklistTemplates     = ()    => useQuery(DB.getChecklistTemplates)
 export const useChecklistRun           = (kind, id) => useQuery(() => (kind && id) ? DB.getChecklistRun(kind, id) : Promise.resolve(null), [kind, id])
+export const useTransactionDocuments   = (kind, id) => useQuery(() => (kind && id) ? DB.getTransactionDocuments(kind, id) : Promise.resolve([]), [kind, id])
+export const useTransactionDeadlines   = (kind, id) => useQuery(() => (kind && id) ? DB.getTransactionDeadlines(kind, id) : Promise.resolve([]), [kind, id])
 export const useCostLedger             = ()    => useQuery(DB.getCostLedger)
 export const useSystemEvents           = (limit) => useQuery(() => DB.getSystemEvents(limit))
 export const useBackgroundJobs         = ()    => useQuery(DB.getBackgroundJobs)

@@ -58,10 +58,31 @@ function StepRow({ step, isDone, doneAt, doneSource, onToggle }) {
           }}>
             {step.label}
           </span>
+          {step.role && (
+            <span
+              style={{
+                fontSize: '0.6rem', padding: '1px 5px', borderRadius: 3,
+                background: step.role === 'TC' ? 'rgba(184,153,90,.18)' : 'rgba(139,154,123,.18)',
+                color: step.role === 'TC' ? '#7d5f23' : '#566b4a',
+                fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '.06em',
+              }}
+              title={step.role === 'TC' ? 'Transaction Coordinator' : 'Agent (Dana)'}
+            >
+              {step.role}
+            </span>
+          )}
           {step.system && step.system !== 'command' && <SystemBadge system={step.system} />}
           {step.offset_days != null && (
             <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted, #B79782)' }}>
               {step.offset_days > 0 ? `+${step.offset_days}d` : step.offset_days === 0 ? 'day-of' : `${step.offset_days}d`}
+            </span>
+          )}
+          {step.notes && (
+            <span
+              style={{ fontSize: '0.7rem', color: 'var(--color-text-muted, #B79782)', cursor: 'help' }}
+              title={step.notes}
+            >
+              ⓘ
             </span>
           )}
         </div>
