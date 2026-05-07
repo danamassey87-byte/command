@@ -51,6 +51,7 @@ export default function PostComposer() {
   const [hashtags, setHashtags]           = useState('')
   const [mediaFiles, setMediaFiles]       = useState([]) // [{ file, preview, url }]
   const [dragOver, setDragOver]           = useState(false)
+  const [listingMedia, setListingMedia]   = useState([]) // media_assets for the active property
 
   // Metadata
   const [pillarId, setPillarId]     = useState('')
@@ -241,6 +242,18 @@ export default function PostComposer() {
     }
   }, [])
 
+  // ─── Load listing's media_assets when property is set ─────────────────────
+  // Surfaces synced Drive photos (sync_photos) + any direct uploads keyed
+  // on this property in the gallery picker below the upload drop zone.
+  useEffect(() => {
+    if (!propertyId) { setListingMedia([]); return }
+    let cancelled = false
+    DB.getMediaAssets(propertyId)
+      .then(data => { if (!cancelled) setListingMedia(data || []) })
+      .catch(() => { if (!cancelled) setListingMedia([]) })
+    return () => { cancelled = true }
+  }, [propertyId])
+
   // ─── Derived ──────────────────────────────────────────────────────────────
   const pillarList = pillars ?? []
   const avatarList = avatars ?? []
@@ -288,6 +301,24 @@ export default function PostComposer() {
       if (next[idx]?.preview) URL.revokeObjectURL(next[idx].preview)
       next.splice(idx, 1)
       return next
+    })
+  }
+
+  // Add an existing media_asset (from this listing's gallery) to the post.
+  // Dedupes by asset id so a double-click doesn't add it twice.
+  function addFromGallery(asset) {
+    if (!asset) return
+    setMediaFiles(prev => {
+      if (prev.some(m => m.asset_id === asset.id)) return prev
+      return [...prev, {
+        file: null,
+        preview: asset.thumbnail_url || asset.storage_url,
+        url: asset.storage_url,
+        name: asset.drive_file_id ? `Drive · ${asset.drive_file_id.slice(0, 8)}` : 'Listing photo',
+        type: 'image',
+        fromGallery: true,
+        asset_id: asset.id,
+      }]
     })
   }
 
@@ -838,6 +869,49 @@ export default function PostComposer() {
           {/* Media upload */}
           <div className="pc-media">
             <div className="pc-media__label">Media</div>
+
+            {/* Listing photo gallery — surfaces media_assets for the active property
+                so Dana can drop in synced Drive photos with one tap. */}
+            {propertyId && listingMedia.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem', color: 'var(--color-text-muted)', marginBottom: 6 }}>
+                  <span>📸 From this listing's photos ({listingMedia.length})</span>
+                  <span style={{ fontSize: '0.7rem' }}>Tap to add</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+                  {listingMedia.map(asset => {
+                    const isAdded = mediaFiles.some(m => m.asset_id === asset.id)
+                    const thumb = asset.thumbnail_url || asset.storage_url
+                    return (
+                      <button
+                        key={asset.id}
+                        type="button"
+                        onClick={() => addFromGallery(asset)}
+                        disabled={isAdded}
+                        title={isAdded ? 'Already added' : 'Add to post'}
+                        style={{
+                          flex: '0 0 auto',
+                          width: 72, height: 72,
+                          padding: 0, border: isAdded ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
+                          borderRadius: 6, overflow: 'hidden',
+                          background: '#fff', cursor: isAdded ? 'default' : 'pointer',
+                          opacity: isAdded ? 0.6 : 1,
+                          position: 'relative',
+                        }}
+                      >
+                        {thumb
+                          ? <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>img</span>}
+                        {isAdded && (
+                          <span style={{ position: 'absolute', top: 2, right: 2, background: 'var(--color-success)', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <div
               className={`pc-media-drop ${dragOver ? 'pc-media-drop--dragover' : ''}`}
               onClick={() => fileInputRef.current?.click()}
