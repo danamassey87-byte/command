@@ -4,6 +4,7 @@ import { useBrand } from '../../lib/BrandContext'
 import * as DB from '../../lib/supabase'
 import TemplatesTab, { AIPlanPromptsEditor } from './TemplatesTab'
 import Recovery from '../Recovery/Recovery'
+import MeetRecordingsSync from '../../components/drive/MeetRecordingsSync'
 const SystemHealthEmbed = lazy(() => import('../SystemHealth/SystemHealth'))
 const NotificationRulesEmbed = lazy(() => import('../../components/NotificationRulesEditor.jsx'))
 const LoftySyncEmbed = lazy(() => import('../../components/LoftySyncPanel.jsx'))
@@ -1450,6 +1451,8 @@ function GoogleAccountCard() {
                 </span>
               </span>
             </label>
+
+            <MeetRecordingsSync />
           </div>
         ) : (
           <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>

@@ -17,6 +17,19 @@
 //       lists every image inside, and inserts new ones into media_assets keyed by drive_file_id.
 //     - Returns { imported: N, skipped: N, total: N } for UI feedback.
 //
+//   list_meet_recordings { since_days?: number }
+//     - Finds the auto-created "Meet Recordings" folder in Dana's Drive.
+//     - Lists video files created in the last `since_days` (default 90, max 365).
+//     - Cross-references existing interactions to mark already-imported recordings.
+//     - Returns { recordings: [{ drive_file_id, name, web_view_link, thumbnail_link,
+//                                 created_at, duration_ms, imported }], total }.
+//
+//   link_meet_recording { drive_file_id, name, web_view_link, thumbnail_link,
+//                         created_at, duration_ms, contact_id, deal_id?, property_id?, body? }
+//     - Inserts an interactions row with kind='meet_recording' linking the
+//       Drive file to a contact. Idempotent — returns the existing interaction
+//       if the drive_file_id is already linked.
+//
 // Auth: uses the stored google_tokens (refresh_token if access expired).
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
@@ -427,8 +440,118 @@ serve(async (req) => {
       )
     }
 
+    if (action === 'list_meet_recordings') {
+      const { since_days = 90 } = body
+      // Google saves Meet recordings to a "Meet Recordings" folder (auto-created
+      // by Meet on the first recording). Find it; if it doesn't exist, return
+      // an empty list rather than failing.
+      const meetFolderId = await findFolderByName(accessToken, 'Meet Recordings')
+      if (!meetFolderId) {
+        return new Response(
+          JSON.stringify({ ok: true, recordings: [], note: 'No "Meet Recordings" folder found in Drive — record at least one Meet first.' }),
+          { headers: { ...CORS, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const sinceIso = new Date(Date.now() - Math.max(1, Math.min(365, Number(since_days))) * 24 * 60 * 60 * 1000).toISOString()
+      const fields = 'files(id,name,mimeType,size,webViewLink,thumbnailLink,createdTime,modifiedTime,videoMediaMetadata(durationMillis))'
+      const q = `'${meetFolderId}' in parents and trashed = false and createdTime > '${sinceIso}'`
+      const url = `${DRIVE_API}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent('nextPageToken,' + fields)}&pageSize=100&orderBy=createdTime desc`
+
+      const resp = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(`Drive list failed: ${data.error?.message || resp.statusText}`)
+
+      const recordings = (data.files || []).map((f: any) => ({
+        drive_file_id: f.id,
+        name: f.name,
+        mime_type: f.mimeType,
+        size: f.size ? Number(f.size) : null,
+        web_view_link: f.webViewLink,
+        thumbnail_link: f.thumbnailLink || null,
+        created_at: f.createdTime,
+        modified_at: f.modifiedTime,
+        duration_ms: f.videoMediaMetadata?.durationMillis ? Number(f.videoMediaMetadata.durationMillis) : null,
+      }))
+
+      // Cross-reference against existing interactions to mark already-imported.
+      const driveIds = recordings.map((r: any) => r.drive_file_id)
+      let imported = new Set<string>()
+      if (driveIds.length) {
+        const { data: existing } = await supabase
+          .from('interactions')
+          .select('metadata')
+          .eq('kind', 'meet_recording')
+          .is('deleted_at', null)
+        for (const row of existing || []) {
+          const id = (row as any)?.metadata?.drive_file_id
+          if (id) imported.add(id)
+        }
+      }
+      const enriched = recordings.map((r: any) => ({ ...r, imported: imported.has(r.drive_file_id) }))
+
+      return new Response(
+        JSON.stringify({ ok: true, recordings: enriched, folder_id: meetFolderId, total: enriched.length }),
+        { headers: { ...CORS, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (action === 'link_meet_recording') {
+      const { drive_file_id, name, web_view_link, thumbnail_link, created_at, duration_ms, contact_id, deal_id, property_id, body: bodyText } = body
+      if (!drive_file_id || !contact_id) {
+        return new Response(
+          JSON.stringify({ error: 'Missing required: drive_file_id, contact_id' }),
+          { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Check if this drive_file_id already has an interaction — return that
+      // instead of creating a duplicate.
+      const { data: existing } = await supabase
+        .from('interactions')
+        .select('id, contact_id, metadata')
+        .eq('kind', 'meet_recording')
+        .is('deleted_at', null)
+      const dupe = (existing || []).find((r: any) => r?.metadata?.drive_file_id === drive_file_id)
+      if (dupe) {
+        return new Response(
+          JSON.stringify({ ok: true, action: 'already_linked', interaction_id: dupe.id, contact_id: dupe.contact_id }),
+          { headers: { ...CORS, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { data: inserted, error: insertErr } = await supabase
+        .from('interactions')
+        .insert({
+          contact_id,
+          deal_id: deal_id || null,
+          property_id: property_id || null,
+          kind: 'meet_recording',
+          channel: 'video',
+          body: bodyText || name || 'Google Meet recording',
+          at: created_at || new Date().toISOString(),
+          metadata: {
+            drive_file_id,
+            file_name: name,
+            web_view_link,
+            thumbnail_link,
+            duration_ms,
+            source: 'google_meet',
+          },
+        })
+        .select('id')
+        .single()
+
+      if (insertErr) throw new Error(`interactions insert failed: ${insertErr.message}`)
+
+      return new Response(
+        JSON.stringify({ ok: true, action: 'linked', interaction_id: inserted.id }),
+        { headers: { ...CORS, 'Content-Type': 'application/json' } }
+      )
+    }
+
     return new Response(
-      JSON.stringify({ error: 'Unknown action. Use create_folder, share_folder, or sync_photos.' }),
+      JSON.stringify({ error: 'Unknown action. Use create_folder, share_folder, sync_photos, list_meet_recordings, or link_meet_recording.' }),
       { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } }
     )
 
