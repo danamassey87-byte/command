@@ -277,6 +277,26 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
   })
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
 
+  // O6 — sibling detection. When this OH is part of a multi-date series
+  // (shared series_id from QuickForm), surface the count and let Dana
+  // propagate runsheet edits to all dates in one save.
+  const seriesId = oh?.series_id || null
+  const siblings = useMemo(
+    () => seriesId
+      ? (existingOHs || []).filter(x => x.series_id === seriesId && x.id !== oh?.id)
+      : [],
+    [existingOHs, seriesId, oh?.id]
+  )
+  const seriesPosition = useMemo(() => {
+    if (!seriesId) return null
+    const all = (existingOHs || [])
+      .filter(x => x.series_id === seriesId)
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''))
+    const idx = all.findIndex(x => x.id === oh?.id)
+    return idx >= 0 ? { index: idx + 1, total: all.length } : null
+  }, [existingOHs, seriesId, oh?.id])
+  const [propagateRunsheet, setPropagateRunsheet] = useState(false)
+
   // Conflict detection (exclude self)
   const editConflicts = findOHConflicts(
     (existingOHs ?? []).filter(o => o.id !== oh?.id),
@@ -426,7 +446,14 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
       </div>
 
       <hr className="panel-divider" />
-      <h4 style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '8px 0' }}>Host Runsheet</h4>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, margin: '8px 0' }}>
+        <h4 style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Host Runsheet</h4>
+        {seriesPosition && (
+          <span style={{ fontSize: '0.7rem', color: 'var(--brown-dark)', background: 'var(--cream, #faf8f5)', padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>
+            Day {seriesPosition.index} of {seriesPosition.total}
+          </span>
+        )}
+      </div>
       <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: 10 }}>These fields render only on the host briefing page (private link). Never shown publicly.</p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <Input label="Lockbox Code" value={draft.lockbox_code} onChange={e => set('lockbox_code', e.target.value)} placeholder="e.g. 4231" />
@@ -435,6 +462,22 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
       <Textarea label="Access / Entry Notes" rows={2} value={draft.access_notes} onChange={e => set('access_notes', e.target.value)} placeholder="Side door, gate code, dog in yard, alarm…" />
       <Textarea label="Talking Points" rows={3} value={draft.talking_points} onChange={e => set('talking_points', e.target.value)} placeholder="3 things to lead with — recent renos, neighborhood, schools…" />
       <Textarea label="Host-Only Notes" rows={3} value={draft.host_runsheet_notes} onChange={e => set('host_runsheet_notes', e.target.value)} placeholder="Anything the host should know — what to avoid showing, special tips, emergency procedures…" />
+      {siblings.length > 0 && (
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 8, padding: '8px 10px', background: 'var(--cream, #faf8f5)', borderRadius: 6, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={propagateRunsheet}
+            onChange={e => setPropagateRunsheet(e.target.checked)}
+            style={{ marginTop: 2 }}
+          />
+          <span style={{ fontSize: '0.78rem', lineHeight: 1.4 }}>
+            <strong style={{ color: 'var(--brown-dark)' }}>Apply runsheet to all {siblings.length + 1} dates in this series</strong>
+            <span style={{ display: 'block', color: 'var(--color-text-muted)', fontSize: '0.72rem', marginTop: 2 }}>
+              Lockbox, parking, access, talking points, and host-only notes copy to the {siblings.length} other date{siblings.length === 1 ? '' : 's'}. Per-date numbers (sign-ins, leads, etc.) stay separate.
+            </span>
+          </span>
+        </label>
+      )}
 
       <hr className="panel-divider" />
       <Textarea label="Notes" rows={3} value={draft.notes} onChange={e => set('notes', e.target.value)} placeholder="Prep notes, feedback, follow-up actions…" />
@@ -443,8 +486,8 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
 
       <div className="panel-footer">
         <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
-        <Button variant="primary" size="sm" onClick={() => onSave(draft)} disabled={saving || !draft.property_id}>
-          {saving ? 'Saving…' : 'Save Changes'}
+        <Button variant="primary" size="sm" onClick={() => onSave({ ...draft, _propagateRunsheetToSeries: propagateRunsheet, _seriesId: seriesId, _siblingIds: siblings.map(s => s.id) })} disabled={saving || !draft.property_id}>
+          {saving ? 'Saving…' : (propagateRunsheet && siblings.length > 0 ? `Save & Apply to ${siblings.length + 1} Dates` : 'Save Changes')}
         </Button>
         <Button variant="danger" size="sm" onClick={onDelete} disabled={deleting}>
           {deleting ? 'Removing…' : 'Delete'}
@@ -1026,8 +1069,17 @@ function ScheduledTab({ openHouses, loading, refetch }) {
       const datesList = draft.dates || [{ date: '', start_time: '', end_time: '' }]
       let lastCreated = null
 
+      // O6 — Multi-date series link. When more than one date, generate a
+      // shared series_id and apply to every sibling so they can be grouped
+      // in the UI and runsheet edits can propagate. Tolerated on the DB
+      // side if the migration hasn't been applied yet (insert retries
+      // without series_id on column-missing errors).
+      const seriesId = datesList.length > 1
+        ? (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null)
+        : null
+
       for (const dt of datesList) {
-        const dbRow = {
+        const baseRow = {
           property_id,
           date:          dt.date       || null,
           start_time:    dt.start_time || null,
@@ -1036,7 +1088,20 @@ function ScheduledTab({ openHouses, loading, refetch }) {
           listing_agent: draft.listing_agent.trim() || null,
           agent_name:    draft.hosted_by?.trim()    || null,
         }
-        const created = await DB.createOpenHouse(dbRow)
+        let created
+        try {
+          created = await DB.createOpenHouse(seriesId ? { ...baseRow, series_id: seriesId } : baseRow)
+        } catch (insertErr) {
+          // Migration 20260507_open_houses_series_id.sql not yet applied —
+          // fall back to non-linked siblings. Feature still works, just
+          // without the link badge / propagation toggle.
+          if (seriesId && /series_id/.test(insertErr.message || '')) {
+            console.warn('[OH multi-date] series_id column missing; falling back to unlinked siblings. Apply migration 20260507_open_houses_series_id.sql to enable linking.')
+            created = await DB.createOpenHouse(baseRow)
+          } else {
+            throw insertErr
+          }
+        }
         await DB.bulkCreateOHTasks(getOHChecklist().map(t => ({ ...t, open_house_id: created.id })))
         const dateLabel = dt.date ? ` on ${dt.date}` : ''
         await DB.logActivity('open_house_created', `Scheduled open house: ${draft.address}${dateLabel}`, { propertyId: property_id })
@@ -1093,6 +1158,24 @@ function ScheduledTab({ openHouses, loading, refetch }) {
       }
       await DB.updateOpenHouse(editingOH.id, dbRow)
       await DB.logActivity('open_house_updated', `Updated open house: ${editingOH.address}`, { propertyId: dbRow.property_id })
+
+      // O6 — propagate runsheet across siblings if requested.
+      if (draft._propagateRunsheetToSeries && Array.isArray(draft._siblingIds) && draft._siblingIds.length) {
+        const runsheetSubset = {
+          lockbox_code:        dbRow.lockbox_code,
+          access_notes:        dbRow.access_notes,
+          parking_notes:       dbRow.parking_notes,
+          talking_points:      dbRow.talking_points,
+          host_runsheet_notes: dbRow.host_runsheet_notes,
+        }
+        await Promise.all(draft._siblingIds.map(id =>
+          DB.updateOpenHouse(id, runsheetSubset).catch(err => {
+            console.warn(`[OH series propagate] failed for ${id}:`, err.message)
+          })
+        ))
+        await DB.logActivity('open_house_updated', `Propagated runsheet to ${draft._siblingIds.length} sibling OH${draft._siblingIds.length === 1 ? '' : 's'} (series)`, { propertyId: dbRow.property_id })
+      }
+
       await refetch()
       closePanel()
     } catch (e) {
@@ -1240,7 +1323,7 @@ function ScheduledTab({ openHouses, loading, refetch }) {
       <DataTable columns={columns} rows={filtered} />
       <SlidePanel open={panelOpen} onClose={closePanel} title={editingOH ? 'Edit Open House' : 'Schedule Open House'} subtitle={editingOH?.address} width={editingOH ? 480 : 440}>
         {editingOH ? (
-          <OHForm key={editingOH.id} oh={editingOH} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} error={error} />
+          <OHForm key={editingOH.id} oh={editingOH} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} error={error} existingOHs={openHouses} />
         ) : (
           <OHQuickForm onSave={handleQuickSave} onClose={closePanel} saving={saving} error={error} existingOHs={openHouses} />
         )}
