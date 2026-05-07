@@ -4,7 +4,7 @@ import { useTransactions, useListings, useAllExpenses, useMileageLog } from '../
 import SendEmailModal from '../../components/email/SendEmailModal'
 import './EscrowTracker.css'
 
-const IRS_RATE = 0.70 // 2026 IRS standard mileage rate
+import { IRS_MILEAGE_RATE as IRS_RATE } from '../../lib/financials'
 function num(v) { return Number(v) || 0 }
 
 function fmtDate(d) {

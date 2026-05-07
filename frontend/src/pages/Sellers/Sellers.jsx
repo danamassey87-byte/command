@@ -4564,6 +4564,11 @@ export default function Sellers() {
   const { data: allOHsMain } = useOpenHouses()
   const { data: allTasks } = useAllChecklistTasks()
   const { data: allExpensesData } = useAllExpenses()
+  // True-net rollup needs YTD mileage so we mirror the year window the
+  // Pipeline trackers use (calendar year).
+  const yearStartIso = `${new Date().getFullYear()}-01-01`
+  const yearEndIso   = `${new Date().getFullYear()}-12-31`
+  const { data: mileageEntriesData } = useMileageLog(yearStartIso, yearEndIso)
   const listings = useMemo(() => (dbData ?? []).map(mapListing), [dbData])
 
   // Expense totals per listing
@@ -4576,6 +4581,26 @@ export default function Sellers() {
     }
     return map
   }, [allExpensesData])
+
+  // Mileage cost per listing — keyed on property_id (matches the rollup
+  // pattern used by EscrowTracker/ClosedDeals so numbers reconcile).
+  const mileageCostByListing = useMemo(() => {
+    const map = {}
+    const rate = 0.70 // IRS_MILEAGE_RATE — kept inline because the import is in scope
+    for (const m of (mileageEntriesData ?? [])) {
+      const propId = m.property_id
+      if (!propId) continue
+      const miles = m.round_trip ? Number(m.miles || 0) * 2 : Number(m.miles || 0)
+      // Find the listing for this property
+      for (const l of (dbData ?? [])) {
+        if (l.property_id === propId) {
+          if (!map[l.id]) map[l.id] = 0
+          map[l.id] += miles * rate
+        }
+      }
+    }
+    return map
+  }, [mileageEntriesData, dbData])
 
   // Build a map of listing_id → next upcoming open house
   const nextOHByListing = useMemo(() => {
@@ -5073,20 +5098,32 @@ export default function Sellers() {
       },
     },
     {
-      key: 'roi', label: 'Est. ROI',
+      key: 'roi', label: 'True Net',
       render: (_, row) => {
         const price = Number(row.currentPriceRaw || row.listPriceRaw || 0)
         const rate = Number(row.commission_rate || 3)
         const commission = price * (rate / 100)
         const spend = expenseByListing[row.id] || 0
+        const mileage = mileageCostByListing[row.id] || 0
         if (!price) return <span style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem' }}>—</span>
-        const net = commission - spend
+        const net = commission - spend - mileage
+        const tooltipParts = [
+          `Gross commission: $${Math.round(commission).toLocaleString()} (${rate}%)`,
+          spend ? `− Marketing: $${Math.round(spend).toLocaleString()}` : null,
+          mileage ? `− Mileage: $${Math.round(mileage).toLocaleString()}` : null,
+          `= True Net: $${Math.round(net).toLocaleString()}`,
+        ].filter(Boolean)
         return (
-          <div style={{ fontSize: '0.78rem', fontVariantNumeric: 'tabular-nums' }}>
+          <div
+            style={{ fontSize: '0.78rem', fontVariantNumeric: 'tabular-nums' }}
+            title={tooltipParts.join('\n')}
+          >
             <span style={{ fontWeight: 600, color: net >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
               ${Math.round(net).toLocaleString()}
             </span>
-            <br /><span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>{rate}% of ${(price/1000).toFixed(0)}K</span>
+            <br /><span style={{ fontSize: '0.68rem', color: 'var(--color-text-muted)' }}>
+              {rate}% − ${Math.round(spend + mileage).toLocaleString()} costs
+            </span>
           </div>
         )
       },

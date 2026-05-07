@@ -1,9 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Badge, EmptyState } from '../../components/ui/index.jsx'
 import { useTransactions, useAllExpenses, useMileageLog, useListings } from '../../lib/hooks.js'
+import { IRS_MILEAGE_RATE as IRS_RATE } from '../../lib/financials'
 import './ClosedDeals.css'
-
-const IRS_RATE = 0.70 // 2026 IRS standard mileage rate
 
 function fmtDate(d) {
   if (!d) return '—'
