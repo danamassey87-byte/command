@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import * as DB from '../../lib/supabase'
 import {
   useContentPieces, useContentPillars, useOpenHouses, useListings, useProperties,
@@ -24,6 +24,16 @@ function fmtMonthYear(date) { return date.toLocaleDateString('en-US', { month: '
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ContentCalendar() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const listingFilter = searchParams.get('listing') || ''
+  const ohFilter = searchParams.get('oh') || ''
+  const clearFilter = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('listing')
+    next.delete('oh')
+    setSearchParams(next, { replace: true })
+  }
+
   const [tab, setTab]             = useState('calendar') // 'calendar' | 'stats'
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
   const [rangeMode, setRangeMode] = useState('week')     // 'week' | 'month' (stats tab)
@@ -75,10 +85,19 @@ export default function ContentCalendar() {
     return m
   }, [openHouses, weekStartISO, weekEndISO])
 
-  // Group content pieces by date (week grid uses only the 7-day window)
+  // Apply listing/oh filter from URL (deep-link from listing or OH detail)
+  const filteredPieces = useMemo(() => {
+    let src = pieces ?? []
+    if (listingFilter) src = src.filter(p => p.listing_id === listingFilter)
+    if (ohFilter) src = src.filter(p => p.open_house_id === ohFilter)
+    return src
+  }, [pieces, listingFilter, ohFilter])
+
+  // Group content pieces by date (week grid uses only the 7-day window).
+  // Source = filteredPieces (already respects ?listing= / ?oh= deep-link).
   const piecesByDate = useMemo(() => {
     const m = {}
-    const source = (pieces ?? []).filter(p => p.content_date >= weekStartISO && p.content_date <= weekEndISO)
+    const source = (filteredPieces ?? []).filter(p => p.content_date >= weekStartISO && p.content_date <= weekEndISO)
     for (const p of source) {
       if (!m[p.content_date]) m[p.content_date] = []
       m[p.content_date].push(p)
@@ -92,7 +111,7 @@ export default function ContentCalendar() {
       })
     }
     return m
-  }, [pieces, weekStartISO, weekEndISO])
+  }, [filteredPieces, weekStartISO, weekEndISO])
 
   const weekDays = useMemo(() =>
     Array.from({ length: 7 }, (_, i) => {
@@ -209,6 +228,33 @@ export default function ContentCalendar() {
           <Link to="/content/ai-studio" className="cc-brain-btn">Content Studio</Link>
         </div>
       </div>
+
+      {/* Active filter (deep-link from listing or OH detail) */}
+      {(listingFilter || ohFilter) && (() => {
+        const lst = listings?.find(l => l.id === listingFilter)
+        const oh  = openHouses?.find(o => o.id === ohFilter)
+        const label = lst
+          ? `Listing: ${lst.property?.address || lst.address || lst.id.slice(0, 8)}`
+          : oh
+            ? `Open House: ${oh.address || oh.id.slice(0, 8)}${oh.date ? ' · ' + oh.date : ''}`
+            : (listingFilter ? `Listing ${listingFilter.slice(0, 8)}` : `OH ${ohFilter.slice(0, 8)}`)
+        return (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+            background: 'var(--cream, #faf8f5)', border: '1px solid var(--color-border)',
+            borderRadius: 10, marginBottom: 12, fontSize: '0.85rem',
+          }}>
+            <span style={{ fontWeight: 600, color: 'var(--brown-dark)' }}>Filtered by</span>
+            <span style={{ background: 'var(--brown-dark)', color: '#fff', padding: '3px 10px', borderRadius: 6, fontSize: '0.78rem' }}>
+              {label}
+            </span>
+            <button onClick={clearFilter} style={{
+              marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--color-text-muted)', fontSize: '0.8rem', textDecoration: 'underline',
+            }}>Clear</button>
+          </div>
+        )
+      })()}
 
       {/* Tabs */}
       <div className="cc-tabs">
@@ -329,7 +375,7 @@ export default function ContentCalendar() {
 
       {tab === 'stats' && (
         <StatsView
-          pieces={pieces ?? []}
+          pieces={filteredPieces ?? []}
           pillars={pillars ?? []}
           pillarMap={pillarMap}
           openHouses={openHouses ?? []}

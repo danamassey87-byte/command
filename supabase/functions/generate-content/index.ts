@@ -29,7 +29,7 @@ serve(async (req) => {
       )
     }
 
-    const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property, source, avatar_id, framework, inspo_notes, conversation } = await req.json()
+    const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property, source, avatar_id, framework, inspo_notes, conversation, variant, listing_id, oh_id, channels } = await req.json()
 
     // ─── Brand guidelines injection ──────────────────────────────────────
     // Pull brand profile from user_settings so Claude knows Dana's brand voice,
@@ -289,6 +289,233 @@ Your job right now is to produce the markdown strategy document described in the
 
       return new Response(
         JSON.stringify({ tasks, strategy, raw: checklistText }),
+        { headers: { ...CORS, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ─── Listing content (Just Listed / Coming Soon / Price Drop / Just Sold / OH Promo) ──
+    // One button on a listing or open house generates a draft per channel.
+    // Returns { drafts: [{ channel, format, title, body_text, hashtags }] }.
+    // Caller persists each draft as a content_pieces row linked to listing_id / open_house_id.
+    if (type === 'listing_content') {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      )
+
+      const VALID_VARIANTS = ['just_listed', 'coming_soon', 'price_drop', 'just_sold', 'oh_promo']
+      if (!variant || !VALID_VARIANTS.includes(variant)) {
+        return new Response(
+          JSON.stringify({ error: `variant must be one of: ${VALID_VARIANTS.join(', ')}` }),
+          { status: 400, headers: { ...CORS, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Default channel set if caller doesn't specify.
+      const requestedChannels: Array<{ channel: string; format: string }> = Array.isArray(channels) && channels.length > 0
+        ? channels.map((c: any) => typeof c === 'string'
+            ? { channel: c.split(':')[0], format: c.split(':')[1] || 'post' }
+            : { channel: String(c.channel || 'instagram'), format: String(c.format || 'post') })
+        : [
+            { channel: 'instagram', format: 'post' },
+            { channel: 'instagram', format: 'story' },
+            { channel: 'facebook',  format: 'post' },
+            { channel: 'email',     format: 'announcement' },
+          ]
+
+      // Fetch listing + property + open_house data.
+      let listingRow: any = null
+      let propertyRow: any = null
+      let ohRow: any = null
+
+      if (listing_id) {
+        const { data } = await supabase
+          .from('listings')
+          .select('id, list_price, current_price, close_price, list_date, status, type, dom, strategy, property_id, contact:contacts(name, email)')
+          .eq('id', listing_id)
+          .maybeSingle()
+        listingRow = data
+        if (data?.property_id) {
+          const { data: p } = await supabase
+            .from('properties')
+            .select('address, city, state, zip, bedrooms, bathrooms, sqft, year_built, lot_acres, pool, garage_spaces, subdivision, school_district')
+            .eq('id', data.property_id)
+            .maybeSingle()
+          propertyRow = p
+        }
+      }
+
+      if (oh_id) {
+        const { data } = await supabase
+          .from('open_houses')
+          .select('id, date, start_time, end_time, listing_id, property_id, host_agent_name, lockbox_code')
+          .eq('id', oh_id)
+          .maybeSingle()
+        ohRow = data
+        // If no listing_id was passed but OH has one, hydrate from there.
+        if (!listingRow && data?.listing_id) {
+          const { data: l } = await supabase
+            .from('listings')
+            .select('id, list_price, current_price, list_date, status, type, dom, strategy, property_id, contact:contacts(name, email)')
+            .eq('id', data.listing_id)
+            .maybeSingle()
+          listingRow = l
+        }
+        if (!propertyRow && data?.property_id) {
+          const { data: p } = await supabase
+            .from('properties')
+            .select('address, city, state, zip, bedrooms, bathrooms, sqft, year_built, lot_acres, pool, garage_spaces, subdivision, school_district')
+            .eq('id', data.property_id)
+            .maybeSingle()
+          propertyRow = p
+        }
+      }
+
+      // ─── Build the listing facts block (shared across all channel calls) ──
+      const fmtPrice = (n: any) => n ? `$${Number(n).toLocaleString()}` : '—'
+      const fmtDate = (d: any) => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : '—'
+      const fmtTime = (t: any) => {
+        if (!t) return '—'
+        const [h, m] = String(t).split(':').map(Number)
+        const hr12 = ((h + 11) % 12) + 1
+        const ampm = h >= 12 ? 'PM' : 'AM'
+        return `${hr12}${m ? ':' + String(m).padStart(2, '0') : ''} ${ampm}`
+      }
+
+      const facts: string[] = []
+      if (propertyRow) {
+        facts.push(`Address: ${propertyRow.address}${propertyRow.city ? ', ' + propertyRow.city : ''}${propertyRow.state ? ', ' + propertyRow.state : ''}`)
+        if (propertyRow.bedrooms || propertyRow.bathrooms) {
+          facts.push(`Beds/Baths: ${propertyRow.bedrooms || '?'} bed / ${propertyRow.bathrooms || '?'} bath`)
+        }
+        if (propertyRow.sqft) facts.push(`SqFt: ${Number(propertyRow.sqft).toLocaleString()}`)
+        if (propertyRow.year_built) facts.push(`Year Built: ${propertyRow.year_built}`)
+        if (propertyRow.lot_acres) facts.push(`Lot: ${propertyRow.lot_acres} acres`)
+        if (propertyRow.garage_spaces) facts.push(`Garage: ${propertyRow.garage_spaces}-car`)
+        if (propertyRow.pool) facts.push('Pool: yes')
+        if (propertyRow.subdivision) facts.push(`Subdivision: ${propertyRow.subdivision}`)
+        if (propertyRow.school_district) facts.push(`Schools: ${propertyRow.school_district}`)
+      }
+      if (listingRow) {
+        if (variant === 'just_sold' && listingRow.close_price) {
+          facts.push(`Sold Price: ${fmtPrice(listingRow.close_price)}`)
+          if (listingRow.list_price) facts.push(`Original List: ${fmtPrice(listingRow.list_price)}`)
+        } else if (variant === 'price_drop') {
+          if (listingRow.list_price) facts.push(`Original Price: ${fmtPrice(listingRow.list_price)}`)
+          if (listingRow.current_price) facts.push(`New Price: ${fmtPrice(listingRow.current_price)}`)
+        } else {
+          if (listingRow.current_price || listingRow.list_price) {
+            facts.push(`Price: ${fmtPrice(listingRow.current_price || listingRow.list_price)}`)
+          }
+        }
+        if (listingRow.dom != null && variant !== 'coming_soon' && variant !== 'just_listed') {
+          facts.push(`Days on Market: ${listingRow.dom}`)
+        }
+        if (listingRow.strategy && variant !== 'just_sold') {
+          facts.push(`Listing Strategy Notes: ${String(listingRow.strategy).slice(0, 600)}`)
+        }
+      }
+      if (ohRow && variant === 'oh_promo') {
+        facts.push(`Open House Date: ${fmtDate(ohRow.date)}`)
+        facts.push(`Open House Time: ${fmtTime(ohRow.start_time)} – ${fmtTime(ohRow.end_time)}`)
+        if (ohRow.host_agent_name) facts.push(`Hosted by: ${ohRow.host_agent_name}`)
+      }
+      const factsBlock = facts.length ? `LISTING FACTS:\n${facts.map(f => '- ' + f).join('\n')}` : ''
+
+      // ─── Variant framing ─────────────────────────────────────────────────
+      const VARIANT_FRAMING: Record<string, string> = {
+        just_listed:  'This is a JUST LISTED announcement — the home went live on the market today. Tone: confident, excited, story-driven. Lead with what makes this property special, not the specs. Mention price + address but don\'t lead with them.',
+        coming_soon:  'This is a COMING SOON teaser — the home isn\'t live yet but is about to be. Tone: anticipation, exclusivity. Build curiosity. Don\'t reveal full price or all photos. CTA: "DM for early access" or "Tag someone who needs to see this first."',
+        price_drop:   'This is a PRICE IMPROVEMENT post — the seller has lowered the price. Tone: honest, opportunity-framed. NEVER use "desperate", "must sell", or apologetic language. Frame it as "the seller adjusted to current market" or "we\'re creating a window for the right buyer."',
+        just_sold:    'This is a JUST SOLD celebration — the deal closed. Tone: warm gratitude. Celebrate the client\'s next chapter, not Dana\'s ego. End with a soft CTA for sellers who are curious about the market.',
+        oh_promo:     'This is an OPEN HOUSE invitation — promote attendance at the OH. Tone: inviting, no-pressure. Lead with date/time + property hook. CTA: "Stop by" or "RSVP via link in bio." Mention parking, pets, kids welcome if relevant.',
+      }
+      const variantInstruction = VARIANT_FRAMING[variant]
+
+      // ─── Per-channel format instructions ─────────────────────────────────
+      const CHANNEL_INSTRUCTIONS: Record<string, string> = {
+        'instagram:post':   'Format: Instagram caption (150–250 words). Hook in line 1. Use line breaks for scannability. End with a soft CTA. Include a "hashtags" array of 12–18 mixed local/niche/community tags. Title field: a short headline you\'d put on the photo overlay.',
+        'instagram:story':  'Format: Instagram story (very short, 30–80 words). Bold pullquote-style. End with "swipe up" or "DM me" prompt. Title: 3–5 word overlay headline. Hashtags: 3–5 only.',
+        'instagram:reel':   'Format: Instagram Reel script. 5–8 line voice-over for a 15–30 second clip. Each line is 1 sentence. Title: hook for the cover frame. Hashtags: 8–12.',
+        'facebook:post':    'Format: Facebook post (200–350 words). Slightly longer + more narrative than Instagram. Can include the address explicitly. Title: same as the FB post headline. Hashtags: 5–8 (Facebook uses fewer).',
+        'facebook:event':   'Format: Facebook Event description (100–150 words). Date + time + property pull. Title: event title.',
+        'email:announcement': 'Format: Email body (250–400 words). Plain text, no HTML, no signature block. Conversational. Title: email subject line. Hashtags: empty array (emails don\'t use hashtags).',
+        'gmb:post':         'Format: Google Business Profile post (under 1500 chars, 100–200 words is the sweet spot). Action-oriented. Title: short headline. Hashtags: 3–5.',
+        'tiktok:post':      'Format: TikTok caption + on-screen text script (80–150 words total). Hook-driven. Title: 5–8 word hook for first 2 seconds. Hashtags: 8–12.',
+      }
+
+      // ─── Build per-channel Claude calls in parallel ──────────────────────
+      const callClaudeJson = async (system: string, userPrompt: string, maxTokens = 1200) => {
+        const r = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-6',
+            max_tokens: maxTokens,
+            system,
+            messages: [{ role: 'user', content: userPrompt }],
+          }),
+        })
+        if (!r.ok) {
+          const errText = await r.text().catch(() => '')
+          throw new Error(`Anthropic API error (${r.status}): ${errText.slice(0, 400)}`)
+        }
+        const j = await r.json()
+        return j.content?.[0]?.text ?? ''
+      }
+
+      const buildSystem = () =>
+        SYSTEM_PROMPT + brandContext + frameworkContext + avatarContext + contentRulesContext + `\n\nWhen asked for listing-promotion content, return ONLY valid JSON in this exact shape:\n{ "title": "...", "body_text": "...", "hashtags": ["#tag1","#tag2"] }\nDo not wrap in code fences. No prose outside the JSON.`
+
+      const drafts: Array<{ channel: string; format: string; title: string; body_text: string; hashtags: string[]; raw?: string }> = []
+
+      const results = await Promise.allSettled(
+        requestedChannels.map(async ({ channel, format }) => {
+          const channelKey = `${channel}:${format}`
+          const channelInstr = CHANNEL_INSTRUCTIONS[channelKey]
+            || `Format: ${channel} ${format} (200 words). Title: short headline. Hashtags: 5–10.`
+          const userPrompt = `${variantInstruction}
+
+CHANNEL & FORMAT: ${channel} ${format}
+${channelInstr}
+
+${factsBlock}
+
+Return ONE JSON object with title, body_text, and hashtags. Output ONLY the JSON, nothing else.`
+          const text = await callClaudeJson(buildSystem(), userPrompt, 1400)
+          let parsed: any = null
+          try {
+            const m = text.match(/\{[\s\S]*\}/)
+            if (m) parsed = JSON.parse(m[0])
+          } catch { /* ignore — return raw */ }
+          return {
+            channel,
+            format,
+            title: parsed?.title || '',
+            body_text: parsed?.body_text || text,
+            hashtags: Array.isArray(parsed?.hashtags) ? parsed.hashtags : [],
+            raw: parsed ? undefined : text,
+          }
+        })
+      )
+
+      for (const r of results) {
+        if (r.status === 'fulfilled') drafts.push(r.value)
+        else drafts.push({
+          channel: 'unknown',
+          format: 'unknown',
+          title: '',
+          body_text: `Generation failed: ${r.reason?.message || 'unknown error'}`,
+          hashtags: [],
+        })
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true, drafts, variant, listing_id: listingRow?.id || listing_id, open_house_id: ohRow?.id || oh_id }),
         { headers: { ...CORS, 'Content-Type': 'application/json' } }
       )
     }

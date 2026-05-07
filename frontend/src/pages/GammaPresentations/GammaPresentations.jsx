@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Button, Input, Select, Textarea, Badge } from '../../components/ui/index.jsx'
 import * as DB from '../../lib/supabase.js'
 import './GammaPresentations.css'
@@ -32,10 +32,31 @@ export default function GammaPresentations() {
   const [generating, setGenerating] = useState(false)
   const [genResult, setGenResult] = useState(null)
 
+  const [searchParams] = useSearchParams()
+
   useEffect(() => {
     loadData()
     checkGammaConfig()
   }, [])
+
+  // Deep-link from listing detail: /content/gamma?listing=<id>&type=listing.
+  // Wait until listings are loaded so the title can be auto-filled with the address.
+  useEffect(() => {
+    const lid = searchParams.get('listing')
+    const t = searchParams.get('type')
+    if (!lid && !t) return
+    if (t && PRES_TYPES.some(p => p.value === t)) setFormType(t)
+    if (lid) {
+      setFormListingId(lid)
+      setTab('create')
+      const lst = listings.find(l => l.id === lid)
+      if (lst) {
+        const addr = lst.address || lst.property?.address || 'Listing'
+        const labelType = t || 'listing'
+        setFormTitle(prev => prev || `${addr} — ${TYPE_LABELS[labelType] || 'Presentation'}`)
+      }
+    }
+  }, [searchParams, listings])
 
   async function loadData() {
     setLoading(true)

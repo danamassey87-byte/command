@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '../../components/ui/index.jsx'
-import { useContentPieces, useContentPillars, useOpenHouses } from '../../lib/hooks.js'
+import { useContentPieces, useContentPillars, useOpenHouses, useListings } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
 
 /* ─── Date helpers ─── */
@@ -32,6 +32,16 @@ const WEEKLY_SLOTS = [
 
 export default function PlanTab() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const listingFilter = searchParams.get('listing') || ''
+  const ohFilter = searchParams.get('oh') || ''
+  const clearFilter = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('listing')
+    next.delete('oh')
+    setSearchParams(next, { replace: true })
+  }
+
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
   const [dragOverDay, setDragOverDay] = useState(null)
 
@@ -39,6 +49,7 @@ export default function PlanTab() {
   const { data: pieces, refetch } = useContentPieces(toISO(weekStart), toISO(weekEnd))
   const { data: pillars } = useContentPillars()
   const { data: openHouses } = useOpenHouses()
+  const { data: listings } = useListings()
 
   const pillarMap = useMemo(() => {
     const m = {}
@@ -53,15 +64,24 @@ export default function PlanTab() {
     }), [weekStart]
   )
 
+  // Apply listing/oh deep-link filter so a listing or OH detail page can link
+  // straight here pre-filtered (e.g., /content/plan?listing=<id>).
+  const filteredPieces = useMemo(() => {
+    let src = pieces ?? []
+    if (listingFilter) src = src.filter(p => p.listing_id === listingFilter)
+    if (ohFilter) src = src.filter(p => p.open_house_id === ohFilter)
+    return src
+  }, [pieces, listingFilter, ohFilter])
+
   const piecesByDate = useMemo(() => {
     const m = {}
-    for (const p of (pieces ?? [])) {
+    for (const p of filteredPieces) {
       if (!p.content_date) continue
       if (!m[p.content_date]) m[p.content_date] = []
       m[p.content_date].push(p)
     }
     return m
-  }, [pieces])
+  }, [filteredPieces])
 
   const ohByDate = useMemo(() => {
     const m = {}
@@ -76,7 +96,7 @@ export default function PlanTab() {
   }, [openHouses, weekStart, weekEnd])
 
   // Stats
-  const allPieces = pieces ?? []
+  const allPieces = filteredPieces
   const published = allPieces.filter(p => p.status === 'published').length
   const scheduled = allPieces.filter(p => p.status === 'scheduled').length
   const drafts    = allPieces.filter(p => p.status === 'draft').length
@@ -107,8 +127,37 @@ export default function PlanTab() {
     return 'plan-chip--draft'
   }
 
+  // Filter banner content (deep-link from listing or OH detail)
+  let filterBanner = null
+  if (listingFilter || ohFilter) {
+    const lst = listings?.find(l => l.id === listingFilter)
+    const oh  = openHouses?.find(o => o.id === ohFilter)
+    const label = lst
+      ? `Listing: ${lst.address || lst.property?.address || lst.id.slice(0, 8)}`
+      : oh
+        ? `Open House: ${oh.address || oh.id.slice(0, 8)}${oh.date ? ' · ' + oh.date : ''}`
+        : (listingFilter ? `Listing ${listingFilter.slice(0, 8)}` : `OH ${ohFilter.slice(0, 8)}`)
+    filterBanner = (
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+        background: 'var(--cream, #faf8f5)', border: '1px solid var(--color-border)',
+        borderRadius: 10, marginBottom: 12, fontSize: '0.85rem',
+      }}>
+        <span style={{ fontWeight: 600, color: 'var(--brown-dark)' }}>Filtered by</span>
+        <span style={{ background: 'var(--brown-dark)', color: '#fff', padding: '3px 10px', borderRadius: 6, fontSize: '0.78rem' }}>
+          {label}
+        </span>
+        <button onClick={clearFilter} style={{
+          marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer',
+          color: 'var(--color-text-muted)', fontSize: '0.8rem', textDecoration: 'underline',
+        }}>Clear</button>
+      </div>
+    )
+  }
+
   return (
     <div className="plan-layout">
+      {filterBanner}
       {/* Calendar */}
       <div className="plan-cal">
         <div className="plan-cal__header">
