@@ -899,6 +899,22 @@ export default function Pipeline() {
     setPanelOpen(true)
   }
 
+  // Universal Search deep-link: ?deal=<txn_id> auto-opens that deal's detail
+  // (covers active board + pre-offer leads).
+  useEffect(() => {
+    if (detailDeal || !transactions) return
+    const params = new URLSearchParams(window.location.search)
+    const targetId = params.get('deal')
+    if (!targetId) return
+    const match = transactions.find(t => t.id === targetId)
+    if (match) {
+      openDetail(match)
+      const url = new URL(window.location.href)
+      url.searchParams.delete('deal')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [transactions])
+
   const saveDeal = async () => {
     if (!contactId) return
     setSaving(true)

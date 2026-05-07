@@ -4693,6 +4693,25 @@ export default function Sellers() {
 
   const [filter, setFilter]               = useState('all')
   const [selectedListing, setSelectedListing] = useState(null)
+
+  // ── Universal Search deep-link: ?listing=<id> auto-opens that listing's detail
+  // panel. Runs once when listings load, then strips the param so back-button
+  // navigation isn't sticky. (No-op when no param present.)
+  useEffect(() => {
+    if (selectedListing) return
+    const params = new URLSearchParams(window.location.search)
+    const targetId = params.get('listing')
+    if (!targetId) return
+    const listings = (dbData ?? []).map(mapListing)
+    const match = listings.find(l => l.id === targetId)
+    if (match) {
+      setSelectedListing(match)
+      // Strip the param so it doesn't re-trigger if Dana navigates back here.
+      const url = new URL(window.location.href)
+      url.searchParams.delete('listing')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [dbData])
   const [panelOpen, setPanelOpen]         = useState(false)
   const [editingListing, setEditingListing] = useState(null)
   const [saving, setSaving]               = useState(false)

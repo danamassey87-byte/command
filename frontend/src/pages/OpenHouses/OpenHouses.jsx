@@ -1034,6 +1034,21 @@ function ScheduledTab({ openHouses, loading, refetch }) {
   const [customTo, setCustomTo]     = useState('')
   const [selectedOH, setSelectedOH] = useState(null)
   const [panelOpen, setPanelOpen]   = useState(false)
+
+  // Universal Search deep-link: ?id=<oh_id> auto-opens that OH's detail.
+  useEffect(() => {
+    if (selectedOH) return
+    const params = new URLSearchParams(window.location.search)
+    const targetId = params.get('id')
+    if (!targetId) return
+    const match = (openHouses ?? []).find(o => o.id === targetId)
+    if (match) {
+      setSelectedOH(match)
+      const url = new URL(window.location.href)
+      url.searchParams.delete('id')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [openHouses])
   const [editingOH, setEditingOH]   = useState(null)
   const [saving, setSaving]         = useState(false)
   const [deleting, setDeleting]     = useState(false)

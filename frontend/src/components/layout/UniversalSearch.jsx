@@ -78,7 +78,7 @@ function buildListingRows(listings, q) {
         id: l.id,
         title: addr || '(no address)',
         sub: [city, l.status, l.contact?.name].filter(Boolean).join(' · '),
-        path: `/sellers`,
+        path: `/sellers?listing=${l.id}`,
       })
     }
     if (out.length >= 6) break
@@ -98,7 +98,7 @@ function buildOHRows(ohs, q) {
         id: oh.id,
         title: addr || '(no address)',
         sub: [oh.date, city, oh.status].filter(Boolean).join(' · '),
-        path: `/open-houses`,
+        path: `/open-houses?id=${oh.id}`,
       })
     }
     if (out.length >= 6) break
@@ -118,7 +118,7 @@ function buildDealRows(transactions, q) {
         id: t.id,
         title: `${t.contact?.name || 'Deal'} — ${t.property?.address || 'no address'}`,
         sub: [t.status, t.deal_type, t.expected_commission ? `$${Number(t.expected_commission).toLocaleString()}` : null].filter(Boolean).join(' · '),
-        path: `/pipeline`,
+        path: `/pipeline?deal=${t.id}`,
       })
     }
     if (out.length >= 5) break
