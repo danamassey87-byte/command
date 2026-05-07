@@ -1215,13 +1215,30 @@ function GoogleAccountCard() {
   const [syncing, setSyncing] = useState(false)
   const [replyStatus, setReplyStatus] = useState(null)
   const [scanning, setScanning] = useState(false)
+  const [drivePrefs, setDrivePrefs] = useState({ auto_share_with_tc: false })
+  const [savingPrefs, setSavingPrefs] = useState(false)
 
   useEffect(() => {
     DB.getGoogleTokens().then(data => {
       if (data?.value) setTokens(data.value)
       setLoading(false)
     }).catch(() => setLoading(false))
+    DB.getDriveShareSettings().then(prefs => setDrivePrefs(prefs)).catch(() => {})
   }, [])
+
+  async function toggleAutoShareTC() {
+    const next = { ...drivePrefs, auto_share_with_tc: !drivePrefs.auto_share_with_tc }
+    setDrivePrefs(next)
+    setSavingPrefs(true)
+    try {
+      await DB.updateDriveShareSettings(next)
+    } catch (err) {
+      setDrivePrefs(drivePrefs)
+      alert('Could not save preference: ' + err.message)
+    } finally {
+      setSavingPrefs(false)
+    }
+  }
 
   async function handleConnect() {
     setConnecting(true)
@@ -1392,6 +1409,51 @@ function GoogleAccountCard() {
             <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
               Connect Google Calendar above to enable Gmail reply detection.
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Google Drive */}
+      <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <span style={{ fontSize: '1.3rem' }}>📁</span>
+          <div>
+            <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.95rem' }}>Google Drive</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>Auto-organized folders for every listing &amp; client</div>
+          </div>
+          {isConnected && (
+            <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 600, color: '#137333', background: '#e6f4ea', padding: '3px 10px', borderRadius: 6 }}>
+              Connected
+            </span>
+          )}
+        </div>
+
+        {isConnected ? (
+          <div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginBottom: 12 }}>
+              Drive folders are created on demand from listing &amp; client pages (📁 Drive button). Sync Photos pulls images from a listing's Photos subfolder into your media library.
+            </div>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', background: 'var(--cream, #faf8f5)', borderRadius: 8 }}>
+              <input
+                type="checkbox"
+                checked={!!drivePrefs.auto_share_with_tc}
+                onChange={toggleAutoShareTC}
+                disabled={savingPrefs}
+                style={{ marginTop: 3 }}
+              />
+              <span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--brown-dark)' }}>
+                  Auto-share with TC when listing goes Under Contract
+                </span>
+                <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                  When a listing's status changes to Pending, automatically grant the Transaction Coordinator(s) on the deal writer access to the Drive folder. Off by default — most TC services (Transact, Lone Wolf, etc.) pull docs from their own system. Use the manual <em>Share with TC</em> button on the listing for one-off shares.
+                </span>
+              </span>
+            </label>
+          </div>
+        ) : (
+          <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
+            Connect Google above to enable Drive folder management.
           </div>
         )}
       </div>

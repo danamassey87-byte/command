@@ -19,9 +19,12 @@ const CORS = {
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 
+// drive.file: app can only see/manage files it creates or that the user explicitly opens
+// with the app. Safer than full drive scope and is enough for auto-creating client/listing folders.
 const SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
   'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ')
 
