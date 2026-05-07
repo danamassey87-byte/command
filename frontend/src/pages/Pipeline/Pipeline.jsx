@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Button, Badge, Card, SlidePanel, Input, Select, Textarea, EmptyState } from '../../components/ui/index.jsx'
 import { TagPicker } from '../../components/ui/TagPicker.jsx'
-import { useTransactions, useContacts, useProperties, useContactTags, useNotesForContact, useOfferHistory, useStatusLog } from '../../lib/hooks.js'
+import { useTransactions, useContacts, useProperties, useContactTags, useNotesForContact, useOfferHistory, useStatusLog, useAllExpenses, useMileageLog, useListings } from '../../lib/hooks.js'
+import { IRS_MILEAGE_RATE, totalMiles, mileageDollarCost } from '../../lib/financials'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import { useBrandSignature } from '../../lib/BrandContext'
@@ -492,6 +493,10 @@ function DealStageHistory({ dealId }) {
 
 export default function Pipeline() {
   const { data: transactions, loading, error, refetch } = useTransactions()
+  const { data: allExpenses } = useAllExpenses()
+  const _yearForPipeNet = new Date().getFullYear()
+  const { data: yearMileage } = useMileageLog(`${_yearForPipeNet}-01-01`, `${_yearForPipeNet}-12-31`)
+  const { data: pipeListings } = useListings()
   const { data: contacts } = useContacts()
   const { data: properties } = useProperties()
   const sig = useBrandSignature()
@@ -1382,6 +1387,61 @@ export default function Pipeline() {
                         </span>
                       </div>
                     )}
+
+                    {/* ─── Projected Net (active deals — same formula as EscrowTracker) ─── */}
+                    {(() => {
+                      const gross = Number(deal.expected_commission)
+                        || (Number(deal.commission_pct) ? Number(deal.commission_pct) / 100 * (Number(deal.property?.price) || Number(deal.offer_price) || 0) : 0)
+                      if (!gross) return null
+                      const fees = (Number(deal.broker_fee) || 0) + (Number(deal.referral_fee) || 0) + (Number(deal.tc_fee) || 0) + (Number(deal.lead_source_fee) || 0)
+                      const listing = (pipeListings ?? []).find(l => l.property_id === deal.property_id)
+                      const exps = (allExpenses ?? []).filter(e =>
+                        (listing && e.listing_id === listing.id) ||
+                        (deal.contact_id && e.contact_id === deal.contact_id)
+                      )
+                      const marketingSpend = exps.reduce((s, e) => s + (Number(e.amount) || 0), 0)
+                      const miles = (yearMileage ?? []).filter(m =>
+                        m.transaction_id === deal.id ||
+                        (deal.contact_id && m.contact_id === deal.contact_id) ||
+                        (deal.property_id && m.property_id === deal.property_id)
+                      )
+                      const tm = totalMiles(miles)
+                      const mileageCost = mileageDollarCost(tm)
+                      const projectedNet = gross - fees - marketingSpend - mileageCost
+                      const positive = projectedNet > 0
+                      return (
+                        <div style={{ background: 'var(--cream, #faf8f5)', border: '1px solid var(--color-border)', borderRadius: 10, padding: '12px 14px', marginTop: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>
+                              Projected Net if Closed
+                            </span>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: positive ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                              {fmtDollar(projectedNet)}
+                            </span>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 12px', fontSize: '0.78rem', fontVariantNumeric: 'tabular-nums' }}>
+                            <span style={{ color: 'var(--color-text-muted)' }}>Gross commission</span>
+                            <span style={{ textAlign: 'right' }}>{fmtDollar(gross)}</span>
+                            {fees > 0 && (<>
+                              <span style={{ color: 'var(--color-text-muted)' }}>− Fees (broker / referral / TC / lead-source)</span>
+                              <span style={{ textAlign: 'right', color: 'var(--color-danger)' }}>−{fmtDollar(fees)}</span>
+                            </>)}
+                            {marketingSpend > 0 && (<>
+                              <span style={{ color: 'var(--color-text-muted)' }}>− Marketing spend</span>
+                              <span style={{ textAlign: 'right', color: 'var(--color-danger)' }}>−{fmtDollar(marketingSpend)}</span>
+                            </>)}
+                            {mileageCost > 0 && (<>
+                              <span style={{ color: 'var(--color-text-muted)' }}>− Mileage ({Math.round(tm)} mi @ ${IRS_MILEAGE_RATE.toFixed(2)})</span>
+                              <span style={{ textAlign: 'right', color: 'var(--color-danger)' }}>−{fmtDollar(mileageCost)}</span>
+                            </>)}
+                          </div>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 8, fontStyle: 'italic' }}>
+                            Same formula as Escrow + Closed Deals. Updates as expenses + mileage are logged.
+                          </p>
+                        </div>
+                      )
+                    })()}
+
                     {deal.contact?.phone && (
                       <div className="pipe__detail-row">
                         <span className="pipe__detail-label">Phone</span>
