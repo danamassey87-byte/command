@@ -177,7 +177,7 @@ const ICONS = {
 export function getActiveSection(pathname) {
   if (pathname === '/' || pathname.startsWith('/dashboard') || pathname.startsWith('/goals') || pathname.startsWith('/calendar') || pathname.startsWith('/tasks')) return 'home'
   if (pathname.startsWith('/prospecting') || pathname.startsWith('/open-houses') || pathname.startsWith('/home-value')) return 'prospect'
-  if (pathname.startsWith('/crm') || pathname.startsWith('/vendors') || pathname.startsWith('/print') || pathname.startsWith('/reviews') || pathname.startsWith('/post-close') || pathname.startsWith('/on-hold') || pathname.startsWith('/investors') || pathname.startsWith('/database') || pathname.startsWith('/listing-') || pathname.startsWith('/sellers') || pathname.startsWith('/seller-') || pathname.startsWith('/buyers') || pathname.startsWith('/buyer-') || pathname.startsWith('/properties')) return 'people'
+  if (pathname.startsWith('/crm') || pathname.startsWith('/vendors') || pathname.startsWith('/print') || pathname.startsWith('/reviews') || pathname.startsWith('/post-close') || pathname.startsWith('/on-hold') || pathname.startsWith('/investors') || pathname.startsWith('/database') || pathname.startsWith('/listing-') || pathname.startsWith('/sellers') || pathname.startsWith('/seller-') || pathname.startsWith('/buyers') || pathname.startsWith('/buyer-') || pathname.startsWith('/properties') || pathname.startsWith('/contact/') || pathname === '/contact') return 'people'
   // SOP/playbook routes live under toolkit, not deals
   if (pathname === '/pipeline/buyer-sop' || pathname === '/pipeline/seller-sop') return 'toolkit'
   if (pathname.startsWith('/pipeline'))    return 'deals'
@@ -187,6 +187,7 @@ export function getActiveSection(pathname) {
   if (pathname.startsWith('/bio-link'))   return 'biolink'
   if (pathname.startsWith('/pnl') || pathname.startsWith('/net-sheet') || pathname.startsWith('/market')) return 'money'
   if (pathname.startsWith('/resources') || pathname.startsWith('/settings') || pathname.startsWith('/ai')) return 'toolkit'
+  if (pathname.startsWith('/notifications') || pathname.startsWith('/onboarding')) return 'home'
   return 'home'
 }
 
