@@ -21,9 +21,13 @@ const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 
 // drive.file: app can only see/manage files it creates or that the user explicitly opens
 // with the app. Safer than full drive scope and is enough for auto-creating client/listing folders.
+// gmail.modify: read + label CRUD + apply/remove labels (lead-intake-email needs to label
+// processed messages so they don't loop on subsequent runs). Does NOT include send/trash.
+// gmail.settings.basic: manage Gmail filters (lets the app auto-create vendor lead filters).
 const SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
-  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.settings.basic',
   'https://www.googleapis.com/auth/drive.file',
   'https://www.googleapis.com/auth/userinfo.email',
 ].join(' ')
