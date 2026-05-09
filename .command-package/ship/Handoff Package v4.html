@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Handoff Package v4 — Command → Antigravity</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Nunito+Sans:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root{
+  --ink:#3A2A1E; --ink-2:#5A4136; --muted:#5A4136; --faint:#B79782;
+  --line:#C8C3B9; --paper:#EFEDE8; --paper-2:#E3DED4; --card:#F6F4EE;
+  --tan:#B79782; --sage:#8B9A7B; --warn:#c99a2e; --danger:#c0604a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:'Nunito Sans',sans-serif;font-size:14px;line-height:1.55;}
+.wrap{max-width:940px;margin:0 auto;padding:64px 48px 120px;}
+h1{font-family:'Cormorant Garamond',serif;font-weight:500;font-size:58px;line-height:1.02;margin:0 0 6px;letter-spacing:-.01em;}
+.subtitle{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.14em;}
+h2{font-family:'Cormorant Garamond',serif;font-weight:500;font-size:32px;margin:56px 0 14px;letter-spacing:-.005em;border-bottom:1px solid var(--line);padding-bottom:10px;}
+h3{font-family:'Cormorant Garamond',serif;font-weight:500;font-size:22px;margin:28px 0 8px;}
+p{margin:0 0 12px;max-width:70ch;}
+.muted{color:var(--muted);}
+.tiny{font-size:12px;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+.lede{font-size:17px;line-height:1.55;color:var(--ink-2);max-width:62ch;margin:16px 0 8px;}
+
+.summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px;}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 18px;}
+.stat .num{font-family:'Cormorant Garamond',serif;font-size:36px;line-height:1;margin-bottom:4px;}
+.stat .delta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--sage);margin-left:6px;letter-spacing:.06em;}
+.stat .lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);}
+
+.tag{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.1em;vertical-align:middle;}
+.tag.green{background:rgba(139,154,123,.16);color:#566b4a;border:1px solid rgba(139,154,123,.35);}
+.tag.amber{background:rgba(201,154,46,.14);color:var(--warn);border:1px solid rgba(201,154,46,.32);}
+.tag.rose{background:rgba(192,96,74,.12);color:var(--danger);border:1px solid rgba(192,96,74,.26);}
+.tag.neutral{background:var(--paper-2);color:var(--muted);border:1px solid var(--line);}
+.tag.new{background:#3A2A1E;color:#EFEDE8;border:1px solid #3A2A1E;}
+
+table{width:100%;border-collapse:collapse;margin:14px 0 8px;font-size:13px;}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+th{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);background:var(--card);}
+td a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--faint);text-underline-offset:3px;}
+td a:hover{text-decoration-color:var(--ink);}
+td.flag{width:120px;}
+td.count{font-family:'IBM Plex Mono',monospace;text-align:right;width:56px;color:var(--muted);}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px 22px;margin:14px 0;}
+.card.rose{background:rgba(192,96,74,.05);border-color:rgba(192,96,74,.25);}
+.card.amber{background:rgba(201,154,46,.06);border-color:rgba(201,154,46,.3);}
+.card.sage{background:rgba(139,154,123,.07);border-color:rgba(139,154,123,.3);}
+
+ul{margin:6px 0 12px 18px;padding:0;} li{margin:4px 0;}
+ol{margin:6px 0 12px 20px;padding:0;} ol li{margin:6px 0;}
+
+.kbd{font-family:'IBM Plex Mono',monospace;font-size:11px;background:var(--paper-2);border:1px solid var(--line);padding:1px 6px;border-radius:3px;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:12px 0;}
+.three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:12px 0;}
+.mini{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;}
+.mini .h{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:6px;}
+.mini .b{font-family:'Cormorant Garamond',serif;font-size:20px;line-height:1.2;}
+.cta{border-top:1px solid var(--line);margin-top:48px;padding-top:24px;}
+.diff-row{display:grid;grid-template-columns:160px 1fr;gap:14px;padding:10px 0;border-bottom:1px dashed var(--line);}
+.diff-row .k{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;padding-top:2px;}
+.diff-row .v{font-size:13px;color:var(--ink-2);}
+.diff-row .v b{color:var(--ink);}
+hr.thin{border:none;border-top:1px solid var(--line);margin:28px 0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="subtitle">Ship manifest · v4 · 6 May 2026</div>
+  <h1>Handoff Package v4</h1>
+  <p class="lede">v3 went out 22 Apr. Since then the wireframes file grew by 5 more sections (now <b>58</b> total), and three section registries that existed in code but weren't routed to the canvas have been wired in. This doc tells Antigravity exactly what's new since v3, what was hidden, what changed in the registry, and what to build against.</p>
+
+  <div class="summary-row">
+    <div class="stat"><div class="num">58<span class="delta">+5</span></div><div class="lbl">sections registered</div></div>
+    <div class="stat"><div class="num">~340<span class="delta">+~17</span></div><div class="lbl">screens</div></div>
+    <div class="stat"><div class="num">11</div><div class="lbl">deliverables</div></div>
+    <div class="stat"><div class="num">0</div><div class="lbl">blockers</div></div>
+  </div>
+
+  <div class="card sage">
+    <b>TL;DR for Antigravity.</b> Nothing in v3 has been removed or restructured — all v3 build targets, file paths, and Phase 1–9 plans still hold. v4 only <i>adds</i>: 5 new wireframe sections, 3 previously-orphaned section registries now routed in the tab nav, and a few polish passes. Build order from v3 §2 is unchanged. If you've already started, keep going.
+  </div>
+
+  <div class="card rose">
+    <b>⚠ Before you zip for Antigravity (still applies).</b> Remove <span class="mono">Seed Data.html</span> and <span class="mono">Gap Review.html</span> from the zip — both contain internal-only data. Also remove <span class="mono">Handoff Package v1/v2/v3.html</span>, <span class="mono">Handoff README.html</span>, and <span class="mono">Data Model.html</span> (v1) — all superseded. The <span class="mono">/ship/</span> folder already contains a clean cut.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2>1 · What was missing from v3</h2>
+  <p>Audit of the wireframes file vs the v3 manifest surfaced 8 things v3 didn't account for. Five were sections added after v3 went out; three were registry bugs (sections coded but never wired to the canvas).</p>
+
+  <h3>1a · New sections (added since v3)</h3>
+  <table>
+    <thead><tr><th>Section</th><th>Tab id</th><th>Screens</th><th>What it covers</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>OH · sign-in devices</b> <span class="tag new">new</span></td>
+        <td class="mono">openhouseDevices</td>
+        <td class="count">~5</td>
+        <td>Visitor-facing surfaces — iPad kiosk + phone QR self-serve. The other side of the OH workflow that visitors actually touch.</td>
+      </tr>
+      <tr>
+        <td><b>Inbox + Notifications</b> <span class="tag new">new</span></td>
+        <td class="mono">inbox</td>
+        <td class="count">~5</td>
+        <td>Unified inbox: replies · publishing · print · system · vendor · mentions. Per-event notification preferences live here.</td>
+      </tr>
+      <tr>
+        <td><b>Command-K palette</b> <span class="tag new">new</span></td>
+        <td class="mono">cmdk</td>
+        <td class="count">~3</td>
+        <td>Global search palette: recent · grouped results · natural-language queries with bulk actions. Mounts at <span class="mono">⌘K</span>/<span class="mono">^K</span> on every page.</td>
+      </tr>
+      <tr>
+        <td><b>Hi-Fi V2 marquee pass</b> <span class="tag new">new</span></td>
+        <td class="mono">hifi</td>
+        <td class="count">4</td>
+        <td>Publisher-quality polish on 4 marquee screens — morning dashboard, listing-deck slide, deal cockpit, open-house control. Visual reference, not new product.</td>
+      </tr>
+      <tr>
+        <td><b>Mobile · Listing/Deals/Content</b> <span class="tag new">new</span></td>
+        <td class="mono">mListingAppt · mDeals · mContent</td>
+        <td class="count">~9</td>
+        <td>Mobile parity for the three desktop surfaces that get used on the road: pre-appt prep + on-site capture; deal health tracker; content approval queue + quick capture.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>1b · Sections that existed in code but weren't routed</h3>
+  <p>Three <span class="mono">window.*Screens</span> registries were defined but missing from <span class="mono">getSections()</span>, so they never showed up in the tab bar. Fixed in this update — all three now appear in the desktop/foundation tabs.</p>
+
+  <table>
+    <thead><tr><th>Registry</th><th>Tab id</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b><span class="mono">window.GoalsScreens</span></b></td>
+        <td class="mono">goals</td>
+        <td>Days-worked planner + 2026 scoreboard. Drives every weekly KPI target — was previously only reachable by reading the source. Now under <b>desktop · 🎯 Goals planner</b>.</td>
+      </tr>
+      <tr>
+        <td><b><span class="mono">window.DataLayerScreens</span></b></td>
+        <td class="mono">datalayer</td>
+        <td>Taxonomy hub + field editor. The "edit any object's fields, map to KPIs" surface. Now under <b>foundation · 🗂 Data layer</b>.</td>
+      </tr>
+      <tr>
+        <td><b><span class="mono">window.FlowScreens</span></b></td>
+        <td class="mono">flow</td>
+        <td>Whole-app data-flow map + lead-flow zoom. The single-page diagram of how a lead moves through every system. Now under <b>foundation · 🔁 Data flow</b>.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="card amber">
+    <b>Why this matters for Antigravity.</b> The Data layer + Flow surfaces are the spec for <i>schema management UI</i> — when Dana adds a custom field on Contact, that's where it happens. If you build CRM/Deals without reading these, you'll bake field lists in and have to retrofit. Read both before Phase 1 §1d.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2>2 · Updated file manifest</h2>
+  <p>Open each file directly. Status column is what you can trust. Files marked <span class="tag green">SHIP</span> live in <span class="mono">/ship/</span>; files marked <span class="tag rose">INTERNAL</span> stay in the project root and never go in the zip.</p>
+
+  <table>
+    <thead><tr><th>Deliverable</th><th>Status</th><th>What's in it</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="Command Wireframes.html"><b>Command Wireframes.html</b></a> <span class="tag new">updated</span></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>58 sections · ~340 screens · palette switcher · tweaks panel. v4 wires Goals + Data Layer + Flow into the tab nav and routes the new mobile + inbox + cmdk + hifi + OH-devices sections.</td>
+      </tr>
+      <tr>
+        <td><a href="Design System.html"><b>Design System.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>Organic Modern palette · 4 typefaces · buttons/chips/fields/avatars/status/cards · patterns · tone of voice. Tokens are frozen.</td>
+      </tr>
+      <tr>
+        <td><a href="Data Model v2.html"><b>Data Model v2.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>v1 entities + 20 v2 blocks. No schema changes since v3.</td>
+      </tr>
+      <tr>
+        <td><a href="Handoff README v2.html"><b>Handoff README v2.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>v1 README + §17 feature modules + §18 global UI. Still authoritative for stack, integrations, build order, env vars, jobs, cost controls, compliance pipeline.</td>
+      </tr>
+      <tr>
+        <td><a href="AZ Compliance Rules.html"><b>AZ Compliance Rules.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>ADRE + Dec 13 2025 revisions, machine-readable rule corpus.</td>
+      </tr>
+      <tr>
+        <td><a href="KPI Definitions.html"><b>KPI Definitions.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>Every KPI in the dashboard, with formulas + sources.</td>
+      </tr>
+      <tr>
+        <td><a href="Acceptance Tests.html"><b>Acceptance Tests.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>End-to-end scenarios across Phases 0–9. Includes Phase 9 lead-source + cash-offer routing.</td>
+      </tr>
+      <tr>
+        <td><a href="Buyer Lifecycle.html"><b>Buyer Lifecycle.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>Buyer-side journey doc — ties CRM stages to deal stages.</td>
+      </tr>
+      <tr>
+        <td><a href="Click-Through Prototype.html"><b>Click-Through Prototype.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>Walks the "I have an open house" scenario end-to-end + 8 other-scenario pointers.</td>
+      </tr>
+      <tr>
+        <td><a href="Handoff Package v4.html"><b>Handoff Package v4.html</b></a> <span class="tag new">this file</span></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>Single source of truth for what's shippable today. Replaces v3.</td>
+      </tr>
+      <tr>
+        <td><a href="Seed Data.html"><b>Seed Data.html</b></a></td>
+        <td class="flag"><span class="tag rose">INTERNAL · DO NOT SHIP</span></td>
+        <td>Contains real PAC fee percentages. Stays in project root.</td>
+      </tr>
+      <tr>
+        <td><a href="Gap Review.html"><b>Gap Review.html</b></a></td>
+        <td class="flag"><span class="tag rose">INTERNAL · DO NOT SHIP</span></td>
+        <td>Working doc — fixed gaps log. Stays in project root.</td>
+      </tr>
+      <tr>
+        <td><span class="mono">Handoff Package v1/v2/v3.html</span></td>
+        <td class="flag"><span class="tag neutral">SUPERSEDED</span></td>
+        <td>Replaced by this v4. Keep in root for history; do not zip.</td>
+      </tr>
+      <tr>
+        <td><span class="mono">Handoff README.html</span></td>
+        <td class="flag"><span class="tag neutral">SUPERSEDED</span></td>
+        <td>Replaced by README v2.</td>
+      </tr>
+      <tr>
+        <td><span class="mono">Data Model.html</span> (v1)</td>
+        <td class="flag"><span class="tag neutral">SUPERSEDED</span></td>
+        <td>Replaced by Data Model v2.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ============================================================ -->
+  <h2>3 · Section registry — full canonical list (58)</h2>
+  <p>This is the authoritative section list as wired in <span class="mono">getSections()</span> at the bottom of <span class="mono">Command Wireframes.html</span>. <span class="tag new">new</span> = added since v3. <span class="tag amber">routed</span> = registry existed but was unrouted in v3, fixed in v4.</p>
+
+  <h3>Mobile (8)</h3>
+  <table>
+    <thead><tr><th>Tab id</th><th>Label</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">dash</td><td>Dashboard</td><td>5 dashboard variations</td></tr>
+      <tr><td class="mono">prospect</td><td>Prospecting</td><td>8 screens · channels, expired, campaigns, OH outreach, power hour, prospect timeline, SOI, AI follow-ups</td></tr>
+      <tr><td class="mono">tasks</td><td>Tasks + Notes</td><td>quick capture surface</td></tr>
+      <tr><td class="mono">buyer</td><td>Buyer Showings</td><td>shortlist, feedback, journey report</td></tr>
+      <tr><td class="mono">calendar</td><td>Showing Route</td><td>day timeline, route map, live capture, week planner, debrief</td></tr>
+      <tr><td class="mono">mListingAppt</td><td>m · Listing Appt <span class="tag new">new</span></td><td>pre-appt prep, on-site capture, present deck, post-appt recap</td></tr>
+      <tr><td class="mono">mDeals</td><td>m · Deals <span class="tag new">new</span></td><td>active deals with health, deal detail, AI contract read-through</td></tr>
+      <tr><td class="mono">mContent</td><td>m · Content Studio <span class="tag new">new</span></td><td>approval queue, quick create, full-screen capture</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Desktop (39)</h3>
+  <table>
+    <thead><tr><th>Tab id</th><th>Label</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">openhouse</td><td>Open House</td><td>9-screen full workflow</td></tr>
+      <tr><td class="mono">openhouseDevices</td><td>OH · sign-in devices <span class="tag new">new</span></td><td>iPad kiosk + phone QR self-serve</td></tr>
+      <tr><td class="mono">crm</td><td>CRM</td><td>7 screens (thickened in v3)</td></tr>
+      <tr><td class="mono">email</td><td>Email Builder</td><td>7 screens (thickened in v3)</td></tr>
+      <tr><td class="mono">leadsources</td><td>Lead Sources</td><td>CertiLeads · ClosingLeads · AtClosing · Movoto · Realty.com · LeadDeck · FastCashOffers</td></tr>
+      <tr><td class="mono">inspo</td><td>Inspo Vault</td><td></td></tr>
+      <tr><td class="mono">content</td><td>Content Studio</td><td>ICA + pillars + SEO/AEO + multi-platform</td></tr>
+      <tr><td class="mono">listing</td><td>Listing Appt + CMA</td><td></td></tr>
+      <tr><td class="mono">deals</td><td>Deals + Offers</td><td>pipeline, offer compare, deal room</td></tr>
+      <tr><td class="mono">kpi</td><td>KPI Reporting</td><td>summary + scorecard + funnel + annual</td></tr>
+      <tr><td class="mono">bio</td><td>Bio Link</td><td></td></tr>
+      <tr><td class="mono">properties</td><td>Properties</td><td>mandatory linkage rule</td></tr>
+      <tr><td class="mono">money</td><td>Money</td><td>cap, pipeline, P&L, inventory</td></tr>
+      <tr><td class="mono">checklists</td><td>Checklists</td><td></td></tr>
+      <tr><td class="mono">mentor</td><td>Mentor</td><td>scripts, call coach, playbooks, roleplay</td></tr>
+      <tr><td class="mono">weekly</td><td>Seller Updates</td><td>weekly auto-pulled email</td></tr>
+      <tr><td class="mono">agreements</td><td>Agreements</td><td>BBAs, listings, signing pipeline</td></tr>
+      <tr><td class="mono">vendors</td><td>Vendors</td><td>directory, scorecard, compare</td></tr>
+      <tr><td class="mono">socialres</td><td>Social Research</td><td>competitor research + voice-matched hooks</td></tr>
+      <tr><td class="mono">contentx</td><td>Content · Publish + Talking-head</td><td></td></tr>
+      <tr><td class="mono">contentlocal</td><td>Content · Places & Events</td><td></td></tr>
+      <tr><td class="mono">qrcode</td><td>Open House QR</td><td>one permanent code, geo+date routing</td></tr>
+      <tr><td class="mono">ohsocial</td><td>OH · Social posts</td><td>Nextdoor + FB Marketplace generator</td></tr>
+      <tr><td class="mono">library</td><td>Library</td><td>everything-editable index</td></tr>
+      <tr><td class="mono">visualv2</td><td>✦ Visual v2</td><td>gradient-forward direction</td></tr>
+      <tr><td class="mono">studio</td><td>★ Studio</td><td>10-screen b-roll composer</td></tr>
+      <tr><td class="mono">admin</td><td>⚙ Admin</td><td>costs, health, integrations, sync</td></tr>
+      <tr><td class="mono">printdeliv</td><td>📬 Print & Delivery</td><td>3 sources + walk-route planner + DIY</td></tr>
+      <tr><td class="mono">aichat</td><td>✦ AI Assistant</td><td>pill, expanded, voice, threads</td></tr>
+      <tr><td class="mono">reviews</td><td>★ Reviews & Referrals</td><td></td></tr>
+      <tr><td class="mono">postclose</td><td>🏡 Post-close · Client-for-life</td><td></td></tr>
+      <tr><td class="mono">expiredfsbo</td><td>📞 Expired + FSBO</td><td></td></tr>
+      <tr><td class="mono">relationships</td><td>♻ Relationships+</td><td>9-platform social profiles</td></tr>
+      <tr><td class="mono">homevalue</td><td>💰 Home-value microsite</td><td></td></tr>
+      <tr><td class="mono">team</td><td>👥 Team + Multi-agent</td><td></td></tr>
+      <tr><td class="mono">seoaeo</td><td>🔎 SEO + AEO</td><td></td></tr>
+      <tr><td class="mono">clientportal</td><td>🔑 Client Portal</td><td>v3 addition</td></tr>
+      <tr><td class="mono">compliancelog</td><td>⚖ Compliance Log</td><td>v3 addition</td></tr>
+      <tr><td class="mono">showingdispatch</td><td>🗺 Showing Dispatch</td><td>v3 addition</td></tr>
+      <tr><td class="mono">inbox</td><td>🔔 Inbox + Notifs <span class="tag new">new</span></td><td>unified inbox + per-event prefs</td></tr>
+      <tr><td class="mono">cmdk</td><td>⌘ Command-K <span class="tag new">new</span></td><td>global search palette</td></tr>
+      <tr><td class="mono">goals</td><td>🎯 Goals planner <span class="tag amber">routed</span></td><td>days-worked planner + 2026 scoreboard. Was orphaned in v3.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Foundation (11)</h3>
+  <table>
+    <thead><tr><th>Tab id</th><th>Label</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">globalui</td><td>⎔ Global UI</td><td>header pattern, drawers, removes bottom-right FAB stack</td></tr>
+      <tr><td class="mono">docs</td><td>Docs · KPI + Buyer lifecycle</td><td>12 KPI defs, 10-stage buyer lifecycle</td></tr>
+      <tr><td class="mono">onboarding</td><td>Onboarding</td><td>6-step setup, every step skippable</td></tr>
+      <tr><td class="mono">empty</td><td>Empty + Error</td><td>9 states</td></tr>
+      <tr><td class="mono">settings</td><td>Settings & Billing</td><td>profile, brand, team, plan, AI credits</td></tr>
+      <tr><td class="mono">hifi</td><td>✦ Hi-Fi V2 <span class="tag new">new</span></td><td>4 marquee screens at publisher polish</td></tr>
+      <tr><td class="mono">datalayer</td><td>🗂 Data layer <span class="tag amber">routed</span></td><td>taxonomy hub + field editor. Was orphaned in v3.</td></tr>
+      <tr><td class="mono">flow</td><td>🔁 Data flow <span class="tag amber">routed</span></td><td>whole-app map + single-subject zooms. Was orphaned in v3.</td></tr>
+    </tbody>
+  </table>
+
+  <p class="tiny muted">Counts: 8 mobile + 39 desktop + 11 foundation = 58 total. v3 advertised 53.</p>
+
+  <!-- ============================================================ -->
+  <h2>4 · Phase 1 build targets — unchanged</h2>
+  <p>v3's Phase 1 list is still the right starting point. Re-published here for convenience.</p>
+
+  <table>
+    <thead><tr><th>Build target</th><th>Wireframe section</th><th>Screens</th><th>Depends on</th></tr></thead>
+    <tbody>
+      <tr><td><b>Onboarding</b></td><td class="mono">foundation · onboarding</td><td class="count">7</td><td>Auth · Slack OAuth · Lofty connect</td></tr>
+      <tr><td><b>CRM · top flow</b></td><td class="mono">desktop · crm</td><td class="count">7</td><td>Core CRM entities · saved views</td></tr>
+      <tr><td><b>Open House</b></td><td class="mono">desktop · openhouse + openhouseDevices</td><td class="count">9 + ~5</td><td>OpenHouse entities · weather feed · Slack · iPad kiosk</td></tr>
+      <tr><td><b>Mobile · Prospect</b></td><td class="mono">mobile · prospect</td><td class="count">8</td><td>Mobile shell · voice notes · Slack digest</td></tr>
+      <tr><td><b>Mobile · Buyer showings</b></td><td class="mono">mobile · buyer</td><td class="count">8</td><td>Calendar · route planner · property sync</td></tr>
+      <tr><td><b>Calendar · Showing route</b></td><td class="mono">mobile · calendar</td><td class="count">7</td><td>MapView (still pending design system addendum) · traffic</td></tr>
+      <tr><td><b>Settings & Billing</b></td><td class="mono">foundation · settings</td><td class="count">12</td><td>Stripe · seats · integrations</td></tr>
+      <tr><td><b>AI Assistant</b></td><td class="mono">desktop · aichat</td><td class="count">9</td><td>Claude API · compliance gate · cost ledger</td></tr>
+    </tbody>
+  </table>
+
+  <div class="card amber">
+    <b>One outstanding ask from v3 still open.</b> <span class="mono">MapView</span> / <span class="mono">RouteLine</span> shared component spec — needed before Calendar/Showing Route, Home-value, and Properties can ship in parallel. I'll write the Design System addendum on request, same-day turnaround.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2>5 · What changed since v3 — at a glance</h2>
+
+  <div class="diff-row"><div class="k">Sections</div><div class="v"><b>53 → 58</b> · +5 added (OH devices, Inbox, Command-K, Hi-Fi marquee, Mobile parity trio) · +3 routed from existing code (Goals, Data layer, Flow)</div></div>
+  <div class="diff-row"><div class="k">Screens</div><div class="v"><b>~323 → ~340</b> · gain mostly from the 5 new sections; orphaned routes were already counted in registry totals</div></div>
+  <div class="diff-row"><div class="k">Files in /ship/</div><div class="v">Unchanged set of 10 deliverables. v4 handoff doc replaces v3 in the ship folder.</div></div>
+  <div class="diff-row"><div class="k">Data Model</div><div class="v">No schema changes. Data Model v2 is still authoritative.</div></div>
+  <div class="diff-row"><div class="k">Design System</div><div class="v">Tokens frozen. <span class="mono">MapView</span> addendum still owed.</div></div>
+  <div class="diff-row"><div class="k">README</div><div class="v">No changes to README v2 in this round. The 5 new sections + 3 routed sections are caption-driven; build briefs follow if requested.</div></div>
+  <div class="diff-row"><div class="k">Acceptance Tests</div><div class="v">Phase 9 unchanged. New sections are visual/UX surfaces — no new business rules to test.</div></div>
+  <div class="diff-row"><div class="k">Click-through Prototype</div><div class="v">Unchanged. The OH scenario still routes to <span class="mono">openhouse</span>, not the new <span class="mono">openhouseDevices</span> — happy to extend if useful.</div></div>
+
+  <!-- ============================================================ -->
+  <h2>6 · Open follow-ups</h2>
+
+  <div class="three-col">
+    <div class="mini">
+      <div class="h">README briefs · §17 extension</div>
+      <div class="b">5 new sections need 2-paragraph build briefs</div>
+      <p class="tiny muted" style="margin-top:8px">Inbox, Command-K, OH devices, Mobile parity, Hi-Fi pass — captions cover the <i>what</i>; ship-plan briefs cover the <i>how</i>. Same shape as 17.1–17.9. Same-day if asked.</p>
+    </div>
+    <div class="mini">
+      <div class="h">Data layer · entity coverage check</div>
+      <div class="b">Confirm Data Model v2 has every field the editor surfaces</div>
+      <p class="tiny muted" style="margin-top:8px">The Field Editor lets Dana add custom fields. Data Model v2 needs a <span class="mono">CustomField</span> entity (object type, field name, type, KPI mapping, required-flag) before the screen ships. Small addendum, append-only.</p>
+    </div>
+    <div class="mini">
+      <div class="h">MapView / RouteLine addendum</div>
+      <div class="b">Carried forward from v3</div>
+      <p class="tiny muted" style="margin-top:8px">Pre-build coordination on the shared map surface. Calendar, Home-value, Properties all consume it.</p>
+    </div>
+    <div class="mini">
+      <div class="h">Click-through · OH devices extension</div>
+      <div class="b">Optional — extend the scenario into the kiosk</div>
+      <p class="tiny muted" style="margin-top:8px">Visitor signs in on the iPad → row appears in OH detail in real time. Closes the loop on the OH workflow.</p>
+    </div>
+    <div class="mini">
+      <div class="h">Acceptance Tests · Phase 10</div>
+      <div class="b">Cover the new sections</div>
+      <p class="tiny muted" style="margin-top:8px">Inbox routing rules, Cmd-K natural-language query coverage, OH kiosk → OH detail pipeline, Field Editor migration safety. Write when build catches up.</p>
+    </div>
+    <div class="mini">
+      <div class="h">v4 cleanup pass</div>
+      <div class="b">Ready</div>
+      <p class="tiny muted" style="margin-top:8px"><span class="mono">/ship/</span> already mirrors v3. After Antigravity confirms v4 is clean, drop the v4 handoff into <span class="mono">/ship/</span> and remove the v3 file there.</p>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2>7 · Guardrails — still in force</h2>
+
+  <ol>
+    <li><b>v1 + v2 + v3 files don't move.</b> Same filenames, same URLs.</li>
+    <li><b>Section registry adds, never restructures.</b> The 8 v4 changes are 5 appends + 3 unrouted-fixed.</li>
+    <li><b>Data Model entity blocks are append-only.</b></li>
+    <li><b>README gets new sections appended</b> under existing numbered headers; existing sections don't renumber.</li>
+    <li><b>Design System tokens are frozen.</b> Addenda only.</li>
+    <li><b>Wireframe captions are the PRD.</b> If a caption says it, the feature is in scope.</li>
+  </ol>
+
+  <div class="cta">
+    <p class="tiny muted">This manifest is the single source of truth for what's shippable today (v4 · 6 May 2026). If a file isn't listed here with <span class="tag green">SHIP</span>, treat it as draft. Supersedes Handoff Package v3.</p>
+  </div>
+
+</div>
+</body>
+</html>

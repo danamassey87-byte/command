@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Command · Arizona Compliance Rules</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Nunito+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink:#3A2A1E; --ink-2:#5A4136; --faint:#B79782; --line:#C8C3B9;
+  --paper:#EFEDE8; --card:#F6F4EE;
+  --sage:#8B9A7B; --warn:#c99a2e; --danger:#c0604a;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font-family:'Nunito Sans', sans-serif; font-size:14px; line-height:1.7; }
+.page { max-width:1080px; margin:0 auto; padding:48px 40px 160px; }
+h1, h2, h3, h4 { font-family:'Cormorant Garamond', serif; font-weight:500; margin:0; }
+h1 { font-size:52px; line-height:1.05; }
+h2 { font-size:30px; margin:48px 0 12px; padding-top:24px; border-top:1px solid var(--line); }
+h3 { font-size:20px; margin:24px 0 8px; }
+.kicker { font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+.lede { font-family:'Cormorant Garamond', serif; font-size:22px; font-style:italic; color:var(--ink-2); max-width:62ch; }
+p, ul, ol { color:var(--ink-2); max-width:78ch; }
+ul, ol { padding-left:22px; }
+li { margin:3px 0; }
+code, .mono { font-family:'IBM Plex Mono', monospace; font-size:12px; background:#fff; padding:1px 5px; border:1px solid var(--line); border-radius:3px; }
+pre { font-family:'IBM Plex Mono', monospace; font-size:12px; background:#fff; padding:14px 16px; border:1px solid var(--line); border-radius:4px; overflow-x:auto; line-height:1.55; color:var(--ink); margin:10px 0; white-space:pre-wrap; }
+.callout { background:var(--card); border:1px solid var(--line); border-left:3px solid var(--ink); padding:14px 18px; margin:14px 0; border-radius:4px; }
+.callout.ok { border-left-color:var(--sage); background:#EEF1E9; }
+.callout.warn { border-left-color:var(--warn); background:#FAF1DD; }
+.callout.danger { border-left-color:var(--danger); background:#FAEFEC; }
+table { width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; background:#fff; border:1px solid var(--line); }
+table th { text-align:left; padding:9px 11px; border-bottom:1px solid var(--line); font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--faint); background:var(--card); }
+table td { padding:9px 11px; border-bottom:1px solid var(--line); vertical-align:top; }
+.rule { background:#fff; border:1px solid var(--line); border-radius:6px; padding:18px 22px; margin:14px 0; }
+.rule .id { font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--faint); letter-spacing:.08em; text-transform:uppercase; }
+.rule h4 { font-family:'Cormorant Garamond', serif; font-size:20px; font-weight:500; margin:4px 0 10px; }
+.rule .verdict { font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:.08em; text-transform:uppercase; padding:2px 8px; border:1px solid var(--line); border-radius:3px; display:inline-block; margin-right:6px; }
+.verdict.block { color:var(--danger); border-color:var(--danger); }
+.verdict.warn { color:var(--warn); border-color:var(--warn); }
+.verdict.pass { color:var(--sage); border-color:var(--sage); }
+.section-label { font-family:'Nunito Sans'; font-weight:700; text-transform:uppercase; letter-spacing:.05em; font-size:10px; color:var(--faint); margin:14px 0 4px; }
+hr { border:none; border-top:1px dashed var(--line); margin:24px 0; }
+blockquote { font-family:'Cormorant Garamond', serif; font-size:17px; font-style:italic; color:var(--ink-2); border-left:2px solid var(--faint); padding:2px 0 2px 16px; margin:10px 0; max-width:64ch; }
+</style>
+</head>
+<body>
+<main class="page">
+
+<div class="kicker">Command · Arizona Compliance Rules · v1</div>
+<h1>Arizona advertising compliance</h1>
+<p class="lede">Rules extracted from ADRE's 2026 Law Book, A.A.C. R4-28-502, and the Dec 13 2025 rule revisions. This is the seed corpus for the Command compliance gate. Every outbound piece of content — Reels, Stories, carousels, emails, yard signs, Bio Link, listing descriptions, AI-generated drafts — runs through these rules.</p>
+
+<div class="callout warn">
+  <b>Brokered by REAL Broker, AZ.</b> Dana is a solo agent under REAL Broker. Every rule below assumes the employing broker's legal name or registered DBA must appear. Confirm with REAL's compliance team: the exact legal string to use (e.g. "REAL Broker AZ, LLC" vs "Real Broker, LLC" vs DBA). That string gets stored in <code>settings.broker_legal_name</code> and the compliance checker validates it appears in every piece.
+</div>
+
+<!-- =================================================== -->
+<h2>1 · Governing sources</h2>
+<table>
+<thead><tr><th>Source</th><th>Scope</th><th>Ingestion path</th></tr></thead>
+<tbody>
+<tr><td>2026 Arizona Real Estate Law Book (ADRE, Feb 2026)</td><td>A.R.S. Title 32 Ch. 20 + A.A.C. Title 4 Ch. 28. Statutes + Commissioner's Rules covering licensing, supervision, disclosures, trust, advertising.</td><td><code>uploads/compliance/2026-ADRE-Law-Book.pdf</code> → Pinecone <code>compliance</code> index, namespace <code>adre-lawbook-2026</code></td></tr>
+<tr><td>ADRE/AAR Joint Advertising Article (Mar 2022)</td><td>Interpretive guidance on R4-28-502 — clear &amp; prominent, DBA use, team ads, online &amp; social.</td><td><code>uploads/compliance/ADRE-AdvertisingArticle-20220308.pdf</code> → namespace <code>adre-advertising-guidance</code></td></tr>
+<tr><td>AAR Legal Analysis — Dec 13 2025 Rule Revisions (Parts 1 &amp; 2)</td><td>Agent- and broker-facing breakdown of the Dec 13 2025 rule changes (AI advertising, 10-day reporting, expanded disclosures).</td><td><code>uploads/compliance/aar-rule-revisions-dec-2025-part1.pdf</code>, <code>part2.pdf</code> → namespace <code>adre-2025-revisions</code></td></tr>
+<tr><td>REAL Broker AZ marketing guidelines (Widen portal)</td><td>Brokerage-specific requirements on top of ADRE — DBA string, logo usage, disclaimers.</td><td><code>uploads/compliance/real-broker-az-*.pdf</code> → namespace <code>real-broker-az</code></td></tr>
+<tr><td>NAR Code of Ethics · Fair Housing Act · RESPA §8</td><td>Federal + ethical overlay.</td><td>Public fetch → namespaces <code>nar-coe</code>, <code>fair-housing</code>, <code>respa</code></td></tr>
+</tbody>
+</table>
+
+<!-- =================================================== -->
+<h2>2 · The core rule</h2>
+<div class="callout danger">
+  <b>A.A.C. R4-28-502 — clear and prominent broker identification.</b> Every advertisement must identify the employing broker's legal name or registered DBA in a clear and prominent manner. Effective Dec 13 2025, this <u>explicitly</u> covers online, electronic, and AI-assisted advertising, and the identification must be visible <u>without requiring the viewer to scroll, tap-to-expand, or click through</u>.
+</div>
+
+<p>"Advertising" is defined broadly by ADRE: any publication — including social media posts, Reels, Stories, carousels, internet postings, emails, text messages, yard signs, mailers, Zillow/Realtor.com profiles — that offers an interest in property or brokerage services in Arizona. Press releases for general PR are generally exempt; promotional content is not.</p>
+
+<!-- =================================================== -->
+<h2>3 · Rules in machine-readable form</h2>
+<p>Each rule below is a single embeddable chunk. The checker retrieves by similarity, runs Sonnet with retrieved rules, emits verdict + cited rule id + plain-English reason.</p>
+
+<div class="rule">
+  <div class="id">AZ-ADV-001 · R4-28-502 · broker identification</div>
+  <h4>Clear &amp; prominent broker name</h4>
+  <p><b>Rule:</b> All advertising must display the employing broker's legal name or registered DBA in a clear and prominent manner.</p>
+  <p><b>Applies to:</b> Instagram posts, Reels, Stories, carousels, TikTok, LinkedIn, YouTube captions + video overlays, Facebook posts, email footers, yard signs, mailers, listing flyers, Zillow/Realtor.com profiles, Bio Link pages, AI-generated ads.</p>
+  <p><b>Check:</b> Does the rendered content contain the exact <code>settings.broker_legal_name</code> string, positioned in a visible area of the first-view frame (not requiring scroll/expand)?</p>
+  <span class="verdict block">BLOCK</span>if missing. <span class="verdict warn">WARN</span>if present but in a collapsed "... more" region.
+</div>
+
+<div class="rule">
+  <div class="id">AZ-ADV-002 · Dec 13 2025 revision · no-scroll requirement</div>
+  <h4>No-scroll, no-expand visibility</h4>
+  <p><b>Rule:</b> As of Dec 13 2025, broker identification may not be placed in a region that requires scrolling, tapping "more," or clicking through a link to view.</p>
+  <p><b>Specifics:</b> Instagram caption text auto-truncates at ~125 characters on feed. Broker name must appear before that truncation point. Reels and Stories: broker name must be in on-screen text overlay or visible in the first frame of caption. Bio-only attribution does not satisfy the rule for individual posts.</p>
+  <span class="verdict block">BLOCK</span>if the broker name appears after character 125 in an Instagram caption without being in the image/video itself.
+</div>
+
+<div class="rule">
+  <div class="id">AZ-ADV-003 · AI-assisted content</div>
+  <h4>AI-generated ads are regulated</h4>
+  <p><b>Rule:</b> The Dec 13 2025 revisions explicitly bring AI-generated and AI-assisted advertising under R4-28-502. Anything the agent uses AI to draft, image-generate, caption, or translate must still comply with the broker-ID and truthfulness rules.</p>
+  <p><b>Broker supervision angle:</b> Designated brokers may be held responsible for AI-generated content produced under their supervision. Dana's brokerage may require her to flag AI-assisted posts.</p>
+  <span class="verdict warn">WARN</span>on all AI-drafted content with an advisory: "AI-drafted — confirm your broker's AI disclosure policy applies."
+</div>
+
+<div class="rule">
+  <div class="id">AZ-ADV-004 · owner permission for property ads</div>
+  <h4>Owner permission required</h4>
+  <p><b>Rule:</b> Owner permission is required before placing signs or advertising a specific property. Applies to listing teasers, "coming soon" posts, drone footage, and open-house promos.</p>
+  <span class="verdict block">BLOCK</span>if content references a specific address and Command has no <code>listing_agreement.advertising_consent = true</code> on file for that property.
+</div>
+
+<div class="rule">
+  <div class="id">AZ-ADV-005 · other licensee's listings</div>
+  <h4>Special disclosures when advertising another agent's listing</h4>
+  <p><b>Rule:</b> Special disclosures apply when advertising another licensee's listings or transaction history. Posting another agent's listing as if it's yours, or claiming a sale you cooperated on without proper disclosure, is a violation.</p>
+  <span class="verdict block">BLOCK</span>on phrases like "my new listing" / "just sold" when the Command deal record shows Dana was buyer's side or not the listing agent.
+</div>
+
+<div class="rule">
+  <div class="id">AZ-ADV-006 · misleading &amp; guarantee claims</div>
+  <h4>No false or misleading claims</h4>
+  <p><b>Rule:</b> Agents may not make false, misleading, or deceptive statements. This includes unverifiable superlatives ("#1 agent in Evanston"), value guarantees ("guaranteed to double your home's value"), and timeline promises ("sold in 7 days or your money back") without substantiation.</p>
+  <span class="verdict block">BLOCK</span>on regex-detected phrases: <code>/guarantee(d)?|#1|top \d+|no\.? ?1|fastest|best in|only agent/i</code> unless accompanied by a substantiation note.
+</div>
+
+<div class="rule">
+  <div class="id">AZ-ADV-007 · material adverse facts</div>
+  <h4>Material adverse facts disclosure (Dec 13 2025 expansion)</h4>
+  <p><b>Rule:</b> Disclosure duties now extend beyond clients. Material adverse facts must be disclosed even if they are not technical property defects — and may apply to non-clients, including when the agent is acting as a principal.</p>
+  <p><b>Content implication:</b> If a piece of marketing omits a known material adverse fact (flood history, structural issue, disclosed contamination), it can trigger a disclosure violation even if the ad itself is technically accurate.</p>
+  <span class="verdict warn">WARN</span>when a listing has open items in <code>disclosures.material_facts</code> and marketing omits them.
+</div>
+
+<div class="rule">
+  <div class="id">AZ-ADV-008 · fair housing</div>
+  <h4>Fair Housing Act compliance</h4>
+  <p><b>Rule:</b> No preference, limitation, or discrimination based on race, color, religion, sex (incl. gender identity and sexual orientation per HUD), familial status, national origin, disability. Applies to photos, copy, neighborhood descriptors, demographic claims.</p>
+  <p><b>Common traps:</b> "great for young families" (familial status), "walking distance to [faith] community" (religion), "safe neighborhood" (coded), "exclusive," "traditional," language-only ads that exclude groups.</p>
+  <span class="verdict block">BLOCK</span>on Fair-Housing classifier confidence ≥ 0.7.
+</div>
+
+<div class="rule">
+  <div class="id">AZ-ADV-009 · RESPA §8 referral fees</div>
+  <h4>No kickbacks or referral fees for settlement services</h4>
+  <p><b>Rule:</b> RESPA §8 prohibits giving or receiving a thing of value for the referral of settlement service business. Agents cannot offer cash rebates, gift cards, or credits for referrals to lenders, title, inspectors, or other settlement providers.</p>
+  <span class="verdict block">BLOCK</span>on referral-fee language involving any entity tagged as <code>vendor.category IN ('lender','title','inspector','appraiser','escrow')</code>.
+</div>
+
+<div class="rule">
+  <div class="id">AZ-ADV-010 · testimonials &amp; reviews</div>
+  <h4>Testimonial truthfulness</h4>
+  <p><b>Rule:</b> Testimonials must be truthful, represent actual client experience, and cannot be fabricated or materially edited. If a testimonial implies typical results, those results must be substantiated.</p>
+  <span class="verdict warn">WARN</span>on testimonial posts without a <code>testimonials.source_id</code> linking to a logged contact with a signed release.
+</div>
+
+<div class="rule">
+  <div class="id">AZ-ADV-011 · team &amp; DBA identification</div>
+  <h4>Team names must comply</h4>
+  <p><b>Rule:</b> If Dana operates under a team name ("The Massey Group," etc.), the team name cannot obscure or replace the employing broker's identification. Per Dec 13 2025 revisions, ADRE may require team registration.</p>
+  <p><b>Pattern:</b> "The Massey Group · REAL Broker" is OK. "The Massey Group" alone is not.</p>
+  <span class="verdict block">BLOCK</span>if team name appears without accompanying broker identification in the same frame.
+</div>
+
+<div class="rule">
+  <div class="id">AZ-ADV-012 · IL residency / multi-state ambiguity</div>
+  <h4>Cross-state advertising clarity</h4>
+  <p><b>Rule:</b> Licensees may only advertise the purchase, sale, or lease of Arizona property if licensed in Arizona. If advertising directed to out-of-state viewers (likely on Instagram), the advertising must not solicit brokerage services outside the licensed state.</p>
+  <span class="verdict warn">WARN</span>if copy targets a non-AZ geography ("Evanston," "Chicago," etc.) and Dana's license jurisdiction is AZ only — surfaces a jurisdictional question.
+</div>
+
+<!-- =================================================== -->
+<h2>4 · Checker algorithm</h2>
+<p>Pseudo-code for <code>lib/compliance/check.ts</code>:</p>
+<pre>input: { content, type, related_entity_id, author: 'human' | 'ai-drafted' }
+
+1. classify type: social-post · reel-caption · story · email · listing-description · bio-link · yard-sign · mailer
+2. build context:
+     - broker_legal_name = settings.broker_legal_name
+     - property = if related_entity_id → load property + disclosures
+     - deal = load deal + sides
+     - testimonial_sources = for any quoted reviews
+3. deterministic checks first (cheap, no LLM):
+     - broker name present → AZ-ADV-001
+     - broker name in first 125 chars of social caption → AZ-ADV-002
+     - regex for guarantee/superlative → AZ-ADV-006
+     - regex for referral-fee to settlement vendor → AZ-ADV-009
+     - team name without broker tag → AZ-ADV-011
+4. RAG retrieval: top 6 rule chunks from Pinecone compliance index
+5. Sonnet call (via lib/ai/bill.ts):
+     prompt includes content + context + retrieved rules
+     output = { verdict: pass|warn|block, cited_rules: [], reasons: [] }
+6. merge deterministic + LLM verdicts; highest severity wins
+7. log to compliance_checks table with content hash + verdict + cited chunks
+8. if block → post to #compliance Slack with override link
+9. return verdict to caller</pre>
+
+<!-- =================================================== -->
+<h2>5 · Override flow</h2>
+<p>Dana can override a BLOCK verdict with a written justification. The override is logged permanently to <code>compliance_overrides</code>:</p>
+<pre>table compliance_overrides (
+  id uuid pk,
+  check_id uuid references compliance_checks,
+  overridden_by uuid references users,
+  reason text not null,
+  broker_notified boolean default true,
+  created_at timestamptz
+);</pre>
+<p>Every override also posts to <code>#compliance</code> Slack channel for audit trail. If REAL Broker requires broker approval for overrides, the flow switches to a request-approval pattern (post + wait for broker ✓ reaction).</p>
+
+<!-- =================================================== -->
+<h2>6 · Test fixtures</h2>
+<p>Add to <code>__fixtures__/compliance/</code> — expected-verdict pairs for CI:</p>
+<table>
+<thead><tr><th>#</th><th>Content</th><th>Expected</th><th>Cited rule</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>"Just listed! 1422 Maple, Evanston. Open Saturday 11–1." (no broker name)</td><td>BLOCK</td><td>AZ-ADV-001</td></tr>
+<tr><td>2</td><td>Same + "REAL Broker AZ" at end of a 180-char caption</td><td>BLOCK</td><td>AZ-ADV-002 (past 125)</td></tr>
+<tr><td>3</td><td>Same + "REAL Broker AZ" at char 40</td><td>PASS</td><td>—</td></tr>
+<tr><td>4</td><td>"Guaranteed to double your home's value in 30 days" + broker name</td><td>BLOCK</td><td>AZ-ADV-006</td></tr>
+<tr><td>5</td><td>"Earn $500 when you refer a friend to my lender" + broker name</td><td>BLOCK</td><td>AZ-ADV-009</td></tr>
+<tr><td>6</td><td>"Great home for young families near the church district" + broker name</td><td>BLOCK</td><td>AZ-ADV-008</td></tr>
+<tr><td>7</td><td>"Just sold 88 Waverly" when Dana was buyer's agent, no disclosure</td><td>BLOCK</td><td>AZ-ADV-005</td></tr>
+<tr><td>8</td><td>AI-drafted Reel caption with broker name in first frame</td><td>PASS with WARN</td><td>AZ-ADV-003 advisory</td></tr>
+<tr><td>9</td><td>Story teasing 1422 Maple when no signed listing agreement yet</td><td>BLOCK</td><td>AZ-ADV-004</td></tr>
+<tr><td>10</td><td>"The Massey Group · tour this Saturday" (no broker tag)</td><td>BLOCK</td><td>AZ-ADV-011</td></tr>
+</tbody>
+</table>
+
+<!-- =================================================== -->
+<h2>7 · Settings surface</h2>
+<p>Add to <code>/admin/integrations/compliance</code> page:</p>
+<ul>
+  <li><b>Broker legal name</b> — text input. Default blank. Must be set before any content can publish. Suggest: "REAL Broker" with a note asking Dana to confirm with her DB.</li>
+  <li><b>Team name</b> — optional. If set, checker enforces AZ-ADV-011.</li>
+  <li><b>Licensed states</b> — multi-select. Used by AZ-ADV-012.</li>
+  <li><b>AI disclosure required</b> — toggle. If on, AI-drafted content gets a visible "🤖 AI-assisted" tag automatically.</li>
+  <li><b>Override policy</b> — radio: self-approve · require-broker. Routes the override flow.</li>
+  <li><b>Rule corpus status</b> — last-ingested timestamps per namespace, with "re-ingest" buttons.</li>
+</ul>
+
+<!-- =================================================== -->
+<h2>8 · Non-advertising rule exposure</h2>
+<p>The Dec 13 2025 revisions carry non-advertising items Command should surface elsewhere (not gate content, but remind Dana):</p>
+<ul>
+  <li><b>10 calendar-day ADRE reporting</b> — if Dana changes address, phone, email, employment, Command shows a banner in Settings: "You have 10 calendar days to notify ADRE of this change."</li>
+  <li><b>Promptly-notify-broker if unable to perform</b> — if Dana marks herself unavailable (vacation mode), Command drafts a broker notification Slack DM.</li>
+  <li><b>Expanded disclosure duties to non-clients</b> — when Dana is acting as a principal (buying/selling her own property), CMA and offer flows inject an extra disclosure step.</li>
+</ul>
+
+<hr>
+<p class="muted" style="font-size:12px;">
+This document is a synthesis for engineering. It is <b>not</b> legal advice. The authoritative source is the 2026 ADRE Law Book and any guidance from Dana's designated broker at REAL Broker. When a check is close, route to the broker — the rule is designed to err on the side of compliance.
+</p>
+
+</main>
+</body>
+</html>

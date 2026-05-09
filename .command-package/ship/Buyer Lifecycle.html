@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Command · Buyer Lifecycle Deep-Dive</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Nunito+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --ink: #2a1f17;
+  --ink-2: #3d2d1e;
+  --muted: #6e665c;
+  --faint: #8a807a;
+  --line: #e8dfce;
+  --paper: #fefdf9;
+  --paper-2: #fdfbf5;
+  --paper-3: #f5f1ea;
+  --accent: #be7b56;
+  --accent-dark: #9a5f3f;
+  --sage: #7a9566;
+  --rose: #b06a73;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--paper-3);
+  padding: 50px 30px;
+}
+
+.doc { max-width: 960px; margin: 0 auto; background: var(--paper); padding: 60px 70px 80px; border-radius: 6px; box-shadow: 0 1px 3px rgba(42,31,23,0.03), 0 12px 40px rgba(42,31,23,0.06); }
+
+.serif { font-family: 'Cormorant Garamond', serif; letter-spacing: -0.3px; }
+.mono  { font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.5px; }
+
+h1 { font-family: 'Cormorant Garamond', serif; font-size: 58px; font-weight: 500; letter-spacing: -1.2px; line-height: 1; color: var(--ink); }
+h2 { font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 500; letter-spacing: -0.5px; margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--line); color: var(--ink); }
+h3 { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 500; margin-top: 26px; color: var(--ink-2); }
+
+.sub { font-size: 16px; color: var(--muted); margin-top: 14px; max-width: 700px; }
+.meta { font-size: 10px; letter-spacing: 3px; color: var(--accent); font-weight: 700; margin-bottom: 10px; }
+p { margin-top: 10px; color: var(--ink-2); }
+.crumb { font-size: 11px; color: var(--faint); letter-spacing: 1.5px; text-transform: uppercase; }
+
+.stage {
+  margin-top: 32px;
+  padding: 28px 32px 30px;
+  background: var(--paper-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 2px;
+  position: relative;
+}
+.stage .num {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 48px;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.stage .label {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.stage h3 {
+  margin-top: 4px;
+  font-size: 28px;
+}
+.stage .tagline {
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 4px;
+  font-style: italic;
+}
+.stage dl {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 10px 18px;
+  margin-top: 20px;
+}
+.stage dt {
+  font-size: 10px;
+  color: var(--faint);
+  letter-spacing: 2px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding-top: 3px;
+}
+.stage dd { font-size: 13px; color: var(--ink); line-height: 1.6; }
+.stage dd ul { margin-left: 18px; margin-top: 4px; }
+.stage dd ul li { margin-top: 2px; }
+
+.stage .exits {
+  margin-top: 20px;
+  padding: 12px 14px;
+  background: var(--paper);
+  border: 1px dashed var(--line);
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.stage .exits b { font-weight: 700; color: var(--accent-dark); }
+
+.stage .command-does {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: rgba(190, 123, 86, 0.06);
+  border-radius: 3px;
+  font-size: 12px;
+}
+.stage .command-does .lbl {
+  font-size: 10px; letter-spacing: 2px; color: var(--accent); font-weight: 700; text-transform: uppercase; margin-bottom: 4px;
+}
+.stage .kpi-pills {
+  margin-top: 14px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.pill.sage { background: rgba(122, 149, 102, 0.15); color: #5d6a52; }
+.pill.accent { background: rgba(190, 123, 86, 0.15); color: var(--accent-dark); }
+.pill.muted { background: var(--paper-3); color: var(--muted); }
+.pill.rose { background: rgba(176, 106, 115, 0.12); color: #7a4048; }
+
+em { color: var(--accent-dark); font-style: italic; }
+b, strong { color: var(--ink); font-weight: 600; }
+
+.toc {
+  padding: 20px 24px;
+  background: var(--paper-2);
+  border-radius: 4px;
+  margin-top: 24px;
+  font-size: 13px;
+  line-height: 1.9;
+}
+.toc a { color: var(--ink); text-decoration: none; border-bottom: 1px dotted var(--line); }
+.toc a:hover { border-color: var(--accent); }
+.toc strong { font-weight: 600; }
+
+.callout {
+  margin-top: 20px;
+  padding: 18px 22px;
+  border-left: 3px solid var(--sage);
+  background: rgba(122, 149, 102, 0.06);
+  font-size: 13px;
+  line-height: 1.6;
+  border-radius: 2px;
+}
+.callout .lbl { font-size: 10px; letter-spacing: 2px; color: #5d6a52; font-weight: 700; text-transform: uppercase; margin-bottom: 6px; }
+
+.magic {
+  margin-top: 32px;
+  padding: 28px 32px;
+  background: linear-gradient(135deg, rgba(190,123,86,0.08) 0%, rgba(122,149,102,0.05) 100%);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+}
+.magic .tag { font-size: 10px; color: var(--accent); letter-spacing: 3px; font-weight: 700; }
+.magic h3 { font-size: 26px; margin-top: 6px; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 13px; }
+th { text-align: left; padding: 10px 12px; background: var(--paper-2); font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: var(--faint); text-transform: uppercase; border-bottom: 1px solid var(--line); }
+td { padding: 10px 12px; border-bottom: 1px dashed var(--line); vertical-align: top; }
+
+.footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 11px; color: var(--faint); font-family: 'IBM Plex Mono', monospace; letter-spacing: 1.2px; }
+
+/* Mini flow diagram */
+.flow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding: 14px;
+  background: var(--paper-2);
+  border-radius: 3px;
+}
+.flow-box {
+  padding: 8px 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--ink);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.flow-box.active { border-color: var(--accent); color: var(--accent-dark); font-weight: 600; }
+.flow-arrow { color: var(--faint); font-size: 14px; }
+</style>
+</head>
+<body>
+
+<div class="doc">
+
+  <div class="meta">DOCUMENT · DEEP-DIVE · INTERNAL</div>
+  <div class="crumb">↩ Handoff README · Reference docs</div>
+  <h1>Buyer Lifecycle</h1>
+  <p class="sub">
+    Ten stages — from first whisper of buying intent to post-close referral. What defines each stage, what the buyer needs from Dana, what Command automates, and where the "magic buyer letter" fits when inventory is thin.
+  </p>
+
+  <div class="toc">
+    <strong>The ten stages</strong><br>
+    <a href="#s1">01. Suspect</a> — curiosity, not commitment<br>
+    <a href="#s2">02. Discovery</a> — first real conversation<br>
+    <a href="#s3">03. Qualification</a> — lender + BBA<br>
+    <a href="#s4">04. Active hunt</a> — showings, saved searches<br>
+    <a href="#s5">05. Nothing-fits</a> — <em>magic buyer letter territory</em><br>
+    <a href="#s6">06. Offer prep</a> — comps, terms, strategy<br>
+    <a href="#s7">07. Offer submitted</a> — waiting, counter, accept<br>
+    <a href="#s8">08. Under contract</a> — due diligence to close<br>
+    <a href="#s9">09. Closing week</a> — walkthrough to keys<br>
+    <a href="#s10">10. Post-close</a> — home-owning nurture
+  </div>
+
+  <div class="flow">
+    <span class="flow-box">Suspect</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-box">Discovery</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-box">Qualified</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-box">Active</span>
+    <span class="flow-arrow">⇄</span>
+    <span class="flow-box active">Nothing-fits</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-box">Offer</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-box">UC</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-box">Close</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-box">Post-close</span>
+  </div>
+
+  <!-- ============ STAGE 1 ============ -->
+  <div class="stage" id="s1">
+    <div class="num">01</div>
+    <div class="label">STAGE ONE</div>
+    <h3>Suspect</h3>
+    <div class="tagline">"Someday I might buy a house."</div>
+
+    <dl>
+      <dt>Who</dt><dd>Anyone who signals interest but hasn't had a real conversation — IG follower asking a DM, OH walk-in, downloaded a buyer's guide, clicked a listing in an email.</dd>
+      <dt>Signals</dt><dd>DM reply · IG follow after a buyer-pillar post · OH sign-in with "just looking" · bio-link form fill</dd>
+      <dt>Needs</dt><dd>Permission to browse without commitment. Low-pressure value: neighborhood guides, "what's the market like right now," first-time buyer education.</dd>
+      <dt>Duration</dt><dd>Indefinite — anywhere from days to years.</dd>
+    </dl>
+
+    <div class="command-does">
+      <div class="lbl">Command does</div>
+      Auto-enrolls into the "nurture" drip (monthly helpful content, not sales). Runs a weekly reach-out tracker. Suggests "move to Discovery" when any signal fires: saved a specific property, replied to a drip, attended 2nd OH.
+    </div>
+
+    <div class="kpi-pills">
+      <span class="pill muted">KPI · Contact velocity</span>
+      <span class="pill muted">KPI · Reach-per-follower</span>
+    </div>
+  </div>
+
+  <!-- ============ STAGE 2 ============ -->
+  <div class="stage" id="s2">
+    <div class="num">02</div>
+    <div class="label">STAGE TWO</div>
+    <h3>Discovery</h3>
+    <div class="tagline">"I'm thinking seriously. Tell me how this works."</div>
+
+    <dl>
+      <dt>Who</dt><dd>Suspects who've had a real conversation — phone, in-person, or substantive text exchange about their timeline, budget, and neighborhood.</dd>
+      <dt>Signals</dt><dd>Replied to a nurture email with a question · called in response to a post · "Hey Dana do you have time this week" DM · 2nd OH sign-in</dd>
+      <dt>Needs</dt><dd>Clarity on the process. Honest read on their budget vs their wishlist. Trust that Dana is on their side before they disclose financials.</dd>
+      <dt>Duration</dt><dd>1–3 weeks typically. Longer if they're pre-first-conversation.</dd>
+    </dl>
+
+    <div class="exits">
+      <b>Graduates to Qualification when:</b> they agree to speak with a lender OR explicitly say "we're ready to start looking seriously."
+      <br><b>Exits to Nurture when:</b> timeline &gt; 6 months or no activity for 3 weeks.
+    </div>
+
+    <div class="command-does">
+      <div class="lbl">Command does</div>
+      Drafts a buyer consultation invite + 15-min prep doc ("here are the 4 questions I'll ask"). Attaches a trusted-lender list with 3 options. Sets a 48-hr follow-up reminder if no response.
+    </div>
+
+    <div class="kpi-pills">
+      <span class="pill muted">KPI · Median response time</span>
+      <span class="pill muted">KPI · Stage conversion</span>
+    </div>
+  </div>
+
+  <!-- ============ STAGE 3 ============ -->
+  <div class="stage" id="s3">
+    <div class="num">03</div>
+    <div class="label">STAGE THREE</div>
+    <h3>Qualification</h3>
+    <div class="tagline">"Pre-approved. BBA signed. Let's hunt."</div>
+
+    <dl>
+      <dt>Who</dt><dd>A buyer with a pre-approval letter in hand, a signed BBA, and a well-defined target: price band, neighborhood, must-haves vs nice-to-haves.</dd>
+      <dt>Gate</dt><dd>Three artifacts must exist in Command: <span class="mono">PreApproval.pdf</span>, <span class="mono">BBA.signed</span>, and <span class="mono">BuyerProfile</span> with criteria.</dd>
+      <dt>Needs</dt><dd>A real-time picture of inventory. Confidence that Dana knows what's coming to market before the MLS. A private plan for offer strategy before the first showing.</dd>
+      <dt>Duration</dt><dd>Usually 2–7 days to complete the qualification handshake.</dd>
+    </dl>
+
+    <div class="command-does">
+      <div class="lbl">Command does</div>
+      Saved search auto-created from BuyerProfile. BBA e-sign via BoldSign. Sends the Mitchells-style "here's what I think will work for you this week" first-match email. Tracks pre-approval expiration (auto-nudges at 60 days).
+    </div>
+
+    <div class="kpi-pills">
+      <span class="pill muted">KPI · Agreement cycle time</span>
+      <span class="pill muted">KPI · Stage time (Appt → Active)</span>
+    </div>
+  </div>
+
+  <!-- ============ STAGE 4 ============ -->
+  <div class="stage" id="s4">
+    <div class="num">04</div>
+    <div class="label">STAGE FOUR</div>
+    <h3>Active hunt</h3>
+    <div class="tagline">"Seeing houses. Some fit, some don't."</div>
+
+    <dl>
+      <dt>Who</dt><dd>A qualified buyer actively touring. Has seen 1–8 homes. Offer possible at any moment.</dd>
+      <dt>Signals</dt><dd>Requested showings · saved listings · rejected 2+ homes for specific reasons · upcoming showing route</dd>
+      <dt>Needs</dt><dd>Fast, curated feed of new listings. Feedback loop after every showing. Per-home pros/cons Dana captures on the road.</dd>
+      <dt>Duration</dt><dd>2 weeks (hot market) to 6+ months (cold market or picky buyer).</dd>
+    </dl>
+
+    <div class="command-does">
+      <div class="lbl">Command does</div>
+      New-listing push to buyer's phone when their saved search fires. Route optimization for multi-home tours. In-showing notes app with voice-to-text. Post-tour summary email auto-drafted with pros/cons per property. Sends the buyer a shareable "your search so far" report weekly.
+    </div>
+
+    <div class="kpi-pills">
+      <span class="pill muted">KPI · Contact velocity</span>
+      <span class="pill muted">KPI · Stage time</span>
+      <span class="pill muted">KPI · Active pipeline $</span>
+    </div>
+  </div>
+
+  <!-- ============ STAGE 5 · THE MAGIC BUYER LETTER STAGE ============ -->
+  <div class="stage" id="s5" style="border-left-color: var(--sage);">
+    <div class="num" style="color: var(--sage);">05</div>
+    <div class="label" style="color: #5d6a52;">STAGE FIVE · THE BRANCH POINT</div>
+    <h3>Nothing-fits</h3>
+    <div class="tagline">"They want this block. Nothing on the block is for sale."</div>
+
+    <dl>
+      <dt>Who</dt><dd>A qualified, motivated buyer whose criteria — especially <em>neighborhood</em> — cannot be satisfied by current MLS inventory. This is where Dana manufactures supply.</dd>
+      <dt>Trigger</dt><dd>Buyer has seen 5+ homes <b>or</b> been active 4+ weeks <b>or</b> criteria has &lt;3 matches in MLS <b>or</b> buyer explicitly says "nothing is coming up."</dd>
+      <dt>Needs</dt><dd>A way to <b>create inventory</b>. This is where the <em>Magic Buyer Letter</em> campaign fits.</dd>
+    </dl>
+
+    <div class="magic">
+      <div class="tag">THE MAGIC BUYER LETTER</div>
+      <h3>When the buyer loves a neighborhood with nothing for sale.</h3>
+      <p style="margin-top: 14px; font-size: 14px; line-height: 1.7; color: var(--ink-2);">
+        Dana defines a target neighborhood (polygon on a map, or "all 3/2+ in Olive Park under $800k"). Command generates a personalized letter — <em>"A family I'm working with wants to live on your street. They love it because…"</em> — prints it, and Dana (or her assistant) walks every surrounding home. This is the highest-conversion off-market-supply mechanism in real estate.
+      </p>
+
+      <h4 style="font-family: 'Cormorant Garamond', serif; font-size: 18px; margin-top: 18px;">The flow</h4>
+      <table>
+        <tr><th>Step</th><th>Who</th><th>What</th></tr>
+        <tr><td><b>1. Trigger</b></td><td>Dana or Command</td><td>Flag buyer as "nothing-fits" · define target polygon on the Properties map</td></tr>
+        <tr><td><b>2. Parcel pull</b></td><td>Command</td><td>Pulls every non-listed parcel in the polygon · filters by buyer's criteria (3/2+, lot size, year built) · auto-skips current listings</td></tr>
+        <tr><td><b>3. Letter draft</b></td><td>Command</td><td>Personalized letter: "The Parks are looking for a 3/2 in Olive Park. They have two kids and love your block because…"</td></tr>
+        <tr><td><b>4. Buyer approves</b></td><td>Buyer</td><td>One-click review of the letter (to preserve authenticity). Buyer can edit before print.</td></tr>
+        <tr><td><b>5. Print source</b></td><td>Dana picks</td><td>Title company print program · local printer · DIY — see Print & Delivery doc</td></tr>
+        <tr><td><b>6. Delivery</b></td><td>Dana walks it</td><td>Command generates a walking route · target ~45 homes in 60 minutes · door-hanger + personal touch · SMS Dana reminder the night before</td></tr>
+        <tr><td><b>7. Response tracking</b></td><td>Command</td><td>QR on letter routes responses to Dana's private line · tracks every reply · auto-logs who called vs who didn't</td></tr>
+        <tr><td><b>8. Match to buyer</b></td><td>Dana + buyer</td><td>Interested seller? Dana sets up a private tour for the buyer — zero-days-on-market, zero-competition offer.</td></tr>
+      </table>
+
+      <div class="callout" style="margin-top: 18px;">
+        <div class="lbl">Typical conversion</div>
+        50–80 letters generally produces <b>1–3 seller replies</b>, of which 1 typically results in a private showing, and 1 in 3 of those becomes a deal. Total cycle: 2–6 weeks. Cost: ~$75 (letters + print) vs. ~$18,000 in GCI on a typical close.
+      </div>
+    </div>
+
+    <div class="command-does" style="margin-top: 22px;">
+      <div class="lbl">Command also does (beyond the letter)</div>
+      Suggests adjacent neighborhoods that match criteria. Alerts Dana on pre-MLS leads (FSBO posts, Nextdoor "thinking of selling" posts, expired listings matching criteria). Runs a weekly "nothing-fits" review so no buyer gets lost here.
+    </div>
+
+    <div class="kpi-pills">
+      <span class="pill sage">KPI · Magic letters sent</span>
+      <span class="pill sage">KPI · Seller-reply rate</span>
+      <span class="pill sage">KPI · Off-market match rate</span>
+      <span class="pill muted">KPI · Stage time (flag if &gt;6 wk)</span>
+    </div>
+  </div>
+
+  <!-- ============ STAGE 6 ============ -->
+  <div class="stage" id="s6">
+    <div class="num">06</div>
+    <div class="label">STAGE SIX</div>
+    <h3>Offer prep</h3>
+    <div class="tagline">"This is the one. Let's structure the offer."</div>
+
+    <dl>
+      <dt>Who</dt><dd>Active buyer with a target property they want to pursue — either from their MLS-active search OR from a successful magic-letter match.</dd>
+      <dt>Gate</dt><dd>Buyer has said "write an offer" (or equivalent).</dd>
+      <dt>Needs</dt><dd>Fast comp analysis. Offer-strategy coaching. Reassurance about non-price terms (earnest money, contingencies, timeline).</dd>
+      <dt>Duration</dt><dd>2–48 hours. In hot markets: minutes.</dd>
+    </dl>
+
+    <div class="command-does">
+      <div class="lbl">Command does</div>
+      Pulls 6 tight comps (&lt;0.5mi, &lt;90d, similar sf/bed/bath). Drafts offer package via Transactly / DocuSign. Suggests terms based on: listing DOM, comps sale-to-list, competing offers if known. Runs a "would you lose this for $5k?" scenario analysis.
+    </div>
+
+    <div class="kpi-pills">
+      <span class="pill muted">KPI · Stage time</span>
+      <span class="pill muted">KPI · Close rate (buyer side)</span>
+    </div>
+  </div>
+
+  <!-- ============ STAGE 7 ============ -->
+  <div class="stage" id="s7">
+    <div class="num">07</div>
+    <div class="label">STAGE SEVEN</div>
+    <h3>Offer submitted</h3>
+    <div class="tagline">"We sent it. We wait."</div>
+
+    <dl>
+      <dt>Who</dt><dd>Offer has been submitted; awaiting response from listing side.</dd>
+      <dt>Signals</dt><dd>Offer acknowledged · counteroffer received · multi-offer situation · accepted</dd>
+      <dt>Needs</dt><dd>Real-time status, help reading counteroffers, emotional support during bidding wars.</dd>
+      <dt>Duration</dt><dd>Hours to days.</dd>
+    </dl>
+
+    <div class="command-does">
+      <div class="lbl">Command does</div>
+      Pings Dana the moment a counter hits her email (via parsing). Drafts counter-response with strategy brief: "They moved $10k. Competing offers likely gone. I'd counter at X because…" Real-time buyer-text draft to soothe nerves.
+    </div>
+  </div>
+
+  <!-- ============ STAGE 8 ============ -->
+  <div class="stage" id="s8">
+    <div class="num">08</div>
+    <div class="label">STAGE EIGHT</div>
+    <h3>Under contract</h3>
+    <div class="tagline">"Due diligence to loan clear."</div>
+
+    <dl>
+      <dt>Who</dt><dd>Mutually signed purchase agreement. In the ~30-day window to close.</dd>
+      <dt>Milestones</dt><dd>EMD · Inspection · Inspection-response deadline · Appraisal · Loan contingency · Walkthrough · Close</dd>
+      <dt>Needs</dt><dd>Calendar certainty. A single source of truth for every deadline. Vendor coordination. Inspection-response negotiation.</dd>
+      <dt>Duration</dt><dd>21–45 days typically.</dd>
+    </dl>
+
+    <div class="command-does">
+      <div class="lbl">Command does</div>
+      Reads the contract PDF, extracts all 14 deadlines, loads them onto the Deal cockpit. Coordinates with lender (loan docs), title (commitment order), home-warranty, insurance, HOA. Drafts the inspection-response letter based on findings. Sends the Mitchells the "what to expect this week" email every Monday.
+    </div>
+
+    <div class="kpi-pills">
+      <span class="pill muted">KPI · Stage time (UC)</span>
+      <span class="pill muted">KPI · Auto-time saved</span>
+    </div>
+  </div>
+
+  <!-- ============ STAGE 9 ============ -->
+  <div class="stage" id="s9">
+    <div class="num">09</div>
+    <div class="label">STAGE NINE</div>
+    <h3>Closing week</h3>
+    <div class="tagline">"Five days. Utility switch, final walkthrough, keys."</div>
+
+    <dl>
+      <dt>Who</dt><dd>Final stretch: 5–7 days before close.</dd>
+      <dt>Needs</dt><dd>Utility transfers, moving coordination, walkthrough orchestration, closing day logistics, first-night bag.</dd>
+      <dt>Duration</dt><dd>~1 week.</dd>
+    </dl>
+
+    <div class="command-does">
+      <div class="lbl">Command does</div>
+      Auto-checks each utility switch (power, gas, water, internet). Reminds buyers about homeowner's insurance effective-date. Walkthrough checklist delivered the morning of. Drafts thank-you + closing-gift logistics (local honey + bread). Schedules the "after-keys" text: "How's the first night?"
+    </div>
+  </div>
+
+  <!-- ============ STAGE 10 ============ -->
+  <div class="stage" id="s10">
+    <div class="num">10</div>
+    <div class="label">STAGE TEN</div>
+    <h3>Post-close</h3>
+    <div class="tagline">"Two years of staying top-of-mind."</div>
+
+    <dl>
+      <dt>Who</dt><dd>Past buyers — your long-term moat. The most valuable contacts in your database.</dd>
+      <dt>Needs</dt><dd>A feeling of being remembered. Useful homeownership help. An invitation to refer, without the ask being transactional.</dd>
+      <dt>Duration</dt><dd>Forever, at decreasing cadence.</dd>
+    </dl>
+
+    <div class="command-does">
+      <div class="lbl">Command does</div>
+      <ul style="margin-top: 6px; margin-left: 18px;">
+        <li><b>Day 30:</b> "How's the house?" text (personal, from Dana)</li>
+        <li><b>Day 60:</b> Handwritten-style note + local-business discount</li>
+        <li><b>6 months:</b> "Your home's current value" email (auto-pulled from comps)</li>
+        <li><b>1 year:</b> Home-owning anniversary card · local-biz gift</li>
+        <li><b>2 years:</b> Personal check-in call · referral ask in soft form</li>
+        <li><b>Ongoing:</b> "Your neighborhood this month" — listings, sales, notable events</li>
+      </ul>
+    </div>
+
+    <div class="kpi-pills">
+      <span class="pill muted">KPI · Touch streak</span>
+      <span class="pill muted">KPI · Contact velocity</span>
+      <span class="pill muted">KPI · Referral rate</span>
+    </div>
+  </div>
+
+  <!-- ============ TRANSITIONS ============ -->
+  <h2>Stage transitions — what Command watches for</h2>
+  <p>A buyer moves stages when a trigger event fires. These are codified in the <span class="mono">stage_transitions</span> config so Command can auto-suggest progression (never auto-execute — the agent always approves).</p>
+
+  <table>
+    <tr><th>From → To</th><th>Trigger</th><th>Who confirms</th></tr>
+    <tr><td>Suspect → Discovery</td><td>2-way substantive conversation (≥3 msg OR ≥5 min call)</td><td>Dana</td></tr>
+    <tr><td>Discovery → Qualified</td><td>PreApproval PDF uploaded + BBA signed + BuyerProfile complete</td><td>Auto</td></tr>
+    <tr><td>Qualified → Active</td><td>First showing requested</td><td>Auto</td></tr>
+    <tr><td>Active → Nothing-fits</td><td>5+ showings rejected OR 4+ weeks no match OR buyer says "nothing works"</td><td>Dana</td></tr>
+    <tr><td>Nothing-fits → Offer prep</td><td>Magic-letter match OR pre-MLS match OR inventory returns</td><td>Dana</td></tr>
+    <tr><td>Active/Nothing-fits → Offer prep</td><td>Buyer says "write an offer"</td><td>Dana</td></tr>
+    <tr><td>Offer prep → Submitted</td><td>Offer sent to listing side</td><td>Auto</td></tr>
+    <tr><td>Submitted → Under contract</td><td>Mutual execution</td><td>Auto</td></tr>
+    <tr><td>UC → Closing week</td><td>7 days before close date</td><td>Auto</td></tr>
+    <tr><td>Closing week → Post-close</td><td>CD uploaded + keys confirmed</td><td>Auto</td></tr>
+  </table>
+
+  <!-- ============ WHERE IT LIVES ============ -->
+  <h2>Where the buyer lives in the product</h2>
+
+  <table>
+    <tr><th>Stage</th><th>Primary surface</th><th>Side-rail</th></tr>
+    <tr><td>Suspect</td><td>CRM · "Nurture" segment</td><td>Morning dashboard "warm leads"</td></tr>
+    <tr><td>Discovery</td><td>CRM · profile view</td><td>Tasks (follow-ups)</td></tr>
+    <tr><td>Qualified</td><td>CRM · "Active buyers" segment</td><td>Agreements pipeline</td></tr>
+    <tr><td>Active hunt</td><td>Buyer Showings (mobile-first)</td><td>Showing Route app</td></tr>
+    <tr><td>Nothing-fits</td><td>Magic Letter campaign screen · Properties map</td><td>Print & Delivery queue</td></tr>
+    <tr><td>Offer prep</td><td>Deals pipeline · offer comparison</td><td>Contract drafts</td></tr>
+    <tr><td>Under contract</td><td>Deal cockpit</td><td>Vendors, timeline</td></tr>
+    <tr><td>Closing week</td><td>Deal cockpit · closing checklist</td><td>Showing app day-of</td></tr>
+    <tr><td>Post-close</td><td>CRM · "Past clients"</td><td>Weekly drip, anniversary triggers</td></tr>
+  </table>
+
+  <!-- ============ PRINCIPLES ============ -->
+  <h2>Principles for buyer work</h2>
+
+  <div class="callout">
+    <div class="lbl">Principle 1</div>
+    <b>A stuck buyer is a lost buyer.</b> Command flags any buyer stalled in a stage beyond its typical duration. "Nothing-fits" past 6 weeks is an active intervention moment — probably a magic-letter campaign.
+  </div>
+
+  <div class="callout">
+    <div class="lbl">Principle 2</div>
+    <b>The magic letter is a supply tool, not a marketing tool.</b> It's used <em>for a specific buyer</em>, never as a general farming mechanism. Personalization is the entire point.
+  </div>
+
+  <div class="callout">
+    <div class="lbl">Principle 3</div>
+    <b>Post-close is the moat.</b> 40%+ of a mature agent's business should come from past clients and their referrals. Command's post-close cadence is the product's most valuable surface — never skippable.
+  </div>
+
+  <div class="callout">
+    <div class="lbl">Principle 4</div>
+    <b>Never auto-transition a stage.</b> Every stage change is a human decision in this product. Command suggests, Dana confirms. This matters because stage changes trigger real outreach.
+  </div>
+
+  <div class="footer">
+    BUYER LIFECYCLE · V1 · COMMAND · LAST UPDATED APR 2025 · CONFIDENTIAL · INTERNAL USE<br>
+    For the adjacent seller lifecycle, see <b>Listing & Seller Lifecycle</b> (not yet written).
+  </div>
+
+</div>
+</body>
+</html>

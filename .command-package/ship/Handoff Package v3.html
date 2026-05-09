@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Handoff Package v3 — Command → Antigravity</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Nunito+Sans:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root{
+  --ink:#3A2A1E; --ink-2:#5A4136; --muted:#5A4136; --faint:#B79782;
+  --line:#C8C3B9; --paper:#EFEDE8; --paper-2:#E3DED4; --card:#F6F4EE;
+  --tan:#B79782; --sage:#8B9A7B; --warn:#c99a2e; --danger:#c0604a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:'Nunito Sans',sans-serif;font-size:14px;line-height:1.55;}
+.wrap{max-width:940px;margin:0 auto;padding:64px 48px 120px;}
+h1{font-family:'Cormorant Garamond',serif;font-weight:500;font-size:58px;line-height:1.02;margin:0 0 6px;letter-spacing:-.01em;}
+.subtitle{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.14em;}
+h2{font-family:'Cormorant Garamond',serif;font-weight:500;font-size:32px;margin:56px 0 14px;letter-spacing:-.005em;border-bottom:1px solid var(--line);padding-bottom:10px;}
+h3{font-family:'Cormorant Garamond',serif;font-weight:500;font-size:22px;margin:28px 0 8px;}
+p{margin:0 0 12px;max-width:70ch;}
+.muted{color:var(--muted);}
+.tiny{font-size:12px;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+.lede{font-size:17px;line-height:1.55;color:var(--ink-2);max-width:62ch;margin:16px 0 8px;}
+
+.summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px;}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 18px;}
+.stat .num{font-family:'Cormorant Garamond',serif;font-size:36px;line-height:1;margin-bottom:4px;}
+.stat .lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);}
+
+.tag{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.1em;vertical-align:middle;}
+.tag.green{background:rgba(139,154,123,.16);color:#566b4a;border:1px solid rgba(139,154,123,.35);}
+.tag.amber{background:rgba(201,154,46,.14);color:var(--warn);border:1px solid rgba(201,154,46,.32);}
+.tag.rose{background:rgba(192,96,74,.12);color:var(--danger);border:1px solid rgba(192,96,74,.26);}
+.tag.neutral{background:var(--paper-2);color:var(--muted);border:1px solid var(--line);}
+
+table{width:100%;border-collapse:collapse;margin:14px 0 8px;font-size:13px;}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+th{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);background:var(--card);}
+td a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--faint);text-underline-offset:3px;}
+td a:hover{text-decoration-color:var(--ink);}
+td.flag{width:120px;}
+td.count{font-family:'IBM Plex Mono',monospace;text-align:right;width:56px;color:var(--muted);}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px 22px;margin:14px 0;}
+.card.rose{background:rgba(192,96,74,.05);border-color:rgba(192,96,74,.25);}
+.card.amber{background:rgba(201,154,46,.06);border-color:rgba(201,154,46,.3);}
+
+ul{margin:6px 0 12px 18px;padding:0;} li{margin:4px 0;}
+ol{margin:6px 0 12px 20px;padding:0;} ol li{margin:6px 0;}
+
+.kbd{font-family:'IBM Plex Mono',monospace;font-size:11px;background:var(--paper-2);border:1px solid var(--line);padding:1px 6px;border-radius:3px;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:12px 0;}
+.mini{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;}
+.mini .h{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:6px;}
+.mini .b{font-family:'Cormorant Garamond',serif;font-size:20px;line-height:1.2;}
+.cta{border-top:1px solid var(--line);margin-top:48px;padding-top:24px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="subtitle">Ship manifest · v3 · 22 Apr 2026</div>
+  <h1>Handoff Package v3</h1>
+  <p class="lede">Everything below is green. The wireframes now cover 53 sections including 3 new modules (Client Portal, Compliance Log, Showing Dispatch) and a new Global UI section that resolves the three-FAB overlap in the live app. CRM and Email Builder are thickened. Lead Sources is specced end-to-end. Acceptance tests cover Phase 9. Ready to hand off.</p>
+
+  <div class="summary-row">
+    <div class="stat"><div class="num">53</div><div class="lbl">sections covered</div></div>
+    <div class="stat"><div class="num">~320</div><div class="lbl">screens</div></div>
+    <div class="stat"><div class="num">11</div><div class="lbl">deliverables</div></div>
+    <div class="stat"><div class="num">0</div><div class="lbl">blockers</div></div>
+  </div>
+
+  <div class="card rose">
+    <b>⚠ Before you zip for Antigravity.</b> Remove <span class="mono">Seed Data.html</span> and <span class="mono">Gap Review.html</span> from the zip — both contain internal-only data (real fee percentages, internal status notes). Every other file listed below is shareable.
+  </div>
+
+  <div class="card">
+    <b>How to read this page.</b> §1 is the file manifest — the READY set is what ships. §2 is where Antigravity should start building. §3 is what changed since v2. §4 is the guardrails for parallel work.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2>1 · File manifest</h2>
+  <p>Open each file directly in the project. Status column says what you can trust.</p>
+
+  <table>
+    <thead><tr><th>Deliverable</th><th>Status</th><th>What's in it</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="Command Wireframes.html"><b>Command Wireframes.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>53 sections · ~323 screens · palette switcher · tweaks panel. Includes Client Portal, Compliance Log, Showing Dispatch, Global UI (header quick-actions fix), thickened CRM (7) and Email (7), Lead Sources (7).</td>
+      </tr>
+      <tr>
+        <td><a href="Design System.html"><b>Design System.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>Organic Modern palette · 4 typefaces · buttons/chips/fields/avatars/status/cards · patterns · tone of voice. Use these exact tokens.</td>
+      </tr>
+      <tr>
+        <td><a href="Data Model v2.html"><b>Data Model v2.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>v1 entities + 20 new entity blocks for Relationships+, Home-value, Team/permissions, SEO/AEO, Reviews, Print, Expired/FSBO, Post-close, Lead Sources. Extended relationships diagram + sync rules.</td>
+      </tr>
+      <tr>
+        <td><a href="Handoff README v2.html"><b>Handoff README v2.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>v1 README + §17 "Feature modules" — build briefs mapping each module to its wireframes, entities, and integrations.</td>
+      </tr>
+      <tr>
+        <td><a href="AZ Compliance Rules.html"><b>AZ Compliance Rules.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>Arizona-specific compliance gates. Required read before any content-generation or messaging work.</td>
+      </tr>
+      <tr>
+        <td><a href="KPI Definitions.html"><b>KPI Definitions.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>Every KPI in the dashboard, with exact formulas and data sources.</td>
+      </tr>
+      <tr>
+        <td><a href="Acceptance Tests.html"><b>Acceptance Tests.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>End-to-end acceptance scenarios across Phases 0–9. Includes Phase 9 · Lead Sources + cash-offer routing.</td>
+      </tr>
+      <tr>
+        <td><a href="Buyer Lifecycle.html"><b>Buyer Lifecycle.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>Buyer-side journey doc — ties CRM stages to deal stages.</td>
+      </tr>
+      <tr>
+        <td><a href="Click-Through Prototype.html"><b>Click-Through Prototype.html</b></a></td>
+        <td class="flag"><span class="tag green">SHIP</span></td>
+        <td>Walks the "I have an open house" scenario end-to-end. Final step now lists 8 other scenarios pointing back into the wireframes.</td>
+      </tr>
+      <tr>
+        <td><a href="Data Model.html"><b>Data Model.html</b></a> <span class="tag neutral">v1</span></td>
+        <td class="flag"><span class="tag neutral">SUPERSEDED</span></td>
+        <td>Kept for reference. Use <b>Data Model v2</b> going forward.</td>
+      </tr>
+      <tr>
+        <td><a href="Handoff README.html"><b>Handoff README.html</b></a> <span class="tag neutral">v1</span></td>
+        <td class="flag"><span class="tag neutral">SUPERSEDED</span></td>
+        <td>Kept for reference. Use <b>README v2</b> going forward.</td>
+      </tr>
+      <tr>
+        <td><a href="Seed Data.html"><b>Seed Data.html</b></a></td>
+        <td class="flag"><span class="tag rose">INTERNAL · DO NOT SHIP</span></td>
+        <td>Contains Dana's real PAC fee percentages. Remove from zip before handoff.</td>
+      </tr>
+      <tr>
+        <td><a href="Gap Review.html"><b>Gap Review.html</b></a></td>
+        <td class="flag"><span class="tag rose">INTERNAL · DO NOT SHIP</span></td>
+        <td>Internal working doc — what was fixed between v1 and v2. Remove from zip.</td>
+      </tr>
+      <tr>
+        <td><a href="Handoff Package v1.html"><b>Handoff Package v1.html</b></a></td>
+        <td class="flag"><span class="tag neutral">SUPERSEDED</span></td>
+        <td>Remove from zip — this v3 replaces it.</td>
+      </tr>
+      <tr>
+        <td><a href="Handoff Package v2.html"><b>Handoff Package v2.html</b></a></td>
+        <td class="flag"><span class="tag neutral">SUPERSEDED</span></td>
+        <td>Remove from zip — this v3 replaces it.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ============================================================ -->
+  <h2>2 · Where to start — Phase 1 build targets</h2>
+  <p>These 8 sections are <b>fully specced</b> in v1. Everything a dev needs is already in the wireframes + Data Model v1 + README v1. Start here.</p>
+
+  <table>
+    <thead><tr><th>Build target</th><th>Wireframe section</th><th>Screens</th><th>Depends on</th></tr></thead>
+    <tbody>
+      <tr><td><b>Onboarding</b></td><td class="mono">foundation · onboarding</td><td class="count">7</td><td>Auth · Slack OAuth · Lofty connect</td></tr>
+      <tr><td><b>CRM · top flow</b></td><td class="mono">desktop · crm</td><td class="count">3*</td><td>Core CRM entities · saved views (v2)</td></tr>
+      <tr><td><b>Open House</b></td><td class="mono">desktop · openhouse</td><td class="count">9</td><td>OpenHouse entities · weather feed · Slack</td></tr>
+      <tr><td><b>Mobile · Prospect</b></td><td class="mono">mobile · prospect</td><td class="count">8</td><td>Mobile shell · voice notes · Slack digest</td></tr>
+      <tr><td><b>Mobile · Buyer showings</b></td><td class="mono">mobile · buyer</td><td class="count">8</td><td>Calendar · route planner · property sync</td></tr>
+      <tr><td><b>Calendar · Showing route</b></td><td class="mono">mobile · calendar</td><td class="count">7</td><td>MapView (document first — see §4) · traffic</td></tr>
+      <tr><td><b>Settings & Billing</b></td><td class="mono">foundation · settings</td><td class="count">12</td><td>Stripe · team seats · integrations</td></tr>
+      <tr><td><b>AI Assistant</b></td><td class="mono">desktop · aichat</td><td class="count">9</td><td>Claude API · compliance gate · cost ledger</td></tr>
+    </tbody>
+  </table>
+
+  <p class="tiny muted">* CRM at 3 screens is the "top flow" version — the wider CRM surface (saved views, bulk ops, import/merge, activity timeline) lands in v2 additions. Start on what's in v1, we'll meet up at the merge.</p>
+
+  <div class="card">
+    <b>Suggested build order for week 1.</b>
+    <ol>
+      <li>Stand up stack + auth + Slack app (README §4/§7/§10).</li>
+      <li>Onboarding end-to-end — proves the integration surface.</li>
+      <li>Open House — this is the <i>anchor flow</i> the whole product is built around. If OH works, everything else falls into place.</li>
+      <li>Mobile Prospect + Buyer + Calendar — proves the mobile shell is reusable.</li>
+      <li>AI Assistant — proves the compliance-gated content pipeline.</li>
+      <li>CRM + Settings — foundational but less exciting. Lay them in while v2 wireframes catch up.</li>
+    </ol>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2>3 · What changed since v2</h2>
+  <p>Since the v2 handoff on Apr 21:</p>
+
+  <div class="two-col">
+    <div class="mini">
+      <div class="h">Global UI · FAB overlap fix</div>
+      <div class="b">Quick Note + Tasks move to header · duplicate Note deleted</div>
+      <p class="tiny muted" style="margin-top:8px">The live app stacks three floating circular buttons bottom-right of every screen and they overlap dashboard cards. Spec'd the fix: Quick Note + Tasks live top-right in the header (keyboard <span class="mono">N</span> / <span class="mono">T</span>), the third FAB (duplicate Note) is removed. Wireframes section <span class="mono">globalui</span> (3 screens). README §18 has the canonical header anatomy.</p>
+    </div>
+    <div class="mini">
+      <div class="h">New modules (3)</div>
+      <div class="b">Client Portal · Compliance Log · Showing Dispatch</div>
+      <p class="tiny muted" style="margin-top:8px">3 screens each. Wireframes live in Command Wireframes (sections <span class="mono">clientportal</span>, <span class="mono">compliancelog</span>, <span class="mono">showingdispatch</span>). These closed the README-only gap where modules were named but not designed.</p>
+    </div>
+    <div class="mini">
+      <div class="h">Thickened modules (3)</div>
+      <div class="b">CRM (3 → 7) · Email Builder (3 → 7) · Lead Sources (7)</div>
+      <p class="tiny muted" style="margin-top:8px">CRM + Email now cover saved views, bulk actions, import/merge, timeline, sequences, A/B, deliverability, preview/compliance. Lead Sources covers CertiLeads/ClosingLeads/AtClosing/Movoto/Realty.com/LeadDeck/FastCashOffers with attribution locking.</p>
+    </div>
+    <div class="mini">
+      <div class="h">Acceptance Tests · Phase 9</div>
+      <div class="b">Lead sources + cash-offer routing</div>
+      <p class="tiny muted" style="margin-top:8px">Test script for PAC fee attribution, locked-% regression, cash-offer 24h SLA, override audit trail.</p>
+    </div>
+    <div class="mini">
+      <div class="h">Click-Through Prototype</div>
+      <div class="b">Epilogue step · "More flows"</div>
+      <p class="tiny muted" style="margin-top:8px">Final step maps 8 other scenarios (PAC lead, cash offer, listing prep, OH recon, expired/FSBO, deal coord, client portal, showing dispatch) back to their wireframe sections.</p>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <h2>4 · Guardrails for parallel work</h2>
+  <p>So we don't collide:</p>
+
+  <ol>
+    <li><b>v1 files don't move.</b> Same filenames, same URLs. I only add, never restructure.</li>
+    <li><b>New wireframe screens register via <span class="mono">window.XxxScreens.push</span></b> — your bookmarks stay valid.</li>
+    <li><b>Data Model entity blocks are append-only.</b> Phase 1 entities keep their exact shape.</li>
+    <li><b>README gets new sections appended</b> under existing numbered headers; existing sections don't renumber.</li>
+    <li><b>Design System tokens are frozen.</b> If a new pattern is needed for v2 (e.g. <span class="mono">MapView</span>, <span class="mono">RouteLine</span>), I document it in an addendum — no retroactive changes.</li>
+    <li><b>Build against v1 captions as the source of truth</b> for anything still being thickened. Wireframe captions are the PRD — if a caption says it, the feature is in scope.</li>
+  </ol>
+
+  <div class="card rose">
+    <b>One thing I need from you (Antigravity).</b> Before you build <span class="mono">MapView</span> / <span class="mono">RouteLine</span> — it shows up in Calendar/Showing Route, Home-value, and Properties. Ping me and I'll spec it in Design System v2 addendum so all three sections share one implementation. Easier to do this once up front than reconcile three divergent maps later.
+  </div>
+
+  <!-- ============================================================ -->
+  <h2>5 · Contact + cadence</h2>
+  <p class="muted">Async review on wireframes captions — reply inline on the Gap Review doc or open a comment on the file.</p>
+  <ul style="tiny muted">
+    <li>CRM + Email Builder wireframe thickening: follow-up, end of week</li>
+    <li>Addendum for MapView/RouteLine: on request, same-day turnaround</li>
+  </ul>
+
+  <div class="cta">
+    <p class="tiny muted">This manifest is the single source of truth for what's shippable today. If a file isn't listed here with <span class="tag green">READY</span>, treat it as draft.</p>
+  </div>
+
+</div>
+</body>
+</html>

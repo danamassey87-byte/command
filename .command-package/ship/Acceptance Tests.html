@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Command · Acceptance Tests</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Nunito+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink:#3A2A1E; --ink-2:#5A4136; --faint:#B79782; --line:#C8C3B9;
+  --paper:#EFEDE8; --card:#F6F4EE;
+  --sage:#8B9A7B; --warn:#c99a2e; --danger:#c0604a;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font-family:'Nunito Sans', sans-serif; font-size:14px; line-height:1.7; }
+.page { max-width:1080px; margin:0 auto; padding:48px 40px 160px; }
+h1, h2, h3, h4 { font-family:'Cormorant Garamond', serif; font-weight:500; margin:0; }
+h1 { font-size:52px; line-height:1.05; }
+h2 { font-size:30px; margin:48px 0 12px; padding-top:24px; border-top:1px solid var(--line); }
+h3 { font-size:20px; margin:24px 0 8px; }
+.kicker { font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+.lede { font-family:'Cormorant Garamond', serif; font-size:22px; font-style:italic; color:var(--ink-2); max-width:62ch; }
+p, ul, ol { color:var(--ink-2); max-width:72ch; }
+ul, ol { padding-left:22px; }
+li { margin:4px 0; }
+code, .mono { font-family:'IBM Plex Mono', monospace; font-size:12px; background:#fff; padding:1px 5px; border:1px solid var(--line); border-radius:3px; }
+pre { font-family:'IBM Plex Mono', monospace; font-size:12px; background:#fff; padding:14px 16px; border:1px solid var(--line); border-radius:4px; overflow-x:auto; line-height:1.55; color:var(--ink); margin:10px 0; }
+.callout { background:var(--card); border:1px solid var(--line); border-left:3px solid var(--ink); padding:14px 18px; margin:14px 0; border-radius:4px; }
+.callout.ok { border-left-color:var(--sage); background:#EEF1E9; }
+.callout.warn { border-left-color:var(--warn); background:#FAF1DD; }
+.phase { background:#fff; border:1px solid var(--line); border-radius:6px; padding:22px 26px; margin:18px 0; }
+.phase .num { font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.1em; color:var(--faint); text-transform:uppercase; }
+.phase h3 { margin:4px 0 12px; font-size:24px; }
+.phase .meta { display:flex; gap:20px; font-size:12px; color:var(--ink-2); margin-bottom:12px; padding-bottom:12px; border-bottom:1px dashed var(--line); }
+.phase .meta b { font-family:'IBM Plex Mono', monospace; font-size:10px; text-transform:uppercase; color:var(--faint); letter-spacing:.05em; margin-right:4px; }
+.checklist li { list-style:none; position:relative; padding-left:24px; }
+.checklist li::before { content:""; position:absolute; left:0; top:9px; width:12px; height:12px; border:1.5px solid var(--ink); border-radius:2px; }
+.checklist { padding-left:0; }
+.section-label { font-family:'Nunito Sans'; font-weight:700; text-transform:uppercase; letter-spacing:.05em; font-size:10px; color:var(--faint); margin:14px 0 4px; }
+hr { border:none; border-top:1px dashed var(--line); margin:24px 0; }
+</style>
+</head>
+<body>
+<main class="page">
+
+<div class="kicker">Command · Acceptance Tests · v1</div>
+<h1>Per-phase done criteria</h1>
+<p class="lede">A phase is done when a human (Dana) can click through the test script and every step works. Not "the code compiles." Not "the PR is green." These are the hand-off gates between phases.</p>
+
+<div class="callout ok">
+  <b>How to use</b> — The agent runs each script at the end of its phase and reports PASS / FAIL with evidence (screenshot, log, or DB query). Dana reviews the PASS report before the next phase starts. FAIL means fix-in-place; do not proceed.
+</div>
+
+<!-- ============================================================ -->
+<div class="phase">
+  <div class="num">Phase 0</div>
+  <h3>Foundations</h3>
+  <div class="meta"><span><b>Scope</b> Next.js app boots, Supabase schema reconciled, auth works</span><span><b>Duration</b> 1–2 days</span></div>
+
+  <div class="section-label">Setup gates</div>
+  <ul class="checklist">
+    <li><code>npm run dev</code> starts without error; <code>localhost:3000</code> renders the login page.</li>
+    <li><code>supabase db pull</code> succeeded. Schema diff against Data Model.html is documented in <code>/docs/migrations-log.md</code>.</li>
+    <li>All additive migrations applied without destructive changes to existing tables.</li>
+    <li>Magic-link email sent to <code>dana@danamassey.realestate</code> arrives. Click → logged in.</li>
+    <li>Signup is disabled (invite-only). Attempting <code>/signup</code> returns 404 or redirect.</li>
+  </ul>
+
+  <div class="section-label">Manual test script</div>
+  <ol>
+    <li>Open <code>localhost:3000</code>. Expect login page with a single email input.</li>
+    <li>Enter Dana's email. Expect "Check your inbox" confirmation.</li>
+    <li>Open email, click link. Expect redirect to <code>/dashboard</code> (or placeholder).</li>
+    <li>Refresh. Expect to stay logged in (session persists).</li>
+    <li>Open <code>/admin/health</code>. Expect ✅ on Supabase, Inngest, Sentry.</li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<div class="phase">
+  <div class="num">Phase 1</div>
+  <h3>CRM core · Contacts, Deals, Tasks, Notes</h3>
+  <div class="meta"><span><b>Scope</b> The boring but essential middle</span><span><b>Duration</b> 3–5 days</span></div>
+
+  <div class="section-label">Test script</div>
+  <ol>
+    <li>Seed data loaded. <code>/crm</code> shows 10 contacts in list view.</li>
+    <li>Click Maya Patel. Detail page shows her tags, last touched, 0 interactions (empty state).</li>
+    <li>Log an interaction: "Called, left VM re: Sheridan offer." Save. Expect the timeline to show it instantly.</li>
+    <li>Create a new task from Maya's page: "Follow up tomorrow 9am." Expect it to appear in <code>/tasks</code> under Tomorrow.</li>
+    <li>Create a new note via voice: tap mic, say "30 seconds of anything," tap stop. Expect transcription to populate within 20s and persist to <code>/notes</code>.</li>
+    <li>On <code>/deals</code>, drag 88 Waverly from "Under contract" to "Closing this week." Expect optimistic update + persisted stage change.</li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<div class="phase">
+  <div class="num">Phase 2</div>
+  <h3>Slack integration · Morning brief, wrap-up, interactive buttons</h3>
+  <div class="meta"><span><b>Scope</b> The daily drumbeat</span><span><b>Duration</b> 2–3 days</span></div>
+
+  <div class="section-label">Test script</div>
+  <ol>
+    <li>Trigger <code>daily.brief</code> manually via Inngest UI. Expect a rich message in <code>#daily-brief</code>:
+      <ul><li>Weather for Evanston</li><li>3 tasks for today (from seed)</li><li>2 deals needing attention</li><li>Upcoming OH Saturday</li></ul></li>
+    <li>In Slack, click "✓ Done" on a task. Expect the task to disappear from the next brief and be marked <code>completed_at</code> in DB.</li>
+    <li>Click "Snooze 2h" on another task. Expect <code>due_at</code> to shift +2h.</li>
+    <li>Trigger <code>daily.wrapup</code>. Expect 5pm-style summary in same channel: what got done, what rolled, tomorrow's first 3.</li>
+    <li>Slack signature verification test: replay a signed payload 10 minutes later. Expect rejection (timestamp window).</li>
+  </ol>
+
+  <div class="callout warn">
+    <b>Gate:</b> Do not proceed to Phase 3 until the morning brief has arrived <u>on time</u> for 3 consecutive weekdays.
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="phase">
+  <div class="num">Phase 3</div>
+  <h3>Open Houses · QR kiosk, weather prefetch, OH Slack channel</h3>
+  <div class="meta"><span><b>Scope</b> Saturday's Swiss-army knife</span><span><b>Duration</b> 2–3 days</span></div>
+
+  <div class="section-label">Test script</div>
+  <ol>
+    <li>Open <code>/oh</code>. The Saturday OH at 1422 Maple appears with a QR code.</li>
+    <li>Print the QR. Scan with another phone. Expect the kiosk sign-in page to load with 1422 Maple prefilled.</li>
+    <li>Fill in a fake visitor: Name, phone, "First time buying?", "How did you hear?" Submit. Expect success screen.</li>
+    <li>Back in <code>/crm</code>, expect a new contact with source "OH · 1422 Maple" and a timeline entry.</li>
+    <li>At 7am Saturday (or manually trigger <code>oh.morning-of</code>): expect <code>#open-house-opportunities</code> to get a post with <b>live weather for Evanston</b> (today's forecast, high/low, precip probability, a comment like "pack umbrellas" if >40%).</li>
+    <li>Kiosk mode survives a network blip — put the iPad on airplane mode, collect a signature, re-enable wifi. Expect the signature to sync.</li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<div class="phase">
+  <div class="num">Phase 4</div>
+  <h3>Deals &amp; Transact sync</h3>
+  <div class="meta"><span><b>Scope</b> Docs stay in Transact; status surfaces in Command</span><span><b>Duration</b> 2 days</span></div>
+
+  <div class="section-label">Test script</div>
+  <ol>
+    <li>Trigger <code>transact.reconcile</code>. Expect each seeded deal to show live status pulled from Transact (or "stale · last sync X ago" if Transact is down).</li>
+    <li>On deal 88 Waverly detail page: a checklist of required docs, each with a status (uploaded / missing / awaiting counter-signature) pulled from Transact.</li>
+    <li>Click a missing doc. Expect a deep-link to open Transact in a new tab at the correct upload screen.</li>
+    <li>After uploading in Transact, re-sync. Expect the Command checklist to flip green within one poll cycle.</li>
+    <li>Confirm Transact webhook support with support rep. If webhooks: verify a test webhook updates Command in under 10s. If polling: verify hourly cron.</li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<div class="phase">
+  <div class="num">Phase 5</div>
+  <h3>Content &amp; Compliance</h3>
+  <div class="meta"><span><b>Scope</b> Drafts pass through a compliance gate before Blotato</span><span><b>Duration</b> 3–4 days</span></div>
+
+  <div class="section-label">Pre-req</div>
+  <ul class="checklist">
+    <li>Dana has exported REAL Brokerage AZ marketing PDFs to <code>uploads/compliance/</code>.</li>
+    <li>Ingestion job has embedded them into Pinecone <code>compliance</code> index. Verify row count &gt; 0.</li>
+    <li>Public corpus (NAR, HUD Fair Housing, RESPA, IL License Act) ingested.</li>
+  </ul>
+
+  <div class="section-label">Test script</div>
+  <ol>
+    <li>On <code>/studio</code>, draft a Reel caption: "Guaranteed to double your home's value in 30 days!" (obvious RESPA/advertising violation).</li>
+    <li>Hit "Run compliance check." Expect <b>BLOCK</b> verdict with cited rule and a plain-English reason.</li>
+    <li>Rewrite to "This home shows beautifully — come see it Saturday." Re-run. Expect <b>PASS</b>.</li>
+    <li>Draft an email with a non-compliant "earn $500 referral fee" line (RESPA Sec 8). Expect <b>BLOCK</b>.</li>
+    <li>Hit "Publish" on a passing caption. Expect it to queue to Blotato with the scheduled time, and a row in <code>content_performance</code> stub.</li>
+    <li>6 hours later, <code>content.perf-poll</code> runs — expect view/reach numbers to populate.</li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<div class="phase">
+  <div class="num">Phase 6</div>
+  <h3>Lofty two-way sync</h3>
+  <div class="meta"><span><b>Scope</b> Contacts &amp; tags flow both ways on 15-min cycles</span><span><b>Duration</b> 2 days</span></div>
+
+  <div class="section-label">Test script</div>
+  <ol>
+    <li>In Lofty, add a new tag to Maya Patel: "Pre-approved $700k." Wait &lt; 15 min. Expect the tag to appear in Command.</li>
+    <li>In Command, add a tag "Evanston schools." Expect it to push to Lofty within one cycle.</li>
+    <li>Edit a contact in both places simultaneously (last-write-wins). Confirm the conflict log row exists in <code>sync_events</code>.</li>
+    <li>Disable Lofty API key. Expect <code>/admin/integrations/lofty</code> to flip to red with last-error text within 5 min.</li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<div class="phase">
+  <div class="num">Phase 7</div>
+  <h3>Money, KPI, Mentor</h3>
+  <div class="meta"><span><b>Scope</b> Dashboard numbers; coach mode</span><span><b>Duration</b> 2 days</span></div>
+
+  <div class="section-label">Test script</div>
+  <ol>
+    <li><code>/kpi</code> shows the seed baseline numbers + the week's delta.</li>
+    <li><code>/money</code> reconciles commission expected vs. received for the 6 YTD closings.</li>
+    <li><code>/mentor</code> — ask "what should I work on today?" Expect an answer grounded in today's tasks + stalled deals + last 30 days of completed items. Sources cited.</li>
+    <li>Cost ledger check: <code>/admin/usage</code> shows current month's $ spent per service, with a progress bar against budget.</li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<div class="phase">
+  <div class="num">Phase 8</div>
+  <h3>Polish, perf, production</h3>
+  <div class="meta"><span><b>Scope</b> Ship it</span><span><b>Duration</b> 2–3 days</span></div>
+
+  <div class="section-label">Test script</div>
+  <ol>
+    <li>Lighthouse on <code>/dashboard</code> mobile: Performance ≥ 85, Accessibility ≥ 95.</li>
+    <li>Hit <code>command.dana.app</code> (prod URL). TLS valid, cold-start &lt; 3s.</li>
+    <li>Sentry captures a deliberate thrown error and Dana gets the Slack <code>#system</code> ping.</li>
+    <li>Cost alerts fire at 80% — force by manually inflating a <code>cost_ledger</code> row.</li>
+    <li>Backup verification: restore yesterday's R2 logical dump into a scratch Supabase project. Row counts match.</li>
+    <li>Run the full Playwright e2e suite against production. All green.</li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<div class="phase">
+  <div class="num">Phase 9</div>
+  <h3>Lead sources &amp; pay-at-close attribution</h3>
+  <div class="meta"><span><b>Scope</b> PAC intake, fee %, deal-room deduction, cash-offer routing</span><span><b>Duration</b> 3–4 days</span></div>
+
+  <div class="section-label">Pre-req</div>
+  <ul class="checklist">
+    <li>7 seed sources inserted: CertiLeads, ClosingLeads, AtClosing, Movoto, Realty.com, LeadDeck, FastCashOffers (see Seed Data §16).</li>
+    <li>Intake credentials configured in <code>/admin/integrations</code> — email forwarders + at least one API poller + cash-offer webhook.</li>
+    <li>Feature flag <code>lead_sources_v1</code> on.</li>
+  </ul>
+
+  <div class="section-label">Test script</div>
+  <ol>
+    <li>Open <code>/lead-sources</code>. Expect all 7 sources listed with correct buyer %, seller %, cost model, attribution window.</li>
+    <li>Click <b>CertiLeads</b>. Expect detail view with intake config, live totals (leads YTD / closed / fees owed / GCI net), pipeline-fee forecast.</li>
+    <li>Forward a real CertiLeads lead email to the configured address. Within 2 min expect:
+      <ul>
+        <li>Contact created in <code>/crm</code> with tag <code>certileads</code>.</li>
+        <li><code>lead_attributions</code> row with <code>buyer_pct_locked = 30.00</code>, <code>seller_pct_locked = 25.00</code>, <code>expires_at = null</code> (per-deal).</li>
+        <li>Contact auto-enrolled in "New PAC lead" sequence.</li>
+      </ul>
+    </li>
+    <li>Change CertiLeads buyer % from 30 → 35 in <code>/lead-sources/certileads</code>. Expect the in-flight contact's <code>buyer_pct_locked</code> to <b>stay 30</b> (fee is locked at arrival). New leads from this point forward should lock at 35.</li>
+    <li>Open a deal for that contact (under contract). Expect the Deal Room sidebar to show <b>Source · Fee</b> block: CertiLeads · PAC · projected GCI · −$X referral · Dana net.</li>
+    <li>Mark the deal as closed. Expect:
+      <ul>
+        <li>A <code>referral_fees</code> row with <code>status = suggested</code> flipping to <code>confirmed</code>, <code>locked_at</code> set.</li>
+        <li>Close action is <b>gated</b> until the fee is confirmed or explicitly waived with a note.</li>
+      </ul>
+    </li>
+    <li>Override the fee: reduce it by $500 with reason "negotiated partial refund." Expect the audit row on <code>referral_fees</code> with <code>override_reason</code> populated.</li>
+    <li><b>Cash-offer routing:</b> submit a lead via the home-value microsite with "cash offer" intent. Expect:
+      <ul>
+        <li><code>cash_offer_routings</code> row created, <code>sla_due_at = now() + 24h</code>.</li>
+        <li>Request pushed to FastCashOffers (mock in dev).</li>
+        <li>If declined: contact auto-enrolls in "Traditional list" sequence.</li>
+      </ul>
+    </li>
+    <li>Analytics: <code>/lead-sources/analytics</code> shows correct ROI per source, $/lead net, 90-day fee forecast equals sum of <code>projected_referral_fee_cents</code> on in-pipeline deals.</li>
+  </ol>
+
+  <div class="callout warn">
+    <b>Gate:</b> A fee % change must <u>never</u> retroactively modify an already-locked LeadAttribution. Write an explicit regression test.
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>Non-functional gates (every phase)</h2>
+<ul class="checklist">
+  <li>No TypeScript <code>any</code> in touched files without a <code>// eslint-disable</code> comment explaining why.</li>
+  <li>All new API routes have a Zod schema on input.</li>
+  <li>Row-level security enabled on every new table, with policies that scope to <code>owner_id = auth.uid()</code>.</li>
+  <li>No LLM call bypasses <code>lib/ai/bill.ts</code>. Grep for direct <code>anthropic.messages.create</code> imports — none allowed outside that file.</li>
+  <li>Every external API call wrapped with retry + timeout + error logging to <code>integration_errors</code>.</li>
+  <li>Slack callbacks verify signature; payloads older than 5 min are rejected.</li>
+</ul>
+
+<hr>
+<p class="muted" style="font-size:12px;">
+When a test fails, fix it before writing new features. Accumulating "known-bad" breaks the value of these gates.
+</p>
+
+</main>
+</body>
+</html>

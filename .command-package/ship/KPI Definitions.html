@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Command · KPI Definitions</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Nunito+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --ink: #2a1f17;
+  --ink-2: #3d2d1e;
+  --muted: #6e665c;
+  --faint: #8a807a;
+  --line: #e8dfce;
+  --paper: #fefdf9;
+  --paper-2: #fdfbf5;
+  --paper-3: #f5f1ea;
+  --accent: #be7b56;
+  --accent-dark: #9a5f3f;
+  --sage: #7a9566;
+  --rose: #b06a73;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Nunito Sans', sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--paper-3);
+  padding: 50px 30px;
+}
+
+.doc { max-width: 900px; margin: 0 auto; background: var(--paper); padding: 60px 70px 80px; border-radius: 6px; box-shadow: 0 1px 3px rgba(42,31,23,0.03), 0 12px 40px rgba(42,31,23,0.06); }
+
+.serif { font-family: 'Cormorant Garamond', serif; letter-spacing: -0.3px; }
+.mono  { font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.5px; }
+
+h1 { font-family: 'Cormorant Garamond', serif; font-size: 58px; font-weight: 500; letter-spacing: -1.2px; line-height: 1; color: var(--ink); }
+h2 { font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 500; letter-spacing: -0.5px; margin-top: 56px; padding-top: 28px; border-top: 1px solid var(--line); color: var(--ink); }
+h3 { font-family: 'Cormorant Garamond', serif; font-size: 22px; font-weight: 500; margin-top: 26px; color: var(--ink-2); }
+.sub {
+  font-size: 16px; color: var(--muted); margin-top: 14px; max-width: 680px;
+}
+.meta {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+p { margin-top: 10px; color: var(--ink-2); }
+.crumb {
+  font-size: 11px;
+  color: var(--faint);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.kpi {
+  margin-top: 26px;
+  padding: 22px 26px;
+  background: var(--paper-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 2px;
+}
+.kpi .name {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.kpi .tag {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.kpi dl { display: grid; grid-template-columns: 140px 1fr; gap: 8px 16px; margin-top: 14px; }
+.kpi dt { font-size: 10px; color: var(--faint); letter-spacing: 2px; font-weight: 700; text-transform: uppercase; padding-top: 3px; }
+.kpi dd { font-size: 13px; color: var(--ink); line-height: 1.55; }
+.kpi .formula {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  background: var(--paper);
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 3px;
+  color: var(--ink);
+  margin-top: 4px;
+  word-wrap: break-word;
+}
+
+.bench {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 6px;
+  padding: 8px 12px;
+  background: rgba(122, 149, 102, 0.08);
+  border-radius: 3px;
+}
+
+.toc {
+  padding: 20px 24px;
+  background: var(--paper-2);
+  border-radius: 4px;
+  margin-top: 24px;
+  font-size: 13px;
+  line-height: 2;
+}
+.toc a { color: var(--ink); text-decoration: none; border-bottom: 1px dotted var(--line); }
+.toc a:hover { border-color: var(--accent); }
+.toc strong { font-weight: 600; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.callout {
+  margin-top: 18px;
+  padding: 16px 20px;
+  background: rgba(190, 123, 86, 0.06);
+  border-left: 3px solid var(--accent);
+  font-size: 13px;
+  color: var(--ink);
+}
+.callout .lbl {
+  font-size: 10px; letter-spacing: 2px; color: var(--accent); font-weight: 700; text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 18px;
+  font-size: 13px;
+}
+th {
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--paper-2);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--faint);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--line);
+}
+td {
+  padding: 10px 12px;
+  border-bottom: 1px dashed var(--line);
+  vertical-align: top;
+}
+td.mono { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted); }
+
+.pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.pill.sage { background: rgba(122, 149, 102, 0.15); color: #5d6a52; }
+.pill.accent { background: rgba(190, 123, 86, 0.15); color: var(--accent-dark); }
+.pill.rose { background: rgba(176, 106, 115, 0.12); color: #7a4048; }
+
+em { color: var(--accent-dark); font-style: italic; }
+b, strong { color: var(--ink); font-weight: 600; }
+
+.footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 11px; color: var(--faint); font-family: 'IBM Plex Mono', monospace; letter-spacing: 1.2px; }
+</style>
+</head>
+<body>
+
+<div class="doc">
+
+  <div class="meta">DOCUMENT · REFERENCE · INTERNAL</div>
+  <div class="crumb">↩ Handoff README · Reporting</div>
+  <h1>KPI Definitions</h1>
+  <p class="sub">
+    Twelve headline metrics Command tracks for every agent. Precise definitions, formulas, where the data comes from, how often it refreshes, and what a good number looks like — so the KPI Reporting screens are never ambiguous.
+  </p>
+
+  <div class="toc">
+    <strong>Contents</strong><br>
+    <a href="#acquisition">1. Acquisition</a> · leads, new contacts, cost per lead<br>
+    <a href="#engagement">2. Engagement</a> · contact velocity, response time, touch streak<br>
+    <a href="#pipeline">3. Pipeline</a> · active pipeline $, conversion rate, stage time<br>
+    <a href="#revenue">4. Revenue</a> · GCI, close rate, avg sale price, sale-to-list<br>
+    <a href="#content">5. Content</a> · publish cadence, reach/follower, post-to-lead<br>
+    <a href="#operations">6. Operations</a> · auto-time saved, AI cost per deal, agreement cycle
+  </div>
+
+  <!-- ============ 1. ACQUISITION ============ -->
+  <h2 id="acquisition">1 · Acquisition</h2>
+  <p class="sub">How new potential business enters the system.</p>
+
+  <div class="kpi">
+    <div class="tag">K01</div>
+    <div class="name">New Leads (per week)</div>
+    <dl>
+      <dt>Definition</dt><dd>Any contact that enters the system with a buying/selling intent signal — OH sign-in, form fill, direct referral, expired scrape, manual add with "lead" tag. Excludes past clients and existing SOI.</dd>
+      <dt>Formula</dt><dd><div class="formula">COUNT(Contact WHERE created_at in [week start, week end] AND source != 'past_client' AND intent_score >= 2)</div></dd>
+      <dt>Source</dt><dd>Contact table · source attribution from UTM / OH sign-in / manual tag</dd>
+      <dt>Refresh</dt><dd>Real-time on insert · daily rollup to dashboard</dd>
+      <dt>Target</dt><dd class="bench"><b>Benchmark:</b> Strong agent: 8–12/wk · Top agent: 20+/wk · Team lead: 35+/wk</dd>
+      <dt>Gotchas</dt><dd>A contact who fills two forms counts once. Double-counting is prevented by <span class="mono">match_on_phone_or_email</span>.</dd>
+    </dl>
+  </div>
+
+  <div class="kpi">
+    <div class="tag">K02</div>
+    <div class="name">Cost Per Lead (CPL)</div>
+    <dl>
+      <dt>Definition</dt><dd>Total money spent on marketing / prospecting divided by leads created in that window. Applied by channel when available.</dd>
+      <dt>Formula</dt><dd><div class="formula">SUM(spend.amount WHERE date in window) / COUNT(Lead WHERE created_at in window)</div></dd>
+      <dt>Source</dt><dd>Vistaprint orders · Blotato boosted posts · Google / Meta ads · EDDM postage · farm mailer · print jobs</dd>
+      <dt>Refresh</dt><dd>Monthly (invoicing-dependent) · nightly for owned spend</dd>
+      <dt>Target</dt><dd class="bench"><b>Benchmark:</b> $25–$75 is healthy for residential. Under $20 is either a unicorn channel or SOI mispricing.</dd>
+      <dt>Gotchas</dt><dd>Branding spend (signs, logos) does not count — only direct-lead spend.</dd>
+    </dl>
+  </div>
+
+  <div class="kpi">
+    <div class="tag">K03</div>
+    <div class="name">Lead Source Mix</div>
+    <dl>
+      <dt>Definition</dt><dd>Distribution of leads by <em>source</em> across a trailing window. Used to spot over-concentration and find declining channels early.</dd>
+      <dt>Formula</dt><dd><div class="formula">GROUP BY Lead.source · COUNT(*) / SUM(COUNT(*)) · trailing 90 days</div></dd>
+      <dt>Source</dt><dd>Lead.source enum: <span class="mono">open_house | referral | past_client | online_form | cold_prospect | expired | fsbo | iBuyer | other</span></dd>
+      <dt>Refresh</dt><dd>Daily · rolling 90-day window</dd>
+      <dt>Target</dt><dd class="bench"><b>Rule of thumb:</b> No single source should exceed 40%. Referrals + past clients combined should be &gt;30% for a mature practice.</dd>
+    </dl>
+  </div>
+
+  <!-- ============ 2. ENGAGEMENT ============ -->
+  <h2 id="engagement">2 · Engagement</h2>
+  <p class="sub">Quality of contact — are you showing up, fast enough, often enough?</p>
+
+  <div class="kpi">
+    <div class="tag">K04</div>
+    <div class="name">Median Response Time</div>
+    <dl>
+      <dt>Definition</dt><dd>Median elapsed time from <em>lead-received event</em> to <em>first outbound attempt</em> (call, SMS, or email) logged in Command or via Lofty mirror.</dd>
+      <dt>Formula</dt><dd><div class="formula">MEDIAN(Outreach.first_attempt_at - Lead.created_at) WHERE Lead.created_at in window</div></dd>
+      <dt>Source</dt><dd>Lofty mirror (<span class="mono">lofty_sync_events</span>) + Command-native outreach log + auto-logged drip replies</dd>
+      <dt>Refresh</dt><dd>Real-time · surfaces in the daily digest</dd>
+      <dt>Target</dt><dd class="bench"><b>Gold standard:</b> &lt;5 min for online-form leads · &lt;30 min for open-house sign-ins · &lt;4 hr for scraped expireds.</dd>
+      <dt>Gotchas</dt><dd>AI-drafted auto-responses count only if <em>sent</em>, not queued. "Lead received" timestamp comes from the earliest of (form-submit, first SMS, OH-signin-at).</dd>
+    </dl>
+  </div>
+
+  <div class="kpi">
+    <div class="tag">K05</div>
+    <div class="name">Contact Velocity</div>
+    <dl>
+      <dt>Definition</dt><dd>Average touches per contact per month across all channels (call, text, email, DM, postcard, gift, in-person).</dd>
+      <dt>Formula</dt><dd><div class="formula">SUM(touches in month) / COUNT(contacts with activity) — by segment (SOI / leads / past clients)</div></dd>
+      <dt>Source</dt><dd>Outreach + Lofty mirror + call log + email sends + drip auto-logs + SMS</dd>
+      <dt>Refresh</dt><dd>Daily</dd>
+      <dt>Target</dt><dd class="bench">SOI: 1.5+ / mo · Active buyers: 3+ / mo · Past clients: 0.8+ / mo · Cold leads: 1+ / mo until warm-or-drop.</dd>
+    </dl>
+  </div>
+
+  <div class="kpi">
+    <div class="tag">K06</div>
+    <div class="name">Touch Streak</div>
+    <dl>
+      <dt>Definition</dt><dd>Longest consecutive window (weeks) in which a contact received at least one meaningful touch. "Meaningful" excludes bulk newsletter opens.</dd>
+      <dt>Formula</dt><dd><div class="formula">MAX consecutive weeks WHERE contact had outreach event with channel in (call, text, dm, in_person, gift)</div></dd>
+      <dt>Source</dt><dd>Outreach with channel tags</dd>
+      <dt>Refresh</dt><dd>Daily</dd>
+      <dt>Target</dt><dd class="bench">For top-30 SOI: aim for a 12-week streak. Command flags "slipped streaks" on the Prospect screen.</dd>
+    </dl>
+  </div>
+
+  <!-- ============ 3. PIPELINE ============ -->
+  <h2 id="pipeline">3 · Pipeline</h2>
+  <p class="sub">The work in motion — value, conversion, and drag.</p>
+
+  <div class="kpi">
+    <div class="tag">K07</div>
+    <div class="name">Active Pipeline ($)</div>
+    <dl>
+      <dt>Definition</dt><dd>Sum of expected GCI across all in-flight deals, weighted by stage probability.</dd>
+      <dt>Formula</dt><dd><div class="formula">SUM(Deal.expected_gci × Deal.stage_probability) WHERE Deal.stage NOT IN (closed, lost)</div></dd>
+      <dt>Source</dt><dd>Deal table · stage_probability from the config table below</dd>
+      <dt>Stage probabilities</dt><dd>
+        <table>
+          <tr><th>Stage</th><th>Prob</th><th>Notes</th></tr>
+          <tr><td>Prospect</td><td class="mono">10%</td><td>lead scored &gt; 6</td></tr>
+          <tr><td>Appointment</td><td class="mono">25%</td><td>BBA / listing appt scheduled</td></tr>
+          <tr><td>Active</td><td class="mono">50%</td><td>BBA signed / listing active</td></tr>
+          <tr><td>Offer</td><td class="mono">70%</td><td>offer submitted or received</td></tr>
+          <tr><td>Under contract</td><td class="mono">92%</td><td>post-inspection · post-loan-contg if relevant</td></tr>
+          <tr><td>Closing week</td><td class="mono">98%</td><td>walkthrough scheduled</td></tr>
+        </table>
+      </dd>
+      <dt>Target</dt><dd class="bench">Pipeline $ should be ~3× your annual GCI goal divided by 12 at any given point (ratio of 3:1 monthly run).</dd>
+    </dl>
+  </div>
+
+  <div class="kpi">
+    <div class="tag">K08</div>
+    <div class="name">Stage Conversion Rate</div>
+    <dl>
+      <dt>Definition</dt><dd>Percentage of deals that move from one stage to the next within a trailing 90-day window. Measured per stage transition.</dd>
+      <dt>Formula</dt><dd><div class="formula">COUNT(Deal WHERE moved from stage A → B) / COUNT(Deal WHERE ever in stage A in window)</div></dd>
+      <dt>Source</dt><dd>Deal.stage_history (append-only log)</dd>
+      <dt>Refresh</dt><dd>Nightly</dd>
+      <dt>Target</dt><dd class="bench">Prospect → Appt: 8–15% · Appt → Active: 50–70% · Active → UC: 30–50% · UC → Close: 90%+</dd>
+    </dl>
+  </div>
+
+  <div class="kpi">
+    <div class="tag">K09</div>
+    <div class="name">Median Stage Time</div>
+    <dl>
+      <dt>Definition</dt><dd>Median days a deal spends in each stage. Identifies the drag points.</dd>
+      <dt>Formula</dt><dd><div class="formula">MEDIAN(exited_at - entered_at) GROUP BY stage WHERE exited_at IS NOT NULL</div></dd>
+      <dt>Source</dt><dd>Deal.stage_history</dd>
+      <dt>Refresh</dt><dd>Nightly</dd>
+      <dt>Target</dt><dd class="bench">Appt: 1–3 d · Active (listing): 14–45 d · Active (buyer): 14–90 d · UC: 21–45 d</dd>
+    </dl>
+  </div>
+
+  <!-- ============ 4. REVENUE ============ -->
+  <h2 id="revenue">4 · Revenue</h2>
+  <p class="sub">What actually closed — the money truth.</p>
+
+  <div class="kpi">
+    <div class="tag">K10</div>
+    <div class="name">GCI (Gross Commission Income)</div>
+    <dl>
+      <dt>Definition</dt><dd>Agent's total commission on closed deals, before cap / splits / fees. Tracked YTD, QTD, MTD.</dd>
+      <dt>Formula</dt><dd><div class="formula">SUM(Deal.sale_price × Deal.commission_pct) WHERE Deal.closed_at in window</div></dd>
+      <dt>Source</dt><dd>Deal.closed_at + Deal.sale_price (from final CD) + commission_pct from agreement</dd>
+      <dt>Refresh</dt><dd>At close (triggered by CD upload)</dd>
+      <dt>Target</dt><dd class="bench">Dana's 2025 plan: $1.1M GCI · tracked weekly against the Annual Goals tab.</dd>
+      <dt>Gotchas</dt><dd>Referral-outbound deals show net after referral fee. Team leads see both gross and team-net.</dd>
+    </dl>
+  </div>
+
+  <div class="kpi">
+    <div class="tag">K11</div>
+    <div class="name">Close Rate (List side)</div>
+    <dl>
+      <dt>Definition</dt><dd>Listings that close vs listings taken — measures both your pricing discipline and buyer-pool strength.</dd>
+      <dt>Formula</dt><dd><div class="formula">COUNT(Listing WHERE closed = true) / COUNT(Listing WHERE taken_at in window)</div></dd>
+      <dt>Source</dt><dd>Listing.status · trailing 12 months to smooth seasonality</dd>
+      <dt>Refresh</dt><dd>Nightly</dd>
+      <dt>Target</dt><dd class="bench">Strong: 75%+ · Great: 90%+ · If under 60%, Command flags pricing or marketing as the likely cause.</dd>
+    </dl>
+  </div>
+
+  <div class="kpi">
+    <div class="tag">K12</div>
+    <div class="name">Sale-to-List Ratio</div>
+    <dl>
+      <dt>Definition</dt><dd>Final sale price divided by <em>original</em> list price (not any reduced list). Measures pricing accuracy and negotiation.</dd>
+      <dt>Formula</dt><dd><div class="formula">Deal.sale_price / Listing.original_list_price · averaged over listings closed in window</div></dd>
+      <dt>Source</dt><dd>Listing.original_list_price (captured at list) + Deal.sale_price at close</dd>
+      <dt>Refresh</dt><dd>At close</dd>
+      <dt>Target</dt><dd class="bench">98–102% is healthy · &lt;95% indicates you're listing too high · &gt;105% usually means a hot market OR bidding war</dd>
+    </dl>
+  </div>
+
+  <!-- ============ 5. CONTENT ============ -->
+  <h2 id="content">5 · Content</h2>
+  <p class="sub">The marketing flywheel — output, reach, and conversion.</p>
+
+  <div class="grid-2">
+    <div class="kpi">
+      <div class="tag">K13</div>
+      <div class="name">Publish Cadence</div>
+      <dl>
+        <dt>Formula</dt><dd><div class="formula">COUNT(ContentPost WHERE published_at in week) GROUP BY platform</div></dd>
+        <dt>Target</dt><dd class="bench">4+ posts/week on primary platform · daily stories · 1 blog/mo</dd>
+      </dl>
+    </div>
+
+    <div class="kpi">
+      <div class="tag">K14</div>
+      <div class="name">Reach-per-Follower</div>
+      <dl>
+        <dt>Formula</dt><dd><div class="formula">SUM(post.reach) / follower_count_at_post_time</div></dd>
+        <dt>Target</dt><dd class="bench">&gt;20% means the algorithm likes you · &lt;10% means post consistency or hooks need work.</dd>
+      </dl>
+    </div>
+
+    <div class="kpi">
+      <div class="tag">K15</div>
+      <div class="name">Post-to-Lead Conversion</div>
+      <dl>
+        <dt>Formula</dt><dd><div class="formula">COUNT(Lead WHERE source = 'social' OR utm_campaign = ContentPost.id) / COUNT(ContentPost)</div></dd>
+        <dt>Target</dt><dd class="bench">Avg: 1.5% — above 3% is exceptional · attribution from bio links + UTM on all shortlinks.</dd>
+      </dl>
+    </div>
+
+    <div class="kpi">
+      <div class="tag">K16</div>
+      <div class="name">Engagement Rate</div>
+      <dl>
+        <dt>Formula</dt><dd><div class="formula">(likes + comments + shares + saves) / reach · per post</div></dd>
+        <dt>Target</dt><dd class="bench">IG: 3%+ · FB: 1.5%+ · TikTok: 5%+ · LinkedIn: 2%+</dd>
+      </dl>
+    </div>
+  </div>
+
+  <!-- ============ 6. OPERATIONS ============ -->
+  <h2 id="operations">6 · Operations</h2>
+  <p class="sub">What Command itself saves and costs you.</p>
+
+  <div class="kpi">
+    <div class="tag">K17</div>
+    <div class="name">Auto-time Saved (per week)</div>
+    <dl>
+      <dt>Definition</dt><dd>Estimated hours Command automated away, calibrated per action type.</dd>
+      <dt>Formula</dt><dd><div class="formula">SUM(action.estimated_manual_minutes) / 60 WHERE action.automated_by = 'command' AND completed_at in week</div></dd>
+      <dt>Source</dt><dd>
+        Estimated minutes table (manual baselines): draft email = 8m · draft social post = 12m · schedule print order = 9m · inspection response = 45m · OH setup = 120m · comp pull = 22m · draft CMA = 40m.
+      </dd>
+      <dt>Target</dt><dd class="bench">Dana's 2025 plan: 12 hr/week saved. Shown in the weekly digest and the Morning dashboard.</dd>
+    </dl>
+  </div>
+
+  <div class="kpi">
+    <div class="tag">K18</div>
+    <div class="name">AI Cost Per Deal</div>
+    <dl>
+      <dt>Definition</dt><dd>Total token spend (LLM + image + audio) per deal closed, for ROI accountability.</dd>
+      <dt>Formula</dt><dd><div class="formula">SUM(ai_cost WHERE deal_id = X) / 1 · then averaged across closed deals in window</div></dd>
+      <dt>Source</dt><dd><span class="mono">ai_usage</span> table keyed on deal_id when attributable, prorated otherwise.</dd>
+      <dt>Refresh</dt><dd>Nightly</dd>
+      <dt>Target</dt><dd class="bench">Healthy: &lt; $40 / deal · Generous: &lt; $100 / deal · (Dana's deal average: $28).</dd>
+    </dl>
+  </div>
+
+  <div class="kpi">
+    <div class="tag">K19</div>
+    <div class="name">Agreement Cycle Time</div>
+    <dl>
+      <dt>Definition</dt><dd>Days from draft to fully-signed for BBAs and listing agreements.</dd>
+      <dt>Formula</dt><dd><div class="formula">MEDIAN(Agreement.signed_at - Agreement.drafted_at)</div></dd>
+      <dt>Source</dt><dd>Agreement table · BoldSign timestamps</dd>
+      <dt>Target</dt><dd class="bench">BBA: &lt;24 hr · Listing: &lt;72 hr</dd>
+    </dl>
+  </div>
+
+  <!-- ============ PRINCIPLES ============ -->
+  <h2>Measurement principles</h2>
+  <p>Five rules we apply when wiring up any new KPI:</p>
+
+  <div class="callout">
+    <div class="lbl">Principle 1</div>
+    <b>Every metric must have a human unit.</b> Percentages for rates, dollars for money, minutes for time, counts for counts. No dimensionless "scores" on the main dashboards — those belong behind a "Methodology" click.
+  </div>
+
+  <div class="callout">
+    <div class="lbl">Principle 2</div>
+    <b>Trailing windows over point-in-time.</b> Single-week numbers are too noisy for a solo agent. Default window is <em>trailing 90 days</em> with a weekly snapshot; annual goals are the exception.
+  </div>
+
+  <div class="callout">
+    <div class="lbl">Principle 3</div>
+    <b>Show the benchmark next to the number.</b> A raw KPI without context is almost meaningless; Command shows benchmark ranges on every card.
+  </div>
+
+  <div class="callout">
+    <div class="lbl">Principle 4</div>
+    <b>Attribution is explicit, never clever.</b> If we can't confidently say a lead came from a source (UTM, form ID, OH sign-in), it's tagged <span class="mono">other</span> — we don't guess.
+  </div>
+
+  <div class="callout">
+    <div class="lbl">Principle 5</div>
+    <b>All historical data is immutable.</b> Stage history, touches, and closed deals are append-only. Corrections are entered as new events with a <span class="mono">correction=true</span> flag.
+  </div>
+
+  <h2>Which report shows what</h2>
+  <table>
+    <tr><th>Report</th><th>Primary KPIs</th><th>Audience</th></tr>
+    <tr><td><b>Morning dashboard</b></td><td>K01, K04, K07, K17</td><td>Dana · daily</td></tr>
+    <tr><td><b>Summary (KPI V1)</b></td><td>K10, K01, K07, K08, K13</td><td>Dana · weekly</td></tr>
+    <tr><td><b>Scorecard (KPI V2)</b></td><td>K01, K04, K08, K11, K13, K18</td><td>Dana · monthly</td></tr>
+    <tr><td><b>Funnel (KPI V3)</b></td><td>K01, K03, K08, K09, K15</td><td>Dana + ops · monthly</td></tr>
+    <tr><td><b>Annual Goals (KPI V4)</b></td><td>K10, K11, K12, K17</td><td>Dana · quarterly review</td></tr>
+    <tr><td><b>Admin · Usage & Costs</b></td><td>K18, K17, K19</td><td>Ops · monthly</td></tr>
+  </table>
+
+  <div class="footer">
+    KPI DEFINITIONS · V1 · COMMAND · LAST UPDATED APR 2025 · CONFIDENTIAL · INTERNAL USE<br>
+    Maintained by Product · Changes require a review pass from Reporting before shipping to the dashboard.
+  </div>
+
+</div>
+
+</body>
+</html>

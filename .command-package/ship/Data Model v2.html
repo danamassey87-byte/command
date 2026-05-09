@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Command · Data Model v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Nunito+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink:#3A2A1E; --ink-2:#5A4136; --faint:#B79782; --line:#C8C3B9;
+  --paper:#EFEDE8; --paper-2:#E3DED4; --card:#F6F4EE;
+  --sage:#8B9A7B; --warn:#c99a2e; --danger:#c0604a;
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font-family:'Nunito Sans', sans-serif; font-size:14px; line-height:1.6; }
+.page { max-width:1200px; margin:0 auto; padding:48px 40px 120px; }
+h1, h2, h3 { font-family:'Cormorant Garamond', serif; font-weight:500; margin:0; }
+h1 { font-size:52px; line-height:1.05; }
+h2 { font-size:32px; margin:48px 0 16px; padding-top:24px; border-top:1px solid var(--line); }
+h3 { font-size:20px; margin:28px 0 8px; }
+.kicker { font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+.lede { font-family:'Cormorant Garamond',serif; font-size:22px; font-style:italic; color:var(--ink-2); max-width:60ch; }
+p { color:var(--ink-2); max-width:70ch; }
+.mono { font-family:'IBM Plex Mono', monospace; }
+.muted { color:var(--faint); }
+
+.entity { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:18px 20px; margin:14px 0; }
+.entity h3 { margin:0 0 2px; }
+.entity .path { font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--faint); }
+.entity .desc { margin:6px 0 12px; font-size:13px; color:var(--ink-2); }
+table.fields { width:100%; border-collapse:collapse; font-size:12px; }
+table.fields th { text-align:left; padding:6px 10px; font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--faint); font-weight:600; border-bottom:1px solid var(--line); }
+table.fields td { padding:6px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+table.fields td.name { font-family:'IBM Plex Mono',monospace; font-weight:500; white-space:nowrap; }
+table.fields td.type { font-family:'IBM Plex Mono',monospace; color:var(--ink-2); font-size:11px; white-space:nowrap; }
+table.fields td.note { color:var(--ink-2); }
+.chip { display:inline-block; font-size:10px; padding:2px 7px; border:1px solid var(--line); border-radius:999px; background:#fff; color:var(--ink-2); margin-right:4px; }
+.chip.pk { border-color:var(--ink); color:var(--ink); font-weight:600; }
+.chip.fk { border-color:var(--faint); }
+.chip.sync { border-color:var(--sage); color:var(--sage); background:#EEF1E9; }
+.chip.system { border-color:var(--faint); background:#F3EBE3; color:var(--ink-2); }
+.rel-diagram { background:#fff; border:1px solid var(--line); padding:20px; font-family:'IBM Plex Mono', monospace; font-size:12px; line-height:1.9; white-space:pre; overflow-x:auto; }
+.section-intro { background:#F8F2EC; border:1px solid var(--faint); padding:14px 18px; border-radius:6px; margin:12px 0; font-size:13px; }
+.grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+</style>
+</head>
+<body>
+<main class="page">
+  <div class="kicker">Command · Data Model v2 · 21 Apr 2026</div>
+  <h1>Entities & relationships</h1>
+  <p class="lede">Every table, every field, and how the synced systems (Lofty · Transact · Blotato · Slack · Resend) merge cleanly into Command.</p>
+  <p style="background:#F8F2EC;border:1px solid var(--faint);padding:10px 14px;border-radius:6px;font-size:12px;max-width:70ch;"><b>v2 additions.</b> Relationships+ · Home-value microsite · Team &amp; permissions · SEO/AEO · Reviews &amp; referrals · Print &amp; delivery · Expired/FSBO · Post-close. Append-only — Phase 1 entities above are unchanged.</p>
+
+  <p>Postgres via Supabase. UUIDs everywhere. Soft-delete via <span class="mono">deleted_at</span>. All tables have <span class="mono">created_at</span>, <span class="mono">updated_at</span>, and <span class="mono">owner_id</span> (= Dana, for now a constant).</p>
+
+  <!-- ================================================= -->
+  <h2>Core CRM</h2>
+  <div class="section-intro">The heart of Command. A Contact is a person; a Deal is a transaction; Property ties them to real estate. Interactions log every touch across every channel.</div>
+
+  <div class="entity">
+    <h3>Contact <span class="chip pk">core</span></h3>
+    <div class="path">contacts</div>
+    <div class="desc">One row per person. Dana's entire sphere lives here — past clients, SOI, leads, OH attendees. Bidirectional sync with Lofty.</div>
+    <table class="fields">
+      <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+      <tr><td class="name">id</td><td class="type">uuid</td><td class="note"><span class="chip pk">PK</span></td></tr>
+      <tr><td class="name">first_name · last_name</td><td class="type">text</td><td class="note">required</td></tr>
+      <tr><td class="name">email</td><td class="type">text</td><td class="note">unique when present</td></tr>
+      <tr><td class="name">phone</td><td class="type">text</td><td class="note">E.164 normalized</td></tr>
+      <tr><td class="name">tier</td><td class="type">enum</td><td class="note">hot · warm · nurture · cold · past</td></tr>
+      <tr><td class="name">stage</td><td class="type">enum</td><td class="note">buyer-active · buyer-nurture · seller-consult · investor · past-client · soi</td></tr>
+      <tr><td class="name">source</td><td class="type">enum</td><td class="note">oh · referral · bio-link · expired · past · soi · other</td></tr>
+      <tr><td class="name">lofty_id</td><td class="type">text</td><td class="note"><span class="chip sync">synced</span> external ID for bidirectional merge</td></tr>
+      <tr><td class="name">budget_min · budget_max</td><td class="type">int</td><td class="note">buyers only</td></tr>
+      <tr><td class="name">looking_for</td><td class="type">jsonb</td><td class="note">beds, baths, area[], must-haves</td></tr>
+      <tr><td class="name">voice_notes</td><td class="type">text</td><td class="note">free-form; embedded for search</td></tr>
+      <tr><td class="name">timezone</td><td class="type">text</td><td class="note">for drip timing</td></tr>
+      <tr><td class="name">do_not_contact</td><td class="type">bool</td><td class="note">respected by every send path</td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>ContactTag <span class="chip fk">join</span></h3>
+    <div class="path">contact_tags</div>
+    <div class="desc">M:N between Contact and Tag. Tag taxonomy mapped to Lofty via <span class="mono">tag_map</span> settings.</div>
+    <table class="fields">
+      <tr><td class="name">contact_id · tag_id</td><td class="type">uuid · uuid</td><td class="note"><span class="chip pk">composite PK</span></td></tr>
+      <tr><td class="name">source</td><td class="type">enum</td><td class="note">command · lofty · imported</td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>Property <span class="chip pk">core</span></h3>
+    <div class="path">properties</div>
+    <div class="desc">A specific address. Mandatory link for Open Houses, Deals, Showings. Linked to Contacts as owner/interested/past-showed.</div>
+    <table class="fields">
+      <tr><td class="name">id</td><td class="type">uuid</td><td class="note"><span class="chip pk">PK</span></td></tr>
+      <tr><td class="name">address</td><td class="type">text</td><td class="note">full line</td></tr>
+      <tr><td class="name">city · state · zip · county</td><td class="type">text</td><td class="note"></td></tr>
+      <tr><td class="name">lat · lng</td><td class="type">numeric</td><td class="note">for weather + radius queries</td></tr>
+      <tr><td class="name">mls_id</td><td class="type">text</td><td class="note">nullable; <span class="chip warn">manual</span> until MLS API</td></tr>
+      <tr><td class="name">status</td><td class="type">enum</td><td class="note">active · pending · sold · expired · off-market · coming-soon</td></tr>
+      <tr><td class="name">list_price · sold_price</td><td class="type">int</td><td class="note"></td></tr>
+      <tr><td class="name">beds · baths · sqft · lot_size</td><td class="type">numeric</td><td class="note"></td></tr>
+      <tr><td class="name">role_for_dana</td><td class="type">enum</td><td class="note">my-listing · hosted · buyer-interest · comp-only · inspo</td></tr>
+      <tr><td class="name">photos</td><td class="type">jsonb[]</td><td class="note">r2 urls + AI score</td></tr>
+      <tr><td class="name">price_history</td><td class="type">jsonb[]</td><td class="note">date, price, source</td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>Deal <span class="chip pk">core</span></h3>
+    <div class="path">deals</div>
+    <div class="desc">An active transaction. Mirrors Transact file 1:1 after "under contract." Commission + checklist + timeline attach here.</div>
+    <table class="fields">
+      <tr><td class="name">id</td><td class="type">uuid</td><td class="note"><span class="chip pk">PK</span></td></tr>
+      <tr><td class="name">property_id</td><td class="type">uuid</td><td class="note"><span class="chip fk">FK → properties</span></td></tr>
+      <tr><td class="name">contact_id</td><td class="type">uuid</td><td class="note"><span class="chip fk">FK → contacts</span> (primary client)</td></tr>
+      <tr><td class="name">side</td><td class="type">enum</td><td class="note">buyer · seller · both</td></tr>
+      <tr><td class="name">stage</td><td class="type">enum</td><td class="note">nurture · consult · listing-agreement · active-list · offer-out · uc · inspection · appraisal · financing · final-walk · closed · fell-through</td></tr>
+      <tr><td class="name">transact_file_id</td><td class="type">text</td><td class="note"><span class="chip sync">synced</span> Transact source-of-truth</td></tr>
+      <tr><td class="name">slack_channel_id</td><td class="type">text</td><td class="note">auto-created <span class="mono">#buyer_…</span> or <span class="mono">#seller_…</span></td></tr>
+      <tr><td class="name">contract_price · commission_pct · commission_split</td><td class="type">numeric</td><td class="note"></td></tr>
+      <tr><td class="name">key_dates</td><td class="type">jsonb</td><td class="note">uc, inspection, appraisal, clear, close</td></tr>
+      <tr><td class="name">checklist_run_id</td><td class="type">uuid</td><td class="note"><span class="chip fk">FK → checklist_runs</span></td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>Interaction <span class="chip pk">core</span></h3>
+    <div class="path">interactions</div>
+    <div class="desc">Every touch, everywhere. Append-only. The timeline on a contact profile reads from here.</div>
+    <table class="fields">
+      <tr><td class="name">id · contact_id · property_id?</td><td class="type">uuid</td><td class="note"></td></tr>
+      <tr><td class="name">kind</td><td class="type">enum</td><td class="note">call · text · email-sent · email-open · email-click · showing · oh-signin · form-fill · note · slack-post · transact-milestone</td></tr>
+      <tr><td class="name">channel</td><td class="type">enum</td><td class="note">gmail · resend · imessage · lofty · command · slack · transact · bio-link · oh-kiosk</td></tr>
+      <tr><td class="name">body</td><td class="type">text</td><td class="note">free-form · embedded</td></tr>
+      <tr><td class="name">metadata</td><td class="type">jsonb</td><td class="note">channel-specific payload</td></tr>
+      <tr><td class="name">at</td><td class="type">timestamptz</td><td class="note">indexed desc</td></tr>
+    </table>
+  </div>
+
+  <!-- ================================================= -->
+  <h2>Lead sources &amp; attribution</h2>
+  <div class="section-intro">Every PAC (pay-at-close) and subscription lead source modeled as a first-class entity. Buyer/seller % tracked separately. Attribution window determines whether the fee applies to <em>this deal only</em>, all deals inside a window (1/2 yr), or lifetime. Fees always come off the agent split; cash-offer requests route through FastCashOffers first.</div>
+
+  <div class="grid2">
+    <div class="entity">
+      <h3>LeadSource</h3>
+      <div class="path">lead_sources</div>
+      <div class="desc">One row per source Dana pays or receives from. v1 seeds: CertiLeads, ClosingLeads, AtClosing, Movoto, Realty.com, LeadDeck, FastCashOffers.</div>
+      <table class="fields">
+        <tr><td class="name">id · slug · display_name</td><td class="type">uuid · text · text</td><td class="note">slug is URL-safe · "certileads"</td></tr>
+        <tr><td class="name">cost_model</td><td class="type">enum</td><td class="note">pay_at_close · monthly_subscription · free · cash_offer_routing</td></tr>
+        <tr><td class="name">monthly_fee_cents</td><td class="type">int?</td><td class="note">if cost_model = monthly_subscription · e.g. Realty.com = $2500</td></tr>
+        <tr><td class="name">buyer_pct</td><td class="type">numeric(5,2)?</td><td class="note">% of GCI owed on buyer-side close</td></tr>
+        <tr><td class="name">seller_pct</td><td class="type">numeric(5,2)?</td><td class="note">% of GCI owed on seller-side close</td></tr>
+        <tr><td class="name">attribution_window</td><td class="type">enum</td><td class="note">per_deal · one_year · two_years · lifetime · none</td></tr>
+        <tr><td class="name">who_pays</td><td class="type">enum</td><td class="note">agent · team · brokerage · split · default=agent</td></tr>
+        <tr><td class="name">intake</td><td class="type">jsonb</td><td class="note">{method: email_forward|api_poll|webhook|csv|manual, config}</td></tr>
+        <tr><td class="name">dashboard_url</td><td class="type">text?</td><td class="note">source's native console for manual lookup</td></tr>
+        <tr><td class="name">status · notes</td><td class="type">enum · text</td><td class="note">active · paused · archived</td></tr>
+        <tr><td class="name">created_at</td><td class="type">timestamptz</td><td class="note"></td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>LeadAttribution</h3>
+      <div class="path">lead_attributions</div>
+      <div class="desc">Link between a Contact and a LeadSource with the fee % locked at the moment of arrival. Survives contact re-engagement for the configured window.</div>
+      <table class="fields">
+        <tr><td class="name">id · contact_id · lead_source_id</td><td class="type">uuid</td><td class="note">one contact may have multiple (rare · audit trail)</td></tr>
+        <tr><td class="name">acquired_at · expires_at</td><td class="type">timestamptz</td><td class="note">expires_at computed from source.attribution_window; null = lifetime</td></tr>
+        <tr><td class="name">buyer_pct_locked · seller_pct_locked</td><td class="type">numeric(5,2)</td><td class="note">snapshot — source % can change later without affecting in-flight contacts</td></tr>
+        <tr><td class="name">is_primary</td><td class="type">bool</td><td class="note">which source wins for fee calc when multiple overlap · default=latest-still-valid</td></tr>
+        <tr><td class="name">source_lead_id</td><td class="type">text?</td><td class="note">vendor's own lead ID for reconciliation</td></tr>
+        <tr><td class="name">raw_payload</td><td class="type">jsonb</td><td class="note">original intake body for audit</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>ReferralFee</h3>
+      <div class="path">referral_fees</div>
+      <div class="desc">One row per fee owed on a closed deal. Auto-created from LeadAttribution when a deal moves to "under contract" (suggested) and locked on close (actual).</div>
+      <table class="fields">
+        <tr><td class="name">id · deal_id · lead_source_id · contact_id</td><td class="type">uuid</td><td class="note"></td></tr>
+        <tr><td class="name">side</td><td class="type">enum</td><td class="note">buyer · seller</td></tr>
+        <tr><td class="name">gci_cents · pct_applied · fee_cents</td><td class="type">int · numeric · int</td><td class="note">fee = gci × pct (rounded to cent)</td></tr>
+        <tr><td class="name">status</td><td class="type">enum</td><td class="note">suggested · confirmed · paid · waived · disputed</td></tr>
+        <tr><td class="name">override_reason</td><td class="type">text?</td><td class="note">if Dana manually changed pct or fee</td></tr>
+        <tr><td class="name">paid_at · paid_method · reference</td><td class="type">timestamptz · text · text</td><td class="note">check #, wire ref, etc.</td></tr>
+        <tr><td class="name">created_at · locked_at</td><td class="type">timestamptz</td><td class="note">locked on deal close · edits require audit note after</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>CashOfferRouting</h3>
+      <div class="path">cash_offer_routings</div>
+      <div class="desc">Tracks every lead pushed to FastCashOffers under the cash-offer-first rule. Links back to the standard pipeline if declined.</div>
+      <table class="fields">
+        <tr><td class="name">id · contact_id · property_address</td><td class="type">uuid · uuid · text</td><td class="note"></td></tr>
+        <tr><td class="name">submitted_at · sla_due_at</td><td class="type">timestamptz</td><td class="note">default SLA = 24h</td></tr>
+        <tr><td class="name">fco_offer_cents · fco_offer_at</td><td class="type">int? · timestamptz?</td><td class="note"></td></tr>
+        <tr><td class="name">outcome</td><td class="type">enum</td><td class="note">pending · accepted · declined · expired · withdrawn</td></tr>
+        <tr><td class="name">fallback_sequence_id</td><td class="type">uuid?</td><td class="note">enrolled on decline · "Traditional list" default</td></tr>
+        <tr><td class="name">referral_fee_id</td><td class="type">uuid?</td><td class="note">if accepted · links the FCO payout fee</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="section-intro" style="margin-top: 12px;"><strong>Added fields on existing entities:</strong> <code>contacts.primary_attribution_id</code> (FK to LeadAttribution · nullable · auto-updated), <code>deals.projected_referral_fee_cents</code> (computed · shown on pipeline cards), <code>deals.actual_referral_fee_cents</code> (sum of confirmed ReferralFees · gates close).</div>
+
+  <!-- ================================================= -->
+  <h2>Open Houses</h2>
+  <div class="section-intro">OH is first-class. Every OH ties to a Property and has its own checklist, kiosk URL, sign-ins, and weather forecast.</div>
+
+  <div class="entity">
+    <h3>OpenHouse <span class="chip pk">core</span></h3>
+    <div class="path">open_houses</div>
+    <table class="fields">
+      <tr><td class="name">id · property_id</td><td class="type">uuid</td><td class="note"></td></tr>
+      <tr><td class="name">role</td><td class="type">enum</td><td class="note">my-listing · hosted-for-agent</td></tr>
+      <tr><td class="name">starts_at · ends_at</td><td class="type">timestamptz</td><td class="note"></td></tr>
+      <tr><td class="name">hosting_agent_id</td><td class="type">uuid?</td><td class="note">null = Dana</td></tr>
+      <tr><td class="name">kiosk_url</td><td class="type">text</td><td class="note">auto-generated, QR on sign</td></tr>
+      <tr><td class="name">form_schema</td><td class="type">jsonb</td><td class="note">fields + required flags</td></tr>
+      <tr><td class="name">weather_forecast</td><td class="type">jsonb</td><td class="note"><span class="chip sync">OpenWeatherMap</span> refreshed hourly day-of</td></tr>
+      <tr><td class="name">prep_flags</td><td class="type">jsonb[]</td><td class="note">auto-generated from forecast</td></tr>
+      <tr><td class="name">status</td><td class="type">enum</td><td class="note">draft · scheduled · day-of · live · closed · archived</td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>OpenHouseSignin</h3>
+    <div class="path">oh_signins</div>
+    <table class="fields">
+      <tr><td class="name">id · open_house_id</td><td class="type">uuid</td><td class="note"></td></tr>
+      <tr><td class="name">contact_id?</td><td class="type">uuid</td><td class="note">nullable until matched; match on email/phone</td></tr>
+      <tr><td class="name">raw_form</td><td class="type">jsonb</td><td class="note">exact kiosk payload</td></tr>
+      <tr><td class="name">tier_at_signin</td><td class="type">enum</td><td class="note">hot/warm/nurture · AI-scored</td></tr>
+      <tr><td class="name">pushed_to_lofty_at</td><td class="type">timestamptz</td><td class="note"><span class="chip sync">triggers similar-homes email</span></td></tr>
+    </table>
+  </div>
+
+  <!-- ================================================= -->
+  <h2>Content & Studio</h2>
+
+  <div class="entity">
+    <h3>MediaAsset</h3>
+    <div class="path">media_assets</div>
+    <div class="desc">B-roll clips, property photos, graphics, voiceovers. Everything Studio composes from.</div>
+    <table class="fields">
+      <tr><td class="name">id · kind</td><td class="type">uuid · enum</td><td class="note">clip · photo · audio · graphic · voiceover</td></tr>
+      <tr><td class="name">r2_url · thumbnail_url</td><td class="type">text</td><td class="note">Cloudflare R2</td></tr>
+      <tr><td class="name">property_id?</td><td class="type">uuid</td><td class="note">link when shot at a listing</td></tr>
+      <tr><td class="name">duration · width · height</td><td class="type">numeric</td><td class="note">video/photo metadata</td></tr>
+      <tr><td class="name">tags · moods</td><td class="type">text[]</td><td class="note">AI-extracted + manual</td></tr>
+      <tr><td class="name">ai_score</td><td class="type">numeric</td><td class="note">0–1 quality score</td></tr>
+      <tr><td class="name">shot_at · location</td><td class="type">timestamp · point</td><td class="note">EXIF / manual</td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>ContentDraft</h3>
+    <div class="path">content_drafts</div>
+    <table class="fields">
+      <tr><td class="name">id · source_kind</td><td class="type">uuid · enum</td><td class="note">listing · inspo · place · event · voice-prompt</td></tr>
+      <tr><td class="name">source_id</td><td class="type">uuid</td><td class="note">polymorphic FK</td></tr>
+      <tr><td class="name">format</td><td class="type">enum</td><td class="note">reel · carousel · blog · email · landing · image-post</td></tr>
+      <tr><td class="name">platforms</td><td class="type">text[]</td><td class="note">ig · tt · fb · li · email · blog</td></tr>
+      <tr><td class="name">caption · hooks[]</td><td class="type">text · jsonb</td><td class="note">A/B variants</td></tr>
+      <tr><td class="name">assets_used</td><td class="type">uuid[]</td><td class="note">→ media_assets</td></tr>
+      <tr><td class="name">compliance_check</td><td class="type">jsonb</td><td class="note">pass/warn/block · cited rules</td></tr>
+      <tr><td class="name">status</td><td class="type">enum</td><td class="note">drafting · review · approved · rendering · exported · published · archived</td></tr>
+      <tr><td class="name">blotato_post_id</td><td class="type">text</td><td class="note"><span class="chip sync">→ Blotato queue</span></td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>ContentPerformance</h3>
+    <div class="path">content_performance</div>
+    <div class="desc">One row per (draft, platform). Updated by Blotato webhook + manual paste for TT/IG/FB.</div>
+    <table class="fields">
+      <tr><td class="name">content_draft_id · platform</td><td class="type">uuid · enum</td><td class="note"><span class="chip pk">composite PK</span></td></tr>
+      <tr><td class="name">views · likes · saves · shares · comments</td><td class="type">int</td><td class="note">updated daily</td></tr>
+      <tr><td class="name">leads_attributed</td><td class="type">int</td><td class="note">UTM + form-fill join</td></tr>
+      <tr><td class="name">measured_at</td><td class="type">timestamptz</td><td class="note"></td></tr>
+    </table>
+  </div>
+
+  <!-- ================================================= -->
+  <h2>Checklists & Library</h2>
+
+  <div class="entity">
+    <h3>ChecklistTemplate</h3>
+    <div class="path">checklist_templates</div>
+    <table class="fields">
+      <tr><td class="name">id · name · category</td><td class="type">uuid · text · enum</td><td class="note">oh · listing · buyer · expired · seller-consult · vendor · content · onboarding</td></tr>
+      <tr><td class="name">steps</td><td class="type">jsonb[]</td><td class="note">see ChecklistStep shape below</td></tr>
+      <tr><td class="name">version</td><td class="type">int</td><td class="note">bumps on edit; rollback supported</td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>ChecklistStep <span class="chip system">embedded</span></h3>
+    <div class="path">checklist_templates.steps[]</div>
+    <table class="fields">
+      <tr><td class="name">id · label · section · order</td><td class="type">uuid · text · text · int</td><td class="note"></td></tr>
+      <tr><td class="name">system</td><td class="type">enum</td><td class="note">command · transact · lofty · blotato · slack · resend · mls · capcut</td></tr>
+      <tr><td class="name">mirror_rule</td><td class="type">jsonb?</td><td class="note">how to read status from external system</td></tr>
+      <tr><td class="name">asset_ref</td><td class="type">text?</td><td class="note">template / script / PDF link</td></tr>
+      <tr><td class="name">deep_link</td><td class="type">text?</td><td class="note">for external systems</td></tr>
+      <tr><td class="name">offset_days</td><td class="type">int?</td><td class="note">-2 = 48h before; +7 = 7d after</td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>ChecklistRun</h3>
+    <div class="path">checklist_runs</div>
+    <table class="fields">
+      <tr><td class="name">id · template_id · parent_kind · parent_id</td><td class="type">uuid</td><td class="note">parent = OH, Deal, Property, etc.</td></tr>
+      <tr><td class="name">step_states</td><td class="type">jsonb</td><td class="note">{step_id: {done, done_at, source}}</td></tr>
+      <tr><td class="name">started_at · completed_at</td><td class="type">timestamptz</td><td class="note"></td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>Library items <span class="chip system">shared shape</span></h3>
+    <div class="path">ica_profiles · content_pillars · voice_profiles · email_templates · call_scripts · areas · neighborhood_guides · vendor_directory · tags · listing_presentations · buyer_guides</div>
+    <div class="desc">All library items share: <span class="mono">id</span>, <span class="mono">name</span>, <span class="mono">body</span> (jsonb), <span class="mono">version</span>, <span class="mono">archived</span>, <span class="mono">embedded_vec</span>, <span class="mono">created_at</span>, <span class="mono">updated_at</span>. Multiple instances allowed per kind.</div>
+  </div>
+
+  <!-- ================================================= -->
+  <h2>Synced systems</h2>
+  <div class="section-intro">Each external system has its own state table so Command can reason about sync health separately from the business entities.</div>
+
+  <div class="grid2">
+    <div class="entity">
+      <h3>LoftySync</h3>
+      <div class="path">lofty_sync_state</div>
+      <table class="fields">
+        <tr><td class="name">entity_kind · entity_id</td><td class="type">enum · uuid</td><td class="note"></td></tr>
+        <tr><td class="name">lofty_id</td><td class="type">text</td><td class="note"></td></tr>
+        <tr><td class="name">last_pulled · last_pushed</td><td class="type">timestamptz</td><td class="note"></td></tr>
+        <tr><td class="name">conflict</td><td class="type">jsonb?</td><td class="note">surfaced in conflict inbox</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>TransactFile</h3>
+      <div class="path">transact_files</div>
+      <table class="fields">
+        <tr><td class="name">id · external_id</td><td class="type">uuid · text</td><td class="note"></td></tr>
+        <tr><td class="name">deal_id</td><td class="type">uuid</td><td class="note"><span class="chip fk">FK</span></td></tr>
+        <tr><td class="name">milestones</td><td class="type">jsonb[]</td><td class="note">name, due, done, done_at</td></tr>
+        <tr><td class="name">documents</td><td class="type">jsonb[]</td><td class="note">signed, signers, url</td></tr>
+        <tr><td class="name">last_synced</td><td class="type">timestamptz</td><td class="note"></td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>SlackChannel</h3>
+      <div class="path">slack_channels</div>
+      <table class="fields">
+        <tr><td class="name">id · slack_channel_id · name · group</td><td class="type">uuid · text · text · enum</td><td class="note">sellers · buyers · leads-opps · general-shiz</td></tr>
+        <tr><td class="name">linked_kind · linked_id</td><td class="type">enum · uuid?</td><td class="note">contact · deal · oh · system</td></tr>
+        <tr><td class="name">auto_archive_at</td><td class="type">timestamptz?</td><td class="note">30d post-close</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>NotificationRule</h3>
+      <div class="path">notification_rules</div>
+      <table class="fields">
+        <tr><td class="name">source</td><td class="type">enum</td><td class="note">transact · studio · bio-link · oh-kiosk · compliance · cost-guard · sentry · kpi · lofty · weather</td></tr>
+        <tr><td class="name">event</td><td class="type">text</td><td class="note">"bba_signed" etc.</td></tr>
+        <tr><td class="name">destination</td><td class="type">text</td><td class="note">channel name or template (<span class="mono">#buyer_&#123;slug&#125;</span>)</td></tr>
+        <tr><td class="name">payload_template</td><td class="type">jsonb</td><td class="note">Slack Block Kit</td></tr>
+        <tr><td class="name">interactive_actions</td><td class="type">jsonb[]</td><td class="note">button → Command callback</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>BlotatoPost</h3>
+      <div class="path">blotato_posts</div>
+      <table class="fields">
+        <tr><td class="name">id · external_id · content_draft_id</td><td class="type">uuid · text · uuid</td><td class="note"></td></tr>
+        <tr><td class="name">scheduled_for · platforms</td><td class="type">timestamptz · text[]</td><td class="note"></td></tr>
+        <tr><td class="name">status</td><td class="type">enum</td><td class="note">queued · scheduled · posted · failed</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>WeatherForecast</h3>
+      <div class="path">weather_forecasts</div>
+      <table class="fields">
+        <tr><td class="name">id · property_id · at</td><td class="type">uuid · uuid · timestamptz</td><td class="note">cache by (property, date)</td></tr>
+        <tr><td class="name">forecast</td><td class="type">jsonb</td><td class="note">OpenWeatherMap payload + hourly</td></tr>
+        <tr><td class="name">prep_flags</td><td class="type">jsonb[]</td><td class="note">AI-generated guidance</td></tr>
+      </table>
+    </div>
+
+  </div>
+
+  <!-- ================================================= -->
+  <h2>Admin / observability</h2>
+
+  <div class="grid2">
+    <div class="entity">
+      <h3>CostLedger</h3>
+      <div class="path">cost_ledger</div>
+      <table class="fields">
+        <tr><td class="name">service · month · amount</td><td class="type">text · date · numeric</td><td class="note"></td></tr>
+        <tr><td class="name">source</td><td class="type">enum</td><td class="note">api · manual</td></tr>
+        <tr><td class="name">budget_cap</td><td class="type">numeric</td><td class="note">triggers #system alert at 80/95%</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>SystemEvent</h3>
+      <div class="path">system_events</div>
+      <table class="fields">
+        <tr><td class="name">id · kind · severity</td><td class="type">uuid · text · enum</td><td class="note">info · warn · err</td></tr>
+        <tr><td class="name">source</td><td class="type">text</td><td class="note">integration name</td></tr>
+        <tr><td class="name">body · metadata</td><td class="type">text · jsonb</td><td class="note"></td></tr>
+        <tr><td class="name">auto_recovered · resolved_at</td><td class="type">bool · timestamptz</td><td class="note"></td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>BackgroundJob</h3>
+      <div class="path">background_jobs</div>
+      <table class="fields">
+        <tr><td class="name">id · name · schedule</td><td class="type">uuid · text · cron</td><td class="note"></td></tr>
+        <tr><td class="name">last_run · next_run · status</td><td class="type">timestamptz · timestamptz · enum</td><td class="note">ok · warn · err · syncing</td></tr>
+        <tr><td class="name">result</td><td class="type">jsonb</td><td class="note">summary · counts · errors</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>ComplianceCheck</h3>
+      <div class="path">compliance_checks</div>
+      <table class="fields">
+        <tr><td class="name">id · target_kind · target_id</td><td class="type">uuid · text · uuid</td><td class="note">content_draft, email, listing-description…</td></tr>
+        <tr><td class="name">verdict</td><td class="type">enum</td><td class="note">pass · warn · block</td></tr>
+        <tr><td class="name">rules_cited</td><td class="type">jsonb[]</td><td class="note">source, chunk, severity</td></tr>
+        <tr><td class="name">override_reason</td><td class="type">text?</td><td class="note">audit trail for broker</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ================================================= -->
+  <!-- v2 · Relationships+ -->
+  <h2>Relationships+ · social, family, life events</h2>
+  <div class="section-intro">Social profile tracking across 9 platforms · spouse/kids/pets as linked contacts · sphere-wide life-event feed feeding the outreach queue.</div>
+
+  <div class="entity">
+    <h3>SocialProfile</h3>
+    <div class="path">social_profiles</div>
+    <div class="desc">One row per (contact, platform). 9 platforms: instagram · facebook · tiktok · linkedin · x · youtube · threads · pinterest · nextdoor. Handle + follow state + verification.</div>
+    <table class="fields">
+      <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+      <tr><td class="name">id · contact_id</td><td class="type">uuid</td><td class="note"><span class="chip pk">PK</span> · <span class="chip fk">FK → contacts</span></td></tr>
+      <tr><td class="name">platform</td><td class="type">enum</td><td class="note">ig · fb · tt · li · x · yt · threads · pin · nd</td></tr>
+      <tr><td class="name">handle · url</td><td class="type">text</td><td class="note">normalized</td></tr>
+      <tr><td class="name">following · follower</td><td class="type">bool</td><td class="note">does Dana follow / do they follow Dana</td></tr>
+      <tr><td class="name">friend</td><td class="type">bool</td><td class="note">mutual where applicable</td></tr>
+      <tr><td class="name">verified</td><td class="type">bool</td><td class="note">match confidence ≥ 0.9</td></tr>
+      <tr><td class="name">match_source</td><td class="type">enum</td><td class="note">ai-suggested · paste-url · manual · api</td></tr>
+      <tr><td class="name">last_activity_at</td><td class="type">timestamptz</td><td class="note">most recent observed post</td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>FamilyLink</h3>
+    <div class="path">family_links</div>
+    <div class="desc">Directed M:N between contacts. Spouse, kid, parent, sibling, pet, co-buyer. Kids + pets may be stub contacts w/ no email/phone.</div>
+    <table class="fields">
+      <tr><td class="name">id · from_contact_id · to_contact_id</td><td class="type">uuid</td><td class="note"></td></tr>
+      <tr><td class="name">kind</td><td class="type">enum</td><td class="note">spouse · partner · kid · parent · sibling · pet · co-buyer · extended</td></tr>
+      <tr><td class="name">since</td><td class="type">date?</td><td class="note">e.g. wedding date; powers anniversary alerts</td></tr>
+      <tr><td class="name">details</td><td class="type">jsonb</td><td class="note">kid_dob, pet_breed, etc.</td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>LifeEvent</h3>
+    <div class="path">life_events</div>
+    <div class="desc">90-day rolling feed of birthdays, anniversaries, closing dates, kids' milestones, job changes. Generates outreach suggestions.</div>
+    <table class="fields">
+      <tr><td class="name">id · contact_id</td><td class="type">uuid</td><td class="note"></td></tr>
+      <tr><td class="name">kind</td><td class="type">enum</td><td class="note">birthday · anniversary · closing-anniv · kid-milestone · job-change · baby · move · other</td></tr>
+      <tr><td class="name">occurs_on</td><td class="type">date</td><td class="note">indexed · recurring flag</td></tr>
+      <tr><td class="name">source</td><td class="type">enum</td><td class="note">contact-field · social-signal · transact · manual</td></tr>
+      <tr><td class="name">suggested_touch</td><td class="type">jsonb?</td><td class="note">AI-drafted message · cadence rule</td></tr>
+    </table>
+  </div>
+
+  <!-- v2 · Home-value microsite -->
+  <h2>Home-value microsite</h2>
+  <div class="section-intro">Public-facing AVM landing · 4-source blend with agent overrides · 14-touch drip · seller-lead dashboard.</div>
+
+  <div class="entity">
+    <h3>Valuation</h3>
+    <div class="path">valuations</div>
+    <div class="desc">One per public submission. Blends 4 AVMs (Zillow, Redfin, Realtor, Attom) with Dana's human-adjust layer.</div>
+    <table class="fields">
+      <tr><td class="name">id · property_id</td><td class="type">uuid</td><td class="note">property may be created on-the-fly</td></tr>
+      <tr><td class="name">seller_lead_id</td><td class="type">uuid?</td><td class="note"><span class="chip fk">FK → seller_leads</span></td></tr>
+      <tr><td class="name">avm_zillow · avm_redfin · avm_realtor · avm_attom</td><td class="type">int</td><td class="note">raw provider values</td></tr>
+      <tr><td class="name">blend_midpoint · blend_low · blend_high</td><td class="type">int</td><td class="note">computed range after adjust</td></tr>
+      <tr><td class="name">human_adjusts</td><td class="type">jsonb[]</td><td class="note">[{factor, delta, note}] — kitchen, lot, schools, etc.</td></tr>
+      <tr><td class="name">comps_used</td><td class="type">uuid[]</td><td class="note">→ properties.id</td></tr>
+      <tr><td class="name">published_at</td><td class="type">timestamptz?</td><td class="note">null = draft</td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>SellerLead</h3>
+    <div class="path">seller_leads</div>
+    <div class="desc">A prospect who filled the public form. May or may not match an existing contact.</div>
+    <table class="fields">
+      <tr><td class="name">id · contact_id?</td><td class="type">uuid</td><td class="note">null until matched</td></tr>
+      <tr><td class="name">property_id</td><td class="type">uuid</td><td class="note">their home</td></tr>
+      <tr><td class="name">timeframe</td><td class="type">enum</td><td class="note">now · 3mo · 6mo · 12mo · just-curious</td></tr>
+      <tr><td class="name">readiness_score</td><td class="type">numeric</td><td class="note">0–100 · AI-scored from signals</td></tr>
+      <tr><td class="name">signal_timeline</td><td class="type">jsonb[]</td><td class="note">opens · re-runs · widget revisits · agent messages</td></tr>
+      <tr><td class="name">drip_run_id</td><td class="type">uuid?</td><td class="note"><span class="chip fk">FK → microsite_drip_runs</span></td></tr>
+      <tr><td class="name">status</td><td class="type">enum</td><td class="note">new · nurturing · hot · converted-to-deal · cold · unsubscribed</td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>MicrositeDrip · MicrositeDripStep · MicrositeDripRun</h3>
+    <div class="path">microsite_drips · drip_steps · drip_runs</div>
+    <div class="desc">14-touch sequence · 3 branches by timeframe · auto-pause rules. Drip defines the plan; runs track per-lead progress.</div>
+    <table class="fields">
+      <tr><td class="name">drip.id · name · branch</td><td class="type">uuid · text · enum</td><td class="note">now · 3–6mo · curious</td></tr>
+      <tr><td class="name">step.drip_id · order · channel</td><td class="type">uuid · int · enum</td><td class="note">email · sms · postcard · call-task</td></tr>
+      <tr><td class="name">step.offset_days · template_ref</td><td class="type">int · text</td><td class="note">-2 = 48h before, relative to enrollment</td></tr>
+      <tr><td class="name">step.pause_if</td><td class="type">jsonb?</td><td class="note">rule: replied · unsubscribed · deal-opened</td></tr>
+      <tr><td class="name">run.seller_lead_id · drip_id · enrolled_at</td><td class="type">uuid · uuid · timestamptz</td><td class="note"></td></tr>
+      <tr><td class="name">run.step_states</td><td class="type">jsonb</td><td class="note">{step_id: {sent_at, opened, paused_reason}}</td></tr>
+    </table>
+  </div>
+
+  <!-- v2 · Team & permissions -->
+  <h2>Team &amp; permissions</h2>
+  <div class="section-intro">6 pre-built roles · 28 granular permissions · per-deal scope overrides · time-boxed access · 7-rule lead routing · co-listing with GCI waterfall.</div>
+
+  <div class="grid2">
+    <div class="entity">
+      <h3>TeamMember</h3>
+      <div class="path">team_members</div>
+      <table class="fields">
+        <tr><td class="name">id · user_id · role_id</td><td class="type">uuid</td><td class="note"></td></tr>
+        <tr><td class="name">status</td><td class="type">enum</td><td class="note">invited · active · paused · off-boarded</td></tr>
+        <tr><td class="name">seat_tier</td><td class="type">enum</td><td class="note">full · tc · showing · va · isa</td></tr>
+        <tr><td class="name">capacity_score</td><td class="type">numeric</td><td class="note">load heatmap input</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>Role</h3>
+      <div class="path">roles</div>
+      <table class="fields">
+        <tr><td class="name">id · name · template</td><td class="type">uuid · text · enum</td><td class="note">agent · tc · va · isa · showing-only · custom</td></tr>
+        <tr><td class="name">permission_ids</td><td class="type">uuid[]</td><td class="note">→ permissions</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>Permission</h3>
+      <div class="path">permissions</div>
+      <table class="fields">
+        <tr><td class="name">id · key · group</td><td class="type">uuid · text · enum</td><td class="note">crm · deals · content · money · team · admin</td></tr>
+        <tr><td class="name">scope</td><td class="type">enum</td><td class="note">read · write · admin</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>ScopeOverride</h3>
+      <div class="path">scope_overrides</div>
+      <div class="desc">Per-deal access grants that override role defaults. Time-boxed.</div>
+      <table class="fields">
+        <tr><td class="name">id · team_member_id · target_kind · target_id</td><td class="type">uuid</td><td class="note">deal · contact · oh</td></tr>
+        <tr><td class="name">permission_key · grant_or_revoke</td><td class="type">text · enum</td><td class="note"></td></tr>
+        <tr><td class="name">expires_at</td><td class="type">timestamptz?</td><td class="note"></td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>RoutingRule</h3>
+      <div class="path">routing_rules</div>
+      <div class="desc">7 rules · evaluated in order · round-robin counter maintained per rule.</div>
+      <table class="fields">
+        <tr><td class="name">id · name · order</td><td class="type">uuid · text · int</td><td class="note"></td></tr>
+        <tr><td class="name">criteria</td><td class="type">jsonb</td><td class="note">source, tier, area, price band, etc.</td></tr>
+        <tr><td class="name">assignee_strategy</td><td class="type">enum</td><td class="note">round-robin · specific · by-capacity · by-territory</td></tr>
+        <tr><td class="name">sla_minutes · tripwire</td><td class="type">int · bool</td><td class="note">escalates on miss</td></tr>
+        <tr><td class="name">rr_cursor</td><td class="type">uuid?</td><td class="note">last-assigned member</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>CoListing · GCISplit</h3>
+      <div class="path">co_listings · gci_splits</div>
+      <div class="desc">Up to 5 participants per deal. Waterfall computes from role + percentage + referral fees.</div>
+      <table class="fields">
+        <tr><td class="name">co.id · deal_id</td><td class="type">uuid</td><td class="note"></td></tr>
+        <tr><td class="name">co.participants</td><td class="type">jsonb[]</td><td class="note">{team_member_id, role, scope}</td></tr>
+        <tr><td class="name">split.co_listing_id · recipient</td><td class="type">uuid · text</td><td class="note">member_id or "referral:{brokerage}"</td></tr>
+        <tr><td class="name">split.pct · order · note</td><td class="type">numeric · int · text</td><td class="note">waterfall order</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="entity">
+    <h3>DelegationItem</h3>
+    <div class="path">delegation_items</div>
+    <div class="desc">Items waiting on Dana (or the team lead). 7 types · auto-approve rules · time-saved metric for analytics.</div>
+    <table class="fields">
+      <tr><td class="name">id · kind · target_kind · target_id</td><td class="type">uuid · enum · enum · uuid</td><td class="note">draft-approve · routing-override · price-change · send-auth · vendor-hire · refund · compliance-override</td></tr>
+      <tr><td class="name">assigned_to · requested_by</td><td class="type">uuid · uuid</td><td class="note">team_member_id</td></tr>
+      <tr><td class="name">status · decided_at</td><td class="type">enum · timestamptz</td><td class="note">pending · approved · rejected · auto</td></tr>
+      <tr><td class="name">auto_rule_id</td><td class="type">uuid?</td><td class="note">→ auto_approve_rules</td></tr>
+      <tr><td class="name">time_saved_seconds</td><td class="type">int</td><td class="note">delta vs manual baseline</td></tr>
+    </table>
+  </div>
+
+  <div class="entity">
+    <h3>AuditEvent</h3>
+    <div class="path">audit_events</div>
+    <div class="desc">Every mutation. 90-day retention. Indexed for fast replay. SOC2-ready.</div>
+    <table class="fields">
+      <tr><td class="name">id · actor_id · actor_kind</td><td class="type">uuid · uuid · enum</td><td class="note">user · system · integration</td></tr>
+      <tr><td class="name">target_kind · target_id</td><td class="type">text · uuid</td><td class="note"></td></tr>
+      <tr><td class="name">action · diff</td><td class="type">text · jsonb</td><td class="note">before/after field map</td></tr>
+      <tr><td class="name">ip · user_agent · at</td><td class="type">inet · text · timestamptz</td><td class="note"></td></tr>
+      <tr><td class="name">anomaly_score</td><td class="type">numeric?</td><td class="note">flags for review</td></tr>
+    </table>
+  </div>
+
+  <!-- v2 · SEO / AEO -->
+  <h2>SEO &amp; AEO</h2>
+  <div class="section-intro">Rank tracking · AI citation share-of-voice across 4 LLMs · hub-and-spoke topical authority · GMB composer · JSON-LD coverage matrix.</div>
+
+  <div class="grid2">
+    <div class="entity">
+      <h3>SeoKeyword · RankingSnapshot</h3>
+      <div class="path">seo_keywords · ranking_snapshots</div>
+      <table class="fields">
+        <tr><td class="name">kw.id · phrase · intent · hub_id?</td><td class="type">uuid · text · enum · uuid</td><td class="note">informational · transactional · local</td></tr>
+        <tr><td class="name">kw.volume · difficulty</td><td class="type">int · int</td><td class="note"></td></tr>
+        <tr><td class="name">snap.keyword_id · at · rank</td><td class="type">uuid · timestamptz · int</td><td class="note">null = not in top-100</td></tr>
+        <tr><td class="name">snap.url · serp_features</td><td class="type">text · text[]</td><td class="note">featured-snippet, people-also-ask, etc.</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>AICitation</h3>
+      <div class="path">ai_citations</div>
+      <div class="desc">40 tracked queries × 4 AIs (ChatGPT, Claude, Perplexity, Gemini). Polled weekly.</div>
+      <table class="fields">
+        <tr><td class="name">id · query · ai</td><td class="type">uuid · text · enum</td><td class="note">chatgpt · claude · perplexity · gemini</td></tr>
+        <tr><td class="name">cited · citation_url · position</td><td class="type">bool · text · int</td><td class="note"></td></tr>
+        <tr><td class="name">sample_text</td><td class="type">text</td><td class="note">surrounding context for review</td></tr>
+        <tr><td class="name">measured_at</td><td class="type">timestamptz</td><td class="note"></td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>HubPage · SpokePage</h3>
+      <div class="path">hub_pages · spoke_pages</div>
+      <div class="desc">3 hubs · 28 spokes. Topical authority cluster visualized on the hub/spoke map.</div>
+      <table class="fields">
+        <tr><td class="name">hub.id · slug · title · theme</td><td class="type">uuid · text · text · text</td><td class="note"></td></tr>
+        <tr><td class="name">spoke.id · hub_id · slug · title</td><td class="type">uuid · uuid · text · text</td><td class="note"></td></tr>
+        <tr><td class="name">spoke.content_draft_id</td><td class="type">uuid?</td><td class="note">links to blog content</td></tr>
+        <tr><td class="name">spoke.internal_links_out · in</td><td class="type">int · int</td><td class="note">topic-cluster health</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>GmbPost</h3>
+      <div class="path">gmb_posts</div>
+      <table class="fields">
+        <tr><td class="name">id · kind</td><td class="type">uuid · enum</td><td class="note">post · event · offer · product</td></tr>
+        <tr><td class="name">content_draft_id</td><td class="type">uuid?</td><td class="note"></td></tr>
+        <tr><td class="name">google_post_id · scheduled_for · posted_at</td><td class="type">text · timestamptz · timestamptz</td><td class="note"></td></tr>
+        <tr><td class="name">performance_30d</td><td class="type">jsonb</td><td class="note">views, clicks, calls</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>SchemaFragment</h3>
+      <div class="path">schema_fragments</div>
+      <div class="desc">JSON-LD blocks · coverage matrix · auto-add missing.</div>
+      <table class="fields">
+        <tr><td class="name">id · target_url · type</td><td class="type">uuid · text · text</td><td class="note">RealEstateListing · Review · FAQPage · Person · etc.</td></tr>
+        <tr><td class="name">json_ld</td><td class="type">jsonb</td><td class="note"></td></tr>
+        <tr><td class="name">validation</td><td class="type">jsonb</td><td class="note">errors, warnings from validator</td></tr>
+        <tr><td class="name">auto_added</td><td class="type">bool</td><td class="note"></td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>SeoAudit</h3>
+      <div class="path">seo_audits</div>
+      <div class="desc">Weekly SEO/AEO visibility audit. 12 issues ranked by impact/effort. Auto-fixes 5 safe ones.</div>
+      <table class="fields">
+        <tr><td class="name">id · ran_at · issue_count</td><td class="type">uuid · timestamptz · int</td><td class="note"></td></tr>
+        <tr><td class="name">issues</td><td class="type">jsonb[]</td><td class="note">{kind, severity, impact, effort, auto_fixable, assigned_to}</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- v2 · Reviews & referrals -->
+  <h2>Reviews &amp; referrals</h2>
+  <div class="section-intro">Automated review requests post-close · multi-platform ingest · referral attribution through the sphere.</div>
+
+  <div class="grid2">
+    <div class="entity">
+      <h3>ReviewRequest</h3>
+      <div class="path">review_requests</div>
+      <table class="fields">
+        <tr><td class="name">id · contact_id · deal_id?</td><td class="type">uuid</td><td class="note"></td></tr>
+        <tr><td class="name">platforms_asked</td><td class="type">text[]</td><td class="note">google · zillow · realtor · facebook</td></tr>
+        <tr><td class="name">sent_at · responded_at</td><td class="type">timestamptz</td><td class="note"></td></tr>
+        <tr><td class="name">status</td><td class="type">enum</td><td class="note">queued · sent · completed · declined · bounced</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>Review</h3>
+      <div class="path">reviews</div>
+      <table class="fields">
+        <tr><td class="name">id · contact_id · platform</td><td class="type">uuid · uuid · enum</td><td class="note"></td></tr>
+        <tr><td class="name">external_id · url · rating · body</td><td class="type">text · text · int · text</td><td class="note"></td></tr>
+        <tr><td class="name">posted_at · verified_at</td><td class="type">timestamptz</td><td class="note"></td></tr>
+        <tr><td class="name">sentiment_score</td><td class="type">numeric</td><td class="note">-1 to 1</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>Referral</h3>
+      <div class="path">referrals</div>
+      <div class="desc">Tracked sphere-attribution. A referral chain links the referrer to the deal for GCI and thank-yous.</div>
+      <table class="fields">
+        <tr><td class="name">id · referrer_contact_id · referred_contact_id</td><td class="type">uuid</td><td class="note"></td></tr>
+        <tr><td class="name">deal_id?</td><td class="type">uuid</td><td class="note">nullable until conversion</td></tr>
+        <tr><td class="name">source</td><td class="type">enum</td><td class="note">asked · spontaneous · bio-link · review-thread</td></tr>
+        <tr><td class="name">status · attributed_gci</td><td class="type">enum · numeric</td><td class="note">pending · confirmed · rejected</td></tr>
+        <tr><td class="name">thank_you_sent_at</td><td class="type">timestamptz?</td><td class="note"></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- v2 · Print & delivery -->
+  <h2>Print &amp; delivery</h2>
+  <div class="section-intro">Postcards, handwritten notes, pop-bys. Provider-agnostic — Thanks.io / Handwrytten / Sendoso behind one interface.</div>
+
+  <div class="grid2">
+    <div class="entity">
+      <h3>PrintOrder</h3>
+      <div class="path">print_orders</div>
+      <table class="fields">
+        <tr><td class="name">id · kind · provider</td><td class="type">uuid · enum · enum</td><td class="note">postcard · letter · handwritten-note · popby-tag</td></tr>
+        <tr><td class="name">template_ref · merge_data</td><td class="type">text · jsonb</td><td class="note"></td></tr>
+        <tr><td class="name">recipient_contact_ids</td><td class="type">uuid[]</td><td class="note">batch → DeliveryBatch rows</td></tr>
+        <tr><td class="name">cost_cents · provider_order_id</td><td class="type">int · text</td><td class="note"></td></tr>
+        <tr><td class="name">status</td><td class="type">enum</td><td class="note">draft · submitted · printing · mailed · delivered · failed</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>DeliveryBatch</h3>
+      <div class="path">delivery_batches</div>
+      <div class="desc">Per-recipient delivery tracking. Address validation errors surface here.</div>
+      <table class="fields">
+        <tr><td class="name">id · print_order_id · contact_id</td><td class="type">uuid</td><td class="note"></td></tr>
+        <tr><td class="name">address_validated · validation_errors</td><td class="type">bool · jsonb</td><td class="note"></td></tr>
+        <tr><td class="name">tracking_id · mailed_at · delivered_at</td><td class="type">text · timestamptz · timestamptz</td><td class="note"></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- v2 · Expired / FSBO -->
+  <h2>Expired + FSBO</h2>
+  <div class="section-intro">Prospecting pipeline · 14-day cadence · live call coach · AI-personalized letters · TCPA/DNC compliance gate.</div>
+
+  <div class="grid2">
+    <div class="entity">
+      <h3>ExpiredLead · FSBOLead</h3>
+      <div class="path">expired_leads · fsbo_leads</div>
+      <div class="desc">Shared shape. Separate tables for source tracking + different pipeline visuals.</div>
+      <table class="fields">
+        <tr><td class="name">id · property_id · contact_id?</td><td class="type">uuid</td><td class="note">contact may be created on first-call success</td></tr>
+        <tr><td class="name">data_source</td><td class="type">enum</td><td class="note">vulcan · redx · landvoice · mls-expired · manual</td></tr>
+        <tr><td class="name">listed_price · days_on_market · withdrawn_at</td><td class="type">int · int · timestamptz</td><td class="note"></td></tr>
+        <tr><td class="name">cadence_step · next_touch_at</td><td class="type">int · timestamptz</td><td class="note">of 14-day cadence</td></tr>
+        <tr><td class="name">dnc_checked · dnc_result</td><td class="type">bool · enum</td><td class="note">clear · flagged · blocked — gates dialer</td></tr>
+        <tr><td class="name">status</td><td class="type">enum</td><td class="note">new · contacted · appt-set · converted · dead</td></tr>
+      </table>
+    </div>
+
+    <div class="entity">
+      <h3>CallOutcome</h3>
+      <div class="path">call_outcomes</div>
+      <div class="desc">Every dial. Coach reads live transcript · suggests objection handlers.</div>
+      <table class="fields">
+        <tr><td class="name">id · lead_kind · lead_id · team_member_id</td><td class="type">uuid · enum · uuid · uuid</td><td class="note"></td></tr>
+        <tr><td class="name">dialed_at · duration_sec</td><td class="type">timestamptz · int</td><td class="note"></td></tr>
+        <tr><td class="name">outcome</td><td class="type">enum</td><td class="note">connected · voicemail · no-answer · wrong · dnc-request · appt-set · hangup</td></tr>
+        <tr><td class="name">transcript_url · coach_notes</td><td class="type">text · jsonb</td><td class="note">objections caught · suggested reframes</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- v2 · Post-close -->
+  <h2>Post-close · Client for life</h2>
+  <div class="section-intro">Post-close plan auto-created at closing. 5-year touch cadence · anniversary · home-owned alerts · referral asks.</div>
+
+  <div class="entity">
+    <h3>ClientForLifePlan · PostCloseTouch</h3>
+    <div class="path">client_for_life_plans · post_close_touches</div>
+    <table class="fields">
+      <tr><td class="name">plan.id · contact_id · deal_id · started_at</td><td class="type">uuid</td><td class="note">starts at closing</td></tr>
+      <tr><td class="name">plan.cadence_template</td><td class="type">text</td><td class="note">5-year-standard · investor · sphere-vip</td></tr>
+      <tr><td class="name">plan.status</td><td class="type">enum</td><td class="note">active · paused · completed · opted-out</td></tr>
+      <tr><td class="name">touch.plan_id · kind · scheduled_for</td><td class="type">uuid · enum · timestamptz</td><td class="note">email · call-task · print · gift · review-ask · referral-ask</td></tr>
+      <tr><td class="name">touch.executed_at · outcome</td><td class="type">timestamptz · enum</td><td class="note">done · skipped · auto-paused</td></tr>
+    </table>
+  </div>
+
+  <!-- ================================================= -->
+  <h2>Relationships</h2>
+  <div class="rel-diagram">
+Contact ──┬── Interactions (many)
+          ├── Deals (many) ──┬── Property (1)
+          │                  ├── TransactFile (1, synced)
+          │                  ├── SlackChannel (1, auto-created)
+          │                  └── ChecklistRun (1)
+          ├── ContactTags ── Tags (M:N)
+          └── LoftySync (1:1, if synced)
+
+Property ─┬── OpenHouses (many) ──┬── OpenHouseSignins (many) → Contact (matched)
+          │                       ├── WeatherForecast (cached)
+          │                       └── ChecklistRun (1)
+          ├── MediaAssets (many)
+          └── Deals (many)
+
+ContentDraft ──┬── MediaAsset[] (used)
+               ├── ComplianceCheck (1)
+               ├── BlotatoPost (1, when scheduled)
+               └── ContentPerformance[] (per-platform)
+
+NotificationRule ── SlackChannel (routed to)
+CostLedger · SystemEvent · BackgroundJob · ComplianceCheck   → Admin pages
+
+Contact ─┬── SocialProfile[] (per platform)
+         ├── FamilyLink[] (spouse/kid/pet/co-buyer → Contact)
+         ├── LifeEvent[] (90-day feed → outreach queue)
+         ├── ReviewRequest[] ── Review[] (per platform)
+         ├── Referral[] (as referrer OR referred)
+         └── ClientForLifePlan (1 per closed deal) ── PostCloseTouch[]
+
+SellerLead ──┬── Property (their home)
+             ├── Valuation[] (4-AVM blend + adjusts) ── Comp properties[]
+             └── MicrositeDripRun (1) ── MicrositeDrip ── MicrositeDripStep[]
+
+TeamMember ──┬── Role ── Permission[]
+             ├── ScopeOverride[] (per-deal, time-boxed)
+             └── CallOutcome[] (dialer logs)
+
+Deal ────┬── CoListing (≤5 participants) ── GCISplit[] (waterfall)
+         └── RoutingRule (assigned via)
+
+DelegationItem · AuditEvent   → Team ops
+
+SeoKeyword ── RankingSnapshot[] (weekly)
+HubPage ── SpokePage[] ── ContentDraft (blog)
+AICitation (40 × 4 AIs · weekly poll) · GmbPost · SchemaFragment · SeoAudit
+
+ExpiredLead · FSBOLead ──┬── Property
+                         ├── CallOutcome[] (dialer + coach)
+                         └── ComplianceCheck (DNC/TCPA gate)
+
+PrintOrder ── DeliveryBatch[] (per recipient Contact)
+  </div>
+
+  <!-- ================================================= -->
+  <h2>Indexes + search</h2>
+  <p>pgvector on <span class="mono">contacts.voice_notes</span>, <span class="mono">content_drafts.caption</span>, <span class="mono">interactions.body</span>, all library items. Pinecone is the external RAG index: <span class="mono">brain</span> (business doc), <span class="mono">compliance</span> (handbooks), <span class="mono">voice</span> (Dana's past writing), <span class="mono">performance</span> (what worked). Summary cards generated at index time to cut query tokens ~80%.</p>
+
+  <!-- ================================================= -->
+  <h2>Sync rules of thumb</h2>
+  <ul style="max-width:70ch; color:var(--ink-2); font-size:13px;">
+    <li><b>Transact</b> is source of truth for paperwork. Command reads; never overwrites a Transact field.</li>
+    <li><b>Lofty</b> is bidirectional for contacts + tags + notes; Lofty-owns saved searches and valuations.</li>
+    <li><b>Blotato</b> is downstream-only. Command pushes; Blotato owns scheduling.</li>
+    <li><b>Slack</b> is outbound with inbound callbacks for button actions only — no free-form ingest.</li>
+    <li><b>Resend + Gmail</b> log to Interactions via webhooks.</li>
+    <li><b>MLS</b> is manual + AI-researched until API access lands. Keep <span class="mono">mls_id</span> nullable.</li>
+    <li><b>Social platforms</b> — IG/FB/LI via Graph API where possible; TT/X/YT/Threads/Pin/Nextdoor are paste-URL + AI verification until each vendor exists. Never store passwords.</li>
+    <li><b>AVM providers</b> (Zillow/Redfin/Realtor/Attom) — cache 24h per <span class="mono">property_id</span>. Blend only at read time; raw values stored for audit.</li>
+    <li><b>GMB</b> — Business Profile API scopes <span class="mono">business.manage</span>. Posts scheduled ≥10 min out to allow cancel-window.</li>
+    <li><b>Rank tracking</b> — DataForSEO or SerpAPI. Weekly snapshot only; on-demand for "recheck now" is rate-limited per keyword.</li>
+    <li><b>AI citation polling</b> — ChatGPT (with search), Claude, Perplexity, Gemini. Weekly · 40 queries · store full response for audit.</li>
+    <li><b>Review platforms</b> — Google via API, Zillow/Realtor via ingest webhooks where available else scheduled scrape, Facebook via Graph API.</li>
+    <li><b>Print providers</b> — one adapter per vendor (Thanks.io, Handwrytten, Sendoso). Cost pushed to <span class="mono">cost_ledger</span> on submit.</li>
+    <li><b>Dialer + call transcripts</b> — Twilio + Deepgram. Transcript stored in R2; gated by DNC/TCPA check — never dial without <span class="mono">dnc_result = 'clear'</span>.</li>
+    <li><b>Seller-lead drips</b> — paused automatically on reply, unsubscribe, or deal-opened. Never auto-resume.</li>
+  </ul>
+
+</main>
+</body>
+</html>

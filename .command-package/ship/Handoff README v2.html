@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Command · Antigravity Handoff README v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Nunito+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink:#3A2A1E; --ink-2:#5A4136; --faint:#B79782; --line:#C8C3B9;
+  --paper:#EFEDE8; --paper-2:#E3DED4; --card:#F6F4EE;
+  --sage:#8B9A7B; --warn:#c99a2e; --danger:#c0604a;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font-family:'Nunito Sans', sans-serif; font-size:14px; line-height:1.7; }
+.page { max-width:1080px; margin:0 auto; padding:48px 40px 160px; }
+h1, h2, h3, h4 { font-family:'Cormorant Garamond', serif; font-weight:500; margin:0; }
+h1 { font-size:52px; line-height:1.05; }
+h2 { font-size:32px; margin:56px 0 16px; padding-top:28px; border-top:1px solid var(--line); }
+h3 { font-size:22px; margin:32px 0 10px; }
+h4 { font-size:16px; margin:20px 0 6px; }
+.kicker { font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); }
+.lede { font-family:'Cormorant Garamond', serif; font-size:22px; font-style:italic; color:var(--ink-2); max-width:60ch; }
+p, ul, ol { color:var(--ink-2); max-width:72ch; }
+ul, ol { padding-left:22px; }
+li { margin:4px 0; }
+.mono, code { font-family:'IBM Plex Mono', monospace; font-size:12px; background:#fff; padding:1px 5px; border:1px solid var(--line); border-radius:3px; }
+pre { font-family:'IBM Plex Mono', monospace; font-size:12px; background:#fff; padding:14px 16px; border:1px solid var(--line); border-radius:4px; overflow-x:auto; line-height:1.6; color:var(--ink); }
+.muted { color:var(--faint); }
+.callout { background:var(--card); border:1px solid var(--line); border-left:3px solid var(--ink); padding:14px 18px; margin:14px 0; border-radius:4px; }
+.callout.warn { border-left-color:var(--warn); background:#FAF1DD; }
+.callout.danger { border-left-color:var(--danger); background:#FAEFEC; }
+.callout.ok { border-left-color:var(--sage); background:#EEF1E9; }
+table { width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; }
+table th { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--faint); }
+table td { padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+.stack { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.stack .card { background:#fff; border:1px solid var(--line); padding:12px 14px; border-radius:4px; }
+.stack .card h4 { margin:0 0 6px; }
+.stack .card .tag { font-size:10px; padding:2px 8px; border:1px solid var(--line); border-radius:999px; background:var(--card); display:inline-block; margin-right:4px; margin-top:4px; color:var(--ink-2); }
+hr { border:none; border-top:1px dashed var(--line); margin:24px 0; }
+.toc { background:var(--card); border:1px solid var(--line); padding:16px 20px; border-radius:6px; margin:24px 0 40px; columns: 2; column-gap: 32px; }
+.toc a { color:var(--ink); text-decoration:none; font-size:13px; display:block; padding:3px 0; }
+.toc a:hover { color:var(--danger); }
+</style>
+</head>
+<body>
+<main class="page">
+
+<div class="kicker">Command · Antigravity Handoff · v2 · 21 Apr 2026</div>
+<h1>Build brief for the engineering agent</h1>
+<p class="lede">Everything an AI coding agent (or human) needs to take these wireframes and turn them into a working MVP. Read top to bottom.</p>
+
+<div class="callout ok" style="margin-top:20px;">
+  <b>Companion docs</b> (read after this one):
+  <ul style="margin:6px 0;">
+    <li><a href="Command Wireframes.html"><b>Command Wireframes</b></a> — every screen, visual source of truth</li>
+    <li><a href="Design System.html"><b>Design System</b></a> — tokens, type, components</li>
+    <li><a href="Data Model.html"><b>Data Model</b></a> — authoritative schema</li>
+    <li><a href="Seed Data.html"><b>Seed Data</b></a> — fixtures to load on first boot so screens aren't empty</li>
+    <li><a href="Acceptance Tests.html"><b>Acceptance Tests</b></a> — per-phase done criteria</li>
+    <li><a href="AZ Compliance Rules.html"><b>AZ Compliance Rules</b></a> — ADRE + Dec 13 2025 revisions, machine-readable rule corpus</li>
+  </ul>
+</div>
+
+<nav class="toc">
+  <a href="#who">1 · Who this is for</a>
+  <a href="#goals">2 · What we're building</a>
+  <a href="#non-goals">3 · Non-goals</a>
+  <a href="#stack">4 · Stack</a>
+  <a href="#repo">5 · Repo layout</a>
+  <a href="#integrations">6 · Integrations</a>
+  <a href="#slack">7 · Slack in detail</a>
+  <a href="#order">8 · Build order · phases</a>
+  <a href="#env">9 · Environment</a>
+  <a href="#auth">10 · Auth</a>
+  <a href="#jobs">11 · Background jobs</a>
+  <a href="#cost">12 · Cost controls</a>
+  <a href="#compliance">13 · Compliance pipeline</a>
+  <a href="#testing">14 · Testing</a>
+  <a href="#deploy">15 · Deploy</a>
+  <a href="#open">16 · Open questions</a>
+  <a href="#modules">17 · Feature modules (v2)</a>
+  <a href="#global-ui">18 · Global UI patterns</a>
+</nav>
+
+<!-- ============================================================ -->
+<h2 id="who">1 · Who this is for</h2>
+<p>You are an AI coding agent (Antigravity, Claude Code, or similar) or a human engineer building <b>Command</b> — a single-tenant real-estate ops platform for <b>Dana Massey</b>, a solo agent in Illinois. One user. One workspace. No multi-tenant logic, no user-management UI, no role-based permissions. Build for speed and clarity, not scale.</p>
+
+<div class="callout">
+  <b>Single-tenant means</b> — hardcode Dana as the default user. Skip org/team abstractions. Every entity has <span class="mono">owner_id</span> but it's always the same UUID for now. When we add a team later (Jamie + VAs), we'll lift that constraint, not rebuild.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="goals">2 · What we're building</h2>
+<p>Command is Dana's daily operating system. It replaces ~12 current tools by wrapping the 3 she keeps (Lofty, Transact, Blotato) and consolidating everything else. Core surfaces:</p>
+<ul>
+  <li><b>Mobile</b>: Dashboard, Prospecting, Tasks + Notes, Buyer Showings, Showing Route</li>
+  <li><b>Desktop</b>: CRM, Email Builder, Lead Sources, Inspo Vault, Content Studio, Listing Appt + CMA, Deals, KPI, Bio Link, Properties, Money, Checklists, Mentor, Seller Updates, Agreements, Vendors, Social Research, Content Publishing, Local Places & Events, OH QR, Library, Studio (b-roll composer)</li>
+  <li><b>Settings / Admin</b>: Usage & Costs, System Health, Integrations hub (with detail pages for Lofty, Transact, Compliance, Slack)</li>
+</ul>
+<p>See the wireframes HTML for every screen. The Data Model doc is the authoritative schema.</p>
+
+<div class="callout warn">
+  <b>v2 additions.</b> Section 17 (<a href="#modules">Feature modules</a>) covers the 8 deep-dive surfaces added after v1: Relationships+ · Home-value microsite · Team &amp; permissions · SEO/AEO · Reviews &amp; referrals · Print &amp; delivery · Expired/FSBO · Post-close. Phase 1–3 are unchanged — modules ship in Phases 4–6 per the roadmap below.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="non-goals">3 · Non-goals</h2>
+<ul>
+  <li>Multi-tenant SaaS. We are not selling Command.</li>
+  <li>Native apps. It's a responsive web app + iOS Safari "add to home screen." Push is via Slack.</li>
+  <li>Replacing Lofty, Transact, or Blotato — we wrap them.</li>
+  <li>MLS API. Until Dana has a paid MLS data provider, the MLS fields stay nullable and populated by AI research + manual entry.</li>
+  <li>Billing / subscription UI.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="stack">4 · Stack</h2>
+
+<div class="stack">
+  <div class="card">
+    <h4>Frontend</h4>
+    <p style="margin:0; font-size:13px;">Next.js 15 · React 19 · TypeScript · Tailwind · Radix primitives · TanStack Query · Zustand for local UI state.</p>
+    <span class="tag">app router</span><span class="tag">RSC where cheap</span><span class="tag">client for everything interactive</span>
+  </div>
+  <div class="card">
+    <h4>Backend</h4>
+    <p style="margin:0; font-size:13px;">Next.js route handlers for web · trpc for internal API · Supabase (Postgres + Auth + Storage) · Cloudflare R2 for media.</p>
+    <span class="tag">no separate API service</span><span class="tag">edge when possible</span>
+  </div>
+  <div class="card">
+    <h4>AI / RAG</h4>
+    <p style="margin:0; font-size:13px;">Anthropic (Claude Sonnet for writes, Haiku for chore tasks) · OpenAI embeddings (cost-efficient) · Pinecone for 4 indexes (brain · compliance · voice · performance).</p>
+    <span class="tag">token budget per request</span><span class="tag">summary-card pre-indexing</span>
+  </div>
+  <div class="card">
+    <h4>Jobs / scheduling</h4>
+    <p style="margin:0; font-size:13px;">Inngest for durable workflows · Vercel cron for simple timers · Supabase realtime for live UI updates.</p>
+    <span class="tag">retry semantics</span><span class="tag">dead-letter → #system Slack</span>
+  </div>
+  <div class="card">
+    <h4>Observability</h4>
+    <p style="margin:0; font-size:13px;">Sentry for errors · PostHog for product analytics (light) · cost ledger is hand-rolled (per-provider usage API poll).</p>
+    <span class="tag">errors → #system</span>
+  </div>
+  <div class="card">
+    <h4>Slack</h4>
+    <p style="margin:0; font-size:13px;">Slack Web API + Events API + Block Kit. Single bot user. No socket mode — we run serverless, so everything is HTTPS callbacks.</p>
+    <span class="tag">chat:write · channels:manage</span><span class="tag">interactive endpoints</span>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="repo">5 · Repo layout</h2>
+<pre>/apps/web                   # Next.js app
+  /app
+    /(mobile)                # mobile-first routes
+    /(desktop)               # desktop routes
+    /settings                # admin surfaces
+    /api                     # route handlers (webhooks, auth callbacks)
+  /components
+    /ui                      # shadcn-ish primitives, themed to design system
+    /screens                 # one file per wireframe screen
+    /studio                  # composer, timeline, render queue
+  /lib
+    /integrations            # lofty/, transact/, blotato/, slack/, resend/, gmail/, openweather/
+    /ai                      # prompt templates, RAG helpers, cost tracker
+    /compliance              # pre-publish check pipeline
+    /db                      # supabase client + typed queries
+  /jobs                      # Inngest functions
+/packages
+  /types                     # shared zod schemas, db types
+/supabase                    # migrations, seed scripts
+/docs                        # the Handoff README, Data Model, Design System</pre>
+
+<!-- ============================================================ -->
+<h2 id="integrations">6 · Integrations</h2>
+
+<table>
+<thead><tr><th>Service</th><th>Use</th><th>Auth</th><th>Direction</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Lofty</td><td>Contacts · saved searches · OH emails · tags</td><td>API key</td><td>bidirectional</td><td>Contacts + tags + notes merge. Saved searches and valuations owned by Lofty. See <code>lib/integrations/lofty</code>.</td></tr>
+<tr><td>Transact</td><td>File checklist · signed docs · milestones · commission</td><td>OAuth</td><td>read-through + webhook</td><td>Never overwrite a Transact field from Command. Mirror milestones into our <code>checklist_runs</code>.</td></tr>
+<tr><td>Blotato</td><td>Social scheduling + analytics</td><td>API key</td><td>downstream only</td><td>Push drafts; Blotato owns queue + platform posting. Webhook back on post success/failure.</td></tr>
+<tr><td>Slack</td><td>Notifications · daily brief · interactive actions</td><td>OAuth</td><td>outbound + callback</td><td>See §7.</td></tr>
+<tr><td>Resend</td><td>Transactional + broadcast email</td><td>API key</td><td>outbound + webhook</td><td>Opens/clicks log to <code>interactions</code>.</td></tr>
+<tr><td>Gmail + Google Calendar</td><td>Personal inbox · OH calendar · showing calendar</td><td>OAuth</td><td>bidirectional</td><td>Read threads, propose replies. Write calendar events.</td></tr>
+<tr><td>OpenWeatherMap</td><td>OH forecast + prep flags</td><td>API key</td><td>read-only</td><td>One Call API 3.0. Cache by (property lat/lng, date) in <code>weather_forecasts</code>. Refresh hourly day-of.</td></tr>
+<tr><td>iMessage</td><td>Click-to-text</td><td>none</td><td>deep-link</td><td><code>sms:+1…</code> URL scheme. No ingestion.</td></tr>
+<tr><td>Anthropic</td><td>Writing, analysis, compliance check</td><td>API key</td><td>outbound</td><td>Budget per-request. Log token count + $ to <code>cost_ledger</code>.</td></tr>
+<tr><td>OpenAI</td><td>Embeddings · Whisper transcription</td><td>API key</td><td>outbound</td><td>Only for embeddings + transcripts — never for generation.</td></tr>
+<tr><td>Pinecone</td><td>RAG (4 indexes)</td><td>API key</td><td>outbound</td><td>brain · compliance · voice · performance. Re-index nightly.</td></tr>
+<tr><td>Cloudflare R2</td><td>Media storage</td><td>S3-compatible key</td><td>outbound</td><td>Everything > 1MB lives here. Signed URLs for web delivery.</td></tr>
+<tr><td>Supabase</td><td>Postgres + Auth + Realtime</td><td>project keys</td><td>—</td><td>Single project, single-tenant.</td></tr>
+<tr><td>MLS</td><td>Listing data</td><td>—</td><td>manual + AI research</td><td>No API yet. Keep <code>mls_id</code> nullable. When we add it, it becomes authoritative for <code>properties</code>.</td></tr>
+</tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="slack">7 · Slack in detail</h2>
+
+<h3>App scopes</h3>
+<p>Scopes needed at install: <code>chat:write</code>, <code>chat:write.customize</code>, <code>channels:read</code>, <code>channels:manage</code>, <code>groups:read</code>, <code>files:write</code>, <code>users:read</code>, <code>commands</code>, <code>reactions:write</code>, <code>im:write</code>.</p>
+
+<h3>Channel naming convention</h3>
+<p>Matches Dana's existing Slack sidebar format exactly:</p>
+<ul>
+  <li><b>🤍 SELLERS group</b> — <code>#seller_firstname-lastname</code> or <code>#seller_firstname-lastname_###</code> (address suffix optional)</li>
+  <li><b>🖤 BUYERS group</b> — <code>#buyer_firstname-lastname</code></li>
+  <li><b>🎯 LEADS &amp; OPPS group</b> — <code>#expired-listings</code>, <code>#open-house-opportunities</code>, <code>#openclaw</code></li>
+  <li><b>🔥 GENERAL SHIZ group</b> — <code>#all-dana-massey-realtor</code>, <code>#cma-pricing-strategies</code>, <code>#client-updates_airtable</code>, <code>#signage</code>, <code>#daily-brief</code>, <code>#content-review</code>, <code>#compliance</code>, <code>#system</code>, <code>#wins</code></li>
+</ul>
+<p>Channels are created via <code>conversations.create</code> when a new buyer/seller is added. Dana is invited. Bot joins. Archive 30d after deal closes (<code>conversations.archive</code>) — not deleted, searchable.</p>
+
+<h3>Event routing</h3>
+<p>Every external event hits <code>/api/webhooks/{source}</code>, which looks up a row in <code>notification_rules</code> and posts to the matching channel(s). Rules are user-editable in Admin · Slack. Example shape:</p>
+<pre>{
+  source: "transact",
+  event: "bba_signed",
+  destination: "#buyer_{slug} · #seller_{slug}",     // templated
+  payload_template: {                                 // Slack Block Kit
+    blocks: [
+      { type: "section", text: { type: "mrkdwn",
+        text: ":page_facing_up: *BBA signed* by {contact.name} ({property.address})" } },
+      { type: "context", elements: [{ type: "mrkdwn", text: "via Transact · {signed_at}" }] }
+    ]
+  },
+  interactive_actions: [
+    { text: "✓ Mark done", value: "complete_step", step: "bba_signed" },
+    { text: "⏱ Snooze 2h",  value: "snooze", duration: "2h" },
+    { text: "↗ Open in Transact", url: "{transact.url}" }
+  ]
+}</pre>
+
+<h3>Interactive callbacks</h3>
+<p>Slack button clicks POST to <code>/api/slack/interactive</code>. Verify signing secret. Route to the matching handler by <code>value</code>. Update the original message with <code>response_url</code> to show the result inline ("✓ marked done · 2m ago").</p>
+
+<h3>Daily brief</h3>
+<p>Inngest cron at 7:00 America/Chicago Mon–Sat. Reads today's schedule, overdue follow-ups, hot signals, KPI delta, weather for any OHs. Assembles a Block Kit message and posts to <code>#daily-brief</code>. 5 PM wrap-up summarizes the day and queues tomorrow.</p>
+
+<h3>Privacy on lockscreen</h3>
+<p>When <code>redact_client_names</code> is ON, every notification goes out as <code>text: "New activity on a buyer file"</code> at the Slack notification level and puts the real content in attachments (which Slack mobile shows only after unlock). Implement via the <code>text</code> vs <code>blocks</code> split.</p>
+
+<!-- ============================================================ -->
+<h2 id="order">8 · Build order · phases</h2>
+
+<div class="callout ok">
+  <b>Ship small. Every phase ends with Dana actually using it.</b> Don't build the whole data model in phase 1; add tables as the screens that need them come online.
+</div>
+
+<table>
+<thead><tr><th>Phase</th><th>Weeks</th><th>What ships</th><th>Dana can</th></tr></thead>
+<tbody>
+<tr><td>0 · Foundation</td><td>1</td><td>Auth, design system, layout shell, Supabase + R2 wiring, Sentry.</td><td>Log in, see empty app.</td></tr>
+<tr><td>1 · CRM + Lofty</td><td>2–3</td><td>Contact table + profile, Interactions timeline, Lofty bidirectional sync, tag mapping, conflict inbox.</td><td>Replace daily Lofty use for contact triage.</td></tr>
+<tr><td>2 · Slack + Daily Brief</td><td>2</td><td>Slack OAuth, channel auto-create, notification routing, daily brief cron, interactive callbacks.</td><td>Get daily brief at 7 AM, get BBA-signed notifications.</td></tr>
+<tr><td>3 · Open Houses + Weather</td><td>2</td><td>OH schedule, kiosk (iPad + QR), sign-ins, weather forecast + prep flags, OH checklist template, morning-of brief.</td><td>Run a full OH start to finish with live sign-ins.</td></tr>
+<tr><td>4 · Deals + Transact</td><td>2–3</td><td>Deal pipeline, Transact webhook + file mirror, checklist with system badges, offer comparison.</td><td>Live-manage a deal without leaving Command.</td></tr>
+<tr><td>5 · Content Studio + Library</td><td>3–4</td><td>Media asset upload + AI tagging, composer (CapCut-adjacent), template library, Blotato push, compliance pre-publish check.</td><td>Produce a reel end-to-end.</td></tr>
+<tr><td>6 · CMA + Listing Appt + Seller Updates</td><td>2</td><td>CMA generator, presentation builder, weekly seller update email (auto-pulled perf).</td><td>Win a listing appt with a Command-generated CMA.</td></tr>
+<tr><td>7 · KPI + Money</td><td>2</td><td>Funnel, goals, commission P&amp;L, inventory, cost dashboard.</td><td>See the business in one screen.</td></tr>
+<tr><td>8 · Long tail</td><td>ongoing</td><td>Bio Link, Vendors, Mentor, Social Research, Places &amp; Events, Agreements, QR code, Voice tuner.</td><td>Retire the remaining point tools.</td></tr>
+</tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="env">9 · Environment</h2>
+<p>All secrets in <code>.env.local</code> (dev) and Vercel env (prod). Never client-exposed.</p>
+<pre># Supabase
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Storage
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=command-media
+
+# AI
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
+PINECONE_API_KEY=
+PINECONE_ENV=
+
+# Integrations
+LOFTY_API_KEY=
+TRANSACT_CLIENT_ID=
+TRANSACT_CLIENT_SECRET=
+BLOTATO_API_KEY=
+RESEND_API_KEY=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+OPENWEATHER_API_KEY=
+
+# Slack
+SLACK_CLIENT_ID=
+SLACK_CLIENT_SECRET=
+SLACK_SIGNING_SECRET=
+SLACK_BOT_TOKEN=           # after OAuth
+
+# Ops
+SENTRY_DSN=
+INNGEST_EVENT_KEY=
+INNGEST_SIGNING_KEY=</pre>
+
+<!-- ============================================================ -->
+<h2 id="auth">10 · Auth</h2>
+<p>Supabase Auth with email magic link. One user row. Lock signup (invite-only) so nobody else can register. Session via Supabase SSR helpers.</p>
+
+<!-- ============================================================ -->
+<h2 id="jobs">11 · Background jobs</h2>
+<p>All durable jobs in Inngest. Table below is the starter set.</p>
+<table>
+<thead><tr><th>Job</th><th>Schedule</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>daily.brief</code></td><td>0 7 * * 1-6 America/Chicago</td><td>Post morning brief to <code>#daily-brief</code></td></tr>
+<tr><td><code>daily.wrapup</code></td><td>0 17 * * 1-6</td><td>Post 5 PM wrap-up</td></tr>
+<tr><td><code>oh.morning-of</code></td><td>per-OH at 7 AM day-of</td><td>Refresh weather, post to <code>#open-house-opportunities</code></td></tr>
+<tr><td><code>lofty.pull</code></td><td>*/15 * * * *</td><td>Delta-pull contacts + tags</td></tr>
+<tr><td><code>lofty.push</code></td><td>on-change</td><td>Push Command changes back</td></tr>
+<tr><td><code>transact.reconcile</code></td><td>0 * * * *</td><td>Check-sync deal files</td></tr>
+<tr><td><code>content.perf-poll</code></td><td>0 */6 * * *</td><td>Pull Blotato analytics; update <code>content_performance</code></td></tr>
+<tr><td><code>rag.reindex</code></td><td>0 3 * * *</td><td>Re-embed library + compliance + voice + performance</td></tr>
+<tr><td><code>cost.poll</code></td><td>0 */3 * * *</td><td>Poll each provider's usage API, update <code>cost_ledger</code>, fire alerts</td></tr>
+<tr><td><code>weather.prefetch</code></td><td>0 6 * * *</td><td>Prefetch forecasts for all upcoming OHs</td></tr>
+</tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="cost">12 · Cost controls</h2>
+<div class="callout warn">
+  <b>Every LLM call must pass through <code>lib/ai/bill.ts</code>.</b> This wrapper: enforces a per-request max-tokens cap, logs token + $ to <code>cost_ledger</code>, checks the monthly budget, and rejects if the monthly cap is exceeded.
+</div>
+<ul>
+  <li>Budgets are per-service rows in <code>cost_ledger</code>. Default $600/mo total across all AI services.</li>
+  <li>80% → post to <code>#system</code>. 95% → post + @dana. 100% → reject with friendly error.</li>
+  <li>Prefer Haiku for classification, titling, one-liners. Sonnet only when output matters.</li>
+  <li>RAG queries pull summary cards before chunks — cuts retrieval tokens ~80%.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="compliance">13 · Compliance pipeline</h2>
+<p>Every outbound content item (social, email, listing description, Bio Link copy) passes through <code>lib/compliance/check.ts</code>:</p>
+<ol>
+  <li>Classify the content type (property-specific / general-real-estate / personal).</li>
+  <li>Retrieve matching rules from Pinecone <code>compliance</code> index (RESPA, Fair Housing, Illinois license act, NAR guidelines, Dana's brokerage handbook).</li>
+  <li>Run Sonnet with cited rules → verdict: pass · warn · block.</li>
+  <li>Log to <code>compliance_checks</code> with cited chunks.</li>
+  <li>If <b>block</b>, post to <code>#compliance</code> with override link. Dana can override with a reason, which gets logged to the audit trail.</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="testing">14 · Testing</h2>
+<ul>
+  <li>Vitest for unit + integration (DB-backed, against a local Supabase branch).</li>
+  <li>Playwright for a small e2e set: login → create contact → log interaction → send Slack notification (mocked) → open OH → run kiosk sign-in.</li>
+  <li>Every integration has a <code>__fixtures__/</code> folder with canned API responses for deterministic tests.</li>
+  <li>Slack interactive callbacks have a dedicated suite — signature verification is easy to break.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="deploy">15 · Deploy</h2>
+<ul>
+  <li><b>Web</b>: Vercel (production + preview per PR).</li>
+  <li><b>Jobs</b>: Inngest cloud (self-hosting later if cost wins).</li>
+  <li><b>DB</b>: Supabase (prod = hosted project; dev = local supabase CLI).</li>
+  <li><b>Secrets</b>: Vercel env per branch.</li>
+  <li><b>Domain</b>: <code>command.dana.app</code> (placeholder). TLS via Vercel.</li>
+  <li><b>Backups</b>: Supabase PITR + daily logical dump to R2.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="open">16 · Pre-flight answers &amp; remaining unknowns</h2>
+
+<div class="callout ok">
+  <b>Confirmed by Dana (Apr 2026):</b>
+  <ul style="margin:8px 0;">
+    <li><b>Brand / entity:</b> Dana Massey Real Estate · brokered by REAL Brokerage, Arizona</li>
+    <li><b>Slack workspace:</b> already set up — bot token + signing secret in Supabase Vault</li>
+    <li><b>Supabase project:</b> exists — all other secrets (Lofty, Transact, Blotato, Anthropic, OpenAI, Resend, OpenWeatherMap) already loaded in Vault</li>
+    <li><b>Pinecone:</b> index is live at <code>commandapp-6yq7rpq.svc.aped-4627-b74a.pinecone.io</code> (AWS <code>us-east-1</code> based on host). Do not re-create; attach to this host.</li>
+    <li><b>Domain:</b> set in env — use <code>NEXT_PUBLIC_APP_URL</code></li>
+    <li><b>Brokerage:</b> REAL Brokerage Arizona. Marketing compliance rules live in the REAL Widen portal (AZPortal). Dana will export the relevant PDFs into <code>uploads/compliance/</code> for ingestion — do not attempt to scrape the portal (auth-walled).</li>
+  </ul>
+</div>
+
+<div class="callout warn">
+  <b>Still open — do not guess:</b>
+  <ol style="margin:8px 0;">
+    <li><b>MLS API</b> — no timeline. <code>properties</code> table stays best-effort; AI research + manual entry fill it.</li>
+    <li><b>Transact webhooks vs polling</b> — confirm with Transact support before Phase 4. Default to hourly polling if unknown.</li>
+    <li><b>Jamie / VA onboarding</b> — not now. Keep <code>owner_id</code> everywhere; lifting the constraint is a future roadmap item, not a blocker.</li>
+  </ol>
+</div>
+
+<h3>Updating an existing app, not greenfield</h3>
+<p>Command is replacing/extending Dana's <b>current app</b> in the same Supabase project. Before writing migrations, the agent must:</p>
+<ol>
+  <li>Run <code>supabase db pull</code> against the existing project to capture the current schema.</li>
+  <li>Diff it against <code>Data Model.html</code>. For each missing table/column: write an additive migration. <b>Do not drop or rename</b> existing tables without Dana's explicit approval — they may have live data.</li>
+  <li>Existing tables that overlap (<code>contacts</code>, <code>deals</code>, etc.) — extend rather than replace. Add Command-specific columns with defaults.</li>
+  <li>Log every schema change to <code>/docs/migrations-log.md</code> with a one-line rationale.</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="modules">17 · Feature modules (v2)</h2>
+<p>Each module maps to a wireframe section + its v2 Data Model entities + external integrations. Two-paragraph ship plans. Read alongside <a href="Data Model v2.html"><code>Data Model v2.html</code></a>.</p>
+
+<h3>17.1 · Relationships+ · social &amp; life events</h3>
+<p><b>Scope:</b> 9-platform social profile tracking (IG, FB, TT, LI, X, YT, Threads, Pin, Nextdoor) · family links (spouse/kids/pets) · sphere-wide 90-day life-event feed. Wireframes: <code>desktop · relationships</code> (7 screens). Entities: <code>SocialProfile</code>, <code>FamilyLink</code>, <code>LifeEvent</code>.</p>
+<p><b>Integrations:</b> IG/FB/LI via Graph API where Dana has business auth. TT/X/YT/Threads/Pin/Nextdoor are paste-URL + AI verification — no scraping, no stored credentials. Match confidence ≥0.9 sets <code>verified = true</code>. Life events generated nightly from birthdays (contact field), anniversaries (FamilyLink.since), closing dates (Deal.closed_at), and observed social signals. Outreach suggestions hit the daily brief.</p>
+
+<h3>17.2 · Home-value microsite</h3>
+<p><b>Scope:</b> Public AVM landing · 4-source blend with agent adjusts · 14-touch drip · seller-lead dashboard · embeddable widget · funnel attribution. Wireframes: <code>desktop · homevalue</code> (9 screens). Entities: <code>Valuation</code>, <code>SellerLead</code>, <code>MicrositeDrip</code>, <code>MicrositeDripStep</code>, <code>MicrositeDripRun</code>.</p>
+<p><b>Integrations:</b> Zillow (GetEstimate), Redfin (scraped-with-license), Realtor (RapidAPI), Attom (paid). Cache 24h per property. Blend at read-time; never persist the blend. Drip runs on Inngest. Public landing is a separate Next.js route group (<code>app/(public)/estimate</code>) deployed on same domain. SEO-critical — server-side render with proper JSON-LD (shares <code>SchemaFragment</code> infra from 17.4).</p>
+
+<h3>17.3 · Team &amp; permissions</h3>
+<p><b>Scope:</b> 6 role templates (Agent, TC, VA, ISA, Showing-only, Custom) · 28 granular permissions · per-deal scope overrides (time-boxed) · 7 lead-routing rules · co-listing with 5 participants + GCI waterfall · delegation inbox · 90-day audit log. Wireframes: <code>desktop · team</code> (10 screens). Entities: <code>TeamMember</code>, <code>Role</code>, <code>Permission</code>, <code>ScopeOverride</code>, <code>RoutingRule</code>, <code>CoListing</code>, <code>GCISplit</code>, <code>DelegationItem</code>, <code>AuditEvent</code>.</p>
+<p><b>Integrations:</b> Stripe for seat billing (tier flag on <code>team_members</code>). All mutations flow through a permission middleware (<code>lib/team/guard.ts</code>) — never query raw DB from a route handler without the guard. Audit log is append-only; writes go to both Postgres and R2 (cold storage) on a 7-day rollover for SOC2-ready retention. Lifts the <code>owner_id = Dana</code> constraint from v1; introduces <code>workspace_id</code> + <code>actor_id</code> on every row via additive migration.</p>
+
+<h3>17.4 · SEO &amp; AEO</h3>
+<p><b>Scope:</b> Keyword ranks · AI citation share-of-voice across 4 LLMs · hub-and-spoke topical map · blog editor with SEO+AEO scoring · GMB composer · JSON-LD coverage matrix · weekly visibility audit. Wireframes: <code>desktop · seoaeo</code> (8 screens). Entities: <code>SeoKeyword</code>, <code>RankingSnapshot</code>, <code>AICitation</code>, <code>HubPage</code>, <code>SpokePage</code>, <code>GmbPost</code>, <code>SchemaFragment</code>, <code>SeoAudit</code>.</p>
+<p><b>Integrations:</b> DataForSEO (or SerpAPI) for ranks — weekly batch. Google Business Profile API for GMB (scope <code>business.manage</code>); scheduled posts enforce a 10-minute cancel window. AI citation polling is a custom Inngest job hitting ChatGPT (with-search), Claude, Perplexity, and Gemini weekly for 40 configured queries — full response bodies cached in R2 for audit. Schema validator is local (json-schema-of-json-ld) — no external call.</p>
+
+<h3>17.5 · Reviews &amp; referrals</h3>
+<p><b>Scope:</b> Automated review asks on post-close trigger · multi-platform review ingest · referral attribution chain. Wireframes: <code>desktop · reviews</code> (9 screens). Entities: <code>ReviewRequest</code>, <code>Review</code>, <code>Referral</code>.</p>
+<p><b>Integrations:</b> Google Business Profile API (reviews:read + reply:write), Zillow/Realtor via scheduled scrape where public, Facebook via Graph. Review requests fire from <code>post_close_touches</code> (module 17.8) at +7d. Referral attribution links back to <code>Contact</code> on both ends; GCI field populated on deal close. Thank-you flow uses Print &amp; Delivery (17.6) for handwritten-note sends.</p>
+
+<h3>17.6 · Print &amp; delivery</h3>
+<p><b>Scope:</b> Postcards, letters, handwritten notes, pop-by tags · provider-agnostic adapter · batch send with per-recipient tracking. Wireframes: <code>desktop · printdeliv</code> (8 screens). Entities: <code>PrintOrder</code>, <code>DeliveryBatch</code>.</p>
+<p><b>Integrations:</b> One adapter interface (<code>lib/integrations/print/adapter.ts</code>) implemented by Thanks.io, Handwrytten, and Sendoso. Address validation via USPS API (free tier) before submission. Cost pushed to <code>cost_ledger</code> on submit — visible in the same dashboard as AI spend. Delivery-status webhooks update per-recipient rows; failures surface in <code>#system</code>.</p>
+
+<h3>17.7 · Expired + FSBO prospecting</h3>
+<p><b>Scope:</b> Expired/FSBO lead pipelines · 14-day cadence · live call coach with transcript · AI-personalized letters · TCPA/DNC compliance gate. Wireframes: <code>desktop · expiredfsbo</code> (9 screens). Entities: <code>ExpiredLead</code>, <code>FSBOLead</code>, <code>CallOutcome</code>.</p>
+<p><b>Integrations:</b> Data sources are pluggable — Vulcan7, RedX, Landvoice, or MLS-expired feed. Dialer via Twilio Voice. Live transcription via Deepgram streaming; coach prompts run against the transcript buffer in 5s windows. <b>Hard gate:</b> no dial happens without <code>dnc_result = 'clear'</code> from the FTC DNC registry check (daily-refreshed cache). TCPA consent tracking in the same row.</p>
+
+<h3>17.8 · Post-close · Client for life</h3>
+<p><b>Scope:</b> Auto-created 5-year touch plan per closed deal · anniversary triggers · home-owned alerts · scheduled review + referral asks. Wireframes: <code>desktop · postclose</code> (9 screens). Entities: <code>ClientForLifePlan</code>, <code>PostCloseTouch</code>.</p>
+<p><b>Integrations:</b> Plan instantiates on Deal.stage → closed. Template picks based on client type (standard, investor, sphere-vip). Touches scheduled as Inngest delayed jobs up to 5 years out — safe because Inngest handles durable long-running waits. Reaches into Reviews (17.5), Print (17.6), and Email (from v1) for execution channels. Opt-out flag on the plan cascades cancellation of all future touches.</p>
+
+<h3>17.9 · Lead sources &amp; pay-at-close attribution</h3>
+<p><b>Scope:</b> First-class modeling of every PAC (pay-at-close) and subscription lead source — seeded with CertiLeads, ClosingLeads, AtClosing, Movoto, Realty.com, LeadDeck, FastCashOffers. Per-source buyer % / seller %, attribution window (per-deal · 1yr · 2yr · lifetime), intake method, live ROI dashboard, pipeline-fee forecast. Dedicated cash-offer-first routing rule through FastCashOffers. Wireframes: <code>desktop · leadsources</code> (4 screens). Entities: <code>LeadSource</code>, <code>LeadAttribution</code>, <code>ReferralFee</code>, <code>CashOfferRouting</code>.</p>
+<p><b>Integrations:</b> Intake per source is either email-forwarder parsing (leads@&lt;vendor&gt;.com → Command parser), Zapier/Make webhook, or API polling where vendor exposes one (CertiLeads/Movoto). Fee % is <em>locked</em> on <code>LeadAttribution</code> at arrival — changes to <code>LeadSource.buyer_pct</code>/<code>seller_pct</code> do not retroactively affect in-flight contacts. <code>ReferralFee</code> rows auto-create as deals move to under-contract (status=suggested) and lock on close (status=confirmed); user can override with a required <code>override_reason</code>. The cash-offer router fires on tag/form-intent match, submits to FastCashOffers, waits up to 24h SLA, then on decline auto-enrolls to a fallback sequence. Fees always debit the agent split unless <code>who_pays</code> is overridden. Fee surfaces on the Deal Room sidebar (projected GCI → referral line → net pre-split) and gates the "mark closed" action until confirmed or waived with note.</p>
+
+<!-- ============================================================ -->
+<h2 id="global-ui">18 · Global UI patterns</h2>
+<p>Patterns that appear on <b>every</b> screen. Implement once, mount in the root layout, do not reinvent per-page.</p>
+
+<h3>18.1 · Quick actions (header, top-right)</h3>
+<p>Two always-available actions, docked in the top header to the left of the Edit / Settings / Sign-out cluster. <b>Not</b> a floating FAB stack in the bottom-right — that pattern is deprecated and must be removed wherever it exists.</p>
+<table>
+  <thead><tr><th>Action</th><th>Icon</th><th>Opens</th><th>Contact link</th></tr></thead>
+  <tbody>
+    <tr><td><b>Quick Note</b></td><td>pencil-on-paper</td><td>Compose drawer — body, optional contact link, tags</td><td>required picker; defaults to "unassigned"</td></tr>
+    <tr><td><b>Tasks</b></td><td>check-circle</td><td>Today's task drawer — due today + overdue, inline check/complete, "+ new task"</td><td>optional per task</td></tr>
+  </tbody>
+</table>
+<div class="callout danger">
+  <b>Dedup — remove the third button.</b> The current live app shows three bottom-right FABs (note · tasks · <i>note</i>). The third is a duplicate of the first and must be deleted. One Quick Note entry point only.
+</div>
+<h4>Placement &amp; behavior</h4>
+<ul>
+  <li><b>Position:</b> header right rail, order: <code>[+ Quick Add] · [🔔] · [✎ Note] · [✓ Tasks] · [date/time] · [Edit] · [⚙] · [Sign out]</code>. Icon-only at ≤1280px, icon+label above.</li>
+  <li><b>Mobile:</b> collapsed into the top app-bar overflow menu; accessible from every route, not just Home.</li>
+  <li><b>Drawer:</b> right-side slide-in (360px desktop, full-width mobile). Esc / overlay-click dismisses. Persists draft in <code>localStorage</code> so navigating away doesn't lose input.</li>
+  <li><b>Keyboard:</b> <code>N</code> opens Quick Note, <code>T</code> opens Tasks, from anywhere that's not a text field.</li>
+  <li><b>Scope:</b> global — present on Home, Prospect, CRM, Deals, Content, Email, Bio Link, Money, Tool Kit, and every detail view. No exceptions.</li>
+</ul>
+
+<h3>18.2 · Quick Add (existing)</h3>
+<p>Already spec'd — the <code>+ Quick Add</code> pill in the header opens the omni-create menu (contact, task, note, deal, showing, listing appt). Keep it. Quick Note in 18.1 is a <i>shortcut</i> to the note path of Quick Add, not a replacement.</p>
+
+<h3>18.3 · Header anatomy (canonical)</h3>
+<pre>┌──────────────────────────────────────────────────────────────────────────────┐
+│  Dana Massey — Command Center          [+ Quick Add]  🔔  ✎  ✓   Thu Apr 23  │
+│  ─────────────────────────                             Note Tasks  08:10 AM  │
+│  HOME · PROSPECT · CRM · DEALS · CONTENT · EMAIL · BIO LINK · MONEY · TOOLKIT│
+└──────────────────────────────────────────────────────────────────────────────┘</pre>
+
+<h3>18.4 · What to remove</h3>
+<ul>
+  <li>The three stacked floating circular buttons in the bottom-right of every screen.</li>
+  <li>Any page-local "quick note" or "quick task" buttons inside content areas — those roles are owned by the header cluster.</li>
+</ul>
+
+<hr>
+<p class="muted" style="font-size:12px;">
+This README evolves. When a section no longer matches reality, fix it in the same PR that made it stale. The wireframes HTML, the Data Model doc, and this README are the three sources of truth.
+</p>
+
+</main>
+</body>
+</html>
