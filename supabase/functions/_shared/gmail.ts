@@ -138,18 +138,27 @@ export async function fetchMessageContent(
 function extractBody(payload: any): string {
   if (!payload) return ''
 
-  // Direct body
+  // Direct body — single-part message. Strip HTML if mimeType is text/html.
+  // Even when mimeType is missing or text/plain, stripHtml is idempotent on
+  // already-clean text, so always running it is safe and catches cases where
+  // a vendor labels an HTML body as text/plain by accident.
   if (payload.body?.data) {
-    return base64UrlDecode(payload.body.data)
+    const decoded = base64UrlDecode(payload.body.data)
+    const mime = (payload.mimeType || '').toLowerCase()
+    if (mime === 'text/plain') return decoded
+    return stripHtml(decoded)
   }
 
   // Multipart — prefer text/plain, fall back to text/html
   if (payload.parts) {
-    // Try plain text first
+    // Try plain text first. Some vendors (CertiLeads, ClosingLeads, AtClosing)
+    // ship a "text/plain" part that contains literal HTML closing tags like
+    // `</p>` mixed into the lines, so we always run stripHtml — it's idempotent
+    // on actually-clean text.
     const plain = findPart(payload.parts, 'text/plain')
-    if (plain?.body?.data) return base64UrlDecode(plain.body.data)
+    if (plain?.body?.data) return stripHtml(base64UrlDecode(plain.body.data))
 
-    // Fall back to HTML (we'll strip tags)
+    // Fall back to HTML
     const html = findPart(payload.parts, 'text/html')
     if (html?.body?.data) return stripHtml(base64UrlDecode(html.body.data))
 
