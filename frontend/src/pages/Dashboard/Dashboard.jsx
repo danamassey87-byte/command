@@ -5,7 +5,6 @@ import UpcomingEventsWidget from '../../components/UpcomingEventsWidget.jsx'
 import RecentActivityFeed from '../../components/RecentActivityFeed.jsx'
 import CostMiniWidget from '../../components/CostMiniWidget.jsx'
 import { useDashboardData, useAllDailyTasks, useDailyStreaks, useProperties, useExpenseCategories, useAllExpenses } from '../../lib/hooks.js'
-import { useNotesContext } from '../../lib/NotesContext'
 import * as DB from '../../lib/supabase.js'
 import StaleRecordsWidget from '../../components/StaleRecordsWidget'
 import StaleListingsWidget from '../../components/StaleListingsWidget'
@@ -73,6 +72,28 @@ function saveOrder(tabId, order) {
   localStorage.setItem(`dashboard_widget_order_${tabId}`, JSON.stringify(order))
 }
 
+// ─── Per-widget size overrides (stored per tab) ────────────────────────────
+//   'sm' → 1 column, 'md' → 2 columns, 'lg' → full row.
+//   If a widget isn't in the map we fall back to its built-in className
+//   (e.g. <div class="widget widget--full"> for maps / day briefing).
+const SIZE_CYCLE = ['sm', 'md', 'lg']
+const NEXT_SIZE = { sm: 'md', md: 'lg', lg: 'sm' }
+
+function getStoredSizes(tabId) {
+  try {
+    const raw = localStorage.getItem(`dashboard_widget_sizes_${tabId}`)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object') return parsed
+    }
+  } catch {}
+  return {}
+}
+
+function saveSizes(tabId, sizes) {
+  localStorage.setItem(`dashboard_widget_sizes_${tabId}`, JSON.stringify(sizes))
+}
+
 // ─── Drag handle icon (6-dot grip) ────────────────────────────────────────────
 function DragHandle() {
   return (
@@ -88,13 +109,21 @@ function DragHandle() {
 }
 
 // ─── Draggable widget wrapper ─────────────────────────────────────────────────
-function DraggableWidget({ widgetKey, dragState, onDragStart, onDragOver, onDrop, onDragEnd, children }) {
+//
+// Renders the drag handle + an inline size cycler (S → M → L → S). The size
+// class is applied to the wrapper itself so it controls grid-column span.
+//
+// Note: some widgets (maps, day briefing) self-declare `widget--full` in their
+// render. The wrapper class will still apply but the inner widget keeps its
+// default look — Dana can still cycle it down to a smaller column count.
+function DraggableWidget({ widgetKey, size, onCycleSize, dragState, onDragStart, onDragOver, onDrop, onDragEnd, children }) {
   const isDragging = dragState.dragging === widgetKey
   const isOver = dragState.over === widgetKey
+  const sizeClass = size ? `drag-wrapper--size-${size}` : ''
 
   return (
     <div
-      className={`drag-wrapper ${isDragging ? 'drag-wrapper--dragging' : ''} ${isOver ? 'drag-wrapper--over' : ''}`}
+      className={`drag-wrapper ${sizeClass} ${isDragging ? 'drag-wrapper--dragging' : ''} ${isOver ? 'drag-wrapper--over' : ''}`}
       draggable
       onDragStart={e => {
         e.dataTransfer.effectAllowed = 'move'
@@ -114,6 +143,17 @@ function DraggableWidget({ widgetKey, dragState, onDragStart, onDragOver, onDrop
       onDragEnd={onDragEnd}
     >
       <DragHandle />
+      <button
+        type="button"
+        className="drag-resize"
+        title={`Resize (${size || 'auto'} → ${NEXT_SIZE[size || 'sm']})`}
+        onClick={e => { e.stopPropagation(); onCycleSize(widgetKey) }}
+        // Buttons inside draggable elements need this so HTML5 drag doesn't hijack the click
+        draggable={false}
+        onDragStart={e => e.preventDefault()}
+      >
+        {size === 'lg' ? 'L' : size === 'md' ? 'M' : 'S'}
+      </button>
       {children}
     </div>
   )
@@ -122,13 +162,25 @@ function DraggableWidget({ widgetKey, dragState, onDragStart, onDragOver, onDrop
 // ─── useDragReorder hook ──────────────────────────────────────────────────────
 function useDragReorder(tabId) {
   const [order, setOrder] = useState(() => getStoredOrder(tabId))
+  const [sizes, setSizes] = useState(() => getStoredSizes(tabId))
   const [dragState, setDragState] = useState({ dragging: null, over: null })
   const dragRef = useRef({ dragging: null })
 
-  // Sync order when tab changes
+  // Sync order + sizes when tab changes
   useEffect(() => {
     setOrder(getStoredOrder(tabId))
+    setSizes(getStoredSizes(tabId))
     setDragState({ dragging: null, over: null })
+  }, [tabId])
+
+  const cycleSize = useCallback((widgetKey) => {
+    setSizes(prev => {
+      const current = prev[widgetKey] || 'sm'
+      const next = NEXT_SIZE[current] || 'sm'
+      const updated = { ...prev, [widgetKey]: next }
+      saveSizes(tabId, updated)
+      return updated
+    })
   }, [tabId])
 
   const onDragStart = useCallback((key) => {
@@ -168,14 +220,16 @@ function useDragReorder(tabId) {
     const defaults = DEFAULT_WIDGET_ORDER[tabId]
     setOrder(defaults)
     saveOrder(tabId, defaults)
+    setSizes({})
+    saveSizes(tabId, {})
   }, [tabId])
 
   const isCustom = useMemo(() => {
     const defaults = DEFAULT_WIDGET_ORDER[tabId]
-    return JSON.stringify(order) !== JSON.stringify(defaults)
-  }, [order, tabId])
+    return JSON.stringify(order) !== JSON.stringify(defaults) || Object.keys(sizes).length > 0
+  }, [order, tabId, sizes])
 
-  return { order, dragState, onDragStart, onDragOver, onDrop, onDragEnd, resetOrder, isCustom }
+  return { order, sizes, cycleSize, dragState, onDragStart, onDragOver, onDrop, onDragEnd, resetOrder, isCustom }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1116,13 +1170,12 @@ function EndOfDayOverlay({ open, onClose, todayTasks }) {
 }
 
 // ─── Floating Buttons ────────────────────────────────────────────────────────
+// NOTE: a global Notes button is already rendered by <NotesWidget /> in Layout
+// (bottom-right, 48px). Don't duplicate it here — just render the Tasks + Focus
+// buttons stacked ABOVE the Notes widget so the three don't collide.
 function FloatingButtons({ onToggleTasks, tasksOpen, onToggleFocus, focusMode }) {
-  const { createAndOpen } = useNotesContext()
   return (
     <div className="floating-buttons">
-      <button className="fab fab--notes" onClick={() => createAndOpen({})} title="Quick Note">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-      </button>
       <button className={`fab fab--tasks ${tasksOpen ? 'fab--active' : ''}`} onClick={onToggleTasks} title="Tasks">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
       </button>
@@ -1238,7 +1291,7 @@ export default function Dashboard() {
   const [eodOpen, setEodOpen] = useState(false)
   const [now, setNow] = useState(new Date())
 
-  const { order, dragState, onDragStart, onDragOver, onDrop, onDragEnd, resetOrder, isCustom } = useDragReorder(activeTab)
+  const { order, sizes, cycleSize, dragState, onDragStart, onDragOver, onDrop, onDragEnd, resetOrder, isCustom } = useDragReorder(activeTab)
 
   // Quick-add expense
   const [expenseOpen, setExpenseOpen] = useState(false)
@@ -1551,6 +1604,8 @@ export default function Dashboard() {
                 <DraggableWidget
                   key={widgetKey}
                   widgetKey={widgetKey}
+                  size={sizes[widgetKey]}
+                  onCycleSize={cycleSize}
                   dragState={dragState}
                   onDragStart={onDragStart}
                   onDragOver={onDragOver}

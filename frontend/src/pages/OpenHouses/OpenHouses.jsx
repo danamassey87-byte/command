@@ -48,42 +48,64 @@ const OH_CHECKLIST_KEY = 'oh_checklist_template'
 
 export const DEFAULT_OH_TASKS = [
   // ── Pre-Event ──
-  { task_name: 'Create OH Sign In in Lofty',                           category: 'pre',    sort_order: 1  },
-  { task_name: 'Set up Curbhero Sign In',                              category: 'pre',    sort_order: 2  },
-  { task_name: 'Create Flyers in Canva',                               category: 'pre',    sort_order: 3  },
-  { task_name: 'Prep Door Jammer',                                     category: 'pre',    sort_order: 4  },
-  { task_name: 'Send materials for printing',                          category: 'pre',    sort_order: 5  },
-  { task_name: 'Print Sign-In QR page',                                category: 'pre',    sort_order: 6  },
-  { task_name: 'Print QR for other Open Houses',                       category: 'pre',    sort_order: 7  },
-  { task_name: 'Print MLS sheet',                                      category: 'pre',    sort_order: 8  },
-  { task_name: 'Schedule Flyer Delivery',                              category: 'pre',    sort_order: 9  },
-  { task_name: 'Create FB Marketplace Post',                           category: 'pre',    sort_order: 10 },
-  { task_name: 'Create IG Post in Canva',                              category: 'pre',    sort_order: 11 },
-  { task_name: 'Create IG Stories in Canva',                           category: 'pre',    sort_order: 12 },
-  { task_name: 'Set up Manychat Sequence',                             category: 'pre',    sort_order: 13 },
-  { task_name: 'Schedule IG Post',                                     category: 'pre',    sort_order: 14 },
-  { task_name: 'Schedule IG Stories',                                  category: 'pre',    sort_order: 15 },
-  { task_name: 'Add Lofty landing page link to Boards app',            category: 'pre',    sort_order: 16 },
-  { task_name: 'Circle Prospect neighborhood',                         category: 'pre',    sort_order: 17 },
+  // Sign-in pages on Lofty / Curbhero are property-scoped — "Host Another"
+  // forwards those URLs from the previous OH so they're reused, not recreated.
+  { task_name: 'Create OR REUSE Lofty OH Sign-In (reuse the same URL if hosted here before)', category: 'pre', sort_order: 1 },
+  { task_name: 'Create OR REUSE Curbhero Sign-In (reuse the same URL if hosted here before)', category: 'pre', sort_order: 2 },
+  // Forces an explicit choice that prevents auto-follow-up spam later.
+  { task_name: 'Pick PRIMARY sign-in source for auto-follow-up (only ONE runs automation — prevents duplicate texts/emails to the same lead)', category: 'pre', sort_order: 3 },
+  { task_name: 'Create Flyers in Canva',                               category: 'pre',    sort_order: 4  },
+  { task_name: 'Prep Door Jammer',                                     category: 'pre',    sort_order: 5  },
+  { task_name: 'Send materials for printing',                          category: 'pre',    sort_order: 6  },
+  { task_name: 'Print Sign-In QR page',                                category: 'pre',    sort_order: 7  },
+  { task_name: 'Print QR for other Open Houses',                       category: 'pre',    sort_order: 8  },
+  { task_name: 'Print MLS sheet',                                      category: 'pre',    sort_order: 9  },
+  { task_name: 'Schedule Flyer Delivery',                              category: 'pre',    sort_order: 10 },
+  { task_name: 'Create FB Marketplace Post',                           category: 'pre',    sort_order: 11 },
+  { task_name: 'Create IG Post in Canva',                              category: 'pre',    sort_order: 12 },
+  { task_name: 'Create IG Stories in Canva',                           category: 'pre',    sort_order: 13 },
+  { task_name: 'Set up Manychat Sequence',                             category: 'pre',    sort_order: 14 },
+  { task_name: 'Schedule IG Post',                                     category: 'pre',    sort_order: 15 },
+  { task_name: 'Schedule IG Stories',                                  category: 'pre',    sort_order: 16 },
+  { task_name: 'Add Lofty landing page link to Boards app',            category: 'pre',    sort_order: 17 },
+  { task_name: 'Circle Prospect neighborhood',                         category: 'pre',    sort_order: 18 },
   // ── Day-Of ──
-  { task_name: 'Post Open House IG Story (live)',                      category: 'day_of', sort_order: 18 },
-  { task_name: 'Arrive 45 min early — set up signs & feature sheets',  category: 'day_of', sort_order: 19 },
-  { task_name: 'Set up sign-in at entrance (Curbhero / iPad)',         category: 'day_of', sort_order: 20 },
-  { task_name: 'Track each group: buyer type + interest level',        category: 'day_of', sort_order: 21 },
-  { task_name: 'Note feedback on price, condition, competition',       category: 'day_of', sort_order: 22 },
-  { task_name: 'Lock up & collect all signs + materials',              category: 'day_of', sort_order: 23 },
+  { task_name: 'Post Open House IG Story (live)',                      category: 'day_of', sort_order: 19 },
+  { task_name: 'Arrive 45 min early — set up signs & feature sheets',  category: 'day_of', sort_order: 20 },
+  { task_name: 'Set up sign-in at entrance (Curbhero / iPad)',         category: 'day_of', sort_order: 21 },
+  { task_name: 'Track each group: buyer type + interest level',        category: 'day_of', sort_order: 22 },
+  { task_name: 'Note feedback on price, condition, competition',       category: 'day_of', sort_order: 23 },
+  { task_name: 'Lock up & collect all signs + materials',              category: 'day_of', sort_order: 24 },
   // ── Post-Event ──
-  { task_name: 'Create Thank You image + text in Canva',               category: 'post',   sort_order: 24 },
-  { task_name: 'Add Thank You copy to Boards app',                     category: 'post',   sort_order: 25 },
-  { task_name: 'Text every sign-in within 2 hours of close',           category: 'post',   sort_order: 26 },
-  { task_name: 'Trigger Manychat Thank You sequence',                  category: 'post',   sort_order: 27 },
-  { task_name: 'Add hot leads to Lofty & schedule follow-up call',     category: 'post',   sort_order: 28 },
+  { task_name: 'Create Thank You image + text in Canva',               category: 'post',   sort_order: 25 },
+  { task_name: 'Add Thank You copy to Boards app',                     category: 'post',   sort_order: 26 },
+  { task_name: 'Text every sign-in within 2 hours of close',           category: 'post',   sort_order: 27 },
+  { task_name: 'Trigger Manychat Thank You sequence',                  category: 'post',   sort_order: 28 },
+  { task_name: 'Add hot leads to Lofty & schedule follow-up call',     category: 'post',   sort_order: 29 },
+  // Critical follow-up hygiene — added 2026-05-13:
+  { task_name: 'Enter ALL paper sign-ins into Lofty AND Command app (manual entry in both — nothing slips through the cracks)', category: 'post', sort_order: 30 },
+  { task_name: 'Turn OFF auto-follow-up on NON-primary sign-ins (Lofty / Curbhero / Command / Manychat) — only the ONE primary source should auto-follow-up to avoid duplicate messages', category: 'post', sort_order: 31 },
 ]
 
 export function getOHChecklist() {
   try {
     const saved = JSON.parse(localStorage.getItem(OH_CHECKLIST_KEY))
-    if (Array.isArray(saved) && saved.length > 0) return saved
+    if (Array.isArray(saved) && saved.length > 0) {
+      // Merge in any DEFAULT tasks the user's saved template is missing
+      // (matched by task_name). New defaults are appended to the end of
+      // their category so the user doesn't lose their custom ordering, but
+      // newer hygiene tasks (e.g. "turn off non-primary auto-follow-up")
+      // still surface for everyone after a default update.
+      const savedNames = new Set(saved.map(t => (t.task_name || '').trim().toLowerCase()))
+      const missing = DEFAULT_OH_TASKS.filter(t =>
+        !savedNames.has((t.task_name || '').trim().toLowerCase())
+      )
+      if (missing.length === 0) return saved
+
+      const maxSort = saved.reduce((m, t) => Math.max(m, Number(t.sort_order) || 0), 0)
+      const merged  = [...saved, ...missing.map((t, i) => ({ ...t, sort_order: maxSort + i + 1 }))]
+      return merged
+    }
   } catch { /* fall through */ }
   return DEFAULT_OH_TASKS
 }
@@ -124,8 +146,10 @@ function mapOH(row) {
     agent_phone:         row.agent_phone         ?? '',
     agent_email:         row.agent_email         ?? '',
     listing_agent:       row.listing_agent       ?? '',
-    lofty_landing_page:  row.lofty_landing_page  ?? '',
-    lofty_other_oh_page: row.lofty_other_oh_page ?? '',
+    lofty_landing_page:    row.lofty_landing_page    ?? '',
+    lofty_other_oh_page:   row.lofty_other_oh_page   ?? '',
+    curbhero_url:          row.curbhero_url          ?? '',
+    primary_signin_source: row.primary_signin_source ?? '',
     groups_through:      row.groups_through      ?? 0,
     leads_converted:     row.leads_converted     ?? 0,
     // Point-in-time snapshot — survives later listing-price changes so an
@@ -172,6 +196,11 @@ function OHQuickForm({ onSave, onClose, saving, error, existingOHs, prefill }) {
     // instead of letting ensureProperty fuzzy-match on address again.
     _property_id:  prefill?.property_id   ?? null,
     _listing_id:   prefill?.listing_id    ?? null,
+    // Sign-in plumbing carried over from previous OH at this property.
+    lofty_landing_page:    prefill?.lofty_landing_page    ?? '',
+    lofty_other_oh_page:   prefill?.lofty_other_oh_page   ?? '',
+    curbhero_url:          prefill?.curbhero_url          ?? '',
+    primary_signin_source: prefill?.primary_signin_source ?? '',
   })
   const [dates, setDates] = useState([{ date: '', start_time: '', end_time: '' }])
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
@@ -209,6 +238,52 @@ function OHQuickForm({ onSave, onClose, saving, error, existingOHs, prefill }) {
         <Input label="City" value={draft.city} onChange={e => set('city', e.target.value)} placeholder="" />
         <Input label="Listing Agent" value={draft.listing_agent} onChange={e => set('listing_agent', e.target.value)} placeholder="" />
         <Input label="Hosted By (leave blank if you)" value={draft.hosted_by} onChange={e => set('hosted_by', e.target.value)} placeholder="Agent name if someone else is hosting" />
+      </div>
+
+      <hr className="panel-divider" />
+      <div className="panel-section">
+        <p className="panel-section-label">
+          Sign-In Sources
+          {prefill && (draft.lofty_landing_page || draft.curbhero_url) && (
+            <span style={{ fontSize: '0.72rem', fontWeight: 500, color: 'var(--brown-mid)', marginLeft: 8 }}>
+              · reused from previous OH at this property
+            </span>
+          )}
+        </p>
+        <Input
+          label="Lofty Sign-In URL"
+          value={draft.lofty_landing_page}
+          onChange={e => set('lofty_landing_page', e.target.value)}
+          placeholder=""
+        />
+        <Input
+          label="Lofty 'Other Open Houses' URL"
+          value={draft.lofty_other_oh_page}
+          onChange={e => set('lofty_other_oh_page', e.target.value)}
+          placeholder=""
+        />
+        <Input
+          label="Curbhero URL"
+          value={draft.curbhero_url}
+          onChange={e => set('curbhero_url', e.target.value)}
+          placeholder=""
+        />
+        <Select
+          label="Primary sign-in for auto follow-up"
+          value={draft.primary_signin_source}
+          onChange={e => set('primary_signin_source', e.target.value)}
+        >
+          <option value="">— pick one —</option>
+          <option value="command_kiosk">Command app kiosk (in-app sign-in)</option>
+          <option value="lofty">Lofty</option>
+          <option value="curbhero">Curbhero</option>
+          <option value="manychat">ManyChat</option>
+          <option value="paper">Paper (manual entry)</option>
+          <option value="none">None — I&apos;ll follow up manually</option>
+        </Select>
+        <p style={{ fontSize: '0.72rem', color: 'var(--brown-mid)', marginTop: -4, lineHeight: 1.4 }}>
+          Only the <strong>primary</strong> source should run automated follow-up. Turn off auto-follow-up on every other sign-in tool so the same lead doesn&apos;t get hit twice.
+        </p>
       </div>
 
       <hr className="panel-divider" />
@@ -285,8 +360,10 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
     end_time:            oh?.end_time            ?? '',
     status:              oh?.status              ?? 'scheduled',
     listing_agent:       oh?.listing_agent       ?? '',
-    lofty_landing_page:  oh?.lofty_landing_page  ?? '',
-    lofty_other_oh_page: oh?.lofty_other_oh_page ?? '',
+    lofty_landing_page:    oh?.lofty_landing_page    ?? '',
+    lofty_other_oh_page:   oh?.lofty_other_oh_page   ?? '',
+    curbhero_url:          oh?.curbhero_url          ?? '',
+    primary_signin_source: oh?.primary_signin_source ?? '',
     agent_name:          oh?.agent_name          ?? (isNew ? (sig?.full_name || 'Dana Massey') : ''),
     agent_brokerage:     oh?.agent_brokerage     ?? (isNew ? (sig?.brokerage || '') : ''),
     agent_phone:         oh?.agent_phone         ?? (isNew ? (sig?.phone || '') : ''),
@@ -421,8 +498,30 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
       <div className="panel-section">
         <p className="panel-section-label">Listing Info</p>
         <Input label="Listing Agent" value={draft.listing_agent} onChange={e => set('listing_agent', e.target.value)} placeholder="Victoria Cole" />
+      </div>
+
+      <hr className="panel-divider" />
+      <div className="panel-section">
+        <p className="panel-section-label">Sign-In Sources</p>
         <Input label="Lofty Landing Page URL" value={draft.lofty_landing_page} onChange={e => set('lofty_landing_page', e.target.value)} placeholder="https://danamassey.com/address" />
         <Input label="Lofty Other OH's Page URL" value={draft.lofty_other_oh_page} onChange={e => set('lofty_other_oh_page', e.target.value)} placeholder="https://crm.lofty.com/…" />
+        <Input label="Curbhero URL" value={draft.curbhero_url} onChange={e => set('curbhero_url', e.target.value)} placeholder="https://app.curbhero.com/…" />
+        <Select
+          label="Primary sign-in for auto follow-up"
+          value={draft.primary_signin_source || ''}
+          onChange={e => set('primary_signin_source', e.target.value)}
+        >
+          <option value="">— pick one —</option>
+          <option value="command_kiosk">Command app kiosk (in-app sign-in)</option>
+          <option value="lofty">Lofty</option>
+          <option value="curbhero">Curbhero</option>
+          <option value="manychat">ManyChat</option>
+          <option value="paper">Paper (manual entry)</option>
+          <option value="none">None — I&apos;ll follow up manually</option>
+        </Select>
+        <p style={{ fontSize: '0.72rem', color: 'var(--brown-mid)', marginTop: -4, lineHeight: 1.4 }}>
+          Only the <strong>primary</strong> source should run automated follow-up. Turn off auto-follow-up on every other sign-in tool so the same lead doesn&apos;t get hit twice.
+        </p>
       </div>
 
       <hr className="panel-divider" />
@@ -987,17 +1086,49 @@ function OHDetail({ oh, onBack, onEdit, onHostAnother }) {
         </div>
       )}
 
-      {oh.lofty_landing_page && (
+      {(oh.lofty_landing_page || oh.lofty_other_oh_page || oh.curbhero_url || oh.primary_signin_source) && (
         <div className="oh-detail__links">
-          <a href={oh.lofty_landing_page} target="_blank" rel="noreferrer" className="oh-detail__link">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 3H3a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1v-3"/><path d="M10 2h4v4"/><line x1="14" y1="2" x2="8" y2="8"/></svg>
-            Lofty Sign-In Page
-          </a>
+          {oh.lofty_landing_page && (
+            <a href={oh.lofty_landing_page} target="_blank" rel="noreferrer" className="oh-detail__link">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 3H3a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1v-3"/><path d="M10 2h4v4"/><line x1="14" y1="2" x2="8" y2="8"/></svg>
+              Lofty Sign-In{oh.primary_signin_source === 'lofty' && <span style={{ marginLeft: 6, fontSize: '0.7rem', background: 'var(--sage-green)', color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>PRIMARY</span>}
+            </a>
+          )}
           {oh.lofty_other_oh_page && (
             <a href={oh.lofty_other_oh_page} target="_blank" rel="noreferrer" className="oh-detail__link">
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 3H3a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1v-3"/><path d="M10 2h4v4"/><line x1="14" y1="2" x2="8" y2="8"/></svg>
               Other OH's Page
             </a>
+          )}
+          {oh.curbhero_url && (
+            <a href={oh.curbhero_url} target="_blank" rel="noreferrer" className="oh-detail__link">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 3H3a1 1 0 00-1 1v9a1 1 0 001 1h9a1 1 0 001-1v-3"/><path d="M10 2h4v4"/><line x1="14" y1="2" x2="8" y2="8"/></svg>
+              Curbhero{oh.primary_signin_source === 'curbhero' && <span style={{ marginLeft: 6, fontSize: '0.7rem', background: 'var(--sage-green)', color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>PRIMARY</span>}
+            </a>
+          )}
+          {oh.primary_signin_source && (
+            <span
+              title="Only the primary sign-in source should run automated follow-up — turn off auto-followup on the others to avoid sending duplicate messages."
+              style={{
+                fontSize: '0.74rem',
+                background: oh.primary_signin_source === 'none' ? 'rgba(180, 83, 9, 0.12)' : 'rgba(141, 124, 102, 0.12)',
+                color: oh.primary_signin_source === 'none' ? '#b45309' : 'var(--brown-dark)',
+                border: '1px solid rgba(141, 124, 102, 0.25)',
+                padding: '6px 10px',
+                borderRadius: 8,
+                fontWeight: 600,
+              }}
+            >
+              {oh.primary_signin_source === 'none'
+                ? 'No auto follow-up — manual only'
+                : `Auto follow-up → ${({
+                    command_kiosk: 'Command kiosk',
+                    lofty:         'Lofty',
+                    curbhero:      'Curbhero',
+                    manychat:      'ManyChat',
+                    paper:         'Paper (manual)',
+                  })[oh.primary_signin_source] || oh.primary_signin_source}`}
+            </span>
           )}
         </div>
       )}
@@ -1468,8 +1599,27 @@ function ScheduledTab({ openHouses, loading, refetch }) {
   // "Host Another Open House" — re-run the workflow for the same property.
   // Closes the detail view, opens the quick form with property + agent
   // info pre-filled so Dana only has to pick a new date/time.
+  //
+  // Carry forward the Lofty + Curbhero sign-in URLs and the chosen primary
+  // sign-in source. These are property-scoped (Dana reuses the same Lofty
+  // sign-in page across every OH at the same address rather than spinning
+  // up a new one each time), so re-creating them would be wasted work.
+  // If the previous OH was on a DIFFERENT property somehow (e.g. the
+  // form's address was edited later), we still forward — the user can
+  // clear the fields if they're not relevant.
   const openHostAnother = (oh) => {
     if (!oh) return
+    // Best-effort: look at the most recent OH on the same property to pull
+    // sign-in URLs from, in case the one Dana clicked from didn't have
+    // them set but an earlier one did.
+    const propertyOHs = (openHouses ?? [])
+      .filter(o => o.property_id && o.property_id === oh.property_id)
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    const withLoftyLanding = propertyOHs.find(o => o.lofty_landing_page) || oh
+    const withLoftyOther   = propertyOHs.find(o => o.lofty_other_oh_page) || oh
+    const withCurbhero     = propertyOHs.find(o => o.curbhero_url)        || oh
+    const withPrimary      = propertyOHs.find(o => o.primary_signin_source) || oh
+
     setSelectedOH(null)
     setEditingOH(null)
     setQuickPrefill({
@@ -1480,6 +1630,11 @@ function ScheduledTab({ openHouses, loading, refetch }) {
       listing_agent: oh.listing_agent || '',
       // Host stays whoever ran it last — blank = Dana hosted it herself.
       hosted_by:     oh.agent_name    || '',
+      // Sign-in plumbing — reuse, don't recreate.
+      lofty_landing_page:    withLoftyLanding.lofty_landing_page  || '',
+      lofty_other_oh_page:   withLoftyOther.lofty_other_oh_page   || '',
+      curbhero_url:          withCurbhero.curbhero_url            || '',
+      primary_signin_source: withPrimary.primary_signin_source    || '',
     })
     setPanelOpen(true)
   }
@@ -1536,6 +1691,11 @@ function ScheduledTab({ openHouses, loading, refetch }) {
           status:        'scheduled',
           listing_agent: draft.listing_agent.trim() || null,
           agent_name:    draft.hosted_by?.trim()    || null,
+          // Sign-in plumbing — pre-filled by Host Another, editable in form.
+          lofty_landing_page:    draft.lofty_landing_page?.trim()    || null,
+          lofty_other_oh_page:   draft.lofty_other_oh_page?.trim()   || null,
+          curbhero_url:          draft.curbhero_url?.trim()          || null,
+          primary_signin_source: draft.primary_signin_source || null,
         }
         let created
         try {
@@ -1586,8 +1746,10 @@ function ScheduledTab({ openHouses, loading, refetch }) {
         status:          draft.status,
         community:           (draft.community ?? '').trim()           || null,
         listing_agent:       (draft.listing_agent ?? '').trim()       || null,
-        lofty_landing_page:  (draft.lofty_landing_page ?? '').trim()  || null,
-        lofty_other_oh_page: (draft.lofty_other_oh_page ?? '').trim() || null,
+        lofty_landing_page:    (draft.lofty_landing_page ?? '').trim()    || null,
+        lofty_other_oh_page:   (draft.lofty_other_oh_page ?? '').trim()   || null,
+        curbhero_url:          (draft.curbhero_url ?? '').trim()          || null,
+        primary_signin_source: draft.primary_signin_source || null,
         agent_name:          (draft.agent_name ?? '').trim()          || null,
         agent_brokerage:     (draft.agent_brokerage ?? '').trim()     || null,
         agent_phone:         (draft.agent_phone ?? '').trim()         || null,

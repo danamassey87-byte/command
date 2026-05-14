@@ -1079,25 +1079,32 @@ export const unlinkContentKeyword = (contentId, keywordId) =>
 
 // ─── Blotato Video Generation ─────────────────────────────────────────────────
 export async function generateBlotatoVideo(videoPrompt, mediaUrls = []) {
+  const { fetchBrief, withBrief } = await import('./creativeBrief')
+  const brief = await fetchBrief()
   const { data, error } = await supabase.functions.invoke('publish-content', {
-    body: { platform_post_id: null, action: 'generate_video', video_prompt: videoPrompt, media_urls: mediaUrls },
+    body: { platform_post_id: null, action: 'generate_video', video_prompt: withBrief(brief, videoPrompt), media_urls: mediaUrls, brand_brief: brief },
   })
   if (error) throw new Error(error.message)
   return data
 }
 
 // ─── Gamma Presentations ──────────────────────────────────────────────────────
+// Every Gamma call auto-injects Dana's Brain Doc + brand voice — see creativeBrief.js
 export async function buildPresentation(listingId, strategyText, photos = []) {
+  const { fetchBrief, withBrief } = await import('./creativeBrief')
+  const brief = await fetchBrief()
   const { data, error } = await supabase.functions.invoke('build-presentation', {
-    body: { listing_id: listingId, strategy_text: strategyText, photos },
+    body: { listing_id: listingId, strategy_text: withBrief(brief, strategyText), photos, brand_brief: brief },
   })
   if (error) throw new Error(error.message)
   return data
 }
 
 export async function buildGammaCustom(title, strategyText, presentationType) {
+  const { fetchBrief, withBrief } = await import('./creativeBrief')
+  const brief = await fetchBrief()
   const { data, error } = await supabase.functions.invoke('build-gamma-custom', {
-    body: { title, strategy_text: strategyText, presentation_type: presentationType },
+    body: { title, strategy_text: withBrief(brief, strategyText), presentation_type: presentationType, brand_brief: brief },
   })
   if (error) throw new Error(error.message)
   return data
@@ -1404,9 +1411,11 @@ export const updateRecommendation = (id, updates) =>
     .eq('id', id).select().single())
 
 export async function triggerCampaignAnalysis(campaignId) {
-  const { data, error } = await supabase.functions.invoke('ai-campaign-insights', {
-    body: campaignId ? { campaign_id: campaignId } : {},
-  })
+  const { fetchBrief } = await import('./creativeBrief')
+  const brief = await fetchBrief()
+  const body = campaignId ? { campaign_id: campaignId } : {}
+  if (brief) body.brand_brief = brief
+  const { data, error } = await supabase.functions.invoke('ai-campaign-insights', { body })
   if (error) throw new Error(error.message || 'Analysis failed')
   return data
 }
@@ -1436,8 +1445,11 @@ export const bulkCreateNewsletterRecipients = (rows) =>
 // ─── AI Listing Content Generation (Just Listed / Coming Soon / Price Drop / Just Sold / OH Promo) ──
 // Variants are server-side. Channels = [{ channel, format }] or strings like "instagram:post".
 export async function generateListingContent({ variant, listingId = null, ohId = null, channels = null }) {
+  const { fetchBrief } = await import('./creativeBrief')
+  const brief = await fetchBrief()
   const payload = { type: 'listing_content', variant, listing_id: listingId, oh_id: ohId }
   if (channels) payload.channels = channels
+  if (brief) payload.brand_brief = brief
   const { data, error } = await supabase.functions.invoke('generate-content', { body: payload })
   if (error) {
     let detail = error.message
@@ -1762,9 +1774,12 @@ export async function reRunOHApprovalGate(ohId) {
  * is the next iteration.
  */
 export async function generateCanvaDesignsForOH({ prompt, designTypes = null, brandKitId = null }) {
+  const { fetchBrief, withBrief } = await import('./creativeBrief')
+  const brief = await fetchBrief()
   const types = designTypes || ['instagram-post', 'instagram-story', 'poster']
-  const body = { prompt, design_types: types }
+  const body = { prompt: withBrief(brief, prompt), design_types: types }
   if (brandKitId) body.brand_kit_id = brandKitId
+  if (brief) body.brand_brief = brief
   const { data, error } = await supabase.functions.invoke('canva-generate', { body })
   if (error) {
     let detail = error.message
@@ -1886,7 +1901,10 @@ export async function copyToStagingBucket(remoteUrl, listingId) {
 
 /** Invoke virtual-staging edge function. */
 export async function generateStaging(payload) {
-  const { data, error } = await supabase.functions.invoke('virtual-staging', { body: payload })
+  const { fetchBrief } = await import('./creativeBrief')
+  const brief = await fetchBrief()
+  const body = brief ? { ...payload, brand_brief: brief } : payload
+  const { data, error } = await supabase.functions.invoke('virtual-staging', { body })
   if (error) {
     let detail = error.message
     try {
@@ -2103,7 +2121,10 @@ export const setCmaReviewVerdict = (id, verdict, notes) =>
 
 // ─── AI Content Generation ────────────────────────────────────────────────────
 export async function generateContent(payload) {
-  const { data, error } = await supabase.functions.invoke('generate-content', { body: payload })
+  const { fetchBrief } = await import('./creativeBrief')
+  const brief = await fetchBrief()
+  const body = brief ? { ...payload, brand_brief: brief } : payload
+  const { data, error } = await supabase.functions.invoke('generate-content', { body })
   if (error) {
     // supabase.functions.invoke wraps non-2xx responses in a FunctionsHttpError.
     // The real structured body (with our `code` + `error` fields from the

@@ -268,3 +268,73 @@
   letter-spacing: 0.5px;
   color: var(--brown-mid);
 }
+
+/* ─── Inline outcome dropdown (table cell) ────────────────────────────────── */
+.la-outcome-select {
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 22px 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--white);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><polyline points='1 1 5 5 9 1' stroke='%23807166' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  text-transform: capitalize;
+  transition: background 0.15s, border-color 0.15s;
+}
+.la-outcome-select:hover { border-color: var(--brown-mid); }
+.la-outcome-select:focus { outline: 2px solid var(--brown-mid); outline-offset: 1px; }
+.la-outcome-select--pending     { background-color: rgba(120, 142, 173, 0.10); color: #4a607c; border-color: rgba(120,142,173,0.30); }
+.la-outcome-select--won         { background-color: rgba(139, 154, 123, 0.16); color: #4b6b3e; border-color: rgba(139,154,123,0.35); }
+.la-outcome-select--lost        { background-color: rgba(192, 96,  74, 0.12); color: #8c3a26; border-color: rgba(192, 96, 74,0.30); }
+.la-outcome-select--cancelled   { background-color: var(--cream); color: var(--color-text-muted); }
+.la-outcome-select--rescheduled { background-color: rgba(214, 168,  82, 0.14); color: #82601c; border-color: rgba(214,168,82,0.32); }
+
+/* ─── Inline prep progress (table cell) ───────────────────────────────────── */
+.la-prep-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 110px;
+}
+.la-prep-mini-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--cream);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.la-prep-mini-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.25s ease;
+}
+.la-prep-mini-fill--low     { background: rgba(192, 96, 74, 0.55); }
+.la-prep-mini-fill--mid     { background: rgba(214,168, 82, 0.75); }
+.la-prep-mini-fill--success { background: rgba(139,154,123, 0.85); }
+.la-prep-mini-label {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ─── "Add missing steps" banner inside the prep checklist ──────────────── */
+.la-missing-steps {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(214, 168, 82, 0.10);
+  border: 1px dashed rgba(214, 168, 82, 0.40);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  color: #82601c;
+  margin-bottom: 6px;
+}

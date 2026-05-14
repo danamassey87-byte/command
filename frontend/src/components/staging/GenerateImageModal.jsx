@@ -12,6 +12,7 @@
 import { useState, useRef } from 'react'
 import { Button } from '../ui/index.jsx'
 import supabase from '../../lib/supabase'
+import { useBrief, withBrief } from '../../lib/creativeBrief'
 
 const STYLES = [
   { v: 'photography',  l: 'Photography',   desc: 'Realistic photo, magazine-quality' },
@@ -49,6 +50,7 @@ export default function GenerateImageModal({ open, onClose, onGenerated }) {
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const textareaRef = useRef(null)
+  const brief = useBrief()
 
   if (!open) return null
 
@@ -63,7 +65,7 @@ export default function GenerateImageModal({ open, onClose, onGenerated }) {
     setBusy(true); setError(null); setResult(null)
     try {
       const { data, error: fnErr } = await supabase.functions.invoke('generate-image', {
-        body: { prompt: prompt.trim(), style, aspect, quality },
+        body: { prompt: withBrief(brief, prompt.trim()), style, aspect, quality, brand_brief: brief },
       })
       if (fnErr) {
         let detail = fnErr.message

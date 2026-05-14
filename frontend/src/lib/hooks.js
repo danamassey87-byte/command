@@ -95,6 +95,7 @@ export const useActivityTargets  = ()               => useQuery(DB.getActivityTa
 export const useDailyActivity    = (from, to)       => useQuery(() => DB.getDailyActivity(from, to), [from, to])
 export const useListingAppointments = ()            => useQuery(DB.getListingAppointments)
 export const useApptChecklist    = (apptId)         => useQuery(() => DB.getApptChecklist(apptId), [apptId])
+export const useAllApptChecklists = ()              => useQuery(DB.getAllApptChecklists)
 export const useShowingSessionsForContact = (cid)  => useQuery(() => DB.getShowingSessionsForContact(cid), [cid])
 
 export const useAutoStats     = (date)  => useQuery(() => DB.getAutoStatsForDate(date), [date])

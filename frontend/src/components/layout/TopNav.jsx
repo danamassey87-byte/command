@@ -26,12 +26,14 @@ const NAV_ICONS = {
   biolink: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>,
   money: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><path d="M16 6H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H7"/></svg>,
   toolkit: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>,
+  openhouse: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12L12 3l9 9"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M14 21v-5a2 2 0 00-4 0v5"/></svg>,
 }
 
 const DEFAULT_NAV_ITEMS = [
-  { id: 'home',      label: 'Home',      icon: NAV_ICONS.home,      path: '/',            activePaths: ['/', '/dashboard', '/goals', '/calendar', '/tasks'] },
-  { id: 'prospect',  label: 'Prospect',  icon: NAV_ICONS.prospect,  path: '/prospecting', activePaths: ['/prospecting', '/open-houses'] },
-  { id: 'people',    label: 'CRM',       icon: NAV_ICONS.people,    path: '/crm',         activePaths: ['/crm', '/vendors'] },
+  { id: 'home',      label: 'Home',        icon: NAV_ICONS.home,      path: '/',            activePaths: ['/', '/dashboard', '/goals', '/calendar', '/tasks'] },
+  { id: 'prospect',  label: 'Prospect',    icon: NAV_ICONS.prospect,  path: '/prospecting', activePaths: ['/prospecting'] },
+  { id: 'openhouse', label: 'Open Houses', icon: NAV_ICONS.openhouse, path: '/open-houses', activePaths: ['/open-houses', '/oh-signin'] },
+  { id: 'people',    label: 'CRM',         icon: NAV_ICONS.people,    path: '/crm',         activePaths: ['/crm', '/vendors'] },
   { id: 'deals',     label: 'Deals',     icon: NAV_ICONS.deals,     path: '/pipeline',    activePaths: ['/pipeline'] },
   { id: 'content',   label: 'Content',   icon: NAV_ICONS.content,   path: '/content',     activePaths: ['/content'] },
   { id: 'email',     label: 'Email',     icon: NAV_ICONS.email,     path: '/email',       activePaths: ['/email', '/campaigns'] },
@@ -40,7 +42,7 @@ const DEFAULT_NAV_ITEMS = [
   { id: 'toolkit',   label: 'Toolkit',   icon: NAV_ICONS.toolkit,   path: '/resources',   activePaths: ['/resources', '/settings', '/pipeline/buyer-sop', '/pipeline/seller-sop'] },
 ]
 
-const STORAGE_KEY = 'command_nav_order_v3'
+const STORAGE_KEY = 'command_nav_order_v4'
 
 function loadOrder() {
   try {

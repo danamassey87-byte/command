@@ -500,6 +500,12 @@ export default function ProspectingDashboard() {
       <div className="prospect-lux__row prospect-lux__row--pulse">
         <div className="prospect-lux__col prospect-lux__col--links">
           <div className="prospect-lux__quick-grid">
+            <Link to="/prospecting/oh-leads" className="pr-quick-link">
+              <span className="pr-quick-link__icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--brown-dark)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="22" height="22"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              </span>
+              <span>Open House Leads</span>
+            </Link>
             <Link to="/prospecting/expired" className="pr-quick-link">
               <span className="pr-quick-link__icon">
                 <svg viewBox="0 0 24 24" fill="none" stroke="var(--brown-dark)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="22" height="22"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
@@ -511,12 +517,6 @@ export default function ProspectingDashboard() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="var(--brown-dark)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="22" height="22"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
               </span>
               <span>Personal Circle / SOI</span>
-            </Link>
-            <Link to="/prospecting/oh-leads" className="pr-quick-link">
-              <span className="pr-quick-link__icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="var(--brown-dark)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" width="22" height="22"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-              </span>
-              <span>Open House Leads</span>
             </Link>
             <Link to="/prospecting/bio-link" className="pr-quick-link">
               <span className="pr-quick-link__icon">

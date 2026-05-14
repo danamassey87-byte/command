@@ -1,21 +1,28 @@
 import { useState, useMemo } from 'react'
 import { Button, Badge, SectionHeader, TabBar, Card, SlidePanel, Input, Select, Textarea } from '../../components/ui/index.jsx'
-import { useListingAppointments, useApptChecklist, useContacts } from '../../lib/hooks.js'
+import { useListingAppointments, useApptChecklist, useAllApptChecklists, useContacts } from '../../lib/hooks.js'
+import { useBrief } from '../../lib/creativeBrief'
 import * as DB from '../../lib/supabase.js'
 import './ListingAppts.css'
 
 const OUTCOMES = ['pending','won','lost','cancelled','rescheduled']
 const outcomeVariant = { pending:'info', won:'success', lost:'danger', cancelled:'default', rescheduled:'warning' }
 
+/** Pre-appointment workflow.
+ *  IMPORTANT: keep these labels stable — they're used as keys in detection (e.g.
+ *  the "Create listing presentation" row triggers Gamma; "Pull initial comps"
+ *  is highlighted as a first-step). If you rename, update the helpers below. */
 const PREP_TASKS = [
   'Research seller background & motivation',
+  'Pull initial comps',
   'Run Comparable Market Analysis (CMA)',
   'Define pricing strategy & recommendation',
-  'Build listing presentation deck',
+  'Create listing presentation (Gamma)',
   'Print pre-listing packet',
   'Research neighborhood, schools & recent sales',
   'Plan walkthrough talking points & objection responses',
 ]
+const GAMMA_TASK_NAME = 'Create listing presentation (Gamma)'
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -172,10 +179,13 @@ function ApptForm({ appt, contacts, onSave, onDelete, onClose, saving, deleting,
 }
 
 // ─── Prep Checklist (loaded per appointment) ───────────────────────────────────
-function PrepChecklist({ apptId, onWon }) {
+function PrepChecklist({ apptId, appt }) {
   const { data: tasksData, loading, refetch } = useApptChecklist(apptId)
   const tasks   = tasksData ?? []
   const [seeding, setSeeding] = useState(false)
+  const [gammaBusy, setGammaBusy] = useState(false)
+  const [gammaError, setGammaError] = useState(null)
+  const brief = useBrief()
 
   const seed = async () => {
     setSeeding(true)
@@ -198,6 +208,30 @@ function PrepChecklist({ apptId, onWon }) {
     } catch { /* silent */ }
   }
 
+  /** Trigger Gamma to build the listing presentation, then auto-check the row. */
+  const runGamma = async (task) => {
+    setGammaBusy(true); setGammaError(null)
+    try {
+      const clientName = appt?.contact?.name || 'Seller'
+      const addr = [appt?.property?.address, appt?.property?.city].filter(Boolean).join(', ')
+      const price = appt?.listing_price_discussed
+        ? `Target list price: $${Number(appt.listing_price_discussed).toLocaleString()}.`
+        : ''
+      const strategy = `Listing presentation for ${clientName}${addr ? ` at ${addr}` : ''}. ${price} Include market overview, recent comps, pricing strategy, marketing plan, and next steps.`
+      const title = `${clientName} — Listing Presentation${addr ? ` · ${addr}` : ''}`
+      // Brain doc is auto-injected inside DB.buildGammaCustom — see lib/supabase.js
+      // and lib/creativeBrief.js. Passing `brief` here is informational only,
+      // not strictly required (the helper would no-op).
+      void brief
+      await DB.buildGammaCustom(title, strategy, 'listing_presentation')
+      // Auto-check the Gamma row
+      await DB.updateApptChecklistItem(task.id, { completed: true, completed_at: new Date().toISOString() })
+      await refetch()
+    } catch (e) {
+      setGammaError(e.message || 'Could not start Gamma build.')
+    } finally { setGammaBusy(false) }
+  }
+
   if (loading) return <p style={{ fontSize:'0.82rem', color:'var(--color-text-muted)' }}>Loading checklist…</p>
 
   if (!tasks.length) return (
@@ -212,28 +246,108 @@ function PrepChecklist({ apptId, onWon }) {
   const done = tasks.filter(t => t.completed).length
   const pct  = Math.round((done / tasks.length) * 100)
 
+  // Detect canonical steps missing from a previously-seeded checklist
+  // (e.g. older appointments that pre-date the Comps + Gamma rows).
+  const existingNames = new Set(tasks.map(t => t.task_name))
+  const missing = PREP_TASKS.filter(name => !existingNames.has(name))
+  const addMissing = async () => {
+    const maxSort = Math.max(0, ...tasks.map(t => t.sort_order || 0))
+    await DB.bulkCreateApptChecklist(
+      missing.map((task_name, i) => ({ appointment_id: apptId, task_name, sort_order: maxSort + 1 + i }))
+    )
+    await refetch()
+  }
+
   return (
     <div className="la-checklist">
       <div className="la-checklist-progress">
         <div className="la-checklist-bar">
           <div className="la-checklist-bar-fill" style={{ width:`${pct}%` }} />
         </div>
-        <span className="la-checklist-pct">{done}/{tasks.length} done</span>
+        <span className="la-checklist-pct">{done}/{tasks.length} done · {pct}%</span>
       </div>
-      {tasks.map(task => (
-        <div key={task.id} className={`la-task-row${task.completed ? ' la-task-row--done' : ''}`}>
-          <button className={`la-task-check${task.completed ? ' la-task-check--done' : ''}`} onClick={() => toggle(task)}>
-            {task.completed
-              ? <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="var(--brown-mid)"/><polyline points="4.5 8 7 10.5 11.5 5.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
-              : <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="var(--color-border)" strokeWidth="1.5"/></svg>
-            }
-          </button>
-          <span className={`la-task-name${task.completed ? ' la-task-name--done' : ''}`}>{task.task_name}</span>
-          {task.completed && task.completed_at && (
-            <span className="la-task-date">{new Date(task.completed_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
-          )}
+      {missing.length > 0 && (
+        <div className="la-missing-steps">
+          <span>{missing.length} newer step{missing.length === 1 ? '' : 's'} available (comps, Gamma…)</span>
+          <Button variant="ghost" size="sm" onClick={addMissing}>+ Add</Button>
         </div>
-      ))}
+      )}
+      {tasks.map(task => {
+        const isGamma = task.task_name === GAMMA_TASK_NAME
+        return (
+          <div key={task.id} className={`la-task-row${task.completed ? ' la-task-row--done' : ''}`}>
+            <button className={`la-task-check${task.completed ? ' la-task-check--done' : ''}`} onClick={() => toggle(task)}>
+              {task.completed
+                ? <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="var(--brown-mid)"/><polyline points="4.5 8 7 10.5 11.5 5.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                : <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="var(--color-border)" strokeWidth="1.5"/></svg>
+              }
+            </button>
+            <span className={`la-task-name${task.completed ? ' la-task-name--done' : ''}`}>{task.task_name}</span>
+            {isGamma && !task.completed && (
+              <Button variant="primary" size="sm" onClick={() => runGamma(task)} disabled={gammaBusy} style={{ marginLeft:'auto' }}>
+                {gammaBusy ? 'Building…' : 'Generate with Gamma →'}
+              </Button>
+            )}
+            {task.completed && task.completed_at && (
+              <span className="la-task-date">{new Date(task.completed_at).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>
+            )}
+          </div>
+        )
+      })}
+      {gammaError && <p style={{ fontSize:'0.78rem', color:'var(--color-danger)', marginTop:6 }}>{gammaError}</p>}
+    </div>
+  )
+}
+
+// ─── Inline outcome dropdown (row-level, no panel needed) ──────────────────────
+function InlineOutcome({ appt, onChange }) {
+  const [saving, setSaving] = useState(false)
+  const handle = async (e) => {
+    e.stopPropagation()
+    const next = e.target.value
+    if (next === appt.outcome) return
+    setSaving(true)
+    try {
+      // If switching to "lost", prompt for reason (only if none recorded yet)
+      let lost_reason = appt.lost_reason ?? null
+      if (next === 'lost' && !lost_reason) {
+        const reason = window.prompt('Quick reason for the loss? (optional)')
+        if (reason && reason.trim()) lost_reason = reason.trim()
+      }
+      await DB.updateListingAppointment(appt.id, { outcome: next, lost_reason })
+      await DB.logActivity('appt_outcome_changed', `Marked ${appt.contact?.name || 'appointment'}: ${next}`)
+      onChange()
+    } catch (err) {
+      alert(err.message || 'Could not update outcome.')
+    } finally { setSaving(false) }
+  }
+  return (
+    <select
+      value={appt.outcome || 'pending'}
+      onChange={handle}
+      onClick={e => e.stopPropagation()}
+      disabled={saving}
+      className={`la-outcome-select la-outcome-select--${appt.outcome || 'pending'}`}
+      aria-label="Change outcome"
+    >
+      {OUTCOMES.map(o => <option key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</option>)}
+    </select>
+  )
+}
+
+// ─── Inline prep-progress mini-bar ─────────────────────────────────────────────
+function PrepProgressCell({ stats }) {
+  if (!stats || stats.total === 0) {
+    return <span style={{ fontSize:'0.72rem', color:'var(--color-text-muted)' }}>Not started</span>
+  }
+  const { done, total, pct } = stats
+  const tone = pct === 100 ? 'success' : pct >= 50 ? 'mid' : 'low'
+  return (
+    <div className="la-prep-mini">
+      <div className="la-prep-mini-bar">
+        <div className={`la-prep-mini-fill la-prep-mini-fill--${tone}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="la-prep-mini-label">{done}/{total} · {pct}%</span>
     </div>
   )
 }
@@ -278,7 +392,7 @@ function ApptDetail({ appt, onEdit, onClose, onCreateListing }) {
 
       <h4 className="la-checklist-title">Pre-Appointment Prep</h4>
       {typeof appt.id === 'string'
-        ? <PrepChecklist apptId={appt.id} />
+        ? <PrepChecklist apptId={appt.id} appt={appt} />
         : <p style={{ fontSize:'0.82rem', color:'var(--color-text-muted)' }}>Save appointment first to access prep checklist.</p>
       }
 
@@ -293,8 +407,30 @@ function ApptDetail({ appt, onEdit, onClose, onCreateListing }) {
 export default function ListingAppts() {
   const { data, loading, refetch } = useListingAppointments()
   const { data: contactsData, refetch: refetchContacts } = useContacts()
+  const { data: allChecklistData, refetch: refetchChecklists } = useAllApptChecklists()
   const appts = data ?? []
   const contacts = contactsData ?? []
+
+  // Per-appointment prep progress {[apptId]: {done, total, pct}}
+  const prepStats = useMemo(() => {
+    const map = {}
+    for (const row of (allChecklistData ?? [])) {
+      const aid = row.appointment_id
+      if (!map[aid]) map[aid] = { done: 0, total: 0, pct: 0 }
+      map[aid].total += 1
+      if (row.completed) map[aid].done += 1
+    }
+    for (const k of Object.keys(map)) {
+      const m = map[k]
+      m.pct = m.total > 0 ? Math.round((m.done / m.total) * 100) : 0
+    }
+    return map
+  }, [allChecklistData])
+
+  const refetchAll = async () => {
+    await refetch()
+    await refetchChecklists()
+  }
 
   const [tab, setTab]             = useState('upcoming')
   const [panelMode, setPanelMode] = useState(null) // 'detail' | 'form'
@@ -352,7 +488,7 @@ export default function ListingAppts() {
         )
         await DB.logActivity('appt_created', `New listing appointment: ${newContactData?.name?.trim() || contacts.find(c => c.id === contactId)?.name || 'Client'}`)
       }
-      await refetch()
+      await refetchAll()
       // Open detail after create
       if (!editingAppt) {
         setSelectedAppt({ ...row, id: saved.id, created_at: saved.created_at, contact: saved.contact, property: saved.property })
@@ -371,7 +507,7 @@ export default function ListingAppts() {
     setDeleting(true)
     try {
       await DB.deleteListingAppointment(editingAppt.id)
-      await refetch()
+      await refetchAll()
       closePanel()
     } catch (e) { setError(e.message) }
     finally { setDeleting(false) }
@@ -421,11 +557,23 @@ export default function ListingAppts() {
       key: 'listing_price_discussed', label: 'Est. Price',
       render: v => v ? `$${Number(v).toLocaleString()}` : '—',
     },
-    { key: 'outcome', label: 'Outcome', render: v => <Badge variant={outcomeVariant[v]}>{v}</Badge> },
+    {
+      key: 'prep', label: 'Prep',
+      render: (_, row) => <PrepProgressCell stats={prepStats[row.id]} />,
+    },
+    {
+      key: 'outcome', label: 'Outcome',
+      render: (_, row) => <InlineOutcome appt={row} onChange={refetchAll} />,
+    },
     {
       key: 'actions', label: '',
       render: (_, row) => (
-        <div style={{ display:'flex', gap:6 }}>
+        <div style={{ display:'flex', gap:6, justifyContent:'flex-end', flexWrap:'wrap' }}>
+          {row.outcome === 'won' && (
+            <Button size="sm" variant="primary" onClick={e => { e.stopPropagation(); handleCreateListing(row) }}>
+              → Create Listing
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openDetail(row) }}>Prep</Button>
           <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openEdit(row) }}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}

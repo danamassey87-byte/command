@@ -253,6 +253,7 @@ function GuidelinesTab({ brand, refetch }) {
     tagline:         gl.tagline ?? '',
     tone_of_voice:   gl.tone_of_voice ?? '',
     fonts:           gl.fonts ?? '',
+    brain_doc:       gl.brain_doc ?? '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -263,6 +264,7 @@ function GuidelinesTab({ brand, refetch }) {
       primary_color: g.primary_color ?? '#3A2A1E', secondary_color: g.secondary_color ?? '#b79782',
       accent_color: g.accent_color ?? '#c9b99a', tagline: g.tagline ?? '',
       tone_of_voice: g.tone_of_voice ?? '', fonts: g.fonts ?? '',
+      brain_doc: g.brain_doc ?? '',
     })
   }, [brand?.guidelines])
 
@@ -330,6 +332,22 @@ function GuidelinesTab({ brand, refetch }) {
           placeholder="Describe your brand voice: e.g. Warm, professional, knowledgeable but approachable. Use local references to Gilbert/East Valley. Conversational, not salesy."
           rows={3}
         />
+      </div>
+
+      {/* Brain Doc — the master creative bible */}
+      <div className="settings-field settings-field--full">
+        <label className="settings-label">
+          Brain Doc <span style={{ fontWeight:400, color:'var(--color-text-muted)', fontSize:'0.78rem' }}>— used as the master brief for every creative AI call (Gamma, content, email, Canva, images)</span>
+        </label>
+        <Textarea
+          value={draft.brain_doc}
+          onChange={e => set('brain_doc', e.target.value)}
+          placeholder={`Write the full creative brief here. Suggested sections:\n• Voice & vibe (what to sound like, what to avoid)\n• Audience (who you write to: East Valley buyers/sellers, niches)\n• Signature phrases & words (and ones to never use)\n• Brand do's / don'ts\n• Hashtag bank & social conventions\n• Image style notes (warm earth tones, no stock-photo clichés…)\n• Naming conventions for files / assets\n• Anything else you'd tell a new copywriter on day 1`}
+          rows={12}
+        />
+        <p style={{ fontSize:'0.72rem', color:'var(--color-text-muted)', marginTop:4 }}>
+          Saved here once, baked into every generated presentation, post, email, image, and Canva design automatically.
+        </p>
       </div>
 
       {/* Fonts */}
