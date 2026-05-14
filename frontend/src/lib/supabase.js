@@ -1569,17 +1569,19 @@ export async function autoScheduleOHPromo({ ohId, listingId = null, propertyId =
     if (!channels.length) continue
 
     // 1) Create a parent content_pieces row for this window.
+    //    Note: nothing publishes here. Posts land in 'pending_approval' below
+    //    and only move to 'scheduled' once Dana clicks Approve.
     const piece = {
       title: `OH Promo — ${w.label}`,
       body_text: (draftByChannel.get(channels[0])?.body_text || ''),
       content_date: w.when.toISOString().slice(0, 10),
-      status: 'scheduled',
+      status: 'pending_approval',
       open_house_id: ohId,
       listing_id: listingId,
       property_id: propertyId,
       channel: null,
       content_type: 'oh_promo',
-      notes: `Auto-scheduled by Promote OH (window: ${w.key})`,
+      notes: `Auto-scheduled by Promote OH (window: ${w.key}) — awaiting Dana's approval before Blotato push`,
     }
     // query() unwraps to `data` and throws on error.
     let pieceRow
@@ -1603,7 +1605,9 @@ export async function autoScheduleOHPromo({ ohId, listingId = null, propertyId =
       const body = `${w.prefix}${d.body_text || ''}`
       const hashtagStr = Array.isArray(d.hashtags) && d.hashtags.length ? d.hashtags.join(' ') : null
 
-      // 2) Create the content_platform_posts row in 'scheduled' state.
+      // 2) Create the content_platform_posts row in 'pending_approval' state.
+      //    Dana approves these one-by-one (or all-in-one) on the OH page;
+      //    only then does publish-content fire.
       let ppRow
       try {
         ppRow = await query(supabase.from('content_platform_posts').insert({
@@ -1612,7 +1616,7 @@ export async function autoScheduleOHPromo({ ohId, listingId = null, propertyId =
           adapted_text: body,
           hashtags: hashtagStr,
           char_count: body.length,
-          status: 'scheduled',
+          status: 'pending_approval',
           scheduled_for: w.when.toISOString(),
         }).select().single())
       } catch (err) {
@@ -1625,25 +1629,126 @@ export async function autoScheduleOHPromo({ ohId, listingId = null, propertyId =
         winResult.platform_posts.push({ platform: ch, status: 'error', error: 'platform_post insert returned no id' })
         continue
       }
-
-      // 3) Hand off to publish-content → Blotato.
-      try {
-        const r = await publishContent(platformPostId, 'schedule', w.when.toISOString())
-        winResult.platform_posts.push({
-          platform: ch,
-          status: r?.status || 'scheduled',
-          blotato_post_id: r?.blotato_post_id || null,
-        })
-      } catch (err) {
-        winResult.platform_posts.push({ platform: ch, status: 'error', error: err.message })
-        results.errors.push(`[${w.key}] ${ch}: ${err.message}`)
-      }
+      winResult.platform_posts.push({
+        platform: ch,
+        status: 'pending_approval',
+        platform_post_id: platformPostId,
+      })
     }
 
     results.windows.push(winResult)
   }
 
+  // Run compliance check + Slack notification AFTER all rows are inserted.
+  // Failure here is non-fatal — Dana can still approve from the UI even if
+  // the Slack ping or the compliance run fell over.
+  try {
+    const { data: gateResult } = await supabase.functions.invoke('oh-approval-gate', {
+      body: { oh_id: ohId },
+    })
+    results.approval_gate = gateResult || null
+  } catch (err) {
+    results.errors.push(`oh-approval-gate invoke failed: ${err.message}`)
+  }
+
   return results
+}
+
+/** Approve a pending_approval platform_post → schedule it on Blotato. */
+export async function approvePendingPost(platformPostId) {
+  if (!platformPostId) throw new Error('platformPostId required')
+  // Mark approved first so we have an audit trail even if Blotato fails.
+  const now = new Date().toISOString()
+  await query(supabase.from('content_platform_posts')
+    .update({ approved_at: now })
+    .eq('id', platformPostId)
+    .select().single())
+  // Pull the scheduled_for so we can hand it back to publish-content.
+  const { data: row, error } = await supabase
+    .from('content_platform_posts')
+    .select('scheduled_for')
+    .eq('id', platformPostId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return publishContent(platformPostId, 'schedule', row?.scheduled_for || null)
+}
+
+/** Reject a pending_approval platform_post → mark rejected, don't publish. */
+export async function rejectPendingPost(platformPostId, reason = null) {
+  if (!platformPostId) throw new Error('platformPostId required')
+  const patch = {
+    status: 'rejected',
+    rejected_at: new Date().toISOString(),
+  }
+  if (reason) patch.adapted_text = `[REJECTED: ${reason}]\n\n` + (await getPlatformPostBody(platformPostId))
+  return query(supabase.from('content_platform_posts')
+    .update(patch)
+    .eq('id', platformPostId)
+    .select().single())
+}
+
+async function getPlatformPostBody(platformPostId) {
+  const { data } = await supabase
+    .from('content_platform_posts')
+    .select('adapted_text')
+    .eq('id', platformPostId)
+    .maybeSingle()
+  return data?.adapted_text || ''
+}
+
+/** Edit a pending_approval platform_post's text + re-run compliance. */
+export async function updatePendingPostText(platformPostId, ohId, { adapted_text, hashtags }) {
+  if (!platformPostId) throw new Error('platformPostId required')
+  const patch = {}
+  if (typeof adapted_text === 'string') {
+    patch.adapted_text = adapted_text
+    patch.char_count = adapted_text.length
+  }
+  if (typeof hashtags === 'string') patch.hashtags = hashtags
+  await query(supabase.from('content_platform_posts')
+    .update(patch).eq('id', platformPostId).select().single())
+  // Re-run compliance silently — caller can refresh after.
+  if (ohId) {
+    try {
+      await supabase.functions.invoke('oh-approval-gate', {
+        body: { oh_id: ohId },
+      })
+    } catch { /* non-fatal */ }
+  }
+}
+
+/** Fetch all pending_approval posts for an OH (joined to their content_piece). */
+export async function getPendingApprovalsForOH(ohId) {
+  if (!ohId) return []
+  const { data: pieces } = await supabase
+    .from('content_pieces')
+    .select('id, title')
+    .eq('open_house_id', ohId)
+  const pieceIds = (pieces || []).map(p => p.id)
+  if (!pieceIds.length) return []
+  return query(supabase.from('content_platform_posts')
+    .select('id, content_id, platform, adapted_text, hashtags, scheduled_for, status, compliance_check, approved_at, rejected_at')
+    .in('content_id', pieceIds)
+    .in('status', ['pending_approval', 'rejected'])
+    .order('scheduled_for', { ascending: true }))
+    .then(rows => (rows || []).map(r => ({
+      ...r,
+      window_label: (pieces.find(p => p.id === r.content_id) || {}).title?.replace(/^OH Promo\s*[—-]\s*/i, '') || 'Pending',
+    })))
+}
+
+/** Manually trigger the approval gate (compliance + Slack) for an OH. */
+export async function reRunOHApprovalGate(ohId) {
+  if (!ohId) throw new Error('ohId required')
+  const { data, error } = await supabase.functions.invoke('oh-approval-gate', {
+    body: { oh_id: ohId },
+  })
+  if (error) {
+    let detail = error.message
+    try { const ctx = await error.context?.json?.(); detail = ctx?.error || detail } catch {}
+    throw new Error(detail)
+  }
+  return data
 }
 
 /**

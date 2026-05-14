@@ -128,6 +128,13 @@ function mapOH(row) {
     lofty_other_oh_page: row.lofty_other_oh_page ?? '',
     groups_through:      row.groups_through      ?? 0,
     leads_converted:     row.leads_converted     ?? 0,
+    // Point-in-time snapshot — survives later listing-price changes so an
+    // old OH always reflects what the price/status/DOM were at the time.
+    list_price_at_oh:     row.list_price_at_oh     ?? null,
+    listing_status_at_oh: row.listing_status_at_oh ?? null,
+    dom_at_oh:            row.dom_at_oh            ?? null,
+    snapshot_taken_at:    row.snapshot_taken_at    ?? null,
+    snapshot_source:      row.snapshot_source      ?? null,
     created_at:          row.created_at,
   }
 }
@@ -742,6 +749,131 @@ function TasksPanel({ ohId }) {
 }
 
 // ─── OH Detail ────────────────────────────────────────────────────────────────
+// ─── Historical Snapshot Card ────────────────────────────────────────────────
+// Shows what the list price / listing status / DOM were at the time this OH
+// was created. Lets Dana fill in a missing value or correct one if the
+// auto-capture used the wrong listing.
+function OHSnapshotCard({ oh }) {
+  const [editing, setEditing] = useState(false)
+  const [price, setPrice] = useState(oh.list_price_at_oh != null ? String(oh.list_price_at_oh) : '')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState(null)
+
+  // Keep the editor synced if the underlying record changes (e.g. refetch).
+  useEffect(() => {
+    setPrice(oh.list_price_at_oh != null ? String(oh.list_price_at_oh) : '')
+  }, [oh.list_price_at_oh])
+
+  const fmtUSD = v => v == null
+    ? '—'
+    : Number(v).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+
+  const wasBackfilled    = oh.snapshot_source === 'backfill_current_value'
+  const fromOtherListing = oh.snapshot_source === 'auto_on_create_property'
+  const hasSnapshot      = oh.list_price_at_oh != null
+
+  const save = async () => {
+    setSaving(true); setErr(null)
+    try {
+      const parsed = price.trim() === '' ? null : Number(price.replace(/[^0-9.]/g, ''))
+      if (parsed != null && (Number.isNaN(parsed) || parsed < 0)) {
+        throw new Error('Enter a valid dollar amount')
+      }
+      await DB.updateOpenHouse(oh.id, {
+        list_price_at_oh:  parsed,
+        snapshot_source:   parsed != null ? 'manual' : null,
+        snapshot_taken_at: parsed != null ? new Date().toISOString() : null,
+      })
+      // Optimistically reflect — parent refetch will eventually overwrite.
+      oh.list_price_at_oh = parsed
+      oh.snapshot_source  = parsed != null ? 'manual' : null
+      setEditing(false)
+    } catch (e) {
+      setErr(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Source label for the small badge under the value.
+  const sourceLabel = (() => {
+    if (!oh.snapshot_source) return null
+    if (oh.snapshot_source === 'manual')                  return 'Manually entered'
+    if (oh.snapshot_source === 'auto_on_create')          return 'Captured from listing at OH creation'
+    if (oh.snapshot_source === 'auto_on_create_property') return 'Captured from property at OH creation'
+    if (oh.snapshot_source === 'backfill_current_value')  return '⚠ Backfilled from current listing price — confirm if price has changed since'
+    return oh.snapshot_source
+  })()
+
+  return (
+    <div
+      style={{
+        background: 'rgba(141, 124, 102, 0.06)',
+        border: '1px solid rgba(141, 124, 102, 0.22)',
+        padding: '12px 14px',
+        borderRadius: 10,
+        margin: '4px 0 12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <div>
+          <p style={{ fontSize: '0.72rem', color: 'var(--brown-mid)', textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>
+            Snapshot at time of OH
+          </p>
+          {!editing ? (
+            <p style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--brown-dark)', margin: '2px 0 0' }}>
+              {fmtUSD(oh.list_price_at_oh)}
+              {oh.listing_status_at_oh && (
+                <span style={{ fontSize: '0.78rem', fontWeight: 500, color: 'var(--brown-mid)', marginLeft: 10 }}>
+                  · {oh.listing_status_at_oh}
+                </span>
+              )}
+              {oh.dom_at_oh != null && (
+                <span style={{ fontSize: '0.78rem', fontWeight: 500, color: 'var(--brown-mid)', marginLeft: 6 }}>
+                  · {oh.dom_at_oh} DOM
+                </span>
+              )}
+            </p>
+          ) : (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={price}
+                onChange={e => setPrice(e.target.value)}
+                placeholder="e.g. 650000"
+                autoFocus
+                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d9d2c8', fontSize: '0.9rem', width: 140 }}
+              />
+              <Button size="sm" variant="primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setErr(null); setPrice(oh.list_price_at_oh != null ? String(oh.list_price_at_oh) : '') }}>Cancel</Button>
+            </div>
+          )}
+        </div>
+        {!editing && (
+          <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+            {hasSnapshot ? 'Edit' : 'Add price'}
+          </Button>
+        )}
+      </div>
+      {err && <p style={{ color: 'var(--color-danger)', fontSize: '0.78rem', margin: 0 }}>{err}</p>}
+      {!editing && sourceLabel && (
+        <p style={{ fontSize: '0.72rem', color: wasBackfilled ? 'var(--color-warning, #b45309)' : 'var(--brown-mid)', margin: 0 }}>
+          {sourceLabel}
+        </p>
+      )}
+      {!editing && !hasSnapshot && (
+        <p style={{ fontSize: '0.72rem', color: 'var(--brown-mid)', margin: 0 }}>
+          No listing on file when this OH was held — add the asking price so future lookups (e.g. attendee follow-ups) have context.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function OHDetail({ oh, onBack, onEdit, onHostAnother }) {
   const [promoteOpen, setPromoteOpen] = useState(false)
   return (
@@ -805,6 +937,10 @@ function OHDetail({ oh, onBack, onEdit, onHostAnother }) {
         <div className="oh-detail__stat"><p className="oh-detail__stat-value">{oh.leads_converted}</p><p className="oh-detail__stat-label">→ Sales</p></div>
         <div className="oh-detail__stat"><p className="oh-detail__stat-value">{oh.signIn}</p><p className="oh-detail__stat-label">Sign-ins</p></div>
       </div>
+
+      {/* Historical Snapshot — list price / status / DOM at time of OH */}
+      <OHSnapshotCard oh={oh} />
+
       {/* Sign-In Kiosk Link */}
       {typeof oh.id === 'string' && (
         <div className="oh-detail__links" style={{ marginBottom: oh.lofty_landing_page ? 0 : 12 }}>
@@ -873,6 +1009,9 @@ function OHDetail({ oh, onBack, onEdit, onHostAnother }) {
       {/* Sign-In Attendees */}
       {typeof oh.id === 'string' && <AttendeesPanel ohId={oh.id} />}
 
+      {/* Pending Approvals — auto-promoted posts awaiting Dana's sign-off */}
+      {typeof oh.id === 'string' && <PendingApprovalsPanel ohId={oh.id} />}
+
       {/* Weather + Prep Flags */}
       {oh.property_id && oh.date && (
         <WeatherPrepFlags
@@ -912,6 +1051,233 @@ function OHDetail({ oh, onBack, onEdit, onHostAnother }) {
         addressLabel={`${oh.address || ''} · ${oh.date ? new Date(oh.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''}${oh.time ? ' · ' + oh.time : ''}`}
         defaultVariant="oh_promo"
       />
+    </div>
+  )
+}
+
+/* ─── Pending Approvals Panel ─────────────────────────────────────────────
+ * Shows every content_platform_posts row in 'pending_approval' state tied to
+ * this OH (auto-promoted by ListingContentModal but NOT yet sent to Blotato).
+ * Dana sees the body, the ADRE/brand score, and chooses approve / edit / reject.
+ * Approve → publish-content → Blotato schedule. Reject → marks the row dead.
+ */
+function PendingApprovalsPanel({ ohId }) {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [busyId, setBusyId] = useState(null)
+  const [editing, setEditing] = useState({}) // { [postId]: { text, hashtags } }
+  const [reRunning, setReRunning] = useState(false)
+
+  const load = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await DB.getPendingApprovalsForOH(ohId)
+      setRows(data || [])
+    } catch (e) {
+      console.error('[PendingApprovalsPanel] load failed:', e)
+    } finally {
+      setLoading(false)
+    }
+  }, [ohId])
+
+  useEffect(() => { load() }, [load])
+
+  if (loading) return null
+  const pending = rows.filter(r => r.status === 'pending_approval')
+  if (pending.length === 0) return null
+
+  async function handleApprove(post) {
+    if (!confirm(`Approve and schedule this ${post.platform} post for ${new Date(post.scheduled_for).toLocaleString()}?`)) return
+    setBusyId(post.id)
+    try {
+      await DB.approvePendingPost(post.id)
+      await load()
+    } catch (e) {
+      alert(`Approve failed: ${e.message}`)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function handleReject(post) {
+    const reason = prompt(`Reject this ${post.platform} post? Optional reason:`)
+    if (reason === null) return
+    setBusyId(post.id)
+    try {
+      await DB.rejectPendingPost(post.id, reason || null)
+      await load()
+    } catch (e) {
+      alert(`Reject failed: ${e.message}`)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function handleSaveEdit(post) {
+    const e = editing[post.id]
+    if (!e) return
+    setBusyId(post.id)
+    try {
+      await DB.updatePendingPostText(post.id, ohId, { adapted_text: e.text, hashtags: e.hashtags })
+      setEditing(prev => { const n = { ...prev }; delete n[post.id]; return n })
+      await load()
+    } catch (err) {
+      alert(`Save failed: ${err.message}`)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function handleReRunCompliance() {
+    setReRunning(true)
+    try {
+      await DB.reRunOHApprovalGate(ohId)
+      await load()
+    } catch (e) {
+      alert(`Compliance re-run failed: ${e.message}`)
+    } finally {
+      setReRunning(false)
+    }
+  }
+
+  // Group by window label for readability.
+  const byWindow = new Map()
+  for (const p of pending) {
+    const list = byWindow.get(p.window_label) || []
+    list.push(p)
+    byWindow.set(p.window_label, list)
+  }
+
+  const fmtScheduledFor = (iso) => {
+    if (!iso) return '—'
+    try {
+      return new Date(iso).toLocaleString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit',
+      })
+    } catch { return iso }
+  }
+
+  const scoreBadge = (score, label) => {
+    if (score == null) return null
+    const color = score >= 85 ? 'var(--sage-green, #7a9b76)' : score >= 70 ? '#b45309' : '#c5221f'
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+        padding: '2px 8px', borderRadius: 10,
+        background: '#fff', border: `1px solid ${color}`,
+        fontSize: '0.68rem', fontWeight: 600, color,
+      }}>
+        {label} {score}
+      </span>
+    )
+  }
+
+  return (
+    <div id="approvals" style={{ marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', color: 'var(--brown-dark)', margin: 0 }}>
+          ⚡ Pending Approvals ({pending.length})
+        </h3>
+        <Button size="sm" variant="ghost" onClick={handleReRunCompliance} disabled={reRunning}>
+          {reRunning ? 'Re-checking…' : 'Re-run brand + ADRE check'}
+        </Button>
+      </div>
+      <p style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)', marginBottom: 12 }}>
+        Nothing publishes until you approve. Compliance is scored 0–100 on brand voice and ADRE marketing rules; anything under 70 is flagged red.
+      </p>
+
+      {[...byWindow.entries()].map(([label, list]) => (
+        <div key={label} style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 6 }}>
+            {label} <span style={{ color: 'var(--color-text-muted)', fontWeight: 400 }}>· {list.length} post{list.length === 1 ? '' : 's'}</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {list.map(post => {
+              const isEditing = !!editing[post.id]
+              const c = post.compliance_check
+              const flagged = c && (c.brand?.score < 70 || c.adre?.score < 70 || (c.missing_elements || []).length > 0)
+              return (
+                <Card key={post.id} style={{ padding: 12, borderLeft: `3px solid ${flagged ? '#c5221f' : 'var(--sage-green, #7a9b76)'}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)' }}>{post.platform}</span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>fires {fmtScheduledFor(post.scheduled_for)}</span>
+                      {scoreBadge(c?.brand?.score, 'brand')}
+                      {scoreBadge(c?.adre?.score, 'ADRE')}
+                      {Array.isArray(c?.missing_elements) && c.missing_elements.length > 0 && (
+                        <span style={{ fontSize: '0.65rem', fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: '#fce8e6', color: '#c5221f' }}>
+                          missing: {c.missing_elements.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                      {isEditing ? (
+                        <>
+                          <Button size="sm" variant="primary" disabled={busyId === post.id} onClick={() => handleSaveEdit(post)}>Save</Button>
+                          <Button size="sm" variant="ghost" onClick={() => setEditing(prev => { const n = { ...prev }; delete n[post.id]; return n })}>Cancel</Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button size="sm" variant="primary" disabled={busyId === post.id} onClick={() => handleApprove(post)}>
+                            {busyId === post.id ? '…' : 'Approve'}
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={busyId === post.id} onClick={() => setEditing(prev => ({ ...prev, [post.id]: { text: post.adapted_text || '', hashtags: post.hashtags || '' } }))}>
+                            Edit
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={busyId === post.id} onClick={() => handleReject(post)} style={{ color: '#c5221f' }}>
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {isEditing ? (
+                    <>
+                      <textarea
+                        value={editing[post.id].text}
+                        onChange={e => setEditing(prev => ({ ...prev, [post.id]: { ...prev[post.id], text: e.target.value } }))}
+                        rows={Math.max(4, Math.min(14, Math.ceil((editing[post.id].text || '').length / 60)))}
+                        style={{
+                          width: '100%', border: '1px solid var(--color-border)', borderRadius: 6,
+                          padding: 8, fontSize: '0.85rem', fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5,
+                        }}
+                      />
+                      <input
+                        type="text"
+                        value={editing[post.id].hashtags}
+                        onChange={e => setEditing(prev => ({ ...prev, [post.id]: { ...prev[post.id], hashtags: e.target.value } }))}
+                        placeholder="#hashtags"
+                        style={{ width: '100%', marginTop: 6, padding: '4px 8px', border: '1px solid var(--color-border)', borderRadius: 4, fontSize: '0.78rem' }}
+                      />
+                    </>
+                  ) : (
+                    <div style={{ fontSize: '0.82rem', color: 'var(--brown-dark)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>
+                      {post.adapted_text || <em style={{ color: 'var(--color-text-muted)' }}>(empty body)</em>}
+                    </div>
+                  )}
+                  {post.hashtags && !isEditing && (
+                    <div style={{ marginTop: 6, fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{post.hashtags}</div>
+                  )}
+
+                  {/* Compliance issue surfacing */}
+                  {flagged && c && (
+                    <div style={{ marginTop: 8, padding: 8, background: '#fef7e0', border: '1px solid #f4c969', borderRadius: 6, fontSize: '0.72rem', color: 'var(--brown-dark)' }}>
+                      {Array.isArray(c.adre?.issues) && c.adre.issues.length > 0 && (
+                        <div><strong>ADRE:</strong> {c.adre.issues.join(' · ')}</div>
+                      )}
+                      {Array.isArray(c.brand?.issues) && c.brand.issues.length > 0 && (
+                        <div style={{ marginTop: 4 }}><strong>Brand:</strong> {c.brand.issues.join(' · ')}</div>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              )
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -1336,6 +1702,19 @@ function ScheduledTab({ openHouses, loading, refetch }) {
     },
     { key: 'date', label: 'Date', render: v => fmtDate(v) },
     { key: 'time', label: 'Time' },
+    {
+      key: 'list_price_at_oh', label: 'Price at OH',
+      render: (v, row) => {
+        if (v == null) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>
+        const formatted = Number(v).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+        const flagged = row.snapshot_source === 'backfill_current_value'
+        return (
+          <span title={flagged ? 'Backfilled from current listing price — may not be exact for older OHs' : 'List price captured when this OH was created'}>
+            {formatted}{flagged && <span style={{ marginLeft: 4, color: 'var(--color-warning, #b45309)' }}>*</span>}
+          </span>
+        )
+      },
+    },
     { key: 'signIn', label: 'Sign-ins' },
     { key: 'leads', label: 'Hot Leads', render: v => v > 0 ? <Badge variant="success" size="sm">{v}</Badge> : '—' },
     { key: 'status', label: 'Status', render: v => <Badge variant={ohStatusVariant[v]}>{v}</Badge> },

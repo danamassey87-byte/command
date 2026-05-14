@@ -268,9 +268,9 @@ export default function ListingContentModal({
               onClick={handleAutoSchedule}
               disabled={scheduling || saving}
               style={{ background: 'var(--sage-green, #7a9b76)', color: '#fff' }}
-              title="Auto-schedule a 7-day / 24-hour / live-on-the-day cadence directly to Blotato"
+              title="Queue a 7-day / 24-hour / live cadence as pending approval. Nothing publishes until you approve each post."
             >
-              {scheduling ? 'Scheduling…' : '⚡ Auto-Schedule 7d / 24h / Live'}
+              {scheduling ? 'Queueing…' : '⚡ Queue for Approval (7d / 24h / Live)'}
             </Button>
           )}
 
@@ -302,8 +302,13 @@ export default function ListingContentModal({
         {scheduleResults && scheduleResults.windows && scheduleResults.windows.length > 0 && (
           <Card style={{ padding: 14, marginBottom: 12, background: 'var(--cream, #faf8f5)', border: '1px solid var(--sage-green, #7a9b76)' }}>
             <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 8 }}>
-              ⚡ Scheduled to Blotato
+              ⚡ Queued — awaiting your approval
             </div>
+            <p style={{ fontSize: '0.74rem', color: 'var(--color-text-muted)', marginBottom: 8 }}>
+              Compliance check is running. A Slack message will land in the listing channel with a link to approve each post.
+              Nothing publishes to Blotato until you approve.
+              {scheduleResults.approval_gate?.slack_posted === false && ' (Slack message did not send — check the OH detail page directly.)'}
+            </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {scheduleResults.windows.map(w => {
                 const ok = w.platform_posts.filter(p => p.status !== 'error').length
