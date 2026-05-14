@@ -882,11 +882,19 @@
    DRAG + RESIZE controls (per-widget)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Wrapper that owns the grid cell — children .widget render inside it.
-   Default span follows the grid's auto-fill rules; size classes override. */
+/* Wrapper IS the grid item. It needs to be positioned so the absolute drag
+   handle / resize chip anchor to it. We forward the .widget's visual styling
+   to the inner widget — the wrapper itself is transparent + zero padding. */
 .drag-wrapper {
   position: relative;
-  display: contents;
+  display: flex;            /* So inner .widget fills wrapper */
+  flex-direction: column;
+  min-width: 0;             /* Allow shrinking in narrow columns */
+}
+.drag-wrapper > .widget {
+  flex: 1;
+  width: 100%;
+  margin: 0;
 }
 
 /* Tighten the auto-fill grid so widgets aren't oddly narrow on wide screens. */
@@ -895,21 +903,17 @@
   gap: 16px;
 }
 
-/* The drag-wrapper is `display: contents` (so the inner .widget is the grid
-   item directly). To apply column-span overrides, we target the immediate
-   child .widget via :has(). All evergreen browsers support :has() in 2026. */
-.drag-wrapper--size-sm > .widget { grid-column: span 1; }
-.drag-wrapper--size-md > .widget { grid-column: span 2; }
-.drag-wrapper--size-lg > .widget { grid-column: 1 / -1; }
+/* Size overrides — applied to the wrapper because IT is the grid item. */
+.drag-wrapper--size-sm { grid-column: span 1; }
+.drag-wrapper--size-md { grid-column: span 2; }
+.drag-wrapper--size-lg { grid-column: 1 / -1; }
 
 @media (max-width: 768px) {
-  .drag-wrapper--size-md > .widget,
-  .drag-wrapper--size-lg > .widget { grid-column: 1 / -1; }
+  .drag-wrapper--size-md,
+  .drag-wrapper--size-lg { grid-column: 1 / -1; }
 }
 
-/* Floating drag-handle: top-left corner, only visible on widget hover. */
-.drag-wrapper > .widget { position: relative; }
-.drag-wrapper > .widget .drag-handle,
+/* Drag handle (6-dot grip) — top-left corner of each widget, hover-only. */
 .drag-wrapper > .drag-handle {
   position: absolute;
   top: 8px;
@@ -922,8 +926,8 @@
   border-radius: 4px;
   transition: opacity 0.15s, background 0.15s;
 }
-.drag-wrapper:hover .drag-handle { opacity: 0.55; }
-.drag-wrapper:hover .drag-handle:hover { opacity: 1; background: rgba(58,42,30,0.06); }
+.drag-wrapper:hover > .drag-handle { opacity: 0.55; }
+.drag-wrapper:hover > .drag-handle:hover { opacity: 1; background: rgba(58,42,30,0.06); }
 .drag-wrapper--dragging { cursor: grabbing !important; }
 .drag-wrapper--dragging > .widget { opacity: 0.6; transform: scale(0.98); }
 .drag-wrapper--over > .widget { outline: 2px dashed var(--brown-mid); outline-offset: 2px; }
