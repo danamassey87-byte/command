@@ -74,10 +74,18 @@ function saveOrder(tabId, order) {
 
 // ─── Per-widget size overrides (stored per tab) ────────────────────────────
 //   'sm' → 1 column, 'md' → 2 columns, 'lg' → full row.
-//   If a widget isn't in the map we fall back to its built-in className
-//   (e.g. <div class="widget widget--full"> for maps / day briefing).
+//   Defaults: widgets that look right full-width (maps, day briefing) default
+//   to 'lg' so the layout doesn't regress when the user hasn't touched anything.
 const SIZE_CYCLE = ['sm', 'md', 'lg']
 const NEXT_SIZE = { sm: 'md', md: 'lg', lg: 'sm' }
+const DEFAULT_WIDGET_SIZES = {
+  briefing:    'lg',
+  closedMap:   'lg',
+  propertyMap: 'lg',
+  pipeline:    'md',
+  funnel:      'md',
+  clients:     'md',
+}
 
 function getStoredSizes(tabId) {
   try {
@@ -175,7 +183,7 @@ function useDragReorder(tabId) {
 
   const cycleSize = useCallback((widgetKey) => {
     setSizes(prev => {
-      const current = prev[widgetKey] || 'sm'
+      const current = prev[widgetKey] || DEFAULT_WIDGET_SIZES[widgetKey] || 'sm'
       const next = NEXT_SIZE[current] || 'sm'
       const updated = { ...prev, [widgetKey]: next }
       saveSizes(tabId, updated)
@@ -1604,7 +1612,7 @@ export default function Dashboard() {
                 <DraggableWidget
                   key={widgetKey}
                   widgetKey={widgetKey}
-                  size={sizes[widgetKey]}
+                  size={sizes[widgetKey] || DEFAULT_WIDGET_SIZES[widgetKey] || 'sm'}
                   onCycleSize={cycleSize}
                   dragState={dragState}
                   onDragStart={onDragStart}
