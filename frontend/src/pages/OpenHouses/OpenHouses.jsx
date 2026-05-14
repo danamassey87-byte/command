@@ -360,6 +360,7 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
     end_time:            oh?.end_time            ?? '',
     status:              oh?.status              ?? 'scheduled',
     listing_agent:       oh?.listing_agent       ?? '',
+    list_price_at_oh:    oh?.list_price_at_oh != null ? String(oh.list_price_at_oh) : '',
     lofty_landing_page:    oh?.lofty_landing_page    ?? '',
     lofty_other_oh_page:   oh?.lofty_other_oh_page   ?? '',
     curbhero_url:          oh?.curbhero_url          ?? '',
@@ -498,6 +499,21 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
       <div className="panel-section">
         <p className="panel-section-label">Listing Info</p>
         <Input label="Listing Agent" value={draft.listing_agent} onChange={e => set('listing_agent', e.target.value)} placeholder="Victoria Cole" />
+        <Input
+          label="List Price at this OH"
+          inputMode="decimal"
+          value={draft.list_price_at_oh}
+          onChange={e => set('list_price_at_oh', e.target.value)}
+          placeholder="e.g. 650000"
+        />
+        <p style={{ fontSize: '0.72rem', color: 'var(--brown-mid)', marginTop: -4, lineHeight: 1.4 }}>
+          What was the asking price the day of this OH? Used for historical reports and attendee follow-ups.
+        </p>
+        {oh?.snapshot_source === 'backfill_current_value' && (
+          <p style={{ fontSize: '0.72rem', color: 'var(--color-warning, #b45309)', marginTop: 4 }}>
+            ⚠ Currently backfilled from the listing&apos;s current price — confirm if the price was different on the OH date.
+          </p>
+        )}
       </div>
 
       <hr className="panel-divider" />
@@ -969,6 +985,91 @@ function OHSnapshotCard({ oh }) {
           No listing on file when this OH was held — add the asking price so future lookups (e.g. attendee follow-ups) have context.
         </p>
       )}
+    </div>
+  )
+}
+
+function ListPricePill({ row, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(row.list_price_at_oh != null ? String(row.list_price_at_oh) : '')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setVal(row.list_price_at_oh != null ? String(row.list_price_at_oh) : '')
+  }, [row.list_price_at_oh])
+
+  const fmtUSD = v => v == null
+    ? '—'
+    : Number(v).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+
+  const reset = () => setVal(row.list_price_at_oh != null ? String(row.list_price_at_oh) : '')
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const parsed = val.trim() === '' ? null : Number(val.replace(/[^0-9.]/g, ''))
+      if (parsed != null && (Number.isNaN(parsed) || parsed < 0)) {
+        alert('Enter a valid dollar amount')
+        return
+      }
+      await DB.updateOpenHouse(row.id, {
+        list_price_at_oh:  parsed,
+        snapshot_source:   parsed != null ? 'manual' : null,
+        snapshot_taken_at: parsed != null ? new Date().toISOString() : null,
+      })
+      if (typeof onSaved === 'function') await onSaved()
+      setEditing(false)
+    } catch (e) {
+      alert(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!editing) {
+    const empty   = row.list_price_at_oh == null
+    const flagged = row.snapshot_source === 'backfill_current_value'
+    return (
+      <button
+        type="button"
+        onClick={e => { e.stopPropagation(); setEditing(true) }}
+        title={empty ? 'Click to add the list price for this OH' : 'Click to edit'}
+        style={{
+          background: 'transparent',
+          border: empty ? '1px dashed var(--brown-mid)' : '1px solid transparent',
+          borderRadius: 4,
+          cursor: 'pointer',
+          color: empty ? 'var(--brown-mid)' : 'inherit',
+          padding: '2px 6px',
+          font: 'inherit',
+        }}
+      >
+        {empty ? '+ Add price' : fmtUSD(row.list_price_at_oh)}
+        {flagged && !empty && <span style={{ marginLeft: 4, color: 'var(--color-warning, #b45309)' }}>*</span>}
+      </button>
+    )
+  }
+
+  return (
+    <div
+      style={{ display: 'flex', gap: 4, alignItems: 'center' }}
+      onClick={e => e.stopPropagation()}
+    >
+      <input
+        type="text"
+        inputMode="decimal"
+        value={val}
+        autoFocus
+        onChange={e => setVal(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') save()
+          else if (e.key === 'Escape') { reset(); setEditing(false) }
+        }}
+        placeholder="650000"
+        style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #d9d2c8', fontSize: '0.82rem', width: 90 }}
+      />
+      <Button size="sm" variant="primary" onClick={save} disabled={saving}>{saving ? '…' : 'Save'}</Button>
+      <Button size="sm" variant="ghost" onClick={() => { reset(); setEditing(false) }}>Cancel</Button>
     </div>
   )
 }
@@ -1767,6 +1868,21 @@ function ScheduledTab({ openHouses, loading, refetch }) {
         host_runsheet_notes: (draft.host_runsheet_notes ?? '').trim() || null,
         sign_in_config:      draft.sign_in_config        || null,
       }
+
+      // Snapshot price — only stamp manual+now when the user actually edited
+      // the value, so we don't overwrite auto-captured provenance on unrelated edits.
+      const originalPriceStr = editingOH?.list_price_at_oh != null ? String(editingOH.list_price_at_oh) : ''
+      const draftPriceStr    = (draft.list_price_at_oh ?? '').toString()
+      if (draftPriceStr !== originalPriceStr) {
+        const parsed = draftPriceStr.trim() === '' ? null : Number(draftPriceStr.replace(/[^0-9.]/g, ''))
+        if (parsed != null && (Number.isNaN(parsed) || parsed < 0)) {
+          throw new Error('Enter a valid dollar amount for "List Price at this OH"')
+        }
+        dbRow.list_price_at_oh  = parsed
+        dbRow.snapshot_source   = parsed != null ? 'manual' : null
+        dbRow.snapshot_taken_at = parsed != null ? new Date().toISOString() : null
+      }
+
       await DB.updateOpenHouse(editingOH.id, dbRow)
       await DB.logActivity('open_house_updated', `Updated open house: ${editingOH.address}`, { propertyId: dbRow.property_id })
 
@@ -1866,16 +1982,7 @@ function ScheduledTab({ openHouses, loading, refetch }) {
     { key: 'time', label: 'Time' },
     {
       key: 'list_price_at_oh', label: 'Price at OH',
-      render: (v, row) => {
-        if (v == null) return <span style={{ color: 'var(--color-text-muted)' }}>—</span>
-        const formatted = Number(v).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
-        const flagged = row.snapshot_source === 'backfill_current_value'
-        return (
-          <span title={flagged ? 'Backfilled from current listing price — may not be exact for older OHs' : 'List price captured when this OH was created'}>
-            {formatted}{flagged && <span style={{ marginLeft: 4, color: 'var(--color-warning, #b45309)' }}>*</span>}
-          </span>
-        )
-      },
+      render: (_v, row) => <ListPricePill row={row} onSaved={refetch} />,
     },
     { key: 'signIn', label: 'Sign-ins' },
     { key: 'leads', label: 'Hot Leads', render: v => v > 0 ? <Badge variant="success" size="sm">{v}</Badge> : '—' },
