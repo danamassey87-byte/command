@@ -1023,6 +1023,11 @@ export const updateActivityTargets = (id, data) =>
 export const getApptChecklist = (apptId) =>
   query(supabase.from('listing_appt_checklist').select('*').eq('appointment_id', apptId).order('sort_order'))
 
+/** Fetch all prep checklist rows across every appointment — used to show per-row
+ *  prep % on the Listing Appointments table without an N+1 query. */
+export const getAllApptChecklists = () =>
+  query(supabase.from('listing_appt_checklist').select('id,appointment_id,task_name,completed,completed_at,sort_order'))
+
 export const updateApptChecklistItem = (id, d) =>
   query(supabase.from('listing_appt_checklist').update(d).eq('id', id).select().single())
 
@@ -1453,13 +1458,16 @@ export async function generateListingContent({ variant, listingId = null, ohId =
 }
 
 /** Persist generated listing content drafts as content_pieces rows (status='banked'). */
-export async function saveListingContentDrafts({ drafts, listingId = null, openHouseId = null, propertyId = null }) {
+export async function saveListingContentDrafts({ drafts, listingId = null, openHouseId = null, propertyId = null, contentDate = null }) {
   if (!Array.isArray(drafts) || !drafts.length) return []
+  // content_date is NOT NULL on content_pieces — default to today if caller didn't pass one.
+  const fallbackDate = contentDate || new Date().toISOString().slice(0, 10)
   const rows = drafts.map(d => ({
     title: d.title || '(untitled)',
     body_text: d.body_text || '',
     channel: d.channel || null,
     content_type: d.format || null,
+    content_date: fallbackDate,
     listing_id: listingId,
     open_house_id: openHouseId,
     property_id: propertyId,
@@ -1468,6 +1476,198 @@ export async function saveListingContentDrafts({ drafts, listingId = null, openH
     notes: Array.isArray(d.hashtags) && d.hashtags.length ? `Hashtags: ${d.hashtags.join(' ')}` : null,
   }))
   return query(supabase.from('content_pieces').insert(rows).select())
+}
+
+// ─── OH Auto-Promote — Canva + 3-Window Blotato Scheduling ───────────────────
+//
+// Schedules OH promo posts across three windows: 7 days out, 24 hours out,
+// and live (30 min before start). Each window gets its own content_pieces
+// row + one content_platform_post per channel, then we call publish-content
+// to hand the schedule off to Blotato.
+//
+// Window → channel split (avoids violating the (content_id, platform)
+// unique constraint by giving each window its own content_piece):
+//   7d   → IG post, IG reel, FB post, FB event, email, GMB, TikTok
+//   24h  → IG story (Tomorrow! variant)
+//   live → IG story (Live now! variant)
+//
+// Arizona / Phoenix time is fixed UTC-7 (no DST), so we hard-code the offset.
+const PHOENIX_OFFSET = '-07:00'
+const NON_STORY_CHANNELS = new Set([
+  'instagram:post', 'instagram:reel',
+  'facebook:post', 'facebook:event',
+  'email:announcement', 'gmb:post', 'tiktok:post',
+])
+
+function combinePhoenix(dateStr, timeStr) {
+  if (!dateStr) return null
+  const t = (timeStr && /^\d{2}:\d{2}/.test(timeStr))
+    ? (timeStr.length === 5 ? `${timeStr}:00` : timeStr)
+    : '11:00:00'
+  return new Date(`${dateStr}T${t}${PHOENIX_OFFSET}`)
+}
+
+function ohPromoWindows(ohDate, ohStartTime) {
+  const start = combinePhoenix(ohDate, ohStartTime)
+  if (!start) return []
+  const now = Date.now()
+
+  const sevenDay = new Date(start)
+  sevenDay.setUTCDate(sevenDay.getUTCDate() - 7)
+  // Snap to 10:00 Phoenix on that day for predictable peak-engagement fire time.
+  const sevenDayPhx = new Date(`${ohDate}T10:00:00${PHOENIX_OFFSET}`)
+  sevenDayPhx.setUTCDate(sevenDayPhx.getUTCDate() - 7)
+
+  const oneDayPhx = new Date(`${ohDate}T10:00:00${PHOENIX_OFFSET}`)
+  oneDayPhx.setUTCDate(oneDayPhx.getUTCDate() - 1)
+
+  const livePhx = new Date(start.getTime() - 30 * 60 * 1000)
+
+  const windows = [
+    { key: '7d',   label: '7 days out',     when: sevenDayPhx, prefix: '' },
+    { key: '24h',  label: 'Tomorrow',       when: oneDayPhx,   prefix: '⏰ Tomorrow! ' },
+    { key: 'live', label: 'Live (30m out)', when: livePhx,     prefix: '🚪 Live now — ' },
+  ]
+  // Drop any window that's already in the past (Blotato will reject it).
+  return windows.filter(w => w.when.getTime() > now)
+}
+
+function channelsForWindow(windowKey, pickedChannels) {
+  const picked = new Set(pickedChannels)
+  if (windowKey === '7d') {
+    return [...picked].filter(c => NON_STORY_CHANNELS.has(c))
+  }
+  if (windowKey === '24h' || windowKey === 'live') {
+    return picked.has('instagram:story') ? ['instagram:story'] : []
+  }
+  return []
+}
+
+/**
+ * Auto-schedule OH promo posts across the 7d / 24h / live windows.
+ *
+ * Returns { windows: [{key, label, scheduled_for, platform_posts: [{platform, status, error?}]}], errors: [] }
+ */
+export async function autoScheduleOHPromo({ ohId, listingId = null, propertyId = null, ohDate, ohStartTime, drafts }) {
+  if (!ohId || !ohDate) throw new Error('ohId and ohDate are required')
+  if (!Array.isArray(drafts) || !drafts.length) throw new Error('No drafts to schedule.')
+
+  const windows = ohPromoWindows(ohDate, ohStartTime)
+  if (!windows.length) throw new Error('Open house is too close — all promo windows are in the past.')
+
+  // Build a quick lookup of drafts by channel.
+  const draftByChannel = new Map()
+  for (const d of drafts) {
+    if (d?.channel) draftByChannel.set(d.channel, d)
+  }
+  const pickedChannels = [...draftByChannel.keys()]
+
+  const results = { windows: [], errors: [] }
+
+  for (const w of windows) {
+    const channels = channelsForWindow(w.key, pickedChannels)
+    if (!channels.length) continue
+
+    // 1) Create a parent content_pieces row for this window.
+    const piece = {
+      title: `OH Promo — ${w.label}`,
+      body_text: (draftByChannel.get(channels[0])?.body_text || ''),
+      content_date: w.when.toISOString().slice(0, 10),
+      status: 'scheduled',
+      open_house_id: ohId,
+      listing_id: listingId,
+      property_id: propertyId,
+      channel: null,
+      content_type: 'oh_promo',
+      notes: `Auto-scheduled by Promote OH (window: ${w.key})`,
+    }
+    // query() unwraps to `data` and throws on error.
+    let pieceRow
+    try {
+      pieceRow = await query(supabase.from('content_pieces').insert(piece).select().single())
+    } catch (err) {
+      results.errors.push(`[${w.key}] content_pieces insert failed: ${err.message}`)
+      continue
+    }
+    const contentPieceId = pieceRow?.id
+    if (!contentPieceId) {
+      results.errors.push(`[${w.key}] content_pieces inserted but no id returned`)
+      continue
+    }
+
+    const winResult = { key: w.key, label: w.label, scheduled_for: w.when.toISOString(), platform_posts: [] }
+
+    for (const ch of channels) {
+      const d = draftByChannel.get(ch)
+      if (!d) continue
+      const body = `${w.prefix}${d.body_text || ''}`
+      const hashtagStr = Array.isArray(d.hashtags) && d.hashtags.length ? d.hashtags.join(' ') : null
+
+      // 2) Create the content_platform_posts row in 'scheduled' state.
+      let ppRow
+      try {
+        ppRow = await query(supabase.from('content_platform_posts').insert({
+          content_id: contentPieceId,
+          platform: ch,
+          adapted_text: body,
+          hashtags: hashtagStr,
+          char_count: body.length,
+          status: 'scheduled',
+          scheduled_for: w.when.toISOString(),
+        }).select().single())
+      } catch (err) {
+        winResult.platform_posts.push({ platform: ch, status: 'error', error: err.message })
+        results.errors.push(`[${w.key}] ${ch} platform_post insert: ${err.message}`)
+        continue
+      }
+      const platformPostId = ppRow?.id
+      if (!platformPostId) {
+        winResult.platform_posts.push({ platform: ch, status: 'error', error: 'platform_post insert returned no id' })
+        continue
+      }
+
+      // 3) Hand off to publish-content → Blotato.
+      try {
+        const r = await publishContent(platformPostId, 'schedule', w.when.toISOString())
+        winResult.platform_posts.push({
+          platform: ch,
+          status: r?.status || 'scheduled',
+          blotato_post_id: r?.blotato_post_id || null,
+        })
+      } catch (err) {
+        winResult.platform_posts.push({ platform: ch, status: 'error', error: err.message })
+        results.errors.push(`[${w.key}] ${ch}: ${err.message}`)
+      }
+    }
+
+    results.windows.push(winResult)
+  }
+
+  return results
+}
+
+/**
+ * Fire canva-generate to create design candidates for an OH promo.
+ * Default design_types: IG post, IG story, poster (flyer).
+ * Returns { results: [{design_type, candidates: [{id, thumbnail_url, preview_url}]}] }
+ *
+ * NOTE: this only generates designs — it does NOT auto-upload the rendered
+ * image to Blotato. Dana opens each preview_url, applies brand kit + tweaks,
+ * then exports manually. Wiring the export → media upload → Blotato pipeline
+ * is the next iteration.
+ */
+export async function generateCanvaDesignsForOH({ prompt, designTypes = null, brandKitId = null }) {
+  const types = designTypes || ['instagram-post', 'instagram-story', 'poster']
+  const body = { prompt, design_types: types }
+  if (brandKitId) body.brand_kit_id = brandKitId
+  const { data, error } = await supabase.functions.invoke('canva-generate', { body })
+  if (error) {
+    let detail = error.message
+    try { const ctx = await error.context?.json?.(); detail = ctx?.error || detail } catch {}
+    throw new Error(detail)
+  }
+  if (data?.error) throw new Error(data.error)
+  return data
 }
 
 /**

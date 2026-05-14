@@ -6,7 +6,13 @@ import * as DB from '../../lib/supabase.js'
 // On listing: variant defaults to 'just_listed' but Dana can switch.
 // On OH: variant is locked to 'oh_promo'.
 // Generates one draft per channel via generate-content edge function,
-// shows them, lets Dana edit, then saves to content_pieces (banked).
+// shows them, lets Dana edit, then EITHER:
+//   • Saves drafts to Content Bank (manual scheduling later in PostComposer)
+//   • Auto-schedules a 7d / 24h / live cadence to Blotato (OH context only)
+//   • Generates Canva flyer + IG post + IG story design candidates
+//
+// Auto-schedule + Canva are OH-only for now. Listing flow keeps the
+// existing "save to bank" workflow until we generalize it.
 
 const ALL_VARIANTS = [
   { key: 'just_listed', label: 'Just Listed',   icon: '🏡', desc: 'Live on the market today' },
@@ -27,6 +33,16 @@ const DEFAULT_CHANNELS = [
   { key: 'tiktok:post',             label: 'TikTok',          pickedDefault: false },
 ]
 
+function fmtScheduledFor(iso) {
+  if (!iso) return ''
+  try {
+    return new Date(iso).toLocaleString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+    })
+  } catch { return iso }
+}
+
 export default function ListingContentModal({
   open,
   onClose,
@@ -34,6 +50,8 @@ export default function ListingContentModal({
   listingId,
   ohId,
   propertyId,
+  ohDate,         // 'YYYY-MM-DD' — required for OH auto-schedule
+  ohStartTime,    // 'HH:MM' or 'HH:MM:SS' — used for the live (30m out) window
   addressLabel,
   defaultVariant,
 }) {
@@ -52,9 +70,20 @@ export default function ListingContentModal({
   const [error, setError] = useState(null)
   const [savedCount, setSavedCount] = useState(0)
 
+  // Auto-schedule state
+  const [scheduling, setScheduling] = useState(false)
+  const [scheduleResults, setScheduleResults] = useState(null)
+
+  // Canva state
+  const [canvaLoading, setCanvaLoading] = useState(false)
+  const [canvaResults, setCanvaResults] = useState(null)
+  const [canvaError, setCanvaError] = useState(null)
+
   if (!open) return null
 
-  const variantsToShow = context === 'oh' ? ALL_VARIANTS.filter(v => v.key === 'oh_promo') : ALL_VARIANTS
+  const isOH = context === 'oh'
+  const canAutoSchedule = isOH && !!ohId && !!ohDate
+  const variantsToShow = isOH ? ALL_VARIANTS.filter(v => v.key === 'oh_promo') : ALL_VARIANTS
 
   const togglePicked = (key) => setPicked(p => ({ ...p, [key]: !p[key] }))
 
@@ -62,6 +91,7 @@ export default function ListingContentModal({
     setError(null)
     setDrafts(null)
     setSavedCount(0)
+    setScheduleResults(null)
     const channels = Object.keys(picked).filter(k => picked[k])
     if (!channels.length) {
       setError('Pick at least one channel.')
@@ -97,12 +127,56 @@ export default function ListingContentModal({
         listingId: listingId || null,
         openHouseId: ohId || null,
         propertyId: propertyId || null,
+        // For OH: bank under the OH date so it appears on the right day in
+        // the content planner. For listing: default to today (helper default).
+        contentDate: isOH ? ohDate : null,
       })
       setSavedCount(Array.isArray(saved) ? saved.length : drafts.length)
     } catch (err) {
       setError(err.message || 'Save failed.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleAutoSchedule = async () => {
+    if (!canAutoSchedule || !drafts?.length) return
+    setScheduling(true)
+    setError(null)
+    setScheduleResults(null)
+    try {
+      const result = await DB.autoScheduleOHPromo({
+        ohId,
+        listingId: listingId || null,
+        propertyId: propertyId || null,
+        ohDate,
+        ohStartTime: ohStartTime || null,
+        drafts,
+      })
+      setScheduleResults(result)
+      if (result?.errors?.length && !result?.windows?.length) {
+        setError(result.errors.join('\n'))
+      }
+    } catch (err) {
+      setError(err.message || 'Auto-schedule failed.')
+    } finally {
+      setScheduling(false)
+    }
+  }
+
+  const handleCanva = async () => {
+    setCanvaError(null)
+    setCanvaResults(null)
+    setCanvaLoading(true)
+    try {
+      const propLine = (addressLabel || 'Open House').split(' · ')[0]
+      const prompt = `Open House promo for ${propLine}. Brand: Dana Massey, REAL Broker. Warm cream/brown palette. Include "OPEN HOUSE" headline, the address, the date and time, and a "Scan to sign in" call-to-action.`
+      const result = await DB.generateCanvaDesignsForOH({ prompt })
+      setCanvaResults(result?.results || [])
+    } catch (err) {
+      setCanvaError(err.message || 'Canva generation failed.')
+    } finally {
+      setCanvaLoading(false)
     }
   }
 
@@ -133,7 +207,7 @@ export default function ListingContentModal({
               <button
                 key={v.key}
                 onClick={() => setVariant(v.key)}
-                disabled={context === 'oh' && v.key !== 'oh_promo'}
+                disabled={isOH && v.key !== 'oh_promo'}
                 style={{
                   padding: '8px 12px',
                   border: variant === v.key ? '1.5px solid var(--brown-dark)' : '1px solid var(--color-border)',
@@ -177,16 +251,40 @@ export default function ListingContentModal({
           </div>
         </div>
 
-        {/* Generate button */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          <Button onClick={handleGenerate} disabled={generating}>
-            {generating ? 'Generating…' : (drafts ? 'Regenerate' : 'Generate Drafts')}
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          <Button onClick={handleGenerate} disabled={generating || scheduling}>
+            {generating ? 'Generating…' : (drafts ? 'Regenerate Copy' : 'Generate Drafts')}
           </Button>
-          {drafts && drafts.length > 0 && savedCount === 0 && (
-            <Button variant="ghost" onClick={handleSaveAll} disabled={saving}>
-              {saving ? 'Saving…' : `Save ${drafts.length} to Content Bank`}
+
+          {drafts && drafts.length > 0 && savedCount === 0 && !scheduleResults && (
+            <Button variant="ghost" onClick={handleSaveAll} disabled={saving || scheduling}>
+              {saving ? 'Saving…' : `Save ${drafts.length} to Bank`}
             </Button>
           )}
+
+          {canAutoSchedule && drafts && drafts.length > 0 && !scheduleResults && (
+            <Button
+              onClick={handleAutoSchedule}
+              disabled={scheduling || saving}
+              style={{ background: 'var(--sage-green, #7a9b76)', color: '#fff' }}
+              title="Auto-schedule a 7-day / 24-hour / live-on-the-day cadence directly to Blotato"
+            >
+              {scheduling ? 'Scheduling…' : '⚡ Auto-Schedule 7d / 24h / Live'}
+            </Button>
+          )}
+
+          {isOH && (
+            <Button
+              variant="ghost"
+              onClick={handleCanva}
+              disabled={canvaLoading}
+              title="Generate flyer + IG post + IG story design candidates in Canva"
+            >
+              {canvaLoading ? 'Canva…' : '🎨 Generate Canva Designs'}
+            </Button>
+          )}
+
           {savedCount > 0 && (
             <span style={{ alignSelf: 'center', fontSize: '0.85rem', color: 'var(--sage-green, #7a9b76)', fontWeight: 600 }}>
               ✓ Saved {savedCount} draft{savedCount === 1 ? '' : 's'} to Content Bank
@@ -195,9 +293,91 @@ export default function ListingContentModal({
         </div>
 
         {error && (
-          <div style={{ padding: '10px 12px', background: '#fce8e6', color: '#c5221f', borderRadius: 8, fontSize: '0.82rem', marginBottom: 12 }}>
+          <div style={{ padding: '10px 12px', background: '#fce8e6', color: '#c5221f', borderRadius: 8, fontSize: '0.82rem', marginBottom: 12, whiteSpace: 'pre-wrap' }}>
             {error}
           </div>
+        )}
+
+        {/* Auto-schedule results */}
+        {scheduleResults && scheduleResults.windows && scheduleResults.windows.length > 0 && (
+          <Card style={{ padding: 14, marginBottom: 12, background: 'var(--cream, #faf8f5)', border: '1px solid var(--sage-green, #7a9b76)' }}>
+            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 8 }}>
+              ⚡ Scheduled to Blotato
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {scheduleResults.windows.map(w => {
+                const ok = w.platform_posts.filter(p => p.status !== 'error').length
+                const fail = w.platform_posts.length - ok
+                return (
+                  <div key={w.key} style={{ fontSize: '0.78rem', color: 'var(--brown-dark)' }}>
+                    <strong>{w.label}</strong> · {fmtScheduledFor(w.scheduled_for)}
+                    <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: 2 }}>
+                      {ok > 0 && <span>✓ {ok} scheduled</span>}
+                      {fail > 0 && <span style={{ color: '#c5221f', marginLeft: 8 }}>✗ {fail} failed</span>}
+                      <span style={{ marginLeft: 8 }}>· {w.platform_posts.map(p => p.platform).join(', ')}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            {scheduleResults.errors && scheduleResults.errors.length > 0 && (
+              <div style={{ marginTop: 8, padding: 8, background: '#fce8e6', borderRadius: 6, fontSize: '0.72rem', color: '#c5221f', whiteSpace: 'pre-wrap' }}>
+                {scheduleResults.errors.join('\n')}
+              </div>
+            )}
+          </Card>
+        )}
+
+        {/* Canva results */}
+        {canvaError && (
+          <div style={{ padding: '10px 12px', background: '#fce8e6', color: '#c5221f', borderRadius: 8, fontSize: '0.82rem', marginBottom: 12 }}>
+            Canva: {canvaError}
+          </div>
+        )}
+        {canvaResults && canvaResults.length > 0 && (
+          <Card style={{ padding: 14, marginBottom: 12 }}>
+            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 8 }}>
+              🎨 Canva Design Candidates
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {canvaResults.map((r, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 4 }}>
+                      {r.design_type}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {(r.candidates || []).slice(0, 4).map(c => (
+                        <a
+                          key={c.id}
+                          href={c.preview_url || '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            padding: '4px 8px', border: '1px solid var(--color-border)',
+                            borderRadius: 6, textDecoration: 'none', fontSize: '0.72rem',
+                            color: 'var(--brown-dark)',
+                          }}
+                        >
+                          {c.thumbnail_url
+                            ? <img src={c.thumbnail_url} alt="thumb" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4 }} />
+                            : <span>📄</span>}
+                          Open in Canva ↗
+                        </a>
+                      ))}
+                      {(!r.candidates || r.candidates.length === 0) && (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>No candidates returned.</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p style={{ marginTop: 8, fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
+              Open each design in Canva to apply the Dana brand kit and export. Auto-export → media upload to Blotato is the next iteration.
+            </p>
+          </Card>
         )}
 
         {/* Drafts */}

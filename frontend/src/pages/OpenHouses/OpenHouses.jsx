@@ -153,8 +153,19 @@ function findOHConflicts(existingOHs, date, startTime, endTime) {
 }
 
 // ─── OH Quick Form (new) ──────────────────────────────────────────────────────
-function OHQuickForm({ onSave, onClose, saving, error, existingOHs }) {
-  const [draft, setDraft] = useState({ address: '', city: '', listing_agent: '', hosted_by: '' })
+function OHQuickForm({ onSave, onClose, saving, error, existingOHs, prefill }) {
+  // `prefill` lets "Host Another" pre-populate property + agent fields from
+  // an existing OH while leaving dates/times blank for the new event.
+  const [draft, setDraft] = useState({
+    address:       prefill?.address       ?? '',
+    city:          prefill?.city          ?? '',
+    listing_agent: prefill?.listing_agent ?? '',
+    hosted_by:     prefill?.hosted_by     ?? '',
+    // Carry property_id forward so we reuse the same property record
+    // instead of letting ensureProperty fuzzy-match on address again.
+    _property_id:  prefill?.property_id   ?? null,
+    _listing_id:   prefill?.listing_id    ?? null,
+  })
   const [dates, setDates] = useState([{ date: '', start_time: '', end_time: '' }])
   const set = (k, v) => setDraft(p => ({ ...p, [k]: v }))
   const setDate = (idx, k, v) => setDates(prev => prev.map((d, i) => i === idx ? { ...d, [k]: v } : d))
@@ -167,11 +178,29 @@ function OHQuickForm({ onSave, onClose, saving, error, existingOHs }) {
 
   return (
     <>
-      <p className="panel-hint">Fill in what you know — you can add URLs and other details later in the Process tab.</p>
+      {prefill ? (
+        <div
+          className="panel-hint"
+          style={{
+            background: 'rgba(141, 124, 102, 0.08)',
+            border: '1px solid rgba(141, 124, 102, 0.25)',
+            padding: '10px 12px',
+            borderRadius: 8,
+            lineHeight: 1.45,
+          }}
+        >
+          <strong>Hosting another open at {prefill.address}.</strong> Property + host info are pre-filled — just pick a new date/time below.
+          <span style={{ display: 'block', marginTop: 4, fontSize: '0.78rem', color: 'var(--brown-mid)' }}>
+            Heads up: if the list price has changed, update the listing first so new creatives pull the right number. After saving, use <em>Promote OH</em> on the new event to regenerate posts/email.
+          </span>
+        </div>
+      ) : (
+        <p className="panel-hint">Fill in what you know — you can add URLs and other details later in the Process tab.</p>
+      )}
       <div className="panel-section">
-        <Input label="Property Address *" value={draft.address} onChange={e => set('address', e.target.value)} placeholder="2222 S Yellow Wood Dr" autoFocus />
-        <Input label="City" value={draft.city} onChange={e => set('city', e.target.value)} placeholder="Mesa" />
-        <Input label="Listing Agent" value={draft.listing_agent} onChange={e => set('listing_agent', e.target.value)} placeholder="Victoria Cole" />
+        <Input label="Property Address *" value={draft.address} onChange={e => set('address', e.target.value)} placeholder="" autoFocus={!prefill} />
+        <Input label="City" value={draft.city} onChange={e => set('city', e.target.value)} placeholder="" />
+        <Input label="Listing Agent" value={draft.listing_agent} onChange={e => set('listing_agent', e.target.value)} placeholder="" />
         <Input label="Hosted By (leave blank if you)" value={draft.hosted_by} onChange={e => set('hosted_by', e.target.value)} placeholder="Agent name if someone else is hosting" />
       </div>
 
@@ -713,7 +742,7 @@ function TasksPanel({ ohId }) {
 }
 
 // ─── OH Detail ────────────────────────────────────────────────────────────────
-function OHDetail({ oh, onBack, onEdit }) {
+function OHDetail({ oh, onBack, onEdit, onHostAnother }) {
   const [promoteOpen, setPromoteOpen] = useState(false)
   return (
     <div className="oh-detail">
@@ -736,6 +765,15 @@ function OHDetail({ oh, onBack, onEdit }) {
                 title="View every post tied to this open house on the Content Calendar"
               >Calendar</Button>
             </Link>
+          )}
+          {onHostAnother && oh.property_id && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onHostAnother}
+              title="Schedule another open house at this same property — keeps property + host info, blanks date/time"
+              icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0115.5-6.36L21 8"/><polyline points="21 3 21 8 16 8"/><path d="M21 12a9 9 0 01-15.5 6.36L3 16"/><polyline points="3 21 3 16 8 16"/></svg>}
+            >Host Another</Button>
           )}
           <Button variant="ghost" size="sm" onClick={onEdit}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
@@ -869,6 +907,8 @@ function OHDetail({ oh, onBack, onEdit }) {
         ohId={oh.id}
         listingId={oh.listing_id}
         propertyId={oh.property_id}
+        ohDate={oh.date}
+        ohStartTime={oh.start_time}
         addressLabel={`${oh.address || ''} · ${oh.date ? new Date(oh.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : ''}${oh.time ? ' · ' + oh.time : ''}`}
         defaultVariant="oh_promo"
       />
@@ -1050,13 +1090,33 @@ function ScheduledTab({ openHouses, loading, refetch }) {
     }
   }, [openHouses])
   const [editingOH, setEditingOH]   = useState(null)
+  const [quickPrefill, setQuickPrefill] = useState(null)
   const [saving, setSaving]         = useState(false)
   const [deleting, setDeleting]     = useState(false)
   const [error, setError]           = useState(null)
 
-  const openCreate = () => { setEditingOH(null); setPanelOpen(true) }
+  const openCreate = () => { setEditingOH(null); setQuickPrefill(null); setPanelOpen(true) }
   const openEdit   = (oh) => { setEditingOH(oh); setPanelOpen(true) }
-  const closePanel = () => { setPanelOpen(false); setEditingOH(null); setError(null) }
+  const closePanel = () => { setPanelOpen(false); setEditingOH(null); setQuickPrefill(null); setError(null) }
+
+  // "Host Another Open House" — re-run the workflow for the same property.
+  // Closes the detail view, opens the quick form with property + agent
+  // info pre-filled so Dana only has to pick a new date/time.
+  const openHostAnother = (oh) => {
+    if (!oh) return
+    setSelectedOH(null)
+    setEditingOH(null)
+    setQuickPrefill({
+      address:       oh.address       || '',
+      city:          oh.city          || '',
+      property_id:   oh.property_id   || null,
+      listing_id:    oh.listing_id    || null,
+      listing_agent: oh.listing_agent || '',
+      // Host stays whoever ran it last — blank = Dana hosted it herself.
+      hosted_by:     oh.agent_name    || '',
+    })
+    setPanelOpen(true)
+  }
 
   // Active upcoming first (asc), completed/cancelled at bottom (desc)
   const sortedOHs = useMemo(() => {
@@ -1080,7 +1140,12 @@ function ScheduledTab({ openHouses, loading, refetch }) {
   const handleQuickSave = async (draft) => {
     setSaving(true); setError(null)
     try {
-      const property_id = await DB.ensureProperty({ address: draft.address.trim(), city: draft.city.trim() || null })
+      // "Host Another" flow forwards the existing property_id so we reuse
+      // the same property record (price, beds/baths, photos) instead of
+      // creating a duplicate via fuzzy address match.
+      const property_id = draft._property_id
+        ? draft._property_id
+        : await DB.ensureProperty({ address: draft.address.trim(), city: draft.city.trim() || null })
       const datesList = draft.dates || [{ date: '', start_time: '', end_time: '' }]
       let lastCreated = null
 
@@ -1096,6 +1161,9 @@ function ScheduledTab({ openHouses, loading, refetch }) {
       for (const dt of datesList) {
         const baseRow = {
           property_id,
+          // Carry the listing link forward when re-hosting so the new OH
+          // stays tied to the same listing (commission/ROI lineage).
+          ...(draft._listing_id ? { listing_id: draft._listing_id } : {}),
           date:          dt.date       || null,
           start_time:    dt.start_time || null,
           end_time:      dt.end_time   || null,
@@ -1221,7 +1289,12 @@ function ScheduledTab({ openHouses, loading, refetch }) {
     const oh = openHouses.find(o => o.id === selectedOH.id) ?? selectedOH
     return (
       <>
-        <OHDetail oh={oh} onBack={() => setSelectedOH(null)} onEdit={() => openEdit(oh)} />
+        <OHDetail
+          oh={oh}
+          onBack={() => setSelectedOH(null)}
+          onEdit={() => openEdit(oh)}
+          onHostAnother={() => openHostAnother(oh)}
+        />
         <SlidePanel open={panelOpen} onClose={closePanel} title="Edit Open House" subtitle={editingOH?.address} width={480}>
           <OHForm key={editingOH?.id || 'new'} oh={editingOH} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} error={error} existingOHs={openHouses} />
         </SlidePanel>
@@ -1270,6 +1343,7 @@ function ScheduledTab({ openHouses, loading, refetch }) {
       key: 'actions', label: '',
       render: (_, row) => {
         const canComplete = !['completed', 'cancelled'].includes(row.status)
+        const isFinished  = ['completed', 'cancelled'].includes(row.status)
         return (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             {canComplete && (
@@ -1291,6 +1365,15 @@ function ScheduledTab({ openHouses, loading, refetch }) {
                 All follow-up done
               </label>
             )}
+            {isFinished && row.property_id && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={e => { e.stopPropagation(); openHostAnother(row) }}
+                title="Schedule another open at this same property"
+                icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0115.5-6.36L21 8"/><polyline points="21 3 21 8 16 8"/><path d="M21 12a9 9 0 01-15.5 6.36L3 16"/><polyline points="3 21 3 16 8 16"/></svg>}
+              >Host Another</Button>
+            )}
             <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); setSelectedOH(row) }}>Tasks</Button>
             <Button size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openEdit(row) }}
               icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
@@ -1309,7 +1392,14 @@ function ScheduledTab({ openHouses, loading, refetch }) {
           <button
             key={r.value}
             className={`oh-date-btn${dateRange === r.value ? ' oh-date-btn--active' : ''}`}
-            onClick={() => setDateRange(r.value)}
+            onClick={() => {
+              setDateRange(r.value)
+              // Picking a historical window only makes sense when paired
+              // with statuses that include completed/cancelled. If the user
+              // is still on the default "Upcoming" tab, flip to "All" so
+              // they see every record inside the chosen window.
+              if (r.value !== 'all' && filter === 'upcoming') setFilter('all')
+            }}
           >{r.label}</button>
         ))}
       </div>
@@ -1336,11 +1426,25 @@ function ScheduledTab({ openHouses, loading, refetch }) {
         >Schedule Open House</Button>
       </div>
       <DataTable columns={columns} rows={filtered} />
-      <SlidePanel open={panelOpen} onClose={closePanel} title={editingOH ? 'Edit Open House' : 'Schedule Open House'} subtitle={editingOH?.address} width={editingOH ? 480 : 440}>
+      <SlidePanel
+        open={panelOpen}
+        onClose={closePanel}
+        title={editingOH ? 'Edit Open House' : quickPrefill ? 'Host Another Open House' : 'Schedule Open House'}
+        subtitle={editingOH?.address || quickPrefill?.address}
+        width={editingOH ? 480 : 440}
+      >
         {editingOH ? (
           <OHForm key={editingOH.id} oh={editingOH} onSave={handleSave} onDelete={handleDelete} onClose={closePanel} saving={saving} deleting={deleting} error={error} existingOHs={openHouses} />
         ) : (
-          <OHQuickForm onSave={handleQuickSave} onClose={closePanel} saving={saving} error={error} existingOHs={openHouses} />
+          <OHQuickForm
+            key={quickPrefill ? `prefill-${quickPrefill.property_id || quickPrefill.address}` : 'fresh'}
+            onSave={handleQuickSave}
+            onClose={closePanel}
+            saving={saving}
+            error={error}
+            existingOHs={openHouses}
+            prefill={quickPrefill}
+          />
         )}
       </SlidePanel>
     </>
