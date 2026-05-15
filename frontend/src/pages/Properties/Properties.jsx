@@ -513,12 +513,17 @@ export default function Properties() {
             autoFocus={!editing}
           />
 
-          {/* Auto-filled parts shown as chips */}
-          {(draft.city || draft.zip) && (
+          {/* Location — editable (autocomplete pre-fills, but you can hand-edit any field) */}
+          <h4 className="properties-panel__section-title">Location</h4>
+          <div className="properties-panel__grid">
+            <Input label="City" value={draft.city} onChange={e => setDraft({ ...draft, city: e.target.value })} placeholder="e.g. Mesa" />
+            <Input label="State" value={draft.state} onChange={e => setDraft({ ...draft, state: e.target.value })} placeholder="AZ" />
+            <Input label="Zip" value={draft.zip} onChange={e => setDraft({ ...draft, zip: e.target.value })} placeholder="e.g. 85212" />
+            <Input label="Neighborhood" value={draft.neighborhood} onChange={e => setDraft({ ...draft, neighborhood: e.target.value })} placeholder="Optional" />
+            <Input label="County" value={draft.county} onChange={e => setDraft({ ...draft, county: e.target.value })} placeholder="e.g. Maricopa" />
+          </div>
+          {(draft.google_place_id || draft.latitude) && (
             <div className="properties-panel__chips">
-              {draft.city && <span className="chip">{draft.city}</span>}
-              {draft.state && <span className="chip">{draft.state}</span>}
-              {draft.zip && <span className="chip">{draft.zip}</span>}
               {draft.google_place_id && <span className="chip chip--good">Google verified</span>}
               {draft.latitude && (
                 <span className="chip chip--muted">
