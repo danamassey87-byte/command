@@ -417,15 +417,42 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
     draft.date, draft.start_time, draft.end_time
   )
 
+  // A listing is eligible to be linked to an OH only if its signed agreement
+  // pre-dates the OH date. Mirrors the open_houses BEFORE trigger
+  // (20260514_oh_listing_date_consistency.sql) so the UI doesn't auto-pick a
+  // listing the trigger will null out on save.
+  const isListingEligibleForOH = (listing, ohDate) => {
+    if (!listing || !listing.agreement_signed_date || !ohDate) return false
+    if (listing.deleted_at || listing.archived_at) return false
+    return listing.agreement_signed_date <= ohDate
+  }
+
   // Auto-match listing by property_id
   const matchedListings = listings.filter(l => l.property_id === draft.property_id)
+
+  // Warning if the currently linked listing won't survive the trigger.
+  const listingDateMismatch = (() => {
+    if (!draft.listing_id || !draft.date) return null
+    const l = listings.find(x => x.id === draft.listing_id)
+    if (!l || isListingEligibleForOH(l, draft.date)) return null
+    if (!l.agreement_signed_date) return 'This listing has no signed agreement date — the link will be cleared on save.'
+    return `This listing was signed ${l.agreement_signed_date}, after this OH (${draft.date}). Link will be cleared on save.`
+  })()
 
   const handlePropertySelect = (pid) => {
     if (!pid) { set('property_id', ''); return }
     const prop = properties.find(p => p.id === pid)
     if (prop) {
-      const autoListing = listings.find(l => l.property_id === pid)
-      setDraft(p => ({ ...p, property_id: pid, address: prop.address, city: prop.city ?? '', listing_id: autoListing?.id ?? p.listing_id }))
+      // Only auto-link a listing that was already signed by the OH date.
+      // (Server-side trigger enforces the same rule on every insert/update.)
+      const eligible = listings.find(l => l.property_id === pid && isListingEligibleForOH(l, draft.date))
+      setDraft(p => ({
+        ...p,
+        property_id: pid,
+        address: prop.address,
+        city: prop.city ?? '',
+        listing_id: eligible?.id ?? '',
+      }))
     }
   }
 
@@ -459,13 +486,27 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
           <option value="">— Not linked to a listing —</option>
           {(matchedListings.length > 0 ? matchedListings : listings).map(l => {
             const prop = properties.find(p => p.id === l.property_id)
+            const signedHint = l.agreement_signed_date ? ` · signed ${l.agreement_signed_date}` : ' · unsigned'
             return (
               <option key={l.id} value={l.id}>
-                {prop?.address ?? 'Unknown'}{prop?.city ? ` · ${prop.city}` : ''} ({l.status})
+                {prop?.address ?? 'Unknown'}{prop?.city ? ` · ${prop.city}` : ''} ({l.status}){signedHint}
               </option>
             )
           })}
         </Select>
+        {listingDateMismatch && (
+          <div style={{
+            marginTop: 6,
+            padding: '8px 12px',
+            background: '#fff7e6',
+            borderLeft: '3px solid #d4a017',
+            borderRadius: 4,
+            fontSize: '0.78rem',
+            color: '#7a5a00',
+          }}>
+            ⚠ {listingDateMismatch}
+          </div>
+        )}
         <Input label="Community / Subdivision" value={draft.community} onChange={e => set('community', e.target.value)} placeholder="e.g. Sunland Village East" />
         <div className="panel-row">
           <Select label="Status" value={draft.status} onChange={e => set('status', e.target.value)}>
