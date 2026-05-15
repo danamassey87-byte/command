@@ -149,6 +149,68 @@ serve(async (req) => {
       .update({ contact_id: contactId, merged_at: now })
       .eq('id', sign_in_id)
 
+    // ─── Auto-enroll into a buyer nurture campaign ─────────────────────────────
+    // Skipped when working_with_agent=true (don't poach buyers actively repped).
+    // Lookup order:
+    //   1. user_settings.oh_signin_campaign_map.value.by_timeframe[<signIn.timeframe>]
+    //   2. user_settings.oh_signin_campaign_map.value.default
+    //   3. Fallback: every active campaign with type='open_house'
+    // Idempotent — skips any campaign where the contact already has an active enrollment.
+    const enrolledCampaignIds: string[] = []
+    if (!signIn.working_with_agent) {
+      try {
+        const { data: settingsRow } = await supabase
+          .from('user_settings')
+          .select('value')
+          .eq('key', 'oh_signin_campaign_map')
+          .maybeSingle()
+        const mapConfig: any = settingsRow?.value || {}
+        const byTimeframe: Record<string, string> = mapConfig.by_timeframe || {}
+        const defaultCampaignId: string | null = mapConfig.default || null
+
+        let targetCampaignIds: string[] = []
+        const explicit = (signIn.timeframe && byTimeframe[signIn.timeframe]) || defaultCampaignId
+        if (explicit) {
+          targetCampaignIds = [explicit]
+        } else {
+          const { data: ohCampaigns } = await supabase
+            .from('campaigns')
+            .select('id')
+            .eq('type', 'open_house')
+            .eq('status', 'active')
+            .is('deleted_at', null)
+          targetCampaignIds = (ohCampaigns || []).map((c: { id: string }) => c.id)
+        }
+
+        for (const campaignId of targetCampaignIds) {
+          const { data: existing } = await supabase
+            .from('campaign_enrollments')
+            .select('id')
+            .eq('campaign_id', campaignId)
+            .eq('contact_id', contactId)
+            .eq('status', 'active')
+            .maybeSingle()
+          if (existing) continue
+
+          const { error: enrollErr } = await supabase
+            .from('campaign_enrollments')
+            .insert({
+              campaign_id: campaignId,
+              contact_id: contactId,
+              status: 'active',
+              current_step: 0,
+              next_send_at: now,
+              enrolled_at: now,
+            })
+          if (!enrollErr) enrolledCampaignIds.push(campaignId)
+          else console.warn('[merge-oh-signin] enrollment insert failed:', enrollErr.message)
+        }
+      } catch (enrollErr: any) {
+        // Non-fatal — sign-in merge already succeeded. Just log.
+        console.warn('[merge-oh-signin] auto-enroll skipped:', enrollErr?.message || enrollErr)
+      }
+    }
+
     // Hot-lead notification: high interest OR offer-yes OR pre-approved + no agent
     const isHot = signIn.interest_level === 'hot'
       || signIn.would_offer === 'yes'
@@ -206,6 +268,7 @@ serve(async (req) => {
         contact_id: contactId,
         action: existingContact ? 'updated' : 'created',
         hot: isHot,
+        enrolled_campaigns: enrolledCampaignIds,
       }),
       { headers: { ...CORS, 'Content-Type': 'application/json' } }
     )
