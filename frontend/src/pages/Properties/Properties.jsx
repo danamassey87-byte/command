@@ -7,7 +7,9 @@ import { useProperties, useShowingSessions, useContacts } from '../../lib/hooks.
 import * as DB from '../../lib/supabase.js'
 import './Properties.css'
 
+// All keys match real `properties` columns so updateWithAudit writes go through unmapped.
 const EMPTY_DRAFT = {
+  // Location
   google_place_id:   null,
   formatted_address: '',
   address:           '',
@@ -18,20 +20,57 @@ const EMPTY_DRAFT = {
   county:            '',
   latitude:          null,
   longitude:         null,
+  subdivision:       '',
+  // Basics
+  status:            '',
+  role_for_dana:     '',
+  property_type:     '',
   price:             '',
-  beds:              '',
-  baths:             '',
+  mls_id:            '',
+  bedrooms:          '',
+  bathrooms:         '',
   sqft:              '',
   year_built:        '',
-  lot_size:          '',
-  property_type:     '',
-  subdivision:       '',
-  mls_id:            '',
-  hoa_amount:        '',
+  stories:           '',
+  lot_sqft:          '',
+  lot_acres:         '',
+  garage_spaces:     '',
+  parking:           '',
+  hoa_monthly:       '',
   pool:              false,
-  garage:            '',
-  notes:             '',
-  assigned_contact_ids: [],
+  spa:               false,
+  // Dates
+  list_date:         '',
+  expired_date:      '',
+  dom:               '',
+  // Schools
+  school_district:   '',
+  elementary_school: '',
+  middle_school:     '',
+  high_school:       '',
+  // Features / construction (features stored as text[] — split on commas)
+  features:          '',
+  construction:      '',
+  roof_type:         '',
+  cooling:           '',
+  heating:           '',
+  flooring:          '',
+  exterior:          '',
+  landscaping:       '',
+  // Tax & ID
+  tax_amount:        '',
+  tax_year:          '',
+  apn:               '',
+  // Media (image_urls is text[] — comma-separated input)
+  image_url:         '',
+  image_urls:        '',
+  listing_url:       '',
+  virtual_tour_url:  '',
+  floorplan_url:     '',
+  // Notes
+  description:       '',
+  marketing_remarks: '',
+  agent_notes:       '',
 }
 
 // ─── Fuzzy duplicate detection ──────────────────────────────────────────────
@@ -257,6 +296,7 @@ export default function Properties() {
   const openEdit = (row) => {
     setEditing(row)
     setDraft({
+      // Location
       google_place_id:   row.google_place_id ?? null,
       formatted_address: row.formatted_address ?? '',
       address:           row.address ?? '',
@@ -267,20 +307,57 @@ export default function Properties() {
       county:            row.county ?? '',
       latitude:          row.latitude ?? null,
       longitude:         row.longitude ?? null,
+      subdivision:       row.subdivision ?? '',
+      // Basics
+      status:            row.status ?? '',
+      role_for_dana:     row.role_for_dana ?? '',
+      property_type:     row.property_type ?? '',
       price:             row.price ?? '',
-      beds:              row.beds ?? row.bedrooms ?? '',
-      baths:             row.baths ?? row.bathrooms ?? '',
+      mls_id:            row.mls_id ?? '',
+      bedrooms:          row.bedrooms ?? '',
+      bathrooms:         row.bathrooms ?? '',
       sqft:              row.sqft ?? '',
       year_built:        row.year_built ?? '',
-      lot_size:          row.lot_size ?? '',
-      property_type:     row.property_type ?? '',
-      subdivision:       row.subdivision ?? '',
-      mls_id:            row.mls_id ?? '',
-      hoa_amount:        row.hoa_amount ?? '',
+      stories:           row.stories ?? '',
+      lot_sqft:          row.lot_sqft ?? '',
+      lot_acres:         row.lot_acres ?? '',
+      garage_spaces:     row.garage_spaces ?? '',
+      parking:           row.parking ?? '',
+      hoa_monthly:       row.hoa_monthly ?? '',
       pool:              row.pool ?? false,
-      garage:            row.garage ?? '',
-      notes:             row.notes ?? '',
-      assigned_contact_ids: [],
+      spa:               row.spa ?? false,
+      // Dates
+      list_date:         row.list_date ?? '',
+      expired_date:      row.expired_date ?? '',
+      dom:               row.dom ?? '',
+      // Schools
+      school_district:   row.school_district ?? '',
+      elementary_school: row.elementary_school ?? '',
+      middle_school:     row.middle_school ?? '',
+      high_school:       row.high_school ?? '',
+      // Features / construction (array → comma string)
+      features:          Array.isArray(row.features) ? row.features.join(', ') : (row.features ?? ''),
+      construction:      row.construction ?? '',
+      roof_type:         row.roof_type ?? '',
+      cooling:           row.cooling ?? '',
+      heating:           row.heating ?? '',
+      flooring:          row.flooring ?? '',
+      exterior:          row.exterior ?? '',
+      landscaping:       row.landscaping ?? '',
+      // Tax & ID
+      tax_amount:        row.tax_amount ?? '',
+      tax_year:          row.tax_year ?? '',
+      apn:               row.apn ?? '',
+      // Media
+      image_url:         row.image_url ?? '',
+      image_urls:        Array.isArray(row.image_urls) ? row.image_urls.join(', ') : (row.image_urls ?? ''),
+      listing_url:       row.listing_url ?? '',
+      virtual_tour_url:  row.virtual_tour_url ?? '',
+      floorplan_url:     row.floorplan_url ?? '',
+      // Notes
+      description:       row.description ?? '',
+      marketing_remarks: row.marketing_remarks ?? '',
+      agent_notes:       row.agent_notes ?? '',
     })
     setError(null)
     setDupeWarning(null)
@@ -339,36 +416,86 @@ export default function Properties() {
     setSaving(true)
     setError(null)
     try {
+      const txt = v => (typeof v === 'string' ? v.trim() : v) || null
+      const num = v => (v === '' || v === null || v === undefined ? null : Number(v))
+      const arr = v => {
+        if (!v) return null
+        if (Array.isArray(v)) return v.length ? v : null
+        const parts = String(v).split(',').map(s => s.trim()).filter(Boolean)
+        return parts.length ? parts : null
+      }
       const payload = {
+        // Location
         google_place_id:   draft.google_place_id || null,
-        formatted_address: draft.formatted_address || null,
+        formatted_address: txt(draft.formatted_address),
         address:           draft.address.trim(),
-        city:              draft.city?.trim() || null,
+        city:              txt(draft.city),
         state:             draft.state || 'AZ',
-        zip:               draft.zip?.trim() || null,
-        neighborhood:      draft.neighborhood?.trim() || null,
-        county:            draft.county?.trim() || null,
+        zip:               txt(draft.zip),
+        neighborhood:      txt(draft.neighborhood),
+        county:            txt(draft.county),
         latitude:          draft.latitude ?? null,
         longitude:         draft.longitude ?? null,
-        price:             draft.price ? Number(draft.price) : null,
-        beds:              draft.beds ? Number(draft.beds) : null,
-        baths:             draft.baths ? Number(draft.baths) : null,
-        sqft:              draft.sqft ? Number(draft.sqft) : null,
-        year_built:        draft.year_built ? Number(draft.year_built) : null,
-        lot_size:          draft.lot_size ? Number(draft.lot_size) : null,
-        property_type:     draft.property_type || null,
-        subdivision:       draft.subdivision || null,
-        mls_id:            draft.mls_id || null,
-        hoa_amount:        draft.hoa_amount ? Number(draft.hoa_amount) : null,
+        subdivision:       txt(draft.subdivision),
+        // Basics
+        status:            txt(draft.status),
+        role_for_dana:     txt(draft.role_for_dana),
+        property_type:     txt(draft.property_type),
+        price:             num(draft.price),
+        mls_id:            txt(draft.mls_id),
+        bedrooms:          num(draft.bedrooms),
+        bathrooms:         num(draft.bathrooms),
+        sqft:              num(draft.sqft),
+        year_built:        num(draft.year_built),
+        stories:           num(draft.stories),
+        lot_sqft:          num(draft.lot_sqft),
+        lot_acres:         num(draft.lot_acres),
+        garage_spaces:     num(draft.garage_spaces),
+        parking:           txt(draft.parking),
+        hoa_monthly:       num(draft.hoa_monthly),
         pool:              !!draft.pool,
-        garage:            draft.garage || null,
-        notes:             draft.notes || null,
+        spa:               !!draft.spa,
+        // Dates
+        list_date:         draft.list_date || null,
+        expired_date:      draft.expired_date || null,
+        dom:               num(draft.dom),
+        // Schools
+        school_district:   txt(draft.school_district),
+        elementary_school: txt(draft.elementary_school),
+        middle_school:     txt(draft.middle_school),
+        high_school:       txt(draft.high_school),
+        // Features / construction
+        features:          arr(draft.features),
+        construction:      txt(draft.construction),
+        roof_type:         txt(draft.roof_type),
+        cooling:           txt(draft.cooling),
+        heating:           txt(draft.heating),
+        flooring:          txt(draft.flooring),
+        exterior:          txt(draft.exterior),
+        landscaping:       txt(draft.landscaping),
+        // Tax & ID
+        tax_amount:        num(draft.tax_amount),
+        tax_year:          num(draft.tax_year),
+        apn:               txt(draft.apn),
+        // Media
+        image_url:         txt(draft.image_url),
+        image_urls:        arr(draft.image_urls),
+        listing_url:       txt(draft.listing_url),
+        virtual_tour_url:  txt(draft.virtual_tour_url),
+        floorplan_url:     txt(draft.floorplan_url),
+        // Notes
+        description:       txt(draft.description),
+        marketing_remarks: txt(draft.marketing_remarks),
+        agent_notes:       txt(draft.agent_notes),
       }
 
       if (editing && editing.id) {
         await DB.updateProperty(editing.id, payload)
       } else {
-        await DB.ensureProperty(payload)
+        // ensureProperty dedupes by place_id/MLS/normalized-address, returns id.
+        // Then updateProperty so the full payload (basics, schools, media, etc.) lands too.
+        const id = await DB.ensureProperty(payload)
+        if (id) await DB.updateProperty(id, payload)
       }
       await refetch()
       closePanel()
@@ -533,16 +660,27 @@ export default function Properties() {
             </div>
           )}
 
-          {/* Property details */}
-          <h4 className="properties-panel__section-title">Property Details</h4>
+          {/* Basics */}
+          <h4 className="properties-panel__section-title">Basics</h4>
           <div className="properties-panel__grid">
-            <Input label="Price" type="number" value={draft.price} onChange={e => setDraft({ ...draft, price: e.target.value })} placeholder="e.g. 675000" />
-            <Input label="MLS #" value={draft.mls_id} onChange={e => setDraft({ ...draft, mls_id: e.target.value })} placeholder="Optional" />
-            <Input label="Beds" type="number" value={draft.beds} onChange={e => setDraft({ ...draft, beds: e.target.value })} />
-            <Input label="Baths" type="number" step="0.5" value={draft.baths} onChange={e => setDraft({ ...draft, baths: e.target.value })} />
-            <Input label="Sqft" type="number" value={draft.sqft} onChange={e => setDraft({ ...draft, sqft: e.target.value })} />
-            <Input label="Year Built" type="number" value={draft.year_built} onChange={e => setDraft({ ...draft, year_built: e.target.value })} />
-            <Input label="Lot (sqft)" type="number" value={draft.lot_size} onChange={e => setDraft({ ...draft, lot_size: e.target.value })} />
+            <Select label="Status" value={draft.status} onChange={e => setDraft({ ...draft, status: e.target.value })}>
+              <option value="">—</option>
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="sold">Sold</option>
+              <option value="expired">Expired</option>
+              <option value="withdrawn">Withdrawn</option>
+              <option value="coming_soon">Coming Soon</option>
+              <option value="off_market">Off Market</option>
+            </Select>
+            <Select label="Role for Dana" value={draft.role_for_dana} onChange={e => setDraft({ ...draft, role_for_dana: e.target.value })}>
+              <option value="">—</option>
+              <option value="buyer-interest">Buyer Interest</option>
+              <option value="open-house-hosted">Open House Hosted</option>
+              <option value="listing">My Listing</option>
+              <option value="comp">Comp</option>
+              <option value="other">Other</option>
+            </Select>
             <Select label="Type" value={draft.property_type} onChange={e => setDraft({ ...draft, property_type: e.target.value })}>
               <option value="">—</option>
               <option value="single_family">Single Family</option>
@@ -552,21 +690,84 @@ export default function Properties() {
               <option value="manufactured">Manufactured</option>
               <option value="land">Land</option>
             </Select>
-            <Input label="Garage" value={draft.garage} onChange={e => setDraft({ ...draft, garage: e.target.value })} placeholder="e.g. 2-car attached" />
-            <Input label="HOA ($/mo)" type="number" value={draft.hoa_amount} onChange={e => setDraft({ ...draft, hoa_amount: e.target.value })} />
+            <Input label="Price" type="number" value={draft.price} onChange={e => setDraft({ ...draft, price: e.target.value })} placeholder="e.g. 675000" />
+            <Input label="MLS #" value={draft.mls_id} onChange={e => setDraft({ ...draft, mls_id: e.target.value })} placeholder="Optional" />
+            <Input label="Bedrooms" type="number" value={draft.bedrooms} onChange={e => setDraft({ ...draft, bedrooms: e.target.value })} />
+            <Input label="Bathrooms" type="number" step="0.5" value={draft.bathrooms} onChange={e => setDraft({ ...draft, bathrooms: e.target.value })} />
+            <Input label="Sqft" type="number" value={draft.sqft} onChange={e => setDraft({ ...draft, sqft: e.target.value })} />
+            <Input label="Year Built" type="number" value={draft.year_built} onChange={e => setDraft({ ...draft, year_built: e.target.value })} />
+            <Input label="Stories" type="number" value={draft.stories} onChange={e => setDraft({ ...draft, stories: e.target.value })} />
+            <Input label="Lot (sqft)" type="number" value={draft.lot_sqft} onChange={e => setDraft({ ...draft, lot_sqft: e.target.value })} />
+            <Input label="Lot (acres)" type="number" step="0.01" value={draft.lot_acres} onChange={e => setDraft({ ...draft, lot_acres: e.target.value })} />
+            <Input label="Garage Spaces" type="number" value={draft.garage_spaces} onChange={e => setDraft({ ...draft, garage_spaces: e.target.value })} />
+            <Input label="Parking" value={draft.parking} onChange={e => setDraft({ ...draft, parking: e.target.value })} placeholder="e.g. attached, covered" />
+            <Input label="HOA ($/mo)" type="number" value={draft.hoa_monthly} onChange={e => setDraft({ ...draft, hoa_monthly: e.target.value })} />
+            <Input label="Subdivision" value={draft.subdivision} onChange={e => setDraft({ ...draft, subdivision: e.target.value })} />
+          </div>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <label className="properties-panel__check">
+              <input type="checkbox" checked={!!draft.pool} onChange={e => setDraft({ ...draft, pool: e.target.checked })} />
+              <span>Pool</span>
+            </label>
+            <label className="properties-panel__check">
+              <input type="checkbox" checked={!!draft.spa} onChange={e => setDraft({ ...draft, spa: e.target.checked })} />
+              <span>Spa</span>
+            </label>
           </div>
 
-          <label className="properties-panel__check">
-            <input
-              type="checkbox"
-              checked={!!draft.pool}
-              onChange={e => setDraft({ ...draft, pool: e.target.checked })}
-            />
-            <span>Pool</span>
-          </label>
+          {/* Dates */}
+          <h4 className="properties-panel__section-title">Listing Dates</h4>
+          <div className="properties-panel__grid">
+            <Input label="List Date" type="date" value={draft.list_date} onChange={e => setDraft({ ...draft, list_date: e.target.value })} />
+            <Input label="Expired Date" type="date" value={draft.expired_date} onChange={e => setDraft({ ...draft, expired_date: e.target.value })} />
+            <Input label="DOM" type="number" value={draft.dom} onChange={e => setDraft({ ...draft, dom: e.target.value })} placeholder="Days on market" />
+          </div>
 
-          <Input label="Subdivision" value={draft.subdivision} onChange={e => setDraft({ ...draft, subdivision: e.target.value })} />
-          <Textarea label="Notes" value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} rows={3} placeholder="Agent notes, showing instructions, lockbox code, etc." />
+          {/* Schools */}
+          <h4 className="properties-panel__section-title">Schools</h4>
+          <div className="properties-panel__grid">
+            <Input label="District" value={draft.school_district} onChange={e => setDraft({ ...draft, school_district: e.target.value })} />
+            <Input label="Elementary" value={draft.elementary_school} onChange={e => setDraft({ ...draft, elementary_school: e.target.value })} />
+            <Input label="Middle" value={draft.middle_school} onChange={e => setDraft({ ...draft, middle_school: e.target.value })} />
+            <Input label="High" value={draft.high_school} onChange={e => setDraft({ ...draft, high_school: e.target.value })} />
+          </div>
+
+          {/* Features & construction */}
+          <h4 className="properties-panel__section-title">Features &amp; Construction</h4>
+          <Input label="Features (comma-separated)" value={draft.features} onChange={e => setDraft({ ...draft, features: e.target.value })} placeholder="e.g. updated kitchen, RV gate, paid solar" />
+          <div className="properties-panel__grid">
+            <Input label="Construction" value={draft.construction} onChange={e => setDraft({ ...draft, construction: e.target.value })} placeholder="e.g. block, frame" />
+            <Input label="Roof" value={draft.roof_type} onChange={e => setDraft({ ...draft, roof_type: e.target.value })} placeholder="e.g. tile, shingle" />
+            <Input label="Cooling" value={draft.cooling} onChange={e => setDraft({ ...draft, cooling: e.target.value })} placeholder="e.g. central, dual" />
+            <Input label="Heating" value={draft.heating} onChange={e => setDraft({ ...draft, heating: e.target.value })} placeholder="e.g. gas, electric" />
+            <Input label="Flooring" value={draft.flooring} onChange={e => setDraft({ ...draft, flooring: e.target.value })} placeholder="e.g. tile, LVP" />
+            <Input label="Exterior" value={draft.exterior} onChange={e => setDraft({ ...draft, exterior: e.target.value })} placeholder="e.g. stucco" />
+            <Input label="Landscaping" value={draft.landscaping} onChange={e => setDraft({ ...draft, landscaping: e.target.value })} placeholder="e.g. desert, grass" />
+          </div>
+
+          {/* Tax & ID */}
+          <h4 className="properties-panel__section-title">Tax &amp; ID</h4>
+          <div className="properties-panel__grid">
+            <Input label="Tax ($/yr)" type="number" value={draft.tax_amount} onChange={e => setDraft({ ...draft, tax_amount: e.target.value })} />
+            <Input label="Tax Year" type="number" value={draft.tax_year} onChange={e => setDraft({ ...draft, tax_year: e.target.value })} />
+            <Input label="APN" value={draft.apn} onChange={e => setDraft({ ...draft, apn: e.target.value })} placeholder="Assessor Parcel #" />
+          </div>
+
+          {/* Media & links */}
+          <h4 className="properties-panel__section-title">Media &amp; Links</h4>
+          <Input label="Primary Image URL" value={draft.image_url} onChange={e => setDraft({ ...draft, image_url: e.target.value })} placeholder="https://…" />
+          <Input label="Additional Image URLs (comma-separated)" value={draft.image_urls} onChange={e => setDraft({ ...draft, image_urls: e.target.value })} placeholder="https://…, https://…" />
+          <div className="properties-panel__grid">
+            <Input label="Listing URL" value={draft.listing_url} onChange={e => setDraft({ ...draft, listing_url: e.target.value })} placeholder="MLS or portal link" />
+            <Input label="Virtual Tour" value={draft.virtual_tour_url} onChange={e => setDraft({ ...draft, virtual_tour_url: e.target.value })} placeholder="https://…" />
+            <Input label="Floorplan" value={draft.floorplan_url} onChange={e => setDraft({ ...draft, floorplan_url: e.target.value })} placeholder="https://…" />
+          </div>
+
+          {/* Notes — three buckets to mirror DB */}
+          <h4 className="properties-panel__section-title">Notes</h4>
+          <Textarea label="Public Description" value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} rows={3} placeholder="Customer-facing copy (used on property websites, listing pages)" />
+          <Textarea label="Marketing Remarks" value={draft.marketing_remarks} onChange={e => setDraft({ ...draft, marketing_remarks: e.target.value })} rows={3} placeholder="MLS marketing remarks (agent-facing)" />
+          <Textarea label="Agent Notes" value={draft.agent_notes} onChange={e => setDraft({ ...draft, agent_notes: e.target.value })} rows={3} placeholder="Lockbox code, showing instructions, internal notes" />
 
           {/* ─── Showings History (only when editing) ─── */}
           {editing && editing.id && (
