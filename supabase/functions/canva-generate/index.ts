@@ -1,10 +1,18 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 const CANVA_API = 'https://api.canva.com/rest/v1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+const MIME_FOR_FORMAT: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
 }
 
 serve(async (req) => {
@@ -20,6 +28,109 @@ serve(async (req) => {
     }
 
     const body = await req.json()
+
+    // ─── Export a design → upload PNG to Supabase storage → return public URL ───
+    // Used by ListingContentModal "Use this design" after generation so the
+    // rendered image can land in content_platform_posts.media_urls and be
+    // handed to Blotato's POST /v2/media at publish time.
+    if (body.action === 'export') {
+      const designId = body.design_id
+      const format = (body.format || 'png').toLowerCase()
+      const contentType = MIME_FOR_FORMAT[format] || 'application/octet-stream'
+      if (!designId) throw new Error('design_id is required for export action')
+
+      // 1. Kick off the export job
+      const initResp = await fetch(`${CANVA_API}/exports`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${canvaToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          design_id: designId,
+          format: { type: format },
+        }),
+      })
+      const initData = await initResp.json()
+      if (!initResp.ok) {
+        return new Response(
+          JSON.stringify({ error: 'Canva /exports init failed', detail: initData }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      const jobId = initData?.job?.id ?? initData?.id
+      let status: string = initData?.job?.status ?? initData?.status ?? 'in_progress'
+      let urls: string[] = initData?.job?.urls ?? initData?.urls ?? []
+
+      // 2. Poll up to ~90s for completion (45 × 2s)
+      if (!urls.length && jobId) {
+        for (let i = 0; i < 45 && status !== 'success' && status !== 'failed'; i++) {
+          await new Promise(r => setTimeout(r, 2000))
+          const pollResp = await fetch(`${CANVA_API}/exports/${jobId}`, {
+            headers: { Authorization: `Bearer ${canvaToken}` },
+          })
+          if (!pollResp.ok) continue
+          const pollData = await pollResp.json()
+          status = pollData?.job?.status ?? pollData?.status ?? status
+          if (status === 'success') {
+            urls = pollData?.job?.urls ?? pollData?.urls ?? []
+            break
+          }
+        }
+      }
+
+      if (status === 'failed') {
+        return new Response(
+          JSON.stringify({ error: 'Canva export job failed', jobId }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      if (!urls.length) {
+        return new Response(
+          JSON.stringify({ error: 'Canva export timed out before ready', jobId, status }),
+          { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // 3. Download the rendered image
+      const downloadResp = await fetch(urls[0])
+      if (!downloadResp.ok) {
+        return new Response(
+          JSON.stringify({ error: 'Failed to download Canva export', status: downloadResp.status }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      const fileBytes = new Uint8Array(await downloadResp.arrayBuffer())
+
+      // 4. Upload to Supabase storage (canva-exports bucket)
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      )
+      const path = `${designId}-${Date.now()}.${format}`
+      const { error: upErr } = await supabase.storage
+        .from('canva-exports')
+        .upload(path, fileBytes, { contentType, upsert: true })
+      if (upErr) {
+        return new Response(
+          JSON.stringify({ error: 'Storage upload failed', detail: upErr.message }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      const { data: pub } = supabase.storage.from('canva-exports').getPublicUrl(path)
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          design_id: designId,
+          job_id: jobId,
+          format,
+          url: pub.publicUrl,
+          bucket_path: path,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // ─── Save a design candidate ───
     if (body.action === 'save') {

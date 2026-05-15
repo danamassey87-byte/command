@@ -1764,14 +1764,70 @@ export async function reRunOHApprovalGate(ohId) {
 }
 
 /**
+ * Export a Canva design to a PNG hosted on Supabase storage (canva-exports
+ * bucket). Returns { ok, url, design_id, job_id, format, bucket_path }.
+ * Times out after ~90s of polling Canva /exports.
+ */
+export async function exportCanvaDesign(designId, format = 'png') {
+  if (!designId) throw new Error('designId required')
+  const { data, error } = await supabase.functions.invoke('canva-generate', {
+    body: { action: 'export', design_id: designId, format },
+  })
+  if (error) {
+    let detail = error.message
+    try { const ctx = await error.context?.json?.(); detail = ctx?.error || detail } catch {}
+    throw new Error(detail)
+  }
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
+/**
+ * Attach a rendered Canva PNG URL to every pending_approval platform_post
+ * for an OH so Blotato gets a media_id on publish. Skips posts that already
+ * have a canva-exports URL attached (idempotent re-runs are fine).
+ * Returns { attached, total }.
+ */
+export async function attachMediaToOHPlatformPosts(ohId, mediaUrl, mediaType = 'image') {
+  if (!ohId) throw new Error('ohId required')
+  if (!mediaUrl) throw new Error('mediaUrl required')
+  const { data: pieces, error: pieceErr } = await supabase
+    .from('content_pieces')
+    .select('id')
+    .eq('open_house_id', ohId)
+  if (pieceErr) throw new Error(pieceErr.message)
+  const pieceIds = (pieces || []).map(p => p.id)
+  if (!pieceIds.length) return { attached: 0, total: 0 }
+
+  const { data: posts, error: postsErr } = await supabase
+    .from('content_platform_posts')
+    .select('id, media_urls')
+    .in('content_id', pieceIds)
+    .eq('status', 'pending_approval')
+  if (postsErr) throw new Error(postsErr.message)
+
+  let attached = 0
+  for (const p of posts || []) {
+    const existing = Array.isArray(p.media_urls) ? p.media_urls : []
+    if (existing.some(m => typeof m?.url === 'string' && m.url.includes('canva-exports'))) continue
+    const nextMedia = [...existing, { url: mediaUrl, type: mediaType }]
+    const { error: updErr } = await supabase
+      .from('content_platform_posts')
+      .update({ media_urls: nextMedia })
+      .eq('id', p.id)
+    if (!updErr) attached += 1
+  }
+  return { attached, total: (posts || []).length }
+}
+
+/**
  * Fire canva-generate to create design candidates for an OH promo.
  * Default design_types: IG post, IG story, poster (flyer).
  * Returns { results: [{design_type, candidates: [{id, thumbnail_url, preview_url}]}] }
  *
- * NOTE: this only generates designs — it does NOT auto-upload the rendered
- * image to Blotato. Dana opens each preview_url, applies brand kit + tweaks,
- * then exports manually. Wiring the export → media upload → Blotato pipeline
- * is the next iteration.
+ * Designs come back as edit URLs only. To attach a rendered PNG to the OH's
+ * pending platform_posts, pass the chosen candidate.id to exportCanvaDesign
+ * and then attachMediaToOHPlatformPosts.
  */
 export async function generateCanvaDesignsForOH({ prompt, designTypes = null, brandKitId = null }) {
   const { fetchBrief, withBrief } = await import('./creativeBrief')

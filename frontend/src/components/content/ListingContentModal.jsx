@@ -78,6 +78,10 @@ export default function ListingContentModal({
   const [canvaLoading, setCanvaLoading] = useState(false)
   const [canvaResults, setCanvaResults] = useState(null)
   const [canvaError, setCanvaError] = useState(null)
+  // Per-candidate export+attach state — keyed by candidate id
+  const [exporting, setExporting] = useState({})       // { [candidateId]: true }
+  const [exportResult, setExportResult] = useState({}) // { [candidateId]: { url, attached, total } }
+  const [exportError, setExportError] = useState({})   // { [candidateId]: 'msg' }
 
   if (!open) return null
 
@@ -167,6 +171,8 @@ export default function ListingContentModal({
   const handleCanva = async () => {
     setCanvaError(null)
     setCanvaResults(null)
+    setExportResult({})
+    setExportError({})
     setCanvaLoading(true)
     try {
       const propLine = (addressLabel || 'Open House').split(' · ')[0]
@@ -177,6 +183,26 @@ export default function ListingContentModal({
       setCanvaError(err.message || 'Canva generation failed.')
     } finally {
       setCanvaLoading(false)
+    }
+  }
+
+  // Export a chosen Canva candidate to a PNG on Supabase storage and attach
+  // it to every pending_approval platform_post for this OH. Polls Canva
+  // /exports for up to ~90s server-side; UI shows a spinner per candidate.
+  const handleExportAttach = async (candidate) => {
+    if (!candidate?.id || !ohId) return
+    const cid = candidate.id
+    setExporting(p => ({ ...p, [cid]: true }))
+    setExportError(p => ({ ...p, [cid]: null }))
+    try {
+      const exp = await DB.exportCanvaDesign(cid)
+      if (!exp?.url) throw new Error('Canva export returned no URL')
+      const att = await DB.attachMediaToOHPlatformPosts(ohId, exp.url)
+      setExportResult(p => ({ ...p, [cid]: { url: exp.url, attached: att.attached, total: att.total } }))
+    } catch (err) {
+      setExportError(p => ({ ...p, [cid]: err.message || 'Export failed' }))
+    } finally {
+      setExporting(p => ({ ...p, [cid]: false }))
     }
   }
 
@@ -351,26 +377,53 @@ export default function ListingContentModal({
                     <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--brown-dark)', marginBottom: 4 }}>
                       {r.design_type}
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {(r.candidates || []).slice(0, 4).map(c => (
-                        <a
-                          key={c.id}
-                          href={c.preview_url || '#'}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 4,
-                            padding: '4px 8px', border: '1px solid var(--color-border)',
-                            borderRadius: 6, textDecoration: 'none', fontSize: '0.72rem',
-                            color: 'var(--brown-dark)',
-                          }}
-                        >
-                          {c.thumbnail_url
-                            ? <img src={c.thumbnail_url} alt="thumb" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4 }} />
-                            : <span>📄</span>}
-                          Open in Canva ↗
-                        </a>
-                      ))}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {(r.candidates || []).slice(0, 4).map(c => {
+                        const isExporting = !!exporting[c.id]
+                        const result = exportResult[c.id]
+                        const err = exportError[c.id]
+                        return (
+                          <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <a
+                              href={c.preview_url || '#'}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                padding: '4px 8px', border: '1px solid var(--color-border)',
+                                borderRadius: 6, textDecoration: 'none', fontSize: '0.72rem',
+                                color: 'var(--brown-dark)',
+                              }}
+                            >
+                              {c.thumbnail_url
+                                ? <img src={c.thumbnail_url} alt="thumb" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4 }} />
+                                : <span>📄</span>}
+                              Open in Canva ↗
+                            </a>
+                            {isOH && ohId && (
+                              <button
+                                onClick={() => handleExportAttach(c)}
+                                disabled={isExporting || !!result}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 6,
+                                  border: '1px solid var(--brown-dark)',
+                                  background: result ? '#e8f5e9' : (isExporting ? 'var(--color-bg-subtle, #faf8f5)' : 'var(--brown-dark)'),
+                                  color: result ? '#1b5e20' : (isExporting ? 'var(--color-text-muted)' : '#fff'),
+                                  fontSize: '0.72rem',
+                                  cursor: isExporting || result ? 'default' : 'pointer',
+                                }}
+                                title={result ? `Attached to ${result.attached}/${result.total} pending posts` : 'Export PNG and attach to pending posts'}
+                              >
+                                {isExporting ? '⏳ Exporting…' : result ? `✓ Attached (${result.attached}/${result.total})` : '📎 Export & attach'}
+                              </button>
+                            )}
+                            {err && (
+                              <span style={{ fontSize: '0.7rem', color: '#c5221f' }}>⚠ {err}</span>
+                            )}
+                          </div>
+                        )
+                      })}
                       {(!r.candidates || r.candidates.length === 0) && (
                         <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>No candidates returned.</span>
                       )}
@@ -380,7 +433,7 @@ export default function ListingContentModal({
               ))}
             </div>
             <p style={{ marginTop: 8, fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
-              Open each design in Canva to apply the Dana brand kit and export. Auto-export → media upload to Blotato is the next iteration.
+              Open in Canva to fine-tune. <strong>Export &amp; attach</strong> exports the PNG, uploads it to Supabase storage, and attaches it to every pending_approval post for this OH so Blotato gets a media_id at publish time.
             </p>
           </Card>
         )}
