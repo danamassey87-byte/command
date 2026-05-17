@@ -17,6 +17,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { logAiGeneration, anthropicCostCents } from '../_shared/replicate-notify.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -118,6 +119,8 @@ serve(async (req) => {
       return json({ error: 'ANTHROPIC_API_KEY not configured' }, 503)
     }
 
+    const CLAUDE_MODEL = 'claude-sonnet-4-6'
+
     const claudeResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -126,7 +129,7 @@ serve(async (req) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: CLAUDE_MODEL,
         max_tokens: 8192,
         system: SYSTEM_PROMPT,
         messages: [{
@@ -146,10 +149,18 @@ serve(async (req) => {
       let detail = ''
       try { detail = JSON.stringify(await claudeResp.json()) } catch { detail = await claudeResp.text().catch(() => '') }
       await supabase.from('cmas').update({ parse_status: 'failed' }).eq('id', cma_id)
+      await logAiGeneration(supabase, { service: 'anthropic', model: CLAUDE_MODEL, kind: 'cma_parse', succeeded: false })
       return json({ error: `Claude error (${claudeResp.status}): ${detail.slice(0, 400)}` }, 502)
     }
 
     const claudeBody = await claudeResp.json()
+    await logAiGeneration(supabase, {
+      service: 'anthropic',
+      model: CLAUDE_MODEL,
+      kind: 'cma_parse',
+      cost_cents: anthropicCostCents(CLAUDE_MODEL, claudeBody?.usage),
+      succeeded: true,
+    })
     const textBlock = (claudeBody.content || []).find((c: any) => c.type === 'text')
     const raw = textBlock?.text?.trim() || ''
     let parsed: any

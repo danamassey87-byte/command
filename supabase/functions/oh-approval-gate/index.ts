@@ -25,6 +25,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { logAiGeneration, anthropicCostCents } from '../_shared/replicate-notify.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -79,6 +80,7 @@ const ADRE_REQUIREMENTS = `Arizona Department of Real Estate (ADRE) advertising 
 • No bait-and-switch language and no implied dual licensing the agent doesn't hold.`
 
 async function runComplianceCheck(
+  supabase: any,
   anthropicKey: string,
   brandSummary: string,
   oh: any,
@@ -139,9 +141,26 @@ The missing_elements array should ONLY contain elements from this exact list, an
 
   if (!resp.ok) {
     const errText = await resp.text().catch(() => '')
+    await logAiGeneration(supabase, {
+      service: 'anthropic',
+      model: COMPLIANCE_MODEL,
+      kind: 'oh_compliance_check',
+      listing_id: oh?.listing_id || null,
+      property_id: oh?.property_id || null,
+      succeeded: false,
+    })
     throw new Error(`Anthropic ${resp.status}: ${errText.slice(0, 200)}`)
   }
   const data = await resp.json()
+  await logAiGeneration(supabase, {
+    service: 'anthropic',
+    model: COMPLIANCE_MODEL,
+    kind: 'oh_compliance_check',
+    listing_id: oh?.listing_id || null,
+    property_id: oh?.property_id || null,
+    cost_cents: anthropicCostCents(COMPLIANCE_MODEL, data?.usage),
+    succeeded: true,
+  })
   const text = data?.content?.[0]?.text || '{}'
 
   // Defensive JSON parsing — strip code fences if Claude wrapped them.
@@ -264,7 +283,7 @@ serve(async (req) => {
     const compliancePromises = (posts as any[]).map(async (p) => {
       if (skip_compliance) return null
       try {
-        const c = await runComplianceCheck(anthropicKey, brandSummary, oh, property, {
+        const c = await runComplianceCheck(supabase, anthropicKey, brandSummary, oh, property, {
           platform: p.platform,
           body: p.adapted_text || '',
           hashtags: p.hashtags || null,

@@ -49,6 +49,32 @@ export function isReplicate402(status: number, body: string): boolean {
   return /insufficient credit|insufficient_credit|payment required/i.test(body)
 }
 
+// Estimate Anthropic cost in cents from a Claude `usage` block.
+// Returns null when usage is missing or unrecognized. Rates are pulled from
+// public Anthropic pricing (per 1M tokens). Cached tokens cost less; we count
+// cache_creation at the same rate as fresh input (close enough — true rate is
+// 1.25x but we'd rather under-account than block a call).
+export function anthropicCostCents(
+  model: string | undefined | null,
+  usage: { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number } | null | undefined,
+): number | null {
+  if (!usage) return null
+  const input = (usage.input_tokens || 0) + (usage.cache_creation_input_tokens || 0)
+  const output = usage.output_tokens || 0
+  const cacheRead = usage.cache_read_input_tokens || 0
+  if (input + output + cacheRead === 0) return null
+
+  // Defaults: Sonnet pricing.
+  let inRate = 3, outRate = 15, cacheReadRate = 0.30
+  const m = (model || '').toLowerCase()
+  if (m.includes('haiku')) { inRate = 1; outRate = 5; cacheReadRate = 0.10 }
+  else if (m.includes('opus')) { inRate = 15; outRate = 75; cacheReadRate = 1.50 }
+
+  const dollars = (input * inRate + output * outRate + cacheRead * cacheReadRate) / 1_000_000
+  // Cents with 4-decimal precision so tiny calls (~$0.0001) don't round to 0.
+  return Math.round(dollars * 100 * 10000) / 10000
+}
+
 /**
  * Append one row to ai_generation_log. Best-effort — never throws so a
  * logging failure can't break the user-facing call. Powers the AI Spend

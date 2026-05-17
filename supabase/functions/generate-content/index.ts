@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { logAiGeneration, anthropicCostCents } from '../_shared/replicate-notify.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -30,6 +31,14 @@ serve(async (req) => {
     }
 
     const { type, pillar, prompt, body_text, platform, active_platforms, plan_type, address, property, source, avatar_id, framework, inspo_notes, conversation, variant, listing_id, oh_id, channels } = await req.json()
+
+    // Single supabase client used only for ai_generation_log writes — keeps the
+    // per-block clients below independent while letting every Anthropic call site
+    // log without re-creating clients on each path.
+    const logSb = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    )
 
     // ─── Brand guidelines injection ──────────────────────────────────────
     // Pull brand profile from user_settings so Claude knows Dana's brand voice,
@@ -247,7 +256,9 @@ Your job right now is to produce the markdown strategy document described in the
         }
       }
 
+      const checklistModel = 'claude-sonnet-4-6'
       if (!checklistResp.ok) {
+        await logAiGeneration(logSb, { service: 'anthropic', model: checklistModel, kind: 'listing_checklist', listing_id: listing_id || null, succeeded: false })
         return new Response(
           JSON.stringify({
             error: `Anthropic API error (${checklistResp.status}): ${await parseAnthropicError(checklistResp) || 'unknown'}`,
@@ -258,6 +269,14 @@ Your job right now is to produce the markdown strategy document described in the
       }
 
       const checklistResult = await checklistResp.json()
+      await logAiGeneration(logSb, {
+        service: 'anthropic',
+        model: checklistModel,
+        kind: 'listing_checklist',
+        listing_id: listing_id || null,
+        cost_cents: anthropicCostCents(checklistModel, checklistResult?.usage),
+        succeeded: true,
+      })
       const checklistText = checklistResult.content?.[0]?.text ?? ''
 
       let tasks: Array<{ label: string; phase: string }> = []
@@ -283,8 +302,18 @@ Your job right now is to produce the markdown strategy document described in the
       if (strategyResp.ok) {
         try {
           const sr = await strategyResp.json()
+          await logAiGeneration(logSb, {
+            service: 'anthropic',
+            model: checklistModel,
+            kind: 'listing_strategy',
+            listing_id: listing_id || null,
+            cost_cents: anthropicCostCents(checklistModel, sr?.usage),
+            succeeded: true,
+          })
           strategy = sr.content?.[0]?.text ?? ''
         } catch { /* ignore */ }
+      } else {
+        await logAiGeneration(logSb, { service: 'anthropic', model: checklistModel, kind: 'listing_strategy', listing_id: listing_id || null, succeeded: false })
       }
 
       return new Response(
@@ -445,6 +474,7 @@ Your job right now is to produce the markdown strategy document described in the
       }
 
       // ─── Build per-channel Claude calls in parallel ──────────────────────
+      const listingContentModel = 'claude-sonnet-4-6'
       const callClaudeJson = async (system: string, userPrompt: string, maxTokens = 1200) => {
         const r = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -454,7 +484,7 @@ Your job right now is to produce the markdown strategy document described in the
             'anthropic-version': '2023-06-01',
           },
           body: JSON.stringify({
-            model: 'claude-sonnet-4-6',
+            model: listingContentModel,
             max_tokens: maxTokens,
             system,
             messages: [{ role: 'user', content: userPrompt }],
@@ -462,9 +492,18 @@ Your job right now is to produce the markdown strategy document described in the
         })
         if (!r.ok) {
           const errText = await r.text().catch(() => '')
+          await logAiGeneration(logSb, { service: 'anthropic', model: listingContentModel, kind: `listing_content:${variant}`, listing_id: listingRow?.id || listing_id || null, succeeded: false })
           throw new Error(`Anthropic API error (${r.status}): ${errText.slice(0, 400)}`)
         }
         const j = await r.json()
+        await logAiGeneration(logSb, {
+          service: 'anthropic',
+          model: listingContentModel,
+          kind: `listing_content:${variant}`,
+          listing_id: listingRow?.id || listing_id || null,
+          cost_cents: anthropicCostCents(listingContentModel, j?.usage),
+          succeeded: true,
+        })
         return j.content?.[0]?.text ?? ''
       }
 
@@ -784,6 +823,7 @@ Rules:
         }),
       })
 
+      const refineModel = 'claude-sonnet-4-6'
       if (!response.ok) {
         let detail = ''
         try {
@@ -792,6 +832,7 @@ Rules:
         } catch {
           detail = await response.text().catch(() => '')
         }
+        await logAiGeneration(logSb, { service: 'anthropic', model: refineModel, kind: 'refine', succeeded: false })
         return new Response(
           JSON.stringify({ error: `Anthropic API error (${response.status}): ${detail || 'unknown'}`, code: 'anthropic_api_error' }),
           { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
@@ -799,6 +840,13 @@ Rules:
       }
 
       const result = await response.json()
+      await logAiGeneration(logSb, {
+        service: 'anthropic',
+        model: refineModel,
+        kind: 'refine',
+        cost_cents: anthropicCostCents(refineModel, result?.usage),
+        succeeded: true,
+      })
       const text = result.content?.[0]?.text ?? ''
       return new Response(JSON.stringify({ text }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },
@@ -836,6 +884,7 @@ Rules:
       } catch {
         detail = await response.text().catch(() => '')
       }
+      await logAiGeneration(logSb, { service: 'anthropic', model, kind: type || 'generate', succeeded: false })
       return new Response(
         JSON.stringify({
           error: `Anthropic API error (${response.status}): ${detail || 'unknown'}`,
@@ -847,6 +896,13 @@ Rules:
     }
 
     const result = await response.json()
+    await logAiGeneration(logSb, {
+      service: 'anthropic',
+      model,
+      kind: type || 'generate',
+      cost_cents: anthropicCostCents(model, result?.usage),
+      succeeded: true,
+    })
     const text = result.content?.[0]?.text ?? ''
 
     if (!text) {

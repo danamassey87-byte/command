@@ -65,7 +65,7 @@ serve(async (req) => {
 
     const { data: ohs, error } = await supabase
       .from('open_houses')
-      .select('id, date, start_time, end_time, listing_id, property_id, reminders_sent, status, property:properties(address, city)')
+      .select('id, date, start_time, end_time, listing_id, property_id, reminders_sent, status, lockbox_code, property:properties(address, city)')
       .gte('date', todayISO)
       .lte('date', horizonISO)
       .neq('status', 'cancelled')
@@ -105,7 +105,8 @@ serve(async (req) => {
           body = `${dateLabel}${timeLabel ? ' at ' + timeLabel : ''}. Finalize prep — supplies, signage, briefing packet.`
         } else if (w.key === '2h') {
           title = `OH starts in 2h: ${addressLabel}`
-          body = `${timeLabel ? 'Starts ' + timeLabel + '. ' : ''}Heading-out time. Lockbox, snacks, sign-in tablet.`
+          const lockboxBit = (oh as any).lockbox_code ? ` Lockbox: ${(oh as any).lockbox_code}.` : ''
+          body = `${timeLabel ? 'Starts ' + timeLabel + '. ' : ''}Heading-out time.${lockboxBit} Snacks, sign-in tablet.`
         }
 
         const { error: notifErr } = await supabase
