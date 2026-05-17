@@ -298,8 +298,8 @@
 
 /* ─── AI Write Box ────────────────────────────────────────────────────────── */
 .cc-ai-box {
-  background: linear-gradient(135deg, #f5f0fb 0%, #eef4fa 100%);
-  border: 1px solid rgba(130, 100, 170, 0.2);
+  background: linear-gradient(135deg, #f5f0eb 0%, #efede8 100%);
+  border: 1px solid rgba(58, 42, 30, 0.15);
   border-radius: var(--radius-md);
   padding: var(--space-md);
   display: flex;
@@ -310,7 +310,7 @@
 .cc-ai-label {
   font-size: 0.78rem;
   font-weight: 700;
-  color: #7a5ca8;
+  color: var(--brown-dark);
   letter-spacing: 0.3px;
 }
 
@@ -322,7 +322,7 @@
 .cc-ai-input {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid rgba(130, 100, 170, 0.3);
+  border: 1px solid rgba(58, 42, 30, 0.2);
   border-radius: var(--radius-md);
   font-family: var(--font-body);
   font-size: 0.85rem;
@@ -331,12 +331,12 @@
   outline: none;
   transition: border-color var(--transition-fast);
 }
-.cc-ai-input:focus { border-color: #7a5ca8; }
+.cc-ai-input:focus { border-color: var(--brown-dark); }
 .cc-ai-input::placeholder { color: var(--color-text-muted); }
 
 .cc-ai-btn {
   padding: 8px 16px;
-  background: #7a5ca8;
+  background: var(--brown-dark);
   color: white;
   border: none;
   border-radius: var(--radius-md);
@@ -348,7 +348,7 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-.cc-ai-btn:hover:not(:disabled) { background: #6a4d94; }
+.cc-ai-btn:hover:not(:disabled) { background: #2a1d14; }
 .cc-ai-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* Label row with repurpose button */
@@ -362,9 +362,9 @@
 .cc-repurpose-btn {
   font-size: 0.75rem;
   font-weight: 600;
-  color: #7a5ca8;
+  color: var(--brown-dark);
   background: none;
-  border: 1px solid rgba(130, 100, 170, 0.3);
+  border: 1px solid rgba(58, 42, 30, 0.2);
   border-radius: var(--radius-full);
   padding: 3px 10px;
   cursor: pointer;
@@ -372,7 +372,7 @@
   transition: background var(--transition-fast);
   white-space: nowrap;
 }
-.cc-repurpose-btn:hover:not(:disabled) { background: rgba(130, 100, 170, 0.08); }
+.cc-repurpose-btn:hover:not(:disabled) { background: rgba(58, 42, 30, 0.06); }
 .cc-repurpose-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* Per-platform adapt button */
@@ -386,9 +386,9 @@
 .cc-adapt-one-btn {
   font-size: 0.72rem;
   font-weight: 600;
-  color: #7a5ca8;
+  color: var(--brown-dark);
   background: none;
-  border: 1px solid rgba(130, 100, 170, 0.3);
+  border: 1px solid rgba(58, 42, 30, 0.2);
   border-radius: var(--radius-full);
   padding: 3px 10px;
   cursor: pointer;
@@ -397,7 +397,7 @@
   flex-shrink: 0;
   transition: background var(--transition-fast);
 }
-.cc-adapt-one-btn:hover:not(:disabled) { background: rgba(130, 100, 170, 0.08); }
+.cc-adapt-one-btn:hover:not(:disabled) { background: rgba(58, 42, 30, 0.06); }
 .cc-adapt-one-btn:disabled { opacity: 0.5; cursor: default; }
 
 /* ─── Piece Form ──────────────────────────────────────────────────────────── */
