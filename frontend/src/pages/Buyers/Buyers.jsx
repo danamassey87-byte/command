@@ -943,6 +943,7 @@ export default function Buyers() {
   )
 
   const [filter, setFilter]               = useState('all')
+  const [tierFilter, setTierFilter]       = useState('all')
   const [selectedBuyer, setSelectedBuyer] = useState(null)
   const [panelOpen, setPanelOpen]         = useState(false)
   const [editingBuyer, setEditingBuyer]   = useState(null)
@@ -1099,7 +1100,6 @@ export default function Buyers() {
     )
   }
 
-  const [tierFilter, setTierFilter] = useState('all')
   const filtered = buyers.filter(b => {
     if (filter !== 'all' && b.stage !== filter) return false
     if (tierFilter !== 'all' && b.tier !== tierFilter) return false
