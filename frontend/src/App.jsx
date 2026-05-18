@@ -49,6 +49,8 @@ const BioLinkPublic = lazy(() => import('./pages/BioLink/BioLinkPublic'))
 const OHSignIn = lazy(() => import('./pages/OHSignIn/OHSignIn'))
 const OHBriefing = lazy(() => import('./pages/OHBriefing/OHBriefing'))
 const OHHostReport = lazy(() => import('./pages/OHBriefing/OHHostReport'))
+const OHFeedback = lazy(() => import('./pages/OHFeedback/OHFeedback'))
+const OHFeedbackInbox = lazy(() => import('./pages/OHFeedback/OHFeedbackInbox'))
 const PropertyWebsite = lazy(() => import('./pages/PropertyWebsite/PropertyWebsite'))
 const GoogleCallback = lazy(() => import('./pages/Auth/GoogleCallback'))
 const Notifications = lazy(() => import('./pages/Notifications/Notifications'))
@@ -200,6 +202,7 @@ export default function App() {
         <Route path="/form/:slug" element={<PublicForm />} />
         <Route path="/p/:slug" element={<BioLinkPublic />} />
         <Route path="/oh-signin/:openHouseId" element={<OHSignIn />} />
+        <Route path="/oh-feedback/:feedbackId" element={<OHFeedback />} />
         <Route path="/oh/:openHouseId/briefing"    element={<OHBriefing />} />
         <Route path="/oh/:openHouseId/host-report" element={<OHHostReport />} />
         <Route path="/listing/:listingId"           element={<PropertyWebsite />} />
@@ -270,6 +273,8 @@ export default function App() {
 
           {/* ─── Open Houses ─── */}
           <Route path="/open-houses"       element={<OpenHouses />} />
+          <Route path="/oh-feedback-inbox" element={<OHFeedbackInbox />} />
+          <Route path="/oh-feedback-inbox/:feedbackId" element={<OHFeedbackInbox />} />
 
           {/* ─── Content Hub (unified 4-tab structure) ─── */}
           <Route path="/content" element={<ContentHub />}>

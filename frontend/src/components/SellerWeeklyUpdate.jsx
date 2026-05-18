@@ -5,10 +5,11 @@ import { Button } from './ui/index.jsx'
  * Generates a seller weekly update email auto-populated from this listing's
  * open houses, sign-ins, visitor feedback, and private showings.
  */
-export default function SellerWeeklyUpdate({ listing, listingOHs = [], ohSignIns = [], ohFeedback = [], buyerFeedback = [], expenses = [] }) {
+export default function SellerWeeklyUpdate({ listing, listingOHs = [], ohSignIns = [], ohFeedback = [], hostingAgentFeedback = [], buyerFeedback = [], expenses = [] }) {
   const [copied, setCopied] = useState(false)
   const [editable, setEditable] = useState({ marketContext: '', nextSteps: '' })
   const [editing, setEditing] = useState(false)
+  const [includeHostFeedback, setIncludeHostFeedback] = useState(false)
 
   const stats = useMemo(() => {
     const now = new Date()
@@ -131,6 +132,30 @@ export default function SellerWeeklyUpdate({ listing, listingOHs = [], ohSignIns
       concerns && `<li><strong>Common Concerns:</strong> ${concerns}</li>`,
     ].filter(Boolean).join('\n      ')
 
+    // Hosting-agent feedback block (toggled by Insert OH Feedback button)
+    const PRICE = { too_high: 'too high', fair: 'about right', great_deal: 'great deal' }
+    const INTEREST = { high: 'high', medium: 'medium', low: 'low', none: 'none' }
+    const SHOWAGAIN = { yes: 'Yes', maybe: 'Maybe', no: 'No' }
+    const hostFeedbackHtml = (includeHostFeedback && hostingAgentFeedback.length > 0)
+      ? `<div style="background:#F6F4EE;border:1px solid #C8C3B9;border-radius:8px;padding:16px;margin:16px 0;">
+    <h3 style="font-family:'Georgia',serif;font-size:16px;font-weight:400;margin:0 0 10px;">Hosting Agent Feedback</h3>
+    ${hostingAgentFeedback.map(f => {
+      const host = f.hosting_agent_name || 'Hosting agent'
+      const ohDate = f.open_house?.date ? new Date(f.open_house.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
+      const lines = []
+      if (f.buyer_count != null) lines.push(`<li>${f.buyer_count} buyer${f.buyer_count !== 1 ? 's' : ''} attended</li>`)
+      if (f.buyer_interest_level) lines.push(`<li>Interest: ${INTEREST[f.buyer_interest_level] || f.buyer_interest_level}</li>`)
+      if (f.price_feedback) lines.push(`<li>Price feels ${PRICE[f.price_feedback] || f.price_feedback}</li>`)
+      if (f.would_show_again) lines.push(`<li>Would show buyers again: ${SHOWAGAIN[f.would_show_again] || f.would_show_again}</li>`)
+      if (f.overall_impression) lines.push(`<li><em>Overall:</em> ${f.overall_impression}</li>`)
+      if (f.liked) lines.push(`<li><em>Liked:</em> ${f.liked}</li>`)
+      if (f.concerns) lines.push(`<li><em>Concerns:</em> ${f.concerns}</li>`)
+      if (f.general_comments) lines.push(`<li><em>Notes:</em> ${f.general_comments}</li>`)
+      return `<div style="margin:8px 0 12px;"><div style="font-size:13px;color:#8b7a68;margin-bottom:4px;">${host}${ohDate ? ' · ' + ohDate : ''}</div><ul style="margin:0;padding-left:20px;font-size:14px;color:#5A4136;line-height:1.6;">${lines.join('')}</ul></div>`
+    }).join('')}
+  </div>`
+      : ''
+
     return `
 <div style="font-family: 'Nunito Sans', Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #3A2A1E;">
   <div style="padding: 24px 0; border-bottom: 1px solid #C8C3B9;">
@@ -149,6 +174,8 @@ export default function SellerWeeklyUpdate({ listing, listingOHs = [], ohSignIns
       ${activityBullets}
     </ul>
   </div>
+
+  ${hostFeedbackHtml}
 
   ${editable.marketContext.trim() ? `
   <div style="padding: 16px 0; border-bottom: 1px solid #C8C3B9;">
@@ -169,7 +196,7 @@ export default function SellerWeeklyUpdate({ listing, listingOHs = [], ohSignIns
     <p style="margin: 2px 0 0;">dana@danamassey.com</p>
   </div>
 </div>`.trim()
-  }, [listing, stats, dateRange, feedbackSummary, editable])
+  }, [listing, stats, dateRange, feedbackSummary, editable, includeHostFeedback, hostingAgentFeedback])
 
   const handleCopy = () => {
     navigator.clipboard.writeText(updateHtml)
@@ -195,6 +222,16 @@ export default function SellerWeeklyUpdate({ listing, listingOHs = [], ohSignIns
           </span>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
+          {hostingAgentFeedback.length > 0 && (
+            <Button
+              size="sm"
+              variant={includeHostFeedback ? 'primary' : 'ghost'}
+              onClick={() => setIncludeHostFeedback(v => !v)}
+              title={`${hostingAgentFeedback.length} hosting-agent feedback ${hostingAgentFeedback.length === 1 ? 'entry' : 'entries'} available`}
+            >
+              {includeHostFeedback ? '✓ OH Feedback Inserted' : `Insert OH Feedback (${hostingAgentFeedback.length})`}
+            </Button>
+          )}
           <Button size="sm" variant="ghost" onClick={() => setEditing(e => !e)}>
             {editing ? 'Done' : 'Add Context'}
           </Button>

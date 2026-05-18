@@ -65,7 +65,7 @@ serve(async (req) => {
 
     const { data: ohs, error } = await supabase
       .from('open_houses')
-      .select('id, date, start_time, end_time, listing_id, property_id, reminders_sent, status, lockbox_code, property:properties(address, city)')
+      .select('id, date, start_time, end_time, listing_id, property_id, reminders_sent, status, lockbox_code, agent_email, feedback_request_sent_at, property:properties(address, city)')
       .gte('date', todayISO)
       .lte('date', horizonISO)
       .neq('status', 'cancelled')
@@ -74,12 +74,40 @@ serve(async (req) => {
 
     let firedCount = 0
     const fired: Array<{ oh_id: string; window: Window }> = []
+    const feedbackFired: string[] = []
 
     for (const oh of ohs || []) {
       const eventAt = combineDateTime(oh.date, oh.start_time)
       if (!eventAt) continue
       const hoursOut = (eventAt.getTime() - Date.now()) / (1000 * 60 * 60)
       if (hoursOut <= 0) continue
+
+      // ─── Feedback-request fire: ~1h before start, idempotent. ────────────
+      // Fires anywhere from 0.25 → 1.75 hours out (catches the hourly cron).
+      const ohAny = oh as any
+      if (
+        !ohAny.feedback_request_sent_at &&
+        (ohAny.agent_email || '').trim() &&
+        hoursOut >= 0.25 && hoursOut < 1.75
+      ) {
+        try {
+          const res = await fetch(
+            `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-oh-feedback-request`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ open_house_id: oh.id }),
+            },
+          )
+          if (res.ok) feedbackFired.push(oh.id)
+          else console.error(`feedback-request invoke failed for ${oh.id}:`, await res.text())
+        } catch (e) {
+          console.error(`feedback-request invoke errored for ${oh.id}:`, e)
+        }
+      }
 
       const already = new Set(oh.reminders_sent || [])
 
@@ -142,7 +170,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ ok: true, scanned: (ohs || []).length, fired: firedCount, details: fired }),
+      JSON.stringify({ ok: true, scanned: (ohs || []).length, fired: firedCount, details: fired, feedback_requests_fired: feedbackFired }),
       { headers: { ...CORS, 'Content-Type': 'application/json' } }
     )
   } catch (err: any) {

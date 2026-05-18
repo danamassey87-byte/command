@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, SlidePanel, Input, Select, Textarea, InfoTip, AddressLink } from '../../components/ui/index.jsx'
 import { useOpenHouses, useOHOutreach, useOHTasksForOH, useHostReports, useProperties, useListings } from '../../lib/hooks.js'
 import { useBrandSignature } from '../../lib/BrandContext'
+import supabase from '../../lib/supabase.js'
 import * as DB from '../../lib/supabase.js'
 import ChecklistRunner from '../../components/ChecklistRunner.jsx'
 import WeatherPrepFlags from '../../components/WeatherPrepFlags.jsx'
@@ -590,8 +591,11 @@ function OHForm({ oh, onSave, onDelete, onClose, saving, deleting, error, existi
         </div>
         <div className="panel-row">
           <Input label="Phone" type="tel" value={draft.agent_phone} onChange={e => set('agent_phone', e.target.value)} placeholder="480-555-1234" />
-          <Input label="Email" type="email" value={draft.agent_email} onChange={e => set('agent_email', e.target.value)} placeholder="agent@email.com" />
+          <Input label="Email (feedback request goes here)" type="email" value={draft.agent_email} onChange={e => set('agent_email', e.target.value)} placeholder="agent@email.com" />
         </div>
+        <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', margin: '6px 0 0' }}>
+          A feedback request email auto-sends to this address 1 hour before the OH starts.
+        </p>
       </div>
 
       <hr className="panel-divider" />
@@ -1117,6 +1121,34 @@ function ListPricePill({ row, onSaved }) {
 
 function OHDetail({ oh, onBack, onEdit, onHostAnother }) {
   const [promoteOpen, setPromoteOpen] = useState(false)
+  const [fbSending, setFbSending] = useState(false)
+  const [fbSentMsg, setFbSentMsg] = useState('')
+
+  async function handleSendFeedbackRequest() {
+    if (!oh.agent_email) {
+      alert('No hosting-agent email on this OH. Add it in Edit first.')
+      return
+    }
+    if (oh.feedback_request_sent_at && !confirm(`Feedback request already sent on ${new Date(oh.feedback_request_sent_at).toLocaleString()}. Send again?`)) {
+      return
+    }
+    setFbSending(true)
+    setFbSentMsg('')
+    try {
+      const { data, error } = await supabase.functions.invoke('send-oh-feedback-request', {
+        body: { open_house_id: oh.id, force: true },
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      setFbSentMsg(`✓ Sent to ${data?.sent_to || oh.agent_email}`)
+      setTimeout(() => setFbSentMsg(''), 4000)
+    } catch (err) {
+      alert(`Failed: ${err.message || 'Unknown error'}`)
+    } finally {
+      setFbSending(false)
+    }
+  }
+
   return (
     <div className="oh-detail">
       <div className="oh-detail__nav">
@@ -1148,11 +1180,23 @@ function OHDetail({ oh, onBack, onEdit, onHostAnother }) {
               icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0115.5-6.36L21 8"/><polyline points="21 3 21 8 16 8"/><path d="M21 12a9 9 0 01-15.5 6.36L3 16"/><polyline points="3 21 3 16 8 16"/></svg>}
             >Host Another</Button>
           )}
+          {oh.agent_email && (
+            <Button variant="ghost" size="sm" onClick={handleSendFeedbackRequest} disabled={fbSending}
+              icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>}
+              title={oh.feedback_request_sent_at ? `Resend (last sent ${new Date(oh.feedback_request_sent_at).toLocaleString()})` : 'Send feedback request to hosting agent now'}
+            >{fbSending ? 'Sending…' : (oh.feedback_request_sent_at ? 'Resend Feedback Req' : 'Send Feedback Req')}</Button>
+          )}
           <Button variant="ghost" size="sm" onClick={onEdit}
             icon={<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
           >Edit</Button>
         </div>
       </div>
+
+      {fbSentMsg && (
+        <div style={{ background: '#e8f3e8', border: '1px solid #b6d4b1', color: '#2d5a2d', padding: '8px 12px', borderRadius: 6, margin: '8px 0', fontSize: '0.82rem' }}>
+          {fbSentMsg}
+        </div>
+      )}
 
       <div className="oh-detail__header">
         <div>

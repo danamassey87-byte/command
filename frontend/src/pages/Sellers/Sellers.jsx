@@ -8,6 +8,7 @@ import { TagPicker } from '../../components/ui/TagPicker.jsx'
 import { useListings, useTasksForListing, useDeletedTasksForListing, useAllChecklistTasks, useContactTags, useNotesForContact, useDocumentsForListing, useOpenHouses, usePriceHistory, usePlatformStats, usePlatformTotals, useOffersForListing, useStatTasksForListing, useAdCampaignsForListing, useExpensesForListing, useExpenseCategories, useAllExpenses, useShowingSessions, useMileageLog, useStagingCostsByProperty, useMediaAssets } from '../../lib/hooks.js'
 import { useNotesContext } from '../../lib/NotesContext.jsx'
 import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
+import supabase from '../../lib/supabase.js'
 import * as DB from '../../lib/supabase.js'
 import { pauseContactWithAutoEnroll } from '../../lib/onHoldFollowUps.js'
 import { getOHChecklist } from '../OpenHouses/OpenHouses.jsx'
@@ -3196,6 +3197,24 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
     si.interest_level || si.price_perception || si.would_offer || si.liked || si.concerns || si.comments
   ), [ohSignIns])
 
+  // Hosting-agent feedback (oh_feedback table) — submitted via /oh-feedback/:id form
+  const [hostingAgentFeedback, setHostingAgentFeedback] = useState([])
+  useEffect(() => {
+    const ohIds = listingOHs.map(o => o.id).filter(Boolean)
+    if (!ohIds.length) { setHostingAgentFeedback([]); return }
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('oh_feedback')
+        .select('*, open_house:open_houses(id, date, start_time, property:properties(address))')
+        .in('open_house_id', ohIds)
+        .eq('status', 'submitted')
+        .order('submitted_at', { ascending: false })
+      if (!cancelled) setHostingAgentFeedback(data || [])
+    })()
+    return () => { cancelled = true }
+  }, [listingOHs.map(o => o.id).join(',')])
+
   // Host reports for this listing's open houses (when another agent hosts)
   const [hostReports, setHostReports] = useState([])
   useEffect(() => {
@@ -3720,6 +3739,7 @@ function PlanView({ listing, allListings, onBack, onEdit }) {
               listingOHs={listingOHs}
               ohSignIns={ohSignIns}
               ohFeedback={ohFeedback}
+              hostingAgentFeedback={hostingAgentFeedback}
               buyerFeedback={buyerFeedback}
               expenses={rollupExpenses ?? []}
             />
