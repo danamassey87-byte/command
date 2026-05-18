@@ -16,6 +16,34 @@ const SUGGESTED_PROMPTS = [
 
 function MessageBubble({ message }) {
   const isUser = message.role === 'user'
+  const [audioUrl, setAudioUrl] = useState(null)
+  const [generating, setGenerating] = useState(false)
+  const [voiceError, setVoiceError] = useState(null)
+
+  async function playInVoice() {
+    if (audioUrl || generating) return
+    setGenerating(true)
+    setVoiceError(null)
+    try {
+      // Strip markdown / very long replies for cleaner narration
+      const cleanText = (message.content || '')
+        .replace(/[*_`#>~]/g, '')
+        .replace(/\n{2,}/g, '. ')
+        .trim()
+        .slice(0, 4000)
+      const { data, error } = await supabase.functions.invoke('elevenlabs-tts', {
+        body: { text: cleanText, preset: 'conversational' },
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      setAudioUrl(data.audio_url)
+    } catch (err) {
+      setVoiceError(err.message || 'Failed to generate voice')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   return (
     <div style={{
       display: 'flex',
@@ -41,6 +69,29 @@ function MessageBubble({ message }) {
             fontSize: '0.7rem',
           }}>
             Compliance: <Badge variant={message.compliance === 'pass' ? 'success' : 'warning'} size="sm">{message.compliance}</Badge>
+          </div>
+        )}
+        {!isUser && (message.content || '').trim().length > 0 && !message.content?.startsWith('Error:') && (
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {!audioUrl ? (
+              <button
+                onClick={playInVoice}
+                disabled={generating}
+                style={{
+                  background: 'transparent', border: '1px solid var(--color-border, #C8C3B9)',
+                  color: 'var(--brown-dark)', padding: '3px 10px', borderRadius: 12,
+                  fontSize: '0.72rem', cursor: generating ? 'wait' : 'pointer',
+                }}
+                title="Hear this answer in your cloned voice"
+              >
+                {generating ? '🎙️ generating…' : '🎙️ Play in my voice'}
+              </button>
+            ) : (
+              <audio src={audioUrl} controls autoPlay style={{ height: 28, maxWidth: 280 }} />
+            )}
+            {voiceError && (
+              <span style={{ fontSize: '0.7rem', color: '#c5221f' }}>{voiceError}</span>
+            )}
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Player } from '@remotion/player'
 import { Button, Input, Textarea } from '../../components/ui/index.jsx'
 import { VIDEO_TEMPLATES } from '../../remotion/compositions.jsx'
+import supabase from '../../lib/supabase.js'
 import './VideoStudio.css'
 
 const TEMPLATE_ICONS = {
@@ -35,6 +36,34 @@ export default function VideoStudio() {
 
   // History for undo
   const [history, setHistory] = useState([])
+
+  // Narration (ElevenLabs VO)
+  const [narrationScript, setNarrationScript] = useState('')
+  const [narrationUrl, setNarrationUrl] = useState(null)
+  const [narrationGenerating, setNarrationGenerating] = useState(false)
+  const [narrationError, setNarrationError] = useState(null)
+  const [narrationCost, setNarrationCost] = useState(null)
+  const [narrationPreset, setNarrationPreset] = useState('narration') // 'narration' | 'conversational'
+
+  async function generateNarration() {
+    if (!narrationScript.trim()) return
+    setNarrationGenerating(true)
+    setNarrationError(null)
+    setNarrationUrl(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('elevenlabs-tts', {
+        body: { text: narrationScript.trim(), preset: narrationPreset },
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      setNarrationUrl(data.audio_url)
+      setNarrationCost(data.cost_cents)
+    } catch (err) {
+      setNarrationError(err.message || 'Failed to generate narration')
+    } finally {
+      setNarrationGenerating(false)
+    }
+  }
 
   function selectTemplate(tpl) {
     setSelectedTemplate(tpl)
@@ -413,6 +442,53 @@ export default function VideoStudio() {
               </div>
             )}
 
+            {/* Narration (Dana's voice via ElevenLabs) */}
+            <div style={{ marginTop: 16, padding: 14, background: '#fff', border: '1px solid #e8e3de', borderRadius: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: '1rem' }}>🎙️</span>
+                  <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.85rem' }}>Voiceover (your voice)</div>
+                </div>
+                <select
+                  value={narrationPreset}
+                  onChange={e => setNarrationPreset(e.target.value)}
+                  style={{ fontSize: '0.72rem', padding: '3px 8px', border: '1px solid #e0dbd6', borderRadius: 4, background: '#fff' }}
+                  title="Narration = slow/calm. Conversational = your default upbeat tone."
+                >
+                  <option value="narration">Narration (slow/calm)</option>
+                  <option value="conversational">Conversational</option>
+                </select>
+              </div>
+              <Textarea
+                value={narrationScript}
+                onChange={e => setNarrationScript(e.target.value)}
+                placeholder="Paste/write the script you want to hear in your voice…"
+                rows={3}
+                style={{ fontSize: '0.82rem', marginBottom: 8 }}
+                maxLength={5000}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <Button size="sm" onClick={generateNarration} disabled={narrationGenerating || !narrationScript.trim()}>
+                  {narrationGenerating ? 'Generating…' : 'Generate VO'}
+                </Button>
+                {narrationUrl && (
+                  <>
+                    <audio src={narrationUrl} controls style={{ flex: 1, minWidth: 200, height: 32 }} />
+                    <a href={narrationUrl} download style={{ fontSize: '0.74rem', color: 'var(--brown-warm)' }}>Download .mp3</a>
+                  </>
+                )}
+                {narrationCost != null && (
+                  <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>${(narrationCost / 100).toFixed(3)}</span>
+                )}
+              </div>
+              {narrationError && (
+                <div style={{ marginTop: 6, fontSize: '0.78rem', color: '#c5221f' }}>{narrationError}</div>
+              )}
+              <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', margin: '8px 0 0', lineHeight: 1.4 }}>
+                Generates an MP3 in your cloned voice. Download to add as audio overlay in your final edit, or drop the URL into a post.
+              </p>
+            </div>
+
             {/* Workflow summary */}
             <div style={{
               marginTop: 16, padding: 14, background: '#faf8f5',
@@ -423,6 +499,7 @@ export default function VideoStudio() {
                 <li>Pick a template above</li>
                 <li>Edit the fields on the right — preview updates live</li>
                 <li>Choose size (Square, Portrait, Landscape) + duration</li>
+                <li>(Optional) Generate VO in your voice using the Voiceover panel</li>
                 <li>Click <strong>Render Video</strong> to export</li>
                 <li>Click <strong>Send to Composer</strong> → attach to a post → publish via Blotato</li>
               </ol>

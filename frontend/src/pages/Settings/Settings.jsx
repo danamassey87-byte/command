@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { SectionHeader, Button, Input, Textarea } from '../../components/ui/index.jsx'
 import { useBrand } from '../../lib/BrandContext'
+import supabase from '../../lib/supabase'
 import * as DB from '../../lib/supabase'
 import TemplatesTab, { AIPlanPromptsEditor } from './TemplatesTab'
 import Recovery from '../Recovery/Recovery'
@@ -1038,6 +1039,9 @@ function ConnectedAccountsTab() {
       {/* Replicate (Virtual Staging + AI image gen) */}
       <ReplicateConnectionCard />
 
+      {/* ElevenLabs (cloned voice → TTS) */}
+      <ElevenLabsCard />
+
       {/* Canva */}
       <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16, opacity: 0.6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1548,6 +1552,239 @@ function ReplicateConnectionCard() {
         <a href="https://replicate.com/adirik/interior-design" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brown-warm)' }}>adirik/interior-design</a>{' '}
         model. Typical cost: ~3¢ per stage. Costs roll into per-listing True Net automatically.
       </p>
+    </div>
+  )
+}
+
+// ─── ElevenLabs Card (inside Connected Accounts) ────────────────────────────
+function ElevenLabsCard() {
+  const [cfg, setCfg] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [editingKey, setEditingKey] = useState(false)
+  const [newKey, setNewKey] = useState('')
+  const [savingKey, setSavingKey] = useState(false)
+  const [keyMsg, setKeyMsg] = useState(null) // { ok, message }
+
+  const [testText, setTestText] = useState(`Hi, this is Dana — here's how I sound inside the app.`)
+  const [testing, setTesting] = useState(false)
+  const [testAudio, setTestAudio] = useState(null)
+  const [testError, setTestError] = useState(null)
+
+  const [savingPrefs, setSavingPrefs] = useState(false)
+  const [prefsMsg, setPrefsMsg] = useState(null)
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('user_settings').select('value').eq('key', 'elevenlabs').maybeSingle()
+      setCfg(data?.value || {})
+      setLoading(false)
+    })()
+  }, [])
+
+  const vs = cfg?.voice_settings || { speed: 0.92, stability: 0.3, similarity_boost: 0.85, style: 0.5 }
+  const presets = cfg?.presets || {}
+
+  function updateVS(patch) {
+    setCfg(prev => ({ ...prev, voice_settings: { ...(prev?.voice_settings || {}), ...patch } }))
+  }
+
+  function applyPreset(name) {
+    const p = presets[name]
+    if (!p) return
+    updateVS({ speed: p.speed, stability: p.stability, similarity_boost: p.similarity_boost, style: p.style })
+  }
+
+  async function savePrefs() {
+    setSavingPrefs(true)
+    setPrefsMsg(null)
+    try {
+      const nextVal = { ...(cfg || {}), voice_settings: vs }
+      const { error } = await supabase.from('user_settings')
+        .upsert({ key: 'elevenlabs', value: nextVal, updated_at: new Date().toISOString() })
+      if (error) throw error
+      setPrefsMsg({ ok: true, message: 'Saved as default for all calls.' })
+      setTimeout(() => setPrefsMsg(null), 3000)
+    } catch (err) {
+      setPrefsMsg({ ok: false, message: err.message })
+    } finally {
+      setSavingPrefs(false)
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true)
+    setTestAudio(null)
+    setTestError(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('elevenlabs-tts', {
+        body: {
+          text: testText,
+          stability: vs.stability,
+          similarity_boost: vs.similarity_boost,
+          style: vs.style,
+          speed: vs.speed,
+        },
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      setTestAudio(data.audio_url)
+    } catch (err) {
+      setTestError(err.message || 'Test failed')
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  async function handleSaveKey() {
+    setSavingKey(true)
+    setKeyMsg(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('save-elevenlabs-key', {
+        body: { api_key: newKey.trim() },
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      setKeyMsg({ ok: true, message: `Connected · ${data.subscription || 'tier unknown'}${data.character_count != null ? ` · ${data.character_count.toLocaleString()} / ${data.character_limit?.toLocaleString() || '?'} chars used` : ''}` })
+      setNewKey('')
+      setEditingKey(false)
+      // Refresh
+      const { data: row } = await supabase.from('user_settings').select('value').eq('key', 'elevenlabs').maybeSingle()
+      setCfg(row?.value || {})
+    } catch (err) {
+      setKeyMsg({ ok: false, message: err.message })
+    } finally {
+      setSavingKey(false)
+    }
+  }
+
+  if (loading) return null
+
+  const configured = cfg?.has_api_key && cfg?.voice_id
+
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e8e3de', borderRadius: 12, padding: '18px 20px', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <span style={{ fontSize: '1.3rem' }}>🎙️</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 600, color: 'var(--brown-dark)', fontSize: '0.95rem' }}>ElevenLabs</div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>Your cloned voice for video VOs &amp; AI Assistant replies</div>
+        </div>
+        {configured ? (
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#137333', background: '#e6f4ea', padding: '3px 10px', borderRadius: 6 }}>Connected</span>
+        ) : (
+          <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#a50e0e', background: '#fdecea', padding: '3px 10px', borderRadius: 6 }}>Not configured</span>
+        )}
+      </div>
+
+      <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginBottom: 10, lineHeight: 1.5 }}>
+        Voice: <strong style={{ color: 'var(--brown-dark)' }}>{cfg?.voice_id || '—'}</strong>
+        {cfg?.key_updated_at && <> · key updated {new Date(cfg.key_updated_at).toLocaleDateString()}</>}
+      </div>
+
+      {/* Replace API Key */}
+      <div style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #efeae3' }}>
+        {!editingKey ? (
+          <Button size="sm" variant="ghost" onClick={() => setEditingKey(true)}>
+            {configured ? 'Replace API Key' : 'Add API Key'}
+          </Button>
+        ) : (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="password"
+              value={newKey}
+              onChange={e => setNewKey(e.target.value)}
+              placeholder="sk_..."
+              style={{ flex: '1 1 260px', padding: '6px 10px', border: '1px solid #e0dbd6', borderRadius: 6, fontSize: '0.85rem', fontFamily: 'monospace' }}
+              autoFocus
+            />
+            <Button size="sm" onClick={handleSaveKey} disabled={savingKey || !newKey.trim()}>
+              {savingKey ? 'Saving…' : 'Save'}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => { setEditingKey(false); setNewKey('') }}>
+              Cancel
+            </Button>
+          </div>
+        )}
+        {keyMsg && (
+          <div style={{ marginTop: 8, fontSize: '0.78rem', color: keyMsg.ok ? '#137333' : '#a50e0e' }}>
+            {keyMsg.message}
+          </div>
+        )}
+      </div>
+
+      {/* Voice settings */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <strong style={{ fontSize: '0.85rem', color: 'var(--brown-dark)' }}>Voice settings (default for all calls)</strong>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {Object.entries(presets).map(([key, p]) => (
+              <Button key={key} size="sm" variant="ghost" onClick={() => applyPreset(key)} title={p.label}>
+                {key === 'conversational' ? 'Conversational' : key === 'narration' ? 'Narration' : key}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <SliderRow label="Speed"            value={vs.speed ?? 1.0}            min={0.7}  max={1.2}  step={0.01} hint="lower = slower" onChange={v => updateVS({ speed: v })} />
+        <SliderRow label="Stability"        value={vs.stability ?? 0.5}        min={0}    max={1}    step={0.05} hint="higher = consistent, lower = expressive" onChange={v => updateVS({ stability: v })} />
+        <SliderRow label="Similarity"       value={vs.similarity_boost ?? 0.85} min={0}   max={1}    step={0.05} hint="how tightly to match your real voice" onChange={v => updateVS({ similarity_boost: v })} />
+        <SliderRow label="Style"            value={vs.style ?? 0}              min={0}    max={1}    step={0.05} hint="higher = more emotion" onChange={v => updateVS({ style: v })} />
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
+          <Button size="sm" onClick={savePrefs} disabled={savingPrefs}>
+            {savingPrefs ? 'Saving…' : 'Save as Default'}
+          </Button>
+          {prefsMsg && (
+            <span style={{ fontSize: '0.78rem', color: prefsMsg.ok ? '#137333' : '#a50e0e' }}>
+              {prefsMsg.message}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Test Voice */}
+      <div style={{ paddingTop: 12, borderTop: '1px solid #efeae3' }}>
+        <strong style={{ fontSize: '0.85rem', color: 'var(--brown-dark)', display: 'block', marginBottom: 6 }}>Test voice</strong>
+        <textarea
+          value={testText}
+          onChange={e => setTestText(e.target.value)}
+          rows={2}
+          maxLength={300}
+          style={{ width: '100%', padding: 8, fontSize: '0.85rem', border: '1px solid #e0dbd6', borderRadius: 6, fontFamily: 'inherit', resize: 'vertical', marginBottom: 8 }}
+        />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Button size="sm" onClick={handleTest} disabled={testing || !testText.trim()}>
+            {testing ? 'Generating…' : 'Generate test'}
+          </Button>
+          {testAudio && <audio src={testAudio} controls style={{ flex: 1, height: 32 }} />}
+        </div>
+        {testError && <div style={{ marginTop: 8, fontSize: '0.78rem', color: '#a50e0e' }}>{testError}</div>}
+      </div>
+
+      <p style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', marginTop: 12, marginBottom: 0, lineHeight: 1.4 }}>
+        Pricing: ~$0.18 per 1,000 characters. Spend logs to AI Spend (service=elevenlabs).
+      </p>
+    </div>
+  )
+}
+
+function SliderRow({ label, value, min, max, step, hint, onChange }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+      <label style={{ width: 100, fontSize: '0.78rem', color: 'var(--brown-dark)', fontWeight: 500 }}>{label}</label>
+      <input
+        type="range"
+        min={min} max={max} step={step}
+        value={value}
+        onChange={e => onChange(parseFloat(e.target.value))}
+        style={{ flex: 1 }}
+      />
+      <span style={{ width: 48, textAlign: 'right', fontSize: '0.78rem', color: 'var(--brown-dark)', fontFamily: 'monospace' }}>
+        {Number(value).toFixed(2)}
+      </span>
+      {hint && (
+        <span style={{ width: 200, fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{hint}</span>
+      )}
     </div>
   )
 }
