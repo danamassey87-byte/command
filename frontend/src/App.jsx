@@ -5,6 +5,7 @@ import { NotesProvider } from './lib/NotesContext'
 import { FavoritesProvider } from './lib/FavoritesContext'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import Layout from './components/layout/Layout'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import ReviewsAndReferrals from './components/ReviewsPanel.jsx'
 
 // ─── Lazy-loaded pages ─────────────────────────────────────────────────────────
@@ -192,11 +193,17 @@ function OnboardingGate({ children }) {
   return children
 }
 
+function RoutedErrorBoundary({ children }) {
+  const location = useLocation()
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>
+}
+
 export default function App() {
   return (
     <AuthProvider>
     <BrowserRouter>
       <Suspense fallback={<PageLoader />}>
+      <RoutedErrorBoundary>
       <Routes>
         {/* Public client-facing pages (unauthed) */}
         <Route path="/form/:slug" element={<PublicForm />} />
@@ -401,6 +408,7 @@ export default function App() {
           <Route path="/settings/intake-forms" element={<IntakeForms />} />
         </Route>
       </Routes>
+      </RoutedErrorBoundary>
       </Suspense>
     </BrowserRouter>
     </AuthProvider>
