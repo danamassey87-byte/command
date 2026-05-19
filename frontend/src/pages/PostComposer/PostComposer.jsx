@@ -6,6 +6,7 @@ import supabase from '../../lib/supabase.js'
 import { PropertyPicker } from '../../components/ui/PropertyPicker.jsx'
 import { HashtagPicker } from '../../components/ui/HashtagPicker.jsx'
 import GenerateImageModal from '../../components/staging/GenerateImageModal.jsx'
+import CinematicAIModal from '../../components/staging/CinematicAIModal.jsx'
 import * as DB from '../../lib/supabase.js'
 import {
   useContentPillars, useClientAvatars, useProperties, useSeoKeywordSets,
@@ -54,6 +55,9 @@ export default function PostComposer() {
   const [dragOver, setDragOver]           = useState(false)
   const [listingMedia, setListingMedia]   = useState([]) // media_assets for the active property
   const [genImageOpen, setGenImageOpen]   = useState(false) // 🎨 Generate fresh image modal
+  const [cinematicOpen, setCinematicOpen] = useState(false) // 🎬 Higgsfield image/video
+  const [cinematicMode, setCinematicMode] = useState('image') // 'image' | 'video'
+  const [cinematicSource, setCinematicSource] = useState(null) // photo URL when animating
 
   // Metadata
   const [pillarId, setPillarId]     = useState('')
@@ -872,14 +876,24 @@ export default function PostComposer() {
           <div className="pc-media">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
               <div className="pc-media__label">Media</div>
-              <button
-                type="button"
-                onClick={() => setGenImageOpen(true)}
-                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--brown-warm, #8b6f53)', background: 'transparent', color: 'var(--brown-warm)', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer' }}
-                title="Generate a brand-new image from a text prompt (FLUX via Replicate)"
-              >
-                🎨 Generate fresh image
-              </button>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setGenImageOpen(true)}
+                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--brown-warm, #8b6f53)', background: 'transparent', color: 'var(--brown-warm)', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer' }}
+                  title="Generate a brand-new image from a text prompt (FLUX via Replicate)"
+                >
+                  🎨 Generate fresh image
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCinematicMode('image'); setCinematicSource(null); setCinematicOpen(true) }}
+                  style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--brown-dark)', background: 'var(--brown-dark)', color: '#fff', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer' }}
+                  title="Cinematic AI: editorial-quality image or animate a photo into a Reel-ready video (Higgsfield)"
+                >
+                  🎬 Cinematic AI
+                </button>
+              </div>
             </div>
 
             {/* Listing photo gallery — surfaces media_assets for the active property
@@ -888,36 +902,48 @@ export default function PostComposer() {
               <div style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem', color: 'var(--color-text-muted)', marginBottom: 6 }}>
                   <span>📸 From this listing's photos ({listingMedia.length})</span>
-                  <span style={{ fontSize: '0.7rem' }}>Tap to add</span>
+                  <span style={{ fontSize: '0.7rem' }}>Tap to add · 🎞️ to animate</span>
                 </div>
                 <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
                   {listingMedia.map(asset => {
                     const isAdded = mediaFiles.some(m => m.asset_id === asset.id)
                     const thumb = asset.thumbnail_url || asset.storage_url
+                    const sourceUrl = asset.storage_url || asset.url || thumb
                     return (
-                      <button
+                      <div
                         key={asset.id}
-                        type="button"
-                        onClick={() => addFromGallery(asset)}
-                        disabled={isAdded}
-                        title={isAdded ? 'Already added' : 'Add to post'}
                         style={{
                           flex: '0 0 auto',
                           width: 72, height: 72,
-                          padding: 0, border: isAdded ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
+                          border: isAdded ? '2px solid var(--color-success)' : '1px solid var(--color-border)',
                           borderRadius: 6, overflow: 'hidden',
-                          background: '#fff', cursor: isAdded ? 'default' : 'pointer',
+                          background: '#fff', position: 'relative',
                           opacity: isAdded ? 0.6 : 1,
-                          position: 'relative',
                         }}
                       >
-                        {thumb
-                          ? <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          : <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>img</span>}
+                        <button
+                          type="button"
+                          onClick={() => !isAdded && addFromGallery(asset)}
+                          disabled={isAdded}
+                          title={isAdded ? 'Already added' : 'Add to post'}
+                          style={{ width: '100%', height: '100%', padding: 0, border: 'none', background: 'transparent', cursor: isAdded ? 'default' : 'pointer' }}
+                        >
+                          {thumb
+                            ? <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>img</span>}
+                        </button>
                         {isAdded && (
-                          <span style={{ position: 'absolute', top: 2, right: 2, background: 'var(--color-success)', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+                          <span style={{ position: 'absolute', top: 2, right: 2, background: 'var(--color-success)', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: '0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>✓</span>
                         )}
-                      </button>
+                        {sourceUrl && !isAdded && (
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); setCinematicSource(sourceUrl); setCinematicMode('video'); setCinematicOpen(true) }}
+                            title="Animate this photo into a cinematic Reel (Higgsfield DoP)"
+                            style={{ position: 'absolute', bottom: 2, right: 2, background: 'rgba(58,42,30,0.85)', color: '#fff', border: 'none', borderRadius: 4, padding: '1px 4px', fontSize: '0.7rem', cursor: 'pointer', lineHeight: 1.1 }}
+                          >🎞️</button>
+                        )}
+                      </div>
                     )
                   })}
                 </div>
@@ -1478,6 +1504,29 @@ export default function PostComposer() {
             ai_prompt: img.prompt,
             ai_model: img.model,
             ai_cost_cents: img.cost_cents,
+          }])
+        }}
+      />
+
+      {/* 🎬 Cinematic AI (Higgsfield image + video) */}
+      <CinematicAIModal
+        open={cinematicOpen}
+        onClose={() => setCinematicOpen(false)}
+        defaultKind={cinematicMode}
+        sourceImageUrl={cinematicSource}
+        listingId={null}
+        propertyId={propertyId || null}
+        onGenerated={(out) => {
+          setMediaFiles(prev => [...prev, {
+            file: null,
+            preview: out.url,
+            url: out.url,
+            name: `Cinematic ${out.kind} · ${out.prompt?.slice(0, 36) || ''}`,
+            type: out.kind === 'video' ? 'video' : 'image',
+            fromAi: true,
+            ai_prompt: out.prompt,
+            ai_model: out.model,
+            ai_cost_cents: out.cost_cents,
           }])
         }}
       />

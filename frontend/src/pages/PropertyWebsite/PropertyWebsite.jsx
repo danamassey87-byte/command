@@ -138,11 +138,27 @@ export default function PropertyWebsite() {
     property?.sqft && `${Number(property.sqft).toLocaleString()} sqft`,
   ].filter(Boolean).join(' · ')
   const heroImage = photos[0]?.url
+  const heroVideo = property?.hero_video_url || null
 
   return (
     <div className="pweb">
-      <div className="pweb__hero" style={heroImage ? { backgroundImage: `linear-gradient(180deg, rgba(58,42,30,0.45) 0%, rgba(58,42,30,0.85) 100%), url(${heroImage})` } : undefined}>
-        <div className="pweb__hero-inner">
+      <div className="pweb__hero" style={heroImage && !heroVideo ? { backgroundImage: `linear-gradient(180deg, rgba(58,42,30,0.45) 0%, rgba(58,42,30,0.85) 100%), url(${heroImage})` } : undefined}>
+        {heroVideo && (
+          <>
+            <video
+              className="pweb__hero-video"
+              src={heroVideo}
+              autoPlay
+              loop
+              muted
+              playsInline
+              poster={heroImage}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0 }}
+            />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(58,42,30,0.45) 0%, rgba(58,42,30,0.85) 100%)', zIndex: 1 }} />
+          </>
+        )}
+        <div className="pweb__hero-inner" style={heroVideo ? { position: 'relative', zIndex: 2 } : undefined}>
           <span className="pweb__brand">Dana Massey · REAL Brokerage</span>
           <h1 className="pweb__address">{addr}</h1>
           {cityState && <p className="pweb__sub">{cityState}{specs ? ` · ${specs}` : ''}</p>}

@@ -83,7 +83,7 @@ export function anthropicCostCents(
 export async function logAiGeneration(
   supabase: ReturnType<typeof createClient>,
   entry: {
-    service: 'replicate' | 'anthropic' | 'other'
+    service: 'replicate' | 'anthropic' | 'higgsfield' | 'other'
     model?: string
     kind?: string
     prompt?: string

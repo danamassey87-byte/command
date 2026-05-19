@@ -5,6 +5,7 @@ import {
 import { AddressAutocomplete } from '../../components/ui/AddressAutocomplete.jsx'
 import { useProperties, useShowingSessions, useContacts } from '../../lib/hooks.js'
 import * as DB from '../../lib/supabase.js'
+import CinematicAIModal from '../../components/staging/CinematicAIModal.jsx'
 import './Properties.css'
 
 // All keys match real `properties` columns so updateWithAudit writes go through unmapped.
@@ -67,6 +68,7 @@ const EMPTY_DRAFT = {
   listing_url:       '',
   virtual_tour_url:  '',
   floorplan_url:     '',
+  hero_video_url:    '',
   // Notes
   description:       '',
   marketing_remarks: '',
@@ -238,6 +240,9 @@ export default function Properties() {
   const [error, setError]             = useState(null)
   const [dupeWarning, setDupeWarning] = useState(null)
   const [merging, setMerging]         = useState(false)
+  const [cinematicOpen, setCinematicOpen]     = useState(false)
+  const [cinematicMode, setCinematicMode]     = useState('image')
+  const [cinematicSource, setCinematicSource] = useState(null)
 
   /* ─── Assemble rows with showings history rolled up ─── */
   const { rows, propertyShowings } = useMemo(() => {
@@ -354,6 +359,7 @@ export default function Properties() {
       listing_url:       row.listing_url ?? '',
       virtual_tour_url:  row.virtual_tour_url ?? '',
       floorplan_url:     row.floorplan_url ?? '',
+      hero_video_url:    row.hero_video_url ?? '',
       // Notes
       description:       row.description ?? '',
       marketing_remarks: row.marketing_remarks ?? '',
@@ -483,6 +489,7 @@ export default function Properties() {
         listing_url:       txt(draft.listing_url),
         virtual_tour_url:  txt(draft.virtual_tour_url),
         floorplan_url:     txt(draft.floorplan_url),
+        hero_video_url:    txt(draft.hero_video_url),
         // Notes
         description:       txt(draft.description),
         marketing_remarks: txt(draft.marketing_remarks),
@@ -754,7 +761,31 @@ export default function Properties() {
           </div>
 
           {/* Media & links */}
-          <h4 className="properties-panel__section-title">Media &amp; Links</h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+            <h4 className="properties-panel__section-title" style={{ margin: 0 }}>Media &amp; Links</h4>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => { setCinematicMode('image'); setCinematicSource(null); setCinematicOpen(true) }}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--brown-dark)', background: '#fff', color: 'var(--brown-dark)', fontSize: '0.74rem', fontWeight: 600, cursor: 'pointer' }}
+                title="Generate a cinematic hero image (Higgsfield Flux Kontext)"
+              >
+                🖼️ Generate hero
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!draft.image_url) { window.alert('Set a Primary Image URL first — DoP animates an existing photo.'); return }
+                  setCinematicMode('video'); setCinematicSource(draft.image_url); setCinematicOpen(true)
+                }}
+                disabled={!draft.image_url}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--brown-dark)', background: draft.image_url ? 'var(--brown-dark)' : '#e8e3dc', color: draft.image_url ? '#fff' : '#888', fontSize: '0.74rem', fontWeight: 600, cursor: draft.image_url ? 'pointer' : 'not-allowed' }}
+                title={draft.image_url ? 'Animate the primary image into a cinematic hero video (Higgsfield DoP)' : 'Set a primary image URL first'}
+              >
+                🎞️ Animate to video
+              </button>
+            </div>
+          </div>
           <Input label="Primary Image URL" value={draft.image_url} onChange={e => setDraft({ ...draft, image_url: e.target.value })} placeholder="https://…" />
           <Input label="Additional Image URLs (comma-separated)" value={draft.image_urls} onChange={e => setDraft({ ...draft, image_urls: e.target.value })} placeholder="https://…, https://…" />
           <div className="properties-panel__grid">
@@ -762,6 +793,13 @@ export default function Properties() {
             <Input label="Virtual Tour" value={draft.virtual_tour_url} onChange={e => setDraft({ ...draft, virtual_tour_url: e.target.value })} placeholder="https://…" />
             <Input label="Floorplan" value={draft.floorplan_url} onChange={e => setDraft({ ...draft, floorplan_url: e.target.value })} placeholder="https://…" />
           </div>
+          {draft.hero_video_url && (
+            <div style={{ marginTop: 6, padding: 8, background: 'var(--cream, #faf8f5)', borderRadius: 6, fontSize: '0.78rem' }}>
+              <strong style={{ color: 'var(--brown-dark)' }}>🎬 Cinematic hero video:</strong>{' '}
+              <a href={draft.hero_video_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brown-warm)', textDecoration: 'underline', wordBreak: 'break-all' }}>{draft.hero_video_url}</a>
+              <button type="button" onClick={() => setDraft({ ...draft, hero_video_url: '' })} style={{ marginLeft: 8, fontSize: '0.72rem', color: '#8a1c0e', background: 'transparent', border: 'none', cursor: 'pointer' }}>clear</button>
+            </div>
+          )}
 
           {/* Notes — three buckets to mirror DB */}
           <h4 className="properties-panel__section-title">Notes</h4>
@@ -849,6 +887,27 @@ export default function Properties() {
           </div>
         </div>
       </SlidePanel>
+
+      {/* 🎬 Cinematic AI (Higgsfield) — hero image + image-to-video for property websites / OH promo */}
+      <CinematicAIModal
+        open={cinematicOpen}
+        onClose={() => setCinematicOpen(false)}
+        defaultKind={cinematicMode}
+        sourceImageUrl={cinematicSource}
+        propertyId={editing?.id || null}
+        onGenerated={(out) => {
+          if (out.kind === 'video') {
+            setDraft(d => ({ ...d, hero_video_url: out.url }))
+          } else {
+            // Image: if no primary image yet, drop it in; otherwise append to the comma list.
+            setDraft(d => {
+              if (!d.image_url) return { ...d, image_url: out.url }
+              const list = (d.image_urls || '').split(',').map(s => s.trim()).filter(Boolean)
+              return { ...d, image_urls: [...list, out.url].join(', ') }
+            })
+          }
+        }}
+      />
     </div>
   )
 }
