@@ -1,7 +1,8 @@
 // ────────────────────────────────────────────────────────────────────────────
 // Auto-seed Required Documents + Contract Deadlines on Under-Contract.
 // Called from:
-//   • Sellers.jsx when listing.status flips to 'pending' (AZ MLS = under contract)
+//   • Sellers.jsx when listing.status flips to 'pending' OR 'ucb'
+//     (AZ MLS = under contract; UCB = Under Contract Accepting Backups)
 //   • Pipeline.jsx when a deal is dragged into the 'under_contract' stage
 //
 // Idempotent: the underlying seedTransactionDocuments / seedTransactionDeadlines

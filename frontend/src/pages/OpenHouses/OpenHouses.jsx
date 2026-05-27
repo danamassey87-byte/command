@@ -2406,7 +2406,7 @@ function parseARMLSCSV(text) {
     const mlsStatus = col(row, 'Status')
     const listingStatus = mlsStatus === 'A' ? 'active' : mlsStatus === 'P' ? 'pending' : mlsStatus === 'S' ? 'sold'
       : mlsStatus === 'H' ? 'hold' : mlsStatus === 'C' ? 'cancelled' : mlsStatus === 'W' ? 'withdrawn'
-      : mlsStatus === 'D' ? 'deleted' : mlsStatus === 'B' ? 'backup' : mlsStatus === 'O' ? 'other' : 'active'
+      : mlsStatus === 'D' ? 'deleted' : (mlsStatus === 'B' || mlsStatus === 'UCB') ? 'ucb' : mlsStatus === 'O' ? 'other' : 'active'
 
     // Co-agent phone from Features
     let coAgentPhone = null

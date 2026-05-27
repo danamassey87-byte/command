@@ -269,7 +269,7 @@ export async function syncListingContentReminders({ minAgeDays = 1 } = {}) {
       property:properties(address)
     `)
     .is('listing_plan_text', null)
-    .in('status', ['active', 'pre_listing', 'coming_soon', 'pending'])
+    .in('status', ['active', 'pre_listing', 'coming_soon', 'pending', 'ucb'])
     .lte('created_at', cutoffIso)
     .is('deleted_at', null)
   )

@@ -35,7 +35,7 @@ export default function StaleListingsWidget() {
       const { data, error: err } = await supabase
         .from('listings')
         .select('id, status, list_price, current_price, list_date, last_data_synced_at, property:properties(id, address, city)')
-        .in('status', ['active', 'coming_soon', 'pending'])
+        .in('status', ['active', 'coming_soon', 'pending', 'ucb'])
         .is('deleted_at', null)
         .order('last_data_synced_at', { ascending: true, nullsFirst: true })
       if (err) throw err

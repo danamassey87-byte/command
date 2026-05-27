@@ -86,6 +86,7 @@ const phaseLabels = {
 //   coming_soon — actually entered in the MLS as Coming Soon
 //   active      — MLS Active
 //   pending     — MLS Pending (under contract, no contingencies)
+//   ucb         — MLS Under Contract Accepting Backups (accepted contract, still inviting backups)
 //   contingent  — MLS Active Contingent / Pending-Contingent
 //   closed      — MLS Closed / Sold
 //   withdrawn   — MLS Withdrawn (temporarily off, agreement still active)
@@ -98,6 +99,7 @@ const STATUS_OPTIONS = [
   { value: 'coming_soon', label: 'Coming Soon (MLS)' },
   { value: 'active',      label: 'Active (MLS)' },
   { value: 'pending',     label: 'Pending (MLS)' },
+  { value: 'ucb',         label: 'UCB — Under Contract / Backups (MLS)' },
   { value: 'contingent',  label: 'Contingent (MLS)' },
   { value: 'closed',      label: 'Closed (MLS)' },
   { value: 'withdrawn',   label: 'Withdrawn (MLS)' },
@@ -109,7 +111,10 @@ const STATUS_OPTIONS = [
 const STATUS_LABEL = Object.fromEntries(STATUS_OPTIONS.map(o => [o.value, o.label]))
 // MLS-style statuses (vs. pre-sign / internal). Used to decide whether a listing
 // represents a real MLS record you should be able to edit the MLS status on.
-const MLS_STATUSES = ['coming_soon', 'active', 'pending', 'contingent', 'closed', 'withdrawn', 'cancelled', 'expired']
+const MLS_STATUSES = ['coming_soon', 'active', 'pending', 'ucb', 'contingent', 'closed', 'withdrawn', 'cancelled', 'expired']
+// Statuses that mean "an accepted contract exists" — drives the M1–M10 auto-seed,
+// the close-price field, the TC Drive share, etc.
+const UNDER_CONTRACT_STATUSES = ['pending', 'ucb']
 const TYPE_OPTIONS   = ['new', 'expired']
 
 const CASH_OFFER_STATUSES = [
@@ -164,6 +169,7 @@ const statusVariant = {
   coming_soon: 'info',
   active: 'success',
   pending: 'info',
+  ucb: 'info',
   contingent: 'info',
   closed: 'default',
   withdrawn: 'warning',
@@ -505,7 +511,7 @@ function ListingForm({ listing, onSave, onDelete, onPutOnHold, onClose, saving, 
         </div>
         <div className="panel-row">
           <Input label="Current Price ($)" type="number" value={draft.currentPrice} onChange={e => set('currentPrice', e.target.value)} placeholder={draft.listPrice || '529000'} />
-          {(draft.status === 'closed' || draft.status === 'pending') && (
+          {(draft.status === 'closed' || UNDER_CONTRACT_STATUSES.includes(draft.status)) && (
             <Input label="Close / Sale Price ($)" type="number" value={draft.closePrice} onChange={e => set('closePrice', e.target.value)} placeholder="515000" />
           )}
         </div>
@@ -4887,10 +4893,11 @@ export default function Sellers() {
             metadata: { from: prevStatus, to: draft.status, address: draft.address },
           }).catch(err => console.error('notification emit failed', err))
 
-          // Auto-share Drive folder with TC when listing goes Under Contract.
+          // Auto-share Drive folder with TC when listing goes Under Contract
+          // (either Pending or UCB — both mean an accepted contract exists).
           // Off by default — Dana enables in Settings if she's not using a TC service
           // (Transact, Lone Wolf, etc.) that already pulls docs from a separate system.
-          if (draft.status === 'pending') {
+          if (UNDER_CONTRACT_STATUSES.includes(draft.status)) {
             DB.getDriveShareSettings()
               .then(prefs => {
                 if (!prefs?.auto_share_with_tc) return
@@ -5064,12 +5071,14 @@ export default function Sellers() {
   const filtered = signedListings.filter(l => {
     if (filter === 'all') return true
     if (filter === 'new' || filter === 'expired') return l.type === filter
+    // Pending tab also includes UCB — both mean an accepted contract exists
+    if (filter === 'pending') return l.status === 'pending' || l.status === 'ucb'
     return l.status === filter
   })
   const counts = {
     all:     signedListings.length,
     active:  signedListings.filter(l => l.status === 'active').length,
-    pending: signedListings.filter(l => l.status === 'pending').length,
+    pending: signedListings.filter(l => l.status === 'pending' || l.status === 'ucb').length,
     closed:  signedListings.filter(l => l.status === 'closed').length,
     new:     signedListings.filter(l => l.type === 'new').length,
     expired: signedListings.filter(l => l.type === 'expired').length,
