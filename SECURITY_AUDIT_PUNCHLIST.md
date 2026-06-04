@@ -253,7 +253,8 @@
 - **Files:** `supabase/functions/virtual-staging/index.ts:115-118`, `higgsfield-generate/index.ts:150-155`
 - **Fix:** Allowlist URLs to `*.supabase.co/storage/v1/object/public/<project>/`. Require auth + per-IP rate cap. Wire `assertBudgetAvailable` for Replicate + Higgsfield.
 
-### [ ] H13. BioLink `submitLead` writes unrestricted to `contacts` + `campaign_enrollments` from anon
+### [x] H13. BioLink `submitLead` writes unrestricted to `contacts` + `campaign_enrollments` from anon ✅ 2026-06-04
+> Shipped: new `supabase/functions/biolink-submit/index.ts` handles all three writes server-side under service-role. Per-IP rate limit 10/hr via the M18 `check_rate_limit` RPC + helper. Optional Cloudflare Turnstile verification (no-op until `TURNSTILE_SECRET` is set + the frontend widget is added). Server-side validation: email shape check (same as M16), CRLF-stripped fields, 200-char name cap. Race-safe contact dedupe matches the H2 unique-index pattern. Frontend `submitLead()` in lib/biolink.js rewritten to `supabase.functions.invoke('biolink-submit', ...)`. Frontend build green. Edge fn needs deploy. **Followup wiring for full closure:** (a) Dana creates a Turnstile site at dash.cloudflare.com → Turnstile, (b) `supabase secrets set TURNSTILE_SECRET=<secret>`, (c) BioLinkPublic form modal renders the Turnstile widget and passes the token through `submitLead(..., { turnstileToken })`. The C1 RLS lockdown will additionally close the direct-anon-write vector on biolink_leads/contacts/campaign_enrollments tables.
 - **File:** `frontend/src/lib/biolink.js:114-162`
 - **Fix:** Route through edge function gated by Cloudflare Turnstile / hCaptcha. Rate-limit by IP.
 

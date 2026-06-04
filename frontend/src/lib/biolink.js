@@ -111,54 +111,37 @@ export async function getPublicPage(slug) {
  * 3. If campaignId provided, auto-enroll in that campaign
  * Returns { lead, contact, enrolled }
  */
-export async function submitLead({ pageId, blockId, name, email, phone, guideType, campaignId }) {
-  // 1. Record the raw lead
-  const lead = await run(
-    supabase.from('biolink_leads')
-      .insert({
-        page_id: pageId || null,
-        block_id: blockId || null,
-        name: name || null,
-        email: email || null,
-        phone: phone || null,
-        guide_type: guideType || null,
-        campaign_id: campaignId || null,
-      })
-      .select()
-      .single()
-  )
-
-  // 2. Dedup-aware upsert via ensureContact (matches by email_normalized → phone_normalized → name)
-  let contact = null
-  if (email || phone) {
-    const contactId = await ensureContact({
-      name: name || email?.split('@')[0] || 'Unknown',
+// H13 from SECURITY_AUDIT_PUNCHLIST: submitLead used to write directly to
+// biolink_leads + contacts + campaign_enrollments from anon, with no rate
+// limit or captcha. A spammer could pollute the CRM and burn Resend on
+// auto-enrolled campaigns. Now routes through biolink-submit edge fn
+// which (1) per-IP rate-limits at 10/hr via the M18 rate_limits table,
+// (2) optionally verifies a Cloudflare Turnstile token if TURNSTILE_SECRET
+// is set, (3) performs all writes server-side under service-role.
+//
+// `turnstileToken` is optional — pass it from a Turnstile widget when
+// Dana wires that up. The edge fn no-ops the check if the secret isn't
+// configured, falling back to rate-limit-only protection.
+export async function submitLead({ pageId, blockId, name, email, phone, guideType, campaignId, turnstileToken } = {}) {
+  const { data, error } = await supabase.functions.invoke('biolink-submit', {
+    body: {
+      page_id: pageId || null,
+      block_id: blockId || null,
+      name: name || null,
       email: email || null,
       phone: phone || null,
-      type: guideType === 'seller' ? 'seller' : 'buyer',
-      lead_source: 'biolink',
-    })
-    if (contactId) {
-      contact = { id: contactId }
-      // Link lead → contact
-      await supabase.from('biolink_leads')
-        .update({ contact_id: contactId })
-        .eq('id', lead.id)
-    }
+      guide_type: guideType || null,
+      campaign_id: campaignId || null,
+      turnstile_token: turnstileToken || null,
+    },
+  })
+  if (error) throw error
+  if (data?.error) {
+    const err = new Error(data.error)
+    if (data.retry_after_seconds) err.retryAfter = data.retry_after_seconds
+    throw err
   }
-
-  // 3. Auto-enroll in campaign if configured
-  let enrolled = false
-  if (campaignId && contact?.id) {
-    try {
-      await enrollContact(campaignId, contact.id)
-      enrolled = true
-    } catch (err) {
-      console.warn('[biolink] campaign enrollment failed:', err.message)
-    }
-  }
-
-  return { lead, contact, enrolled }
+  return { lead: data?.lead, contact: data?.contact, enrolled: data?.enrolled === true }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
