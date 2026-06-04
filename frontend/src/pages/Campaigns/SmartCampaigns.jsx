@@ -350,6 +350,11 @@ export default function SmartCampaigns() {
 
   const [sending, setSending] = useState({})
   const sendNowViaResend = useCallback(async (enrollmentId) => {
+    // C8 from SECURITY_AUDIT_PUNCHLIST: send-campaign-step now requires the
+    // service-role bearer (was anonymous → anyone could fire any step). The
+    // browser can't hold the service role. Until user-JWT auth lands or we
+    // add a proxy edge fn that re-attaches the bearer server-side, the
+    // "Send Now" button surfaces this clearly instead of failing silently.
     setSending(p => ({ ...p, [enrollmentId]: true }))
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
@@ -359,7 +364,14 @@ export default function SmartCampaigns() {
         body: JSON.stringify({ enrollment_id: enrollmentId }),
       })
       const data = await res.json()
-      if (!res.ok) {
+      if (res.status === 403) {
+        alert(
+          'Send Now is disabled until Auth ships.\n\n' +
+          'send-campaign-step now requires a service-role token so anonymous ' +
+          'callers can\'t re-fire any step. The auto-send cron still works — ' +
+          'use it, or run the function manually via supabase CLI for now.'
+        )
+      } else if (!res.ok) {
         alert(`Send failed: ${data.error || JSON.stringify(data)}`)
       } else {
         await reload()

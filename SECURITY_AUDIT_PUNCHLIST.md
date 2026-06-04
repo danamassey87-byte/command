@@ -14,11 +14,11 @@
 | 2 | ~~Lock `save-elevenlabs-key` behind service-role bearer~~ ✅ 2026-06-04 (needs deploy) | 5 min | C2 |
 | 3 | ~~Verify Svix signature on `resend-webhook`~~ ✅ 2026-06-04 (needs `RESEND_WEBHOOK_SECRET` + migration + deploy) | 1 hr | C3 |
 | 4 | ~~Require `LOFTY_WEBHOOK_SECRET` query param on `lofty-webhook`~~ ✅ 2026-06-04 (needs `LOFTY_WEBHOOK_SECRET` + migration + deploy) | 30 min | C4 |
-| 5 | ~~Add `escHtml()` + `safeUrl()` helpers; apply to emailHtml, SellerWeeklyUpdate, PropertyMap, BioLink~~ ✅ 2026-06-04 (uncommitted) | 1 hr | C5, M15 |
+| 5 | ~~Add `escHtml()` + `safeUrl()` helpers; apply to emailHtml, SellerWeeklyUpdate, PropertyMap, BioLink~~ ✅ 2026-06-04 | 1 hr | C5, M15 |
 | 6 | ~~Convert `cost_ledger.incrementLedger` to atomic SQL upsert RPC~~ ✅ 2026-06-04 (migration applied; edge fns need redeploy) | 30 min | C9 |
 | 7 | Move Meta `access_token` server-side (new `meta-proxy` edge fn) | 2 hrs | C12 |
 | 8 | Add per-row HMAC submit tokens to OH sign-in/feedback/host-report URLs | 2 hrs | C6 |
-| 9 | Atomic claim (`FOR UPDATE SKIP LOCKED`) in `dispatch-due-campaigns` + step-history pre-write | 1 hr | C8 |
+| 9 | ~~Atomic claim (`FOR UPDATE SKIP LOCKED`) in `dispatch-due-campaigns` + step-history pre-write~~ ✅ 2026-06-04 (migration applied; edge fns need redeploy) | 1 hr | C8 |
 
 ---
 
@@ -94,7 +94,8 @@
 - **Exploit:** `curl ...-d '{"to_email":"victim@bigco.com","subject":"Wire instructions","html":"<a href=evil.tld>click</a>"}'` sends mail as Dana.
 - **Fix:** Require user JWT (verify with `SUPABASE_JWT_SECRET`). Enforce `to_email` belongs to a contact the caller owns (look up via `contact_id`). Strip CRLF from subject.
 
-### [ ] C8. Campaign dispatch race — concurrent crons double-send emails
+### [x] C8. Campaign dispatch race — concurrent crons double-send emails ✅ 2026-06-04
+> Shipped: `supabase/migrations/20260604_campaign_dispatch_atomic.sql` adds (a) `campaign_enrollments.locked_until` column + SECURITY DEFINER `claim_due_campaign_enrollments(p_limit, p_lock_seconds)` RPC doing `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING *` and (b) partial unique index on `campaign_step_history(enrollment_id, step_index) WHERE delivery_status IN ('sending','sent','delivered')`. `dispatch-due-campaigns` calls the claim RPC instead of the raw SELECT. `send-campaign-step` (i) requires service-role bearer (was anonymous → anyone with a guessed enrollment_id could re-fire any step), (ii) pre-writes a `'sending'` step_history row before Resend so a retry after a transient failure hits the unique violation and short-circuits to advance instead of re-sending, (iii) passes `Idempotency-Key: <attempt_id>` to Resend (~24h Resend-side dedupe), (iv) `advanceEnrollment` is optimistic (`WHERE current_step = $expected`) and clears `locked_until`. **Migration applied via MCP 2026-06-04.** Edge fns need redeploy: `supabase functions deploy dispatch-due-campaigns send-campaign-step`. **Known break:** the frontend "Send Now" button on SmartCampaigns now returns 403 — surfaced with an explanatory alert. Auto-send cron still works; manual approval needs Auth or a proxy edge fn (TODO).
 - **Files:** `supabase/functions/dispatch-due-campaigns/index.ts:38-156` + `supabase/functions/send-campaign-step/index.ts:270-306`
 - **Risk:** Sarah gets the same drip step twice. Resend billed double. Brand damage.
 - **Fix:**

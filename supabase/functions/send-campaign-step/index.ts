@@ -8,14 +8,22 @@
 // Expects JSON body: { enrollment_id: uuid }
 //
 // Flow:
-//   1. Load enrollment + campaign + step + contact
-//   2. Check suppressions
-//   3. Resolve template variables ({first_name}, etc)
-//   4. Render email_blocks to HTML (or use plain body)
-//   5. Call Resend API
-//   6. Write campaign_step_history row with resend_email_id
-//   7. Advance enrollment (current_step + next_send_at)
-//   8. Write audit log
+//   1. Verify service-role bearer (C8 — was anonymous, so anyone with a
+//      guessed enrollment_id could re-fire any step).
+//   2. Load enrollment + campaign + step + contact
+//   3. Check suppressions
+//   4. Pre-write a 'sending' campaign_step_history row. The partial unique
+//      index `campaign_step_history_inflight_uniq` on (enrollment_id,
+//      step_index) WHERE delivery_status IN ('sending','sent','delivered')
+//      blocks any concurrent / retry attempt — if the previous send already
+//      succeeded but the post-send advance failed, this insert errors with a
+//      unique violation and we advance the enrollment without re-sending.
+//   5. Resolve template variables, render email
+//   6. Call Resend (using the step_history row id as Idempotency-Key so
+//      Resend itself rejects exact-duplicate retries within ~24h).
+//   7. Update the pre-written row to 'sent' (or 'failed').
+//   8. Advance enrollment with optimistic WHERE current_step = $expected and
+//      clear locked_until. Audit log.
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
@@ -26,6 +34,14 @@ const CORS = {
 }
 
 const RESEND_API = 'https://api.resend.com/emails'
+
+// Constant-time string compare for the service-role bearer check.
+function timingSafeEqualStr(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
 
 // Domain mapping — must match the frontend SEND_DOMAINS constant
 const DOMAINS: Record<string, string> = {
@@ -47,6 +63,22 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+  // ── Bearer auth (C8) ───────────────────────────────────────────────────────
+  // Was anonymous before — anyone with a guessed enrollment_id could re-fire
+  // any step (and the audit notes enrollment_id leaks via Resend webhook tags).
+  // Require the service-role token; dispatch-due-campaigns already passes it,
+  // and the frontend "Approve & Send" path should call via supabase.functions
+  // .invoke() which will route through the future user-JWT verification
+  // (still TODO).
+  const authHeader = req.headers.get('authorization') || ''
+  const providedToken = authHeader.toLowerCase().startsWith('bearer ')
+    ? authHeader.slice(7).trim()
+    : ''
+  if (!providedToken || !timingSafeEqualStr(providedToken, serviceKey)) {
+    return json({ error: 'forbidden' }, 403)
+  }
+
   const db = createClient(supabaseUrl, serviceKey)
 
   try {
@@ -243,6 +275,38 @@ serve(async (req) => {
       ? `<div style="font-family: 'Poppins', Arial, sans-serif; color: #333; line-height: 1.65; max-width: 600px; margin: 0 auto; padding: 24px;">${bodyText.replace(/\n/g, '<br>')}</div>`
       : '<p>No content</p>'
 
+    // ─── Pre-write attempt row (C8 idempotency) ──────────────────────────────
+    // Partial unique on (enrollment_id, step_index) WHERE delivery_status IN
+    // ('sending','sent','delivered'). If a previous attempt already succeeded
+    // but its post-send advance failed, this INSERT errors with a unique
+    // violation and we know the email already went out → advance the
+    // enrollment without re-sending.
+    const { data: attempt, error: attemptErr } = await db
+      .from('campaign_step_history')
+      .insert({
+        enrollment_id: enrollment.id,
+        step_index: enrollment.current_step,
+        step_type: step.type,
+        subject,
+        sent_at: new Date().toISOString(),
+        sent_via: 'resend',
+        delivery_status: 'sending',
+      })
+      .select('id')
+      .single()
+
+    if (attemptErr) {
+      if (/duplicate key|unique/i.test(attemptErr.message)) {
+        // Another worker already sent (or is mid-flight). Don't re-send;
+        // advance the enrollment so the next dispatcher run moves on.
+        await advanceEnrollment(db, enrollment, steps!, 'already_sent')
+        return json({ result: 'already_sent', reason: 'inflight_or_completed' })
+      }
+      return json({ error: 'Failed to pre-write step history', detail: attemptErr.message }, 500)
+    }
+
+    const attemptId = attempt.id
+
     // ─── Send via Resend ─────────────────────────────────────────────────────
     const resendPayload = {
       from: fromEmail,
@@ -253,6 +317,7 @@ serve(async (req) => {
         { name: 'campaign_id', value: campaign.id },
         { name: 'enrollment_id', value: enrollment.id },
         { name: 'step_index', value: String(enrollment.current_step) },
+        { name: 'attempt_id', value: attemptId },
       ],
     }
 
@@ -261,6 +326,9 @@ serve(async (req) => {
       headers: {
         'Authorization': `Bearer ${resendKey}`,
         'Content-Type': 'application/json',
+        // Resend honors Idempotency-Key for ~24h — duplicate retries with the
+        // same key return the original response and don't re-send.
+        'Idempotency-Key': attemptId,
       },
       body: JSON.stringify(resendPayload),
     })
@@ -268,18 +336,13 @@ serve(async (req) => {
     const resendData = await resendRes.json()
 
     if (!resendRes.ok) {
-      // Write a failed step_history row so Dana can see the error + retry
-      await db.from('campaign_step_history').insert({
-        enrollment_id: enrollment.id,
-        step_index: enrollment.current_step,
-        step_type: step.type,
-        subject,
-        sent_at: new Date().toISOString(),
-        sent_via: 'resend',
-        resend_email_id: null,
+      // Flip the pre-written row to 'failed' so the partial unique frees up
+      // and a future retry can pre-write fresh.
+      await db.from('campaign_step_history').update({
         delivery_status: 'failed',
+        failed_at: new Date().toISOString(),
         error_message: resendData?.message || JSON.stringify(resendData),
-      })
+      }).eq('id', attemptId)
 
       return json({
         error: 'Resend API error',
@@ -290,19 +353,14 @@ serve(async (req) => {
 
     const resendEmailId = resendData.id
 
-    // ─── Write step_history ──────────────────────────────────────────────────
-    await db.from('campaign_step_history').insert({
-      enrollment_id: enrollment.id,
-      step_index: enrollment.current_step,
-      step_type: step.type,
-      subject,
-      sent_at: new Date().toISOString(),
-      sent_via: 'resend',
-      resend_email_id: resendEmailId,
+    // Promote the pre-written row to 'sent' + record Resend's id.
+    await db.from('campaign_step_history').update({
       delivery_status: 'sent',
-    })
+      resend_email_id: resendEmailId,
+      sent_at: new Date().toISOString(),
+    }).eq('id', attemptId)
 
-    // ─── Advance enrollment ──────────────────────────────────────────────────
+    // ─── Advance enrollment (optimistic) ─────────────────────────────────────
     await advanceEnrollment(db, enrollment, steps!, 'sent')
 
     // ─── Audit log ───────────────────────────────────────────────────────────
@@ -341,23 +399,40 @@ async function advanceEnrollment(
   const nextStepIdx = enrollment.current_step + 1
   const isComplete = nextStepIdx >= steps.length
 
-  if (isComplete) {
-    await db.from('campaign_enrollments').update({
-      current_step: enrollment.current_step,
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-      next_send_at: null,
-    }).eq('id', enrollment.id)
-  } else {
-    const nextStep = steps[nextStepIdx]
-    const nextDelay = nextStep?.delay_days ?? 0
-    const nextDate = new Date()
-    nextDate.setDate(nextDate.getDate() + nextDelay)
+  // Optimistic: only advance if the enrollment is still on the step we think
+  // it's on. If another worker already advanced (because of an idempotency
+  // race), this UPDATE affects 0 rows and we just log + carry on.
+  const update = isComplete
+    ? {
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        next_send_at: null,
+        locked_until: null,
+      }
+    : (() => {
+        const nextStep = steps[nextStepIdx]
+        const nextDelay = nextStep?.delay_days ?? 0
+        const nextDate = new Date()
+        nextDate.setDate(nextDate.getDate() + nextDelay)
+        return {
+          current_step: nextStepIdx,
+          next_send_at: nextDate.toISOString(),
+          locked_until: null,
+        }
+      })()
 
-    await db.from('campaign_enrollments').update({
-      current_step: nextStepIdx,
-      next_send_at: nextDate.toISOString(),
-    }).eq('id', enrollment.id)
+  const { data: updated } = await db.from('campaign_enrollments')
+    .update(update)
+    .eq('id', enrollment.id)
+    .eq('current_step', enrollment.current_step)
+    .select('id')
+
+  if (!updated || updated.length === 0) {
+    console.warn(
+      `[send-campaign-step] advance no-op for enrollment ${enrollment.id} ` +
+      `(reason=${reason}, expected step ${enrollment.current_step}). ` +
+      `Likely a concurrent advance — safe to ignore.`,
+    )
   }
 }
 
