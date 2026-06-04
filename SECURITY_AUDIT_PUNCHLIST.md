@@ -315,7 +315,8 @@
 - **File:** `supabase/functions/resend-webhook/index.ts:70-92`
 - **Fix:** Include `open_count, click_count` in select at line 53, OR use RPC: `update campaign_step_history set open_count = open_count + 1 where id = $1`.
 
-### [ ] M9. No retention/purge for `lofty_inbound_events`, `system_events`, `ai_generation_log`, `gmail_reply_log`, `google_calendar_sync_log`
+### [x] M9. No retention/purge for `lofty_inbound_events`, `system_events`, `ai_generation_log`, `gmail_reply_log`, `google_calendar_sync_log` ✅ 2026-06-04
+> Shipped: `supabase/migrations/20260604_retention_purges.sql` adds SECURITY DEFINER `cron_retention_purge()` that DELETEs rows older than the per-table retention window: lofty_inbound_events 90d (processed only), system_events 90d, ai_generation_log 180d, gmail_reply_log 180d, google_calendar_sync_log 30d, webhook_events_seen 30d (Svix's own replay window is 5 min so 30d is generous). Scheduled via pg_cron as `cron-retention-purge-nightly` at 10:17 UTC (3:17 AM Phoenix). search_path locked, service_role-only EXECUTE. **Same migration also activates the H14 watchdog** — schedules `cron-watchdog-hourly` (7 past every hour) that was documented but not auto-applied with the H14 commit. **Migration applied via MCP 2026-06-04, both crons verified active in `cron.job`.**
 - **Fix:** `pg_cron` daily `DELETE FROM lofty_inbound_events WHERE received_at < now() - interval '90 days' AND processed_at IS NOT NULL;` similar for others.
 
 ### [ ] M10. `cash-offer-sla-check` notification insert in bare `try/catch{}` — silent fail
