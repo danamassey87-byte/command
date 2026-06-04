@@ -58,20 +58,21 @@ export default function OHSignIn() {
   // Load OH data
   useEffect(() => {
     if (!openHouseId) return
+    // M14: cancel flag — if the openHouseId changes (kiosk navigates) or
+    // the component unmounts before the awaited fetches resolve, we skip
+    // every subsequent setState so React doesn't warn about updating an
+    // unmounted component and stale data can't overwrite fresh data.
+    let cancelled = false
     ;(async () => {
       try {
-        // H9: explicit column list. Previously `*, property:properties(*)`
-        // returned every internal column (lockbox_code, agent_email, host
-        // phone, primary_signin_source, briefing_sent_at, reminders_sent,
-        // and any new column added in future) to the public kiosk page.
-        // The kiosk only renders date/time + property summary; tightening to
-        // exactly those fields stops schema drift from leaking new data.
+        // H9: explicit column list — see commit 1df6d7a.
         const { data: ohData, error: ohErr } = await supabase
           .from('open_houses')
           .select('id, date, start_time, end_time, sign_in_config, property:properties(address, city, bedrooms, bathrooms, sqft)')
           .eq('id', openHouseId)
           .single()
 
+        if (cancelled) return
         if (ohErr || !ohData) {
           setLoadError('Open house not found')
           return
@@ -80,18 +81,18 @@ export default function OHSignIn() {
         setOh(ohData)
         setProperty(ohData.property)
 
-        // Get current sign-in count (head:true means no rows returned —
-        // just the count. H9: explicit `id` instead of `*` so we never
-        // accidentally return PII columns even with head:true.)
         const { count } = await supabase
           .from('oh_sign_ins')
           .select('id', { count: 'exact', head: true })
           .eq('open_house_id', openHouseId)
+        if (cancelled) return
         setSignInCount(count || 0)
       } catch (err) {
+        if (cancelled) return
         setLoadError(err.message)
       }
     })()
+    return () => { cancelled = true }
   }, [openHouseId])
 
   // ─── Partial capture: save whatever they've typed if they abandon ─────────

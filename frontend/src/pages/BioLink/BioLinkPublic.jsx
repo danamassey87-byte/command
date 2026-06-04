@@ -247,13 +247,20 @@ export default function BioLinkPublic() {
   const [showThanks, setShowThanks] = useState(false)
 
   useEffect(() => {
+    // M14: cancellation flag — see OHSignIn.jsx comment.
+    let cancelled = false
     getPublicPage(slug)
       .then(row => {
+        if (cancelled) return
         if (!row) { setNotFound(true); setLoading(false); return }
         setPageData(row)
         setLoading(false)
       })
-      .catch(() => { setNotFound(true); setLoading(false) })
+      .catch(() => {
+        if (cancelled) return
+        setNotFound(true); setLoading(false)
+      })
+    return () => { cancelled = true }
   }, [slug])
 
   if (loading) {

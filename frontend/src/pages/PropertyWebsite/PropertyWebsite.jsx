@@ -46,19 +46,17 @@ export default function PropertyWebsite() {
 
   useEffect(() => {
     if (!listingId) return
+    // M14: cancellation flag — see OHSignIn.jsx comment.
+    let cancelled = false
     ;(async () => {
       try {
-        // H9: explicit column allowlist. Previously `*, property:properties(*)`
-        // surfaced every column on listings + properties to the public
-        // marketing page (owner_phone, seller_notes, agreement_signed_date,
-        // commission_pct, etc. would leak as those columns get added). The
-        // public marketing page only needs price + the public property
-        // summary; anything else gets dropped.
+        // H9: explicit column allowlist — see commit 1df6d7a.
         const { data: l, error } = await supabase
           .from('listings')
           .select('id, price, property:properties(id, address, city, state, bedrooms, bathrooms, sqft, hero_video_url, price, description, notes, latitude, longitude)')
           .eq('id', listingId)
           .single()
+        if (cancelled) return
         if (error || !l) { setLoadError('Listing not found'); return }
         setListing(l)
         setProperty(l.property)
@@ -68,13 +66,16 @@ export default function PropertyWebsite() {
             supabase.from('media_assets').select('id, url, type').eq('property_id', l.property.id).is('deleted_at', null).order('created_at', { ascending: false }).limit(20),
             supabase.from('open_houses').select('id, date, start_time, end_time, status').eq('property_id', l.property.id).gte('date', now).order('date', { ascending: true }),
           ])
+          if (cancelled) return
           setPhotos((photoRes.data ?? []).filter(p => !p.type || p.type.startsWith('image') || p.type === 'photo'))
           setOpenHouses(ohRes.data ?? [])
         }
       } catch (err) {
+        if (cancelled) return
         setLoadError(err.message)
       }
     })()
+    return () => { cancelled = true }
   }, [listingId])
 
   async function handleSubmit(e) {

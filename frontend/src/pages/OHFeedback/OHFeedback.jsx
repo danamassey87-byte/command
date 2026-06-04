@@ -43,19 +43,17 @@ export default function OHFeedback() {
 
   useEffect(() => {
     if (!feedbackId) return
+    // M14: cancellation flag — see OHSignIn.jsx comment.
+    let cancelled = false
     ;(async () => {
       try {
-        // H9: explicit column lists. The public feedback page only needs
-        // status (to show the "already submitted" banner), open_house_id
-        // (to fetch OH info), and hosting_agent_name (greeting). Without
-        // tightening, every future internal column on oh_feedback (like the
-        // hosting agent's email or internal status timeline) would leak to
-        // the public URL.
+        // H9: explicit column lists — see commit 1df6d7a.
         const { data: fbData, error: fbErr } = await supabase
           .from('oh_feedback')
           .select('id, status, open_house_id, hosting_agent_name')
           .eq('id', feedbackId)
           .single()
+        if (cancelled) return
         if (fbErr || !fbData) {
           setLoadError('This feedback link is invalid or has expired.')
           return
@@ -70,14 +68,17 @@ export default function OHFeedback() {
           .select('id, date, start_time, end_time, property:properties(address, city)')
           .eq('id', fbData.open_house_id)
           .single()
+        if (cancelled) return
         if (ohData) {
           setOh(ohData)
           setProperty(ohData.property)
         }
       } catch (err) {
+        if (cancelled) return
         setLoadError(err.message)
       }
     })()
+    return () => { cancelled = true }
   }, [feedbackId])
 
   async function handleSubmit(e) {

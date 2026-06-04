@@ -335,7 +335,8 @@
 - **File:** `supabase/migrations/20260421_command_phase1_core.sql:84-93`
 - **Fix:** Change `ON DELETE CASCADE` (file meaningless without deal) OR make unique partial: `WHERE deal_id IS NOT NULL`.
 
-### [ ] M14. React `useEffect` fetches don't check unmount before `setState`
+### [x] M14. React `useEffect` fetches don't check unmount before `setState` ✅ 2026-06-04
+> Shipped: all four flagged public pages now use the `let cancelled = false; … if (cancelled) return; … return () => { cancelled = true }` pattern: `OHSignIn.jsx`, `OHFeedback.jsx`, `PropertyWebsite.jsx`, `BioLinkPublic.jsx`. Mid-fetch component unmounts (kiosk navigations, listing-page transitions) no longer trigger React's "set state on unmounted component" warning or risk stale data overwriting fresh state. Build green.
 - **Files:** `OHSignIn.jsx:59-87`, `OHFeedback.jsx:44-75`, `PropertyWebsite.jsx:47-72`, `BioLinkPublic.jsx:246-254`
 - **Fix:** `let cancelled = false; … if (cancelled) return; return () => { cancelled = true }` (pattern already used correctly in `PublicForm.jsx`).
 
@@ -347,7 +348,8 @@
 - **File:** `supabase/functions/merge-form-submission/index.ts:21-30, 98-108`
 - **Fix:** Exact-match whitelist (`^email$|^contact_email$|^email_address$`). Validate `@` present before storing.
 
-### [ ] M17. `submit-oh-feedback` outbound email interpolates user freetext with only `\n → <br/>`
+### [x] M17. `submit-oh-feedback` outbound email interpolates user freetext with only `\n → <br/>` ✅ 2026-06-04
+> Shipped: inline `escHtml` helper applied to every interpolated field in the Dana-notification email (`overall_impression`, `liked`, `concerns`, `general_comments`, `hosting_agent_name`, `hosting_agent_email`, `addr`, `dateLabel`, row labels + values). Subject CRLF-stripped and capped at 200 chars. A buyer agent typing `<a href="phish">click</a>` in the feedback freetext no longer renders as a live anchor in Dana's inbox. Edge fn needs redeploy.
 - **File:** `supabase/functions/submit-oh-feedback/index.ts:103-130`
 - **Fix:** `escHtml` every interpolated field.
 
