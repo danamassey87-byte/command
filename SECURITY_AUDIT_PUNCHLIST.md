@@ -286,7 +286,8 @@
 ### [ ] M1. CORS `*` on every edge function — state-mutating endpoints should be locked to production origin
 - **Fix:** Mutating fns: `Access-Control-Allow-Origin: https://app.danamassey.com`. Localhost fallback via env var. Webhook receivers stay `*` but rely on signature verification.
 
-### [ ] M2. No `fetch()` timeouts (frontend + edge fns)
+### [~] M2. No `fetch()` timeouts (frontend + edge fns) ✅ 2026-06-04 (highest-blast-radius spots done; broader sweep available via helper)
+> Shipped: (1) `AbortSignal.timeout(25_000)` on the Anthropic call in `_shared/ai-bill.ts` (every LLM call across the codebase now benefits — a hung Anthropic call can't burn the 60s edge fn budget). (2) `AbortSignal.timeout(45_000)` on the ElevenLabs TTS fetch. (3) New `frontend/src/lib/net.js` exports `fetchWithTimeout(url, opts, ms=15000)` + `isTimeoutError(err)` for use across the SPA. **Still open:** broader sweep of frontend Meta / weather / Replicate / etc. fetches to switch to the helper — additive, no breakage, lower priority since the big spenders are already covered.
 - **Fix:** Shared helper `fetchWithTimeout(url, opts, ms=15000)` using `AbortSignal.timeout(ms)`.
 
 ### [x] M3. `publish-content` `generate_video` polls 90s; Supabase wall is 60s ✅ 2026-06-04

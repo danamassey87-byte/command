@@ -79,6 +79,10 @@ serve(async (req) => {
     if (speed != null) voiceSettings.speed = speed
 
     // ─── Call ElevenLabs ────────────────────────────────────────────────────
+    // M2: bound the wall clock. TTS audio gen typically lands inside 30s
+    // for paragraph-sized text; longer renders are rare. 45s ceiling
+    // leaves a small buffer inside the 60s edge fn budget for the post-
+    // call upload to storage.
     const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
       method: 'POST',
       headers: {
@@ -87,6 +91,7 @@ serve(async (req) => {
         'Accept': 'audio/mpeg',
       },
       body: JSON.stringify({ text, model_id: modelId, voice_settings: voiceSettings }),
+      signal: AbortSignal.timeout(45_000),
     })
 
     if (!ttsRes.ok) {

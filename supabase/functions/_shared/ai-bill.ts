@@ -149,6 +149,12 @@ export async function callAnthropic(
   if (opts.topK !== undefined) body.top_k = opts.topK
   if (opts.tools !== undefined) body.tools = opts.tools
 
+  // M2 from SECURITY_AUDIT_PUNCHLIST: bound the wall clock so a hung
+  // Anthropic call can't burn the entire Supabase edge function budget
+  // (default ~60s). 25s leaves ~35s headroom for the caller's other work
+  // (DB writes, downstream actions). Anthropic responses typically land
+  // well inside this window.
+  const ANTHROPIC_TIMEOUT_MS = 25_000
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -157,6 +163,7 @@ export async function callAnthropic(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(ANTHROPIC_TIMEOUT_MS),
   })
 
   if (!response.ok) {
