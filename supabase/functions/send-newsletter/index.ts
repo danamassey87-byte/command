@@ -6,6 +6,22 @@
 //   - Frontend "Send Now" button (manual trigger)
 //
 // Expects JSON body: { newsletter_id: uuid } OR no body (cron mode scans for due newsletters)
+//
+// H7 from SECURITY_AUDIT_PUNCHLIST: three bugs fixed in this batch.
+//   1. Suppression column mismatch. resend-webhook writes the normalized
+//      address to `email_suppressions.email`; this function was reading
+//      `email_normalized` (nullable, never populated by the webhook), so
+//      every hard-bounced / unsubscribed contact got the newsletter
+//      anyway. Switched to `email`.
+//   2. Dropped recipients >50. Previously the function inserted every
+//      recipient row, sent the first 50, and immediately marked the
+//      newsletter as `sent`. Everyone past slot 51 silently never got
+//      the email. Now we keep `status='sending'` until all rows are
+//      processed; subsequent cron runs pick up the remaining
+//      `pending` recipients via a per-recipient claim.
+//   3. CRLF header injection via `{first_name}`. A contact name with
+//      `\r\n` could split the Subject header. We strip CRLF from both
+//      first_name and the resolved subject before sending.
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
@@ -49,12 +65,14 @@ serve(async (req) => {
       // Manual trigger — send specific newsletter
       newsletterIds = [body.newsletter_id as string]
     } else {
-      // Cron mode — find scheduled newsletters that are due
+      // Cron mode — find newsletters that need work. Includes 'sending'
+      // (multi-batch in-flight) so a newsletter with >MAX_PER_RUN recipients
+      // gets processed across multiple cron ticks.
       const now = new Date().toISOString()
       const { data: due } = await db
         .from('newsletters')
         .select('id')
-        .eq('status', 'scheduled')
+        .in('status', ['scheduled', 'sending'])
         .lte('scheduled_for', now)
         .is('deleted_at', null)
         .limit(5)
@@ -72,67 +90,119 @@ serve(async (req) => {
 
       if (!nl || nl.status === 'sent') continue
 
-      // Mark as sending
-      await db.from('newsletters').update({ status: 'sending' }).eq('id', nlId)
+      // H7 step 1: on the FIRST tick (status='scheduled') we need to resolve
+      // the recipient list from the filter and write per-recipient rows. On
+      // subsequent ticks (status='sending') we skip this and just drain
+      // pending recipients from the table.
+      if (nl.status === 'scheduled') {
+        const filter = nl.recipient_filter ?? { segment: 'all' }
+        let contactQuery = db.from('contacts').select('id, name, email').not('email', 'is', null)
 
-      // Resolve recipients from filter
-      const filter = nl.recipient_filter ?? { segment: 'all' }
-      let contactQuery = db.from('contacts').select('id, name, email').not('email', 'is', null)
+        if (filter.segment === 'buyers') contactQuery = contactQuery.in('type', ['buyer', 'both'])
+        else if (filter.segment === 'sellers') contactQuery = contactQuery.in('type', ['seller', 'both'])
+        else if (filter.segment === 'leads') contactQuery = contactQuery.eq('type', 'lead')
+        else if (filter.segment === 'investors') contactQuery = contactQuery.eq('type', 'investor')
+        else if (filter.segment === 'past_clients') contactQuery = contactQuery.eq('stage', 'Closed')
+        // 'all' = no additional filter
 
-      if (filter.segment === 'buyers') contactQuery = contactQuery.in('type', ['buyer', 'both'])
-      else if (filter.segment === 'sellers') contactQuery = contactQuery.in('type', ['seller', 'both'])
-      else if (filter.segment === 'leads') contactQuery = contactQuery.eq('type', 'lead')
-      else if (filter.segment === 'investors') contactQuery = contactQuery.eq('type', 'investor')
-      else if (filter.segment === 'past_clients') contactQuery = contactQuery.eq('stage', 'Closed')
-      // 'all' = no additional filter
+        const { data: recipients } = await contactQuery
 
-      const { data: recipients } = await contactQuery
+        if (!recipients?.length) {
+          await db.from('newsletters').update({
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+            recipient_count: 0,
+          }).eq('id', nlId)
+          results.push({ id: nlId, sent: 0, reason: 'no recipients' })
+          continue
+        }
 
-      if (!recipients?.length) {
-        await db.from('newsletters').update({ status: 'sent', sent_at: new Date().toISOString(), recipient_count: 0 }).eq('id', nlId)
-        results.push({ id: nlId, sent: 0, reason: 'no recipients' })
-        continue
+        // H7 fix #1: read `email` column. resend-webhook writes the
+        // normalized address there (line 145); `email_normalized` is a
+        // separate nullable column that nothing currently populates, so the
+        // previous query missed every real suppression.
+        const { data: suppressions } = await db
+          .from('email_suppressions')
+          .select('email')
+        const suppressedSet = new Set(
+          (suppressions ?? []).map((s: { email: string }) => (s.email || '').toLowerCase().trim())
+        )
+
+        const validRecipients = recipients.filter((r: { email: string }) =>
+          r.email && !suppressedSet.has(r.email.toLowerCase().trim())
+        )
+
+        if (!validRecipients.length) {
+          await db.from('newsletters').update({
+            status: 'sent',
+            sent_at: new Date().toISOString(),
+            recipient_count: 0,
+          }).eq('id', nlId)
+          results.push({ id: nlId, sent: 0, reason: 'all suppressed' })
+          continue
+        }
+
+        const recipientRows = validRecipients.map((r: { id: string; name: string; email: string }) => ({
+          newsletter_id: nlId,
+          contact_id: r.id,
+          email: r.email,
+          name: r.name,
+          status: 'pending',
+        }))
+        await db.from('newsletter_recipients').insert(recipientRows)
+
+        // Flip to 'sending' so subsequent cron ticks pick up the remaining
+        // pending rows. recipient_count is the final total (set once, never
+        // re-counted on subsequent batches).
+        await db.from('newsletters').update({
+          status: 'sending',
+          recipient_count: validRecipients.length,
+        }).eq('id', nlId)
       }
 
-      // Check suppressions
-      const { data: suppressions } = await db.from('email_suppressions').select('email_normalized')
-      const suppressedSet = new Set((suppressions ?? []).map((s: { email_normalized: string }) => s.email_normalized))
+      // Drain up to MAX_PER_RUN pending recipients for this newsletter.
+      const { data: pending } = await db
+        .from('newsletter_recipients')
+        .select('id, contact_id, email, name')
+        .eq('newsletter_id', nlId)
+        .eq('status', 'pending')
+        .limit(MAX_PER_RUN)
 
-      const validRecipients = recipients.filter((r: { email: string }) =>
-        r.email && !suppressedSet.has(r.email.toLowerCase().trim())
-      )
-
-      // Create recipient rows
-      const recipientRows = validRecipients.map((r: { id: string; name: string; email: string }) => ({
-        newsletter_id: nlId,
-        contact_id: r.id,
-        email: r.email,
-        name: r.name,
-        status: 'pending',
-      }))
-      await db.from('newsletter_recipients').insert(recipientRows)
+      if (!pending?.length) {
+        // Nothing pending — mark complete.
+        await db.from('newsletters').update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+        }).eq('id', nlId)
+        results.push({ id: nlId, sent: 0, reason: 'no pending recipients' })
+        continue
+      }
 
       // Render HTML
       const domain = DOMAINS[nl.send_via_domain] || DOMAINS.primary
       const fromEmail = `${FROM_NAME} <dana@${domain}>`
-
-      // Import blocksToHtml equivalent — for edge functions, render inline
-      // We'll send the blocks as-is with a simple wrapper since emailHtml.js is frontend-only
       const emailHtml = renderBlocksToHtml(nl.email_blocks ?? [], nl.email_settings ?? {})
 
-      // Send in batches
       let sentCount = 0
-      for (const recipient of validRecipients.slice(0, MAX_PER_RUN)) {
-        const firstName = (recipient.name || '').split(' ')[0] || ''
+      for (const recipient of pending) {
+        // H7 fix #3: strip CRLF from name-derived fields to prevent header
+        // injection via the Subject line. RFC 5322 disallows CR/LF in
+        // unfolded header values; Resend may or may not enforce it.
+        const rawFirstName = (recipient.name || '').split(' ')[0] || ''
+        const firstName = rawFirstName.replace(/[\r\n]/g, '')
+        const fullName = (recipient.name || '').replace(/[\r\n]/g, '')
+
         const personalizedHtml = emailHtml
           .replace(/\{first_name\}/g, firstName)
-          .replace(/\{full_name\}/g, recipient.name || '')
+          .replace(/\{full_name\}/g, fullName)
           .replace(/\{email\}/g, recipient.email || '')
 
         const personalizedSubject = (nl.subject || 'Newsletter')
           .replace(/\{first_name\}/g, firstName)
           .replace(/\{month\}/g, new Date().toLocaleDateString('en-US', { month: 'long' }))
           .replace(/\{year\}/g, String(new Date().getFullYear()))
+          .replace(/[\r\n]/g, ' ')
+          .slice(0, 998)
 
         try {
           const res = await fetch(RESEND_API, {
@@ -147,31 +217,57 @@ serve(async (req) => {
           })
           const resData = await res.json()
 
-          // Update recipient record
-          await db.from('newsletter_recipients')
-            .update({
-              status: 'sent',
-              sent_at: new Date().toISOString(),
-              resend_email_id: resData.id ?? null,
-            })
-            .eq('newsletter_id', nlId)
-            .eq('contact_id', recipient.id)
-
-          sentCount++
+          if (res.ok) {
+            await db.from('newsletter_recipients')
+              .update({
+                status: 'sent',
+                sent_at: new Date().toISOString(),
+                resend_email_id: resData.id ?? null,
+              })
+              .eq('id', recipient.id)
+            sentCount++
+          } else {
+            await db.from('newsletter_recipients')
+              .update({ status: 'failed' })
+              .eq('id', recipient.id)
+          }
         } catch (err) {
           console.error(`Failed to send to ${recipient.email}:`, err)
+          await db.from('newsletter_recipients')
+            .update({ status: 'failed' })
+            .eq('id', recipient.id)
         }
       }
 
-      // Update newsletter stats
-      await db.from('newsletters').update({
-        status: 'sent',
-        sent_at: new Date().toISOString(),
-        recipient_count: validRecipients.length,
-        delivered_count: sentCount,
-      }).eq('id', nlId)
+      // H7 fix #2: only flip the newsletter to 'sent' when there are no more
+      // pending recipients. If this batch left some pending (>MAX_PER_RUN
+      // total recipients), the next cron tick picks up the rest.
+      const { count: remaining } = await db
+        .from('newsletter_recipients')
+        .select('id', { count: 'exact', head: true })
+        .eq('newsletter_id', nlId)
+        .eq('status', 'pending')
 
-      results.push({ id: nlId, sent: sentCount, total: validRecipients.length })
+      if (!remaining || remaining === 0) {
+        // Recount delivered + capture send_at on final flip.
+        const { count: deliveredFinal } = await db
+          .from('newsletter_recipients')
+          .select('id', { count: 'exact', head: true })
+          .eq('newsletter_id', nlId)
+          .eq('status', 'sent')
+        await db.from('newsletters').update({
+          status: 'sent',
+          sent_at: new Date().toISOString(),
+          delivered_count: deliveredFinal ?? sentCount,
+        }).eq('id', nlId)
+      }
+
+      results.push({
+        id: nlId,
+        sent_this_batch: sentCount,
+        pending_remaining: remaining ?? 0,
+        complete: !remaining || remaining === 0,
+      })
     }
 
     return new Response(JSON.stringify({ ok: true, results }), {

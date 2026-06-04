@@ -213,7 +213,8 @@
 - **File:** `supabase/functions/embed-on-insert/index.ts:182-313`
 - **Fix:** Diff `record` vs `old_record`; skip if embeddable fields unchanged. Add `HUGGINGFACE_API_TOKEN` env var or switch to OpenAI `text-embedding-3-small`.
 
-### [ ] H7. Newsletter sender has suppression column mismatch + drops recipients silently
+### [x] H7. Newsletter sender has suppression column mismatch + drops recipients silently ✅ 2026-06-04
+> Shipped: three fixes in `supabase/functions/send-newsletter/index.ts`. (1) Suppression read switched from `email_normalized` (nullable, never populated) to `email` (NOT NULL, what resend-webhook writes via the normalize+upsert at line 145) — confirmed live DB had 0 suppression rows with `email_normalized` populated, so every future hard-bounce / unsubscribe was at risk. (2) Recipient drop fixed: function now keeps `status='sending'` after the first batch instead of flipping to `'sent'`; subsequent cron ticks pick up the same newsletter via `.in('status', ['scheduled','sending'])` and drain remaining `pending` rows via `.select(...).eq('status','pending').limit(MAX_PER_RUN)`; only flips to `'sent'` when 0 pending remain. (3) CRLF stripped from `first_name` / `full_name` derivations and from the resolved subject; subject also capped at 998 chars (RFC 5322 limit). Each per-recipient send wrapped in success/failure status update. Edge fn needs redeploy: `supabase functions deploy send-newsletter`.
 - **File:** `supabase/functions/send-newsletter/index.ts:97-167`
 - **Fix:** Pick one column for suppressions (`email`, not `email_normalized`). Keep newsletter `status='sending'` until all recipients processed; only flip to `'sent'` when complete.
 
