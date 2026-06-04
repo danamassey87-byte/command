@@ -203,11 +203,13 @@
   - `supabase/functions/transaction-deadline-check/index.ts:140-176`
 - **Fix:** Flip order — `UPDATE … SET flag = now() WHERE flag IS NULL` first; only send if 1 row returned. Wrap each per-row iteration in try/catch. Add `UNIQUE INDEX ON notifications(type, source_table, source_id, (metadata->>'window'))`.
 
-### [ ] H5. `lead-intake-email` aborts entire cron on single bad message
+### [N/A] H5. `lead-intake-email` aborts entire cron on single bad message
+> Inspected 2026-06-04. The current code already has the per-message try/catch at `supabase/functions/lead-intake-email/index.ts:217-332` AND already upserts a `lead_emails_processed` row with `parse_status='error'` on failure (line 323-329), so malformed-MIME emails are marked processed and the loop continues with the next message. Audit finding addressed by a prior session before 2026-06-03 — no further action needed. Minor remaining gap: queries between sources (e.g., the `lead_emails_processed.select.in()` filter at line 205) aren't wrapped in per-source try/catch, so a transient DB error could abort subsequent source iterations. Low-impact (the outer catch still returns 500 → next cron retries).
 - **File:** `supabase/functions/lead-intake-email/index.ts:216-337`
 - **Fix:** Per-message try/catch around the entire body. Always upsert `lead_emails_processed` (even as `parse_status='error'`).
 
-### [ ] H6. `embed-on-insert` regenerates embeddings on every `updated_at` touch; no HF auth
+### [~] H6. `embed-on-insert` regenerates embeddings on every `updated_at` touch; no HF auth ✅ 2026-06-04 (content-diff part)
+> Shipped: on UPDATE events, `embed-on-insert` now calls `extractContent(table, old_record)` and compares against the new `extracted.content` + `extracted.title`. If both match, returns `{status:'skipped', reason:'no_content_change'}` without touching HuggingFace or Claude. A nightly cron that updates `contacts.last_touched` on 1,200 contacts now skips all 1,200 instead of burning 1,200 HF embeddings + 1,200 Claude summary calls (~$2/night saved). Edge fn needs redeploy. **Still open:** HF auth token + retry cap remain unaddressed — HF anonymous tier still rate-limits, just less often now. Adding `HUGGINGFACE_API_TOKEN` (~5 min) is the natural follow-up, OR switching to OpenAI text-embedding-3-small.
 - **File:** `supabase/functions/embed-on-insert/index.ts:182-313`
 - **Fix:** Diff `record` vs `old_record`; skip if embeddable fields unchanged. Add `HUGGINGFACE_API_TOKEN` env var or switch to OpenAI `text-embedding-3-small`.
 
@@ -223,7 +225,8 @@
 - **Files:** `frontend/src/pages/OHSignIn/OHSignIn.jsx:63-67`, `frontend/src/pages/OHFeedback/OHFeedback.jsx:48-66`, `frontend/src/pages/PropertyWebsite/PropertyWebsite.jsx:51-66`
 - **Fix:** Tighten to exact column lists. Create a `public_property_summary` view exposing only safe columns; grant SELECT to anon.
 
-### [ ] H10. `__DEMO_MODE__` settable from DevTools + localStorage — masks data, enables confusion attacks
+### [x] H10. `__DEMO_MODE__` settable from DevTools + localStorage — masks data, enables confusion attacks ✅ 2026-06-04
+> Shipped: `const DEMO_AVAILABLE = import.meta.env.DEV` gate in both `AuthContext.jsx` (constructor + `enterDemoMode`) and `supabase.js` (`query()` helper). Production builds short-circuit demo mode entirely: `localStorage.demo_mode` is ignored at boot, `enterDemoMode()` logs a warning + no-ops, and `query()` no longer reads `window.__DEMO_MODE__`. Demo mode is still fully usable in `npm run dev` for development. Build verified.
 - **Files:** `frontend/src/lib/supabase.js:12`, `frontend/src/lib/AuthContext.jsx:21-93`
 - **Fix:** Gate on `import.meta.env.DEV`; drop localStorage persistence in production; keep demo state in React state only.
 

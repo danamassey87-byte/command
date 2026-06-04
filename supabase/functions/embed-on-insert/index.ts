@@ -256,7 +256,7 @@ serve(async (req) => {
     )
 
     const payload: WebhookPayload = await req.json()
-    const { type, table, record } = payload
+    const { type, table, record, old_record } = payload
 
     // Skip DELETE events
     if (type === 'DELETE' || !record) {
@@ -273,6 +273,21 @@ serve(async (req) => {
         JSON.stringify({ status: 'skipped', reason: 'no_embeddable_content' }),
         { headers: { ...CORS, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // H6: on UPDATE, skip re-embedding if the embeddable content didn't
+    // actually change. Without this, a nightly cron that touches
+    // contacts.last_touched on 1,200 contacts fires 1,200 HF embedding calls
+    // + 1,200 Claude summary calls every night for no semantic difference
+    // (the title and content fields are unchanged, only updated_at moved).
+    if (type === 'UPDATE' && old_record) {
+      const prior = extractContent(table, old_record)
+      if (prior && prior.content === extracted.content && prior.title === extracted.title) {
+        return new Response(
+          JSON.stringify({ status: 'skipped', reason: 'no_content_change' }),
+          { headers: { ...CORS, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     // Generate embedding

@@ -8,8 +8,14 @@ const supabase = createClient(
 export default supabase
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+// H10: demo mode is dev-only. Production builds ignore window.__DEMO_MODE__
+// entirely so a malicious extension / XSS / phishing URL can't silently
+// blank out the UI by setting the global (the previous code path returned
+// []  for every query whenever the flag was truthy).
+const DEMO_AVAILABLE = import.meta.env.DEV
+
 async function query(promise) {
-  if (window.__DEMO_MODE__) return []
+  if (DEMO_AVAILABLE && window.__DEMO_MODE__) return []
   const { data, error } = await promise
   if (error) throw new Error(error.message)
   return data

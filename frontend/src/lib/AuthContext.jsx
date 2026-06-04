@@ -14,11 +14,22 @@ const DEMO_USER = {
   user_metadata: { full_name: 'Demo User' },
 }
 
+// H10 from SECURITY_AUDIT_PUNCHLIST: demo mode is gated to DEV builds. The
+// previous version persisted `demo_mode=true` in localStorage and set
+// window.__DEMO_MODE__, both of which silenced every DB read in supabase.js's
+// `query()` helper. Any XSS, browser extension, or `?demo=1` style phishing
+// link could write the localStorage value and trick a real user into thinking
+// the app was empty — they might call clients duplicates or take destructive
+// actions thinking records were gone. Production builds now ignore demo mode
+// entirely; it only works in `npm run dev`.
+const DEMO_AVAILABLE = import.meta.env.DEV
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [onboardingComplete, setOnboardingComplete] = useState(null) // null=loading, true/false=resolved
   const [demoMode, setDemoMode] = useState(() => {
+    if (!DEMO_AVAILABLE) return false
     return localStorage.getItem('demo_mode') === 'true'
   })
 
@@ -83,6 +94,10 @@ export function AuthProvider({ children }) {
   }, [demoMode, checkOnboarding])
 
   function enterDemoMode() {
+    if (!DEMO_AVAILABLE) {
+      console.warn('[AuthContext] enterDemoMode ignored — demo mode is dev-only (H10)')
+      return
+    }
     localStorage.setItem('demo_mode', 'true')
     window.__DEMO_MODE__ = true
     setDemoMode(true)
