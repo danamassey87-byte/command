@@ -6,6 +6,14 @@
 //
 // Triggered hourly via pg_cron (see schedule below). Idempotent — safe to
 // re-run, won't double-notify.
+//
+// H4 from SECURITY_AUDIT_PUNCHLIST: the previous "check membership → insert
+// notification → UPDATE array" pattern was racy. Now we (1) claim the window
+// atomically via the SECURITY DEFINER `claim_oh_reminder_window` RPC (an
+// array_append guarded by NOT ANY in a single UPDATE), (2) insert the
+// notification only on win, and (3) likewise claim feedback_request_sent_at
+// via `UPDATE … WHERE feedback_request_sent_at IS NULL` before invoking
+// send-oh-feedback-request. A retry can no longer double-notify.
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
@@ -90,22 +98,35 @@ serve(async (req) => {
         (ohAny.agent_email || '').trim() &&
         hoursOut >= 0.25 && hoursOut < 1.75
       ) {
-        try {
-          const res = await fetch(
-            `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-oh-feedback-request`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`,
-                'Content-Type': 'application/json',
+        // H4: claim feedback_request_sent_at FIRST so a retry can't double-fire.
+        const { data: claimed, error: claimErr } = await supabase
+          .from('open_houses')
+          .update({ feedback_request_sent_at: new Date().toISOString() })
+          .eq('id', oh.id)
+          .is('feedback_request_sent_at', null)
+          .select('id')
+
+        if (claimErr) {
+          console.error(`feedback-request claim failed for ${oh.id}:`, claimErr.message)
+        } else if (claimed && claimed.length > 0) {
+          try {
+            const res = await fetch(
+              `${Deno.env.get('SUPABASE_URL')}/functions/v1/send-oh-feedback-request`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ open_house_id: oh.id }),
               },
-              body: JSON.stringify({ open_house_id: oh.id }),
-            },
-          )
-          if (res.ok) feedbackFired.push(oh.id)
-          else console.error(`feedback-request invoke failed for ${oh.id}:`, await res.text())
-        } catch (e) {
-          console.error(`feedback-request invoke errored for ${oh.id}:`, e)
+            )
+            if (res.ok) feedbackFired.push(oh.id)
+            else console.error(`feedback-request invoke failed for ${oh.id}:`, await res.text())
+          } catch (e) {
+            console.error(`feedback-request invoke errored for ${oh.id}:`, e)
+            // Flag is already set — accept the missed call rather than retry-storm.
+          }
         }
       }
 
@@ -114,6 +135,19 @@ serve(async (req) => {
       for (const w of WINDOWS) {
         if (already.has(w.key)) continue
         if (hoursOut < w.minHoursOut || hoursOut >= w.maxHoursOut) continue
+
+        // H4: claim the window via SECURITY DEFINER RPC. Returns true iff
+        // this caller was the one to append the window key — concurrent
+        // workers see false and skip.
+        const { data: won, error: claimErr } = await supabase.rpc(
+          'claim_oh_reminder_window',
+          { p_oh_id: oh.id, p_window: w.key },
+        )
+        if (claimErr) {
+          console.error(`Failed to claim window ${w.key} for ${oh.id}:`, claimErr.message)
+          continue
+        }
+        if (!won) continue
 
         // Build notification body.
         const dateLabel = new Date(oh.date + 'T12:00:00').toLocaleDateString('en-US', {
@@ -150,18 +184,10 @@ serve(async (req) => {
           })
 
         if (notifErr) {
+          // Window flag is already set — accept the missed bell ping rather
+          // than retry-storm. Surfaces in the cron output for visibility.
           console.error(`Failed to insert oh_reminder for ${oh.id}/${w.key}:`, notifErr)
           continue
-        }
-
-        // Mark this window as fired so we don't repeat.
-        const nextSent = Array.from(new Set([...(oh.reminders_sent || []), w.key]))
-        const { error: updErr } = await supabase
-          .from('open_houses')
-          .update({ reminders_sent: nextSent })
-          .eq('id', oh.id)
-        if (updErr) {
-          console.error(`Failed to mark reminders_sent for ${oh.id}:`, updErr)
         }
 
         firedCount++

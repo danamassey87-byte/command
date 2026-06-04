@@ -8,6 +8,13 @@
 // alerts so multiple firings in a single day don't spam — and so a deadline
 // missed yesterday + un-flagged still gets its missed alert today.
 //
+// H4 from SECURITY_AUDIT_PUNCHLIST: the previous "insert notification → set
+// flag" pattern was racy. If the cron timed out mid-loop or the flag UPDATE
+// failed, the next daily run would re-insert. Now we flip the flag FIRST
+// with `WHERE <flag> = false` (Postgres row-locks the UPDATE; second caller
+// affects 0 rows) and only insert the notification on win. A missed
+// notification is preferable to a duplicate.
+//
 // Returns:
 //   { checked: <number>, alerts: { 7d, 3d, 1d, missed }, errors: [] }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -136,7 +143,29 @@ serve(async (req) => {
           '7d':   `${label} — deadline ${d.calendar_date}.${d.responsible_party ? ' Owner: ' + d.responsible_party + '.' : ''}`,
         }
 
-        // Insert the notification.
+        // H4: flip the flag FIRST. WHERE <flag>=false makes the UPDATE a
+        // claim — Postgres row-locks during UPDATE, so a concurrent or
+        // retried call sees the post-commit state and affects 0 rows.
+        const patch: Record<string, boolean> = { [flagCol as string]: true }
+        const { data: claimed, error: claimErr } = await supabase
+          .from('transaction_deadlines')
+          .update(patch)
+          .eq('id', d.id)
+          .eq(flagCol as string, false)
+          .select('id')
+
+        if (claimErr) {
+          results.errors.push(`${d.id}: flag → ${claimErr.message}`)
+          continue
+        }
+        if (!claimed || claimed.length === 0) {
+          // Already claimed by another run. Nothing to do.
+          continue
+        }
+
+        // Insert the notification. If this fails, the flag stays set and we
+        // accept the missed bell ping — a future retry would re-fire which
+        // is worse than a single missed alert.
         const { error: notifErr } = await supabase
           .from('notifications')
           .insert({
@@ -158,19 +187,6 @@ serve(async (req) => {
 
         if (notifErr) {
           results.errors.push(`${d.id}: notify → ${notifErr.message}`)
-          continue
-        }
-
-        // Mark the dedup flag so this alert never fires twice.
-        const patch: Record<string, boolean> = {}
-        patch[flagCol as string] = true
-        const { error: updErr } = await supabase
-          .from('transaction_deadlines')
-          .update(patch)
-          .eq('id', d.id)
-
-        if (updErr) {
-          results.errors.push(`${d.id}: flag → ${updErr.message}`)
           continue
         }
 

@@ -6,6 +6,18 @@
 //   4. Day-before briefing email (morning before OH)
 //
 // Schedule: run every 15 minutes via pg_cron or external cron.
+//
+// Reliability fixes from SECURITY_AUDIT_PUNCHLIST.md:
+//   • H3 — date math now appends `-07:00` (Arizona is no-DST). Without this,
+//     `new Date('2026-06-04T16:00:00')` is parsed as UTC and the 4 PM Phoenix
+//     OH appears to end at 9 AM local → follow-up fires before the OH even
+//     starts.
+//   • H4 — flag-then-send pattern. Each section claims the OH atomically
+//     (UPDATE … SET flag=now() WHERE id=… AND flag IS NULL RETURNING id) and
+//     only sends if the UPDATE returned 1 row. A retry after a transient
+//     failure can no longer double-fire because the flag is already set.
+//     Each per-OH iteration is wrapped in try/catch so one bad recipient
+//     doesn't abort the batch (also addressed H10 from the audit).
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
@@ -35,7 +47,12 @@ serve(async (req) => {
     reminders_sent: 0,
     escalations_sent: 0,
     briefings_sent: 0,
+    errors: [] as Array<{ section: string; oh_id?: string; error: string }>,
   }
+
+  // Arizona doesn't observe DST so the offset is constant year-round. (One day
+  // this becomes a per-user setting; until then it's a constant.)
+  const AZ_OFFSET = '-07:00'
 
   // Load notification preferences (defaults to all on)
   let notifPrefs: Record<string, boolean> = {
@@ -79,11 +96,29 @@ serve(async (req) => {
 
     for (const oh of recentOHs ?? []) {
       if (!oh.end_time) continue
-      const endDateTime = new Date(`${oh.date}T${oh.end_time}`)
+      // H3: explicit Phoenix offset — without this, Deno parses the bare
+      // datetime as UTC and a 4 PM AZ OH appears to end at 9 AM local.
+      const endDateTime = new Date(`${oh.date}T${oh.end_time}${AZ_OFFSET}`)
       const minutesSinceEnd = (now.getTime() - endDateTime.getTime()) / 60000
 
-      if (minutesSinceEnd >= 30 && minutesSinceEnd < 120) {
-        // Send post-OH follow-up email
+      if (minutesSinceEnd < 30 || minutesSinceEnd >= 120) continue
+
+      // H4: claim the OH atomically. UPDATE … WHERE followup_sent_at IS NULL
+      // returns 0 rows if another worker (or a previous retry that succeeded
+      // mid-flight) already claimed it.
+      const { data: claimed, error: claimErr } = await db
+        .from('open_houses')
+        .update({ followup_sent_at: now.toISOString(), status: 'completed' })
+        .eq('id', oh.id)
+        .is('followup_sent_at', null)
+        .select('id')
+      if (claimErr) {
+        results.errors.push({ section: 'followup', oh_id: oh.id, error: claimErr.message })
+        continue
+      }
+      if (!claimed || claimed.length === 0) continue
+
+      try {
         const address = oh.property?.address ?? 'the property'
         const recipientEmail = oh.agent_email || DANA_EMAIL
         const recipientName = oh.agent_name || 'Dana'
@@ -116,7 +151,6 @@ serve(async (req) => {
           })
         }
 
-        // Also send to Dana if someone else hosted
         if (oh.agent_email && oh.agent_email !== DANA_EMAIL && resendKey) {
           await fetch(RESEND_API, {
             method: 'POST',
@@ -137,7 +171,6 @@ serve(async (req) => {
           })
         }
 
-        // In-app notification
         await notify(
           'oh_followup_sent',
           `Follow-up sent — ${address}`,
@@ -146,13 +179,12 @@ serve(async (req) => {
           oh.id
         )
 
-        // Mark follow-up as sent + update status
-        await db.from('open_houses').update({
-          followup_sent_at: now.toISOString(),
-          status: 'completed',
-        }).eq('id', oh.id)
-
         results.followups_sent++
+      } catch (err: any) {
+        // Flag is already set — accept the loss rather than retry. A missed
+        // notification is preferable to two emails to the host.
+        console.error('[oh-followup] section 1 per-OH error:', err?.message || err)
+        results.errors.push({ section: 'followup', oh_id: oh.id, error: err?.message || String(err) })
       }
     }
 
@@ -168,16 +200,30 @@ serve(async (req) => {
       .not('agent_email', 'is', null)
       .is('reminder_sent_at', null)
 
-    // Check which OHs have host reports
     for (const oh of unreportedOHs ?? []) {
-      const { data: reports } = await db
-        .from('host_reports')
-        .select('id')
-        .eq('listing_id', oh.listing_id)
-        .eq('oh_date', oh.date)
-        .limit(1)
+      try {
+        const { data: reports } = await db
+          .from('host_reports')
+          .select('id')
+          .eq('listing_id', oh.listing_id)
+          .eq('oh_date', oh.date)
+          .limit(1)
 
-      if (!reports?.length && resendKey && oh.agent_email) {
+        if (reports?.length || !resendKey || !oh.agent_email) continue
+
+        // H4: claim before send.
+        const { data: claimed, error: claimErr } = await db
+          .from('open_houses')
+          .update({ reminder_sent_at: now.toISOString() })
+          .eq('id', oh.id)
+          .is('reminder_sent_at', null)
+          .select('id')
+        if (claimErr) {
+          results.errors.push({ section: 'reminder', oh_id: oh.id, error: claimErr.message })
+          continue
+        }
+        if (!claimed || claimed.length === 0) continue
+
         const address = oh.property?.address ?? 'the property'
         await fetch(RESEND_API, {
           method: 'POST',
@@ -206,11 +252,10 @@ serve(async (req) => {
           oh.id
         )
 
-        await db.from('open_houses').update({
-          reminder_sent_at: now.toISOString(),
-        }).eq('id', oh.id)
-
         results.reminders_sent++
+      } catch (err: any) {
+        console.error('[oh-followup] section 2 per-OH error:', err?.message || err)
+        results.errors.push({ section: 'reminder', oh_id: oh.id, error: err?.message || String(err) })
       }
     }
 
@@ -227,15 +272,29 @@ serve(async (req) => {
       .not('agent_name', 'is', null)
 
     for (const oh of escalationOHs ?? []) {
-      // Check if report still missing
-      const { data: reports } = await db
-        .from('host_reports')
-        .select('id')
-        .eq('listing_id', oh.listing_id)
-        .eq('oh_date', oh.date)
-        .limit(1)
+      try {
+        const { data: reports } = await db
+          .from('host_reports')
+          .select('id')
+          .eq('listing_id', oh.listing_id)
+          .eq('oh_date', oh.date)
+          .limit(1)
 
-      if (!reports?.length) {
+        if (reports?.length) continue
+
+        // H4: claim before notifying.
+        const { data: claimed, error: claimErr } = await db
+          .from('open_houses')
+          .update({ escalation_sent_at: now.toISOString() })
+          .eq('id', oh.id)
+          .is('escalation_sent_at', null)
+          .select('id')
+        if (claimErr) {
+          results.errors.push({ section: 'escalation', oh_id: oh.id, error: claimErr.message })
+          continue
+        }
+        if (!claimed || claimed.length === 0) continue
+
         await notify(
           'oh_report_overdue',
           `Host report overdue — ${oh.property?.address ?? 'OH'}`,
@@ -244,11 +303,10 @@ serve(async (req) => {
           oh.id
         )
 
-        await db.from('open_houses').update({
-          escalation_sent_at: now.toISOString(),
-        }).eq('id', oh.id)
-
         results.escalations_sent++
+      } catch (err: any) {
+        console.error('[oh-followup] section 3 per-OH error:', err?.message || err)
+        results.errors.push({ section: 'escalation', oh_id: oh.id, error: err?.message || String(err) })
       }
     }
 
@@ -265,55 +323,67 @@ serve(async (req) => {
         .is('briefing_sent_at', null)
 
       for (const oh of tomorrowOHs ?? []) {
-        // Only send if there's a hosting agent (briefing for them)
         if (!oh.agent_email) continue
+        try {
+          // H4: claim before send.
+          const { data: claimed, error: claimErr } = await db
+            .from('open_houses')
+            .update({ briefing_sent_at: now.toISOString() })
+            .eq('id', oh.id)
+            .is('briefing_sent_at', null)
+            .select('id')
+          if (claimErr) {
+            results.errors.push({ section: 'briefing', oh_id: oh.id, error: claimErr.message })
+            continue
+          }
+          if (!claimed || claimed.length === 0) continue
 
-        const address = oh.property?.address ?? 'the property'
-        const city = oh.property?.city ?? ''
+          const address = oh.property?.address ?? 'the property'
+          const city = oh.property?.city ?? ''
 
-        if (resendKey) {
-          await fetch(RESEND_API, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              from: FROM_EMAIL,
-              to: [oh.agent_email],
-              subject: `Tomorrow's Open House Briefing — ${address}`,
-              html: `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px;">
-                  <h2 style="color: #524136;">Open House Briefing</h2>
-                  <p>Hi ${oh.agent_name || 'there'},</p>
-                  <p>Here's your briefing for tomorrow's open house:</p>
-                  <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
-                    <tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600; width: 120px;">Address</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${address}${city ? `, ${city}` : ''}</td></tr>
-                    <tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Date</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${oh.date}</td></tr>
-                    <tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Time</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${oh.start_time || '—'} – ${oh.end_time || '—'}</td></tr>
-                    ${oh.listing_agent ? `<tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Listing Agent</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${oh.listing_agent}</td></tr>` : ''}
-                    ${oh.community ? `<tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Community</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${oh.community}</td></tr>` : ''}
-                  </table>
-                  ${oh.notes ? `<p><strong>Notes:</strong> ${oh.notes}</p>` : ''}
-                  <p>Please arrive at least 15 minutes early. After the open house, you'll receive a link to submit your host report.</p>
-                  <p>Thanks for hosting!</p>
-                  <p style="color: #6b7280; font-size: 0.85rem;">— Dana Massey, REAL Broker</p>
-                </div>
-              `,
-            }),
-          })
+          if (resendKey) {
+            await fetch(RESEND_API, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                from: FROM_EMAIL,
+                to: [oh.agent_email],
+                subject: `Tomorrow's Open House Briefing — ${address}`,
+                html: `
+                  <div style="font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 600px;">
+                    <h2 style="color: #524136;">Open House Briefing</h2>
+                    <p>Hi ${oh.agent_name || 'there'},</p>
+                    <p>Here's your briefing for tomorrow's open house:</p>
+                    <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+                      <tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600; width: 120px;">Address</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${address}${city ? `, ${city}` : ''}</td></tr>
+                      <tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Date</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${oh.date}</td></tr>
+                      <tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Time</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${oh.start_time || '—'} – ${oh.end_time || '—'}</td></tr>
+                      ${oh.listing_agent ? `<tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Listing Agent</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${oh.listing_agent}</td></tr>` : ''}
+                      ${oh.community ? `<tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; font-weight: 600;">Community</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${oh.community}</td></tr>` : ''}
+                    </table>
+                    ${oh.notes ? `<p><strong>Notes:</strong> ${oh.notes}</p>` : ''}
+                    <p>Please arrive at least 15 minutes early. After the open house, you'll receive a link to submit your host report.</p>
+                    <p>Thanks for hosting!</p>
+                    <p style="color: #6b7280; font-size: 0.85rem;">— Dana Massey, REAL Broker</p>
+                  </div>
+                `,
+              }),
+            })
+          }
+
+          await notify(
+            'oh_briefing_sent',
+            `Briefing sent — ${address}`,
+            `Day-before briefing email sent to ${oh.agent_name || 'hosting agent'} for tomorrow's open house`,
+            '/open-houses',
+            oh.id
+          )
+
+          results.briefings_sent++
+        } catch (err: any) {
+          console.error('[oh-followup] section 4 per-OH error:', err?.message || err)
+          results.errors.push({ section: 'briefing', oh_id: oh.id, error: err?.message || String(err) })
         }
-
-        await notify(
-          'oh_briefing_sent',
-          `Briefing sent — ${address}`,
-          `Day-before briefing email sent to ${oh.agent_name || 'hosting agent'} for tomorrow's open house`,
-          '/open-houses',
-          oh.id
-        )
-
-        await db.from('open_houses').update({
-          briefing_sent_at: now.toISOString(),
-        }).eq('id', oh.id)
-
-        results.briefings_sent++
       }
     }
 

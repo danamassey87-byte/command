@@ -89,7 +89,8 @@
 - **Risk:** UUIDs are not secrets (they're in emails, browser history, kiosk URLs). Replay attacks can overwrite feedback, spam hosting agents, pollute CRM.
 - **Fix:** Mint per-row HMAC `submit_token` at row creation; embed in email/URL; verify on POST with `crypto.timingSafeEqual`. Also enforce state machine (`status === 'requested'`, `merged_at IS NULL`).
 
-### [ ] C7. `send-one-off-email` is a public phishing kit (DKIM-signed danamassey.com)
+### [ ] C7. `send-one-off-email` is a public phishing kit (DKIM-signed danamassey.com) — DEFERRED
+> Inspected 2026-06-04. The audit-recommended fix is "verify user JWT server-side" but no Auth is wired yet. Service-role-only (C2/C8 pattern) would break every one-off email surface (SendEmailModal, OneOffEmailComposer, ClosingRecapModal, ListingEmailBlastModal, supabase.js bulk send) — too much UI surface to break for half-measures since the frontend already passes the publishable key via supabase.functions.invoke(). Origin allowlist + CRLF strip alone is theater (Origin is client-set). Real fix lands as part of [[project_auth_queued]]: once user JWT auth ships, add `db.auth.getUser(token)` check + enforce contact_id-derived `to_email` server-side + CRLF strip subject + cap HTML size.
 - **File:** `supabase/functions/send-one-off-email/index.ts:55-95`
 - **Exploit:** `curl ...-d '{"to_email":"victim@bigco.com","subject":"Wire instructions","html":"<a href=evil.tld>click</a>"}'` sends mail as Dana.
 - **Fix:** Require user JWT (verify with `SUPABASE_JWT_SECRET`). Enforce `to_email` belongs to a contact the caller owns (look up via `contact_id`). Strip CRLF from subject.
@@ -165,7 +166,8 @@
     return new Response('forbidden', { status: 403 })
   ```
 
-### [ ] C14. `staging-photos` and `canva-exports` storage buckets are public
+### [ ] C14. `staging-photos` and `canva-exports` storage buckets are public — PARTIALLY MITIGATED, FULL FIX DEFERRED
+> Inspected 2026-06-04. **Live state:** `staging-photos` is `public=true` with `{public}` roles on SELECT/INSERT/DELETE policies — open writes are real abuse vector. `canva-exports` is `public=true` with **no policies** (default-deny on writes for non-service-role; reads bypass via bucket-public). `voice-clips` (created 2026-05-18, post-audit) is `public=true` with no policies — needed publicly for Remotion Lambda render per video/src/lib/fetchListing.ts:8 comment. **Mitigation present:** upload paths use random suffixes (`${listingId}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.ext` — supabase.js:1927/1949/2054), so URL enumeration isn't practical. **Real fix requires Auth:** tightening INSERT/DELETE to `authenticated` role breaks the frontend's anon-key upload path. The clean path is (a) route all uploads through an edge function (`upload-photo` that uses service-role) + (b) flip buckets to private + (c) lazily regenerate signed URLs at render time. Each is multi-file. Bumped to post-Auth queue.
 - **Files:** `supabase/migrations/20260507_virtual_staging.sql:31-48`, `supabase/migrations/20260514_canva_exports_bucket.sql:7-18`
 - **Risk:** Predictable filenames + public bucket = competitors scrape pre-staging interior photos. Draft Canva flyers indexable.
 - **Fix:** Set `public = false`. Generate 1-hour signed URLs server-side for public website. Gate INSERT/DELETE on `auth.role() = 'authenticated'`.
@@ -188,11 +190,13 @@
 - **File:** `supabase/functions/merge-oh-signin/index.ts:60-83, 111-134`
 - **Fix:** `CREATE UNIQUE INDEX ON contacts(email_normalized) WHERE deleted_at IS NULL;` and switch creates to `ON CONFLICT (email_normalized) DO UPDATE`.
 
-### [ ] H3. `oh-followup` timezone bug — emails fire 7 hours early (UTC parse)
+### [x] H3. `oh-followup` timezone bug — emails fire 7 hours early (UTC parse) ✅ 2026-06-04
+> Shipped: `new Date(\`${oh.date}T${oh.end_time}${AZ_OFFSET}\`)` with `AZ_OFFSET = '-07:00'`. Arizona doesn't observe DST so offset is constant. Edge fn needs redeploy: `supabase functions deploy oh-followup`.
 - **File:** `supabase/functions/oh-followup/index.ts:82`
 - **Fix:** `new Date(\`${oh.date}T${oh.end_time}-07:00\`)`. Centralize a `combineDateTime` helper.
 
-### [ ] H4. Send-then-flag pattern in `oh-followup` / `oh-reminders` / `transaction-deadline-check` — retries double-send
+### [x] H4. Send-then-flag pattern in `oh-followup` / `oh-reminders` / `transaction-deadline-check` — retries double-send ✅ 2026-06-04
+> Shipped across all three crons: flag claimed FIRST (via `UPDATE … WHERE flag IS NULL` for boolean/timestamp columns, or via new SECURITY DEFINER RPC `claim_oh_reminder_window(p_oh_id, p_window)` for the `reminders_sent text[]` array). Per-OH iteration wrapped in try/catch so one bad recipient doesn't abort the batch. New `supabase/migrations/20260604_oh_reminder_claim.sql` adds the array-claim RPC (applied via MCP). Edge fns need redeploy: `supabase functions deploy oh-followup oh-reminders transaction-deadline-check`. **Tradeoff documented:** if Resend fails after the flag is claimed, the bell ping is missed but the email won't double-fire on retry — preferable to the current "double-email under retry" behavior.
 - **Files:**
   - `supabase/functions/oh-followup/index.ts:73-318`
   - `supabase/functions/oh-reminders/index.ts:140-165`
