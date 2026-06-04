@@ -60,9 +60,15 @@ export default function OHSignIn() {
     if (!openHouseId) return
     ;(async () => {
       try {
+        // H9: explicit column list. Previously `*, property:properties(*)`
+        // returned every internal column (lockbox_code, agent_email, host
+        // phone, primary_signin_source, briefing_sent_at, reminders_sent,
+        // and any new column added in future) to the public kiosk page.
+        // The kiosk only renders date/time + property summary; tightening to
+        // exactly those fields stops schema drift from leaking new data.
         const { data: ohData, error: ohErr } = await supabase
           .from('open_houses')
-          .select('*, property:properties(*)')
+          .select('id, date, start_time, end_time, sign_in_config, property:properties(address, city, bedrooms, bathrooms, sqft)')
           .eq('id', openHouseId)
           .single()
 
@@ -74,10 +80,12 @@ export default function OHSignIn() {
         setOh(ohData)
         setProperty(ohData.property)
 
-        // Get current sign-in count
+        // Get current sign-in count (head:true means no rows returned —
+        // just the count. H9: explicit `id` instead of `*` so we never
+        // accidentally return PII columns even with head:true.)
         const { count } = await supabase
           .from('oh_sign_ins')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('open_house_id', openHouseId)
         setSignInCount(count || 0)
       } catch (err) {

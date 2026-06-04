@@ -226,7 +226,8 @@
 - **File:** `supabase/functions/gmail-showing-monitor/index.ts:217-249, 670-686`
 - **Fix:** `escHtml` on every interpolated field. Wrap email body in `<email>…</email>` and tell Claude to treat content as data.
 
-### [ ] H9. Public OH endpoints `SELECT *` — new internal columns leak silently as schema grows
+### [x] H9. Public OH endpoints `SELECT *` — new internal columns leak silently as schema grows ✅ 2026-06-04
+> Shipped: explicit column allowlists in all three public pages. `OHSignIn.jsx`: `id, date, start_time, end_time, sign_in_config, property:properties(address, city, bedrooms, bathrooms, sqft)` (was `*, property:properties(*)`). `OHFeedback.jsx`: oh_feedback → `id, status, open_house_id, hosting_agent_name`; open_houses → `id, date, start_time, end_time, property:properties(address, city)`. `PropertyWebsite.jsx`: `id, price, property:properties(id, address, city, state, bedrooms, bathrooms, sqft, hero_video_url, price, description, notes, latitude, longitude)`. Also tightened the `select('*', {head:true})` count in OHSignIn to `select('id', ...)`. Internal fields like `lockbox_code`, `agent_email`, `primary_signin_source`, `briefing_sent_at`, `reminders_sent`, `agreement_signed_date`, `commission_pct`, and any future-added columns no longer reach the public renderer. Build green.
 - **Files:** `frontend/src/pages/OHSignIn/OHSignIn.jsx:63-67`, `frontend/src/pages/OHFeedback/OHFeedback.jsx:48-66`, `frontend/src/pages/PropertyWebsite/PropertyWebsite.jsx:51-66`
 - **Fix:** Tighten to exact column lists. Create a `public_property_summary` view exposing only safe columns; grant SELECT to anon.
 

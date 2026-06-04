@@ -48,9 +48,15 @@ export default function PropertyWebsite() {
     if (!listingId) return
     ;(async () => {
       try {
+        // H9: explicit column allowlist. Previously `*, property:properties(*)`
+        // surfaced every column on listings + properties to the public
+        // marketing page (owner_phone, seller_notes, agreement_signed_date,
+        // commission_pct, etc. would leak as those columns get added). The
+        // public marketing page only needs price + the public property
+        // summary; anything else gets dropped.
         const { data: l, error } = await supabase
           .from('listings')
-          .select('*, property:properties(*)')
+          .select('id, price, property:properties(id, address, city, state, bedrooms, bathrooms, sqft, hero_video_url, price, description, notes, latitude, longitude)')
           .eq('id', listingId)
           .single()
         if (error || !l) { setLoadError('Listing not found'); return }

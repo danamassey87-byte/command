@@ -45,9 +45,15 @@ export default function OHFeedback() {
     if (!feedbackId) return
     ;(async () => {
       try {
+        // H9: explicit column lists. The public feedback page only needs
+        // status (to show the "already submitted" banner), open_house_id
+        // (to fetch OH info), and hosting_agent_name (greeting). Without
+        // tightening, every future internal column on oh_feedback (like the
+        // hosting agent's email or internal status timeline) would leak to
+        // the public URL.
         const { data: fbData, error: fbErr } = await supabase
           .from('oh_feedback')
-          .select('*')
+          .select('id, status, open_house_id, hosting_agent_name')
           .eq('id', feedbackId)
           .single()
         if (fbErr || !fbData) {
@@ -61,7 +67,7 @@ export default function OHFeedback() {
 
         const { data: ohData } = await supabase
           .from('open_houses')
-          .select('*, property:properties(*)')
+          .select('id, date, start_time, end_time, property:properties(address, city)')
           .eq('id', fbData.open_house_id)
           .single()
         if (ohData) {
