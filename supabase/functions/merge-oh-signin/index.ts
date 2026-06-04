@@ -60,37 +60,45 @@ serve(async (req) => {
     // Try to find existing contact by normalized email or phone (so formatting differences don't create dupes)
     const normEmail = email || null
     const normPhone = phone ? phone.replace(/[^0-9]/g, '') : null
-    let existingContact = null
-    if (normEmail) {
-      const { data } = await supabase
-        .from('contacts')
-        .select('id')
-        .eq('email_normalized', normEmail)
-        .is('deleted_at', null)
-        .limit(1)
-        .maybeSingle()
-      if (data) existingContact = data
-    }
-    if (!existingContact && normPhone) {
-      const { data } = await supabase
-        .from('contacts')
-        .select('id')
-        .eq('phone_normalized', normPhone)
-        .is('deleted_at', null)
-        .limit(1)
-        .maybeSingle()
-      if (data) existingContact = data
+
+    // Race-safe lookup helper: re-used both for the pre-insert SELECT and
+    // for the post-INSERT-conflict recovery path (H2). The partial unique
+    // indexes contacts_email_normalized_uniq + contacts_phone_normalized_uniq
+    // (added 2026-06-04) are the actual race primitive — without recovery,
+    // a concurrent sign-in for the same email would surface a 500 to the
+    // kiosk.
+    async function findExistingContact(): Promise<{ id: string } | null> {
+      if (normEmail) {
+        const { data } = await supabase
+          .from('contacts')
+          .select('id')
+          .eq('email_normalized', normEmail)
+          .is('deleted_at', null)
+          .limit(1)
+          .maybeSingle()
+        if (data) return data
+      }
+      if (normPhone) {
+        const { data } = await supabase
+          .from('contacts')
+          .select('id')
+          .eq('phone_normalized', normPhone)
+          .is('deleted_at', null)
+          .limit(1)
+          .maybeSingle()
+        if (data) return data
+      }
+      return null
     }
 
-    let contactId: string
+    let existingContact = await findExistingContact()
 
-    if (existingContact) {
-      // Update existing contact with OH tag
-      contactId = existingContact.id
+    // Helper: merge OH tags + optional phone into an existing contact.
+    async function tagExistingContact(targetId: string) {
       const { data: contact } = await supabase
         .from('contacts')
-        .select('tags')
-        .eq('id', contactId)
+        .select('tags, phone')
+        .eq('id', targetId)
         .single()
 
       const existingTags: string[] = contact?.tags || []
@@ -107,9 +115,20 @@ serve(async (req) => {
           updated_at: now,
           ...(signIn.phone && !contact?.phone ? { phone: signIn.phone } : {}),
         })
-        .eq('id', contactId)
+        .eq('id', targetId)
+    }
+
+    let contactId: string
+
+    if (existingContact) {
+      contactId = existingContact.id
+      await tagExistingContact(contactId)
     } else {
-      // Create new contact
+      // Create new contact. H2: if a concurrent kiosk sign-in already
+      // inserted the same email_normalized / phone_normalized, the partial
+      // unique indexes raise SQLSTATE 23505. We catch and re-find the row
+      // the other instance wrote, then tag it like the existing-contact
+      // branch.
       const contactData = {
         first_name: signIn.first_name,
         last_name: signIn.last_name,
@@ -134,13 +153,30 @@ serve(async (req) => {
         .single()
 
       if (createErr) {
-        return new Response(
-          JSON.stringify({ error: 'Failed to create contact', detail: createErr.message }),
-          { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } }
-        )
+        // Did we lose the race to a concurrent sign-in?
+        const looksLikeUnique = createErr.code === '23505'
+          || /duplicate key|unique/i.test(createErr.message || '')
+        if (looksLikeUnique) {
+          const recovered = await findExistingContact()
+          if (recovered) {
+            contactId = recovered.id
+            await tagExistingContact(contactId)
+          } else {
+            // Unique violation but we can't find the row — schema drift?
+            return new Response(
+              JSON.stringify({ error: 'Conflict but no matching contact', detail: createErr.message }),
+              { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } }
+            )
+          }
+        } else {
+          return new Response(
+            JSON.stringify({ error: 'Failed to create contact', detail: createErr.message }),
+            { status: 500, headers: { ...CORS, 'Content-Type': 'application/json' } }
+          )
+        }
+      } else {
+        contactId = newContact.id
       }
-
-      contactId = newContact.id
     }
 
     // Link sign-in to contact

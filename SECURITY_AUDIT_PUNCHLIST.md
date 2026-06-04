@@ -188,7 +188,8 @@
 - **Missing tables (contacts):** `social_profiles`, `family_links`, `life_events`, `referrals`, `lead_attributions`, `referral_fees`, `oh_feedback`, `interactions`, …
 - **Fix:** SECURITY DEFINER RPC `merge_properties(keep_id, dupe_ids[])` deriving FK list from `information_schema.referential_constraints`, wrapped in one transaction.
 
-### [ ] H2. `merge-oh-signin` race on dedupe — duplicate contacts on double-tap
+### [x] H2. `merge-oh-signin` race on dedupe — duplicate contacts on double-tap ✅ 2026-06-04
+> Shipped: `supabase/migrations/20260604_contacts_unique_normalized.sql` adds partial unique indexes on `contacts(email_normalized) WHERE deleted_at IS NULL AND email_normalized IS NOT NULL` and same for `phone_normalized`. Verified 0 existing duplicates before apply. `merge-oh-signin/index.ts` extracted `findExistingContact()` + `tagExistingContact()` helpers; on INSERT failure with SQLSTATE 23505 (or "duplicate/unique" in message), re-fetches the row the other instance wrote and falls through the tag-existing path. Concurrent kiosk sign-ins / double-taps now converge to one contact. **Migration applied via MCP 2026-06-04.** Edge fn needs redeploy: `supabase functions deploy merge-oh-signin`.
 - **File:** `supabase/functions/merge-oh-signin/index.ts:60-83, 111-134`
 - **Fix:** `CREATE UNIQUE INDEX ON contacts(email_normalized) WHERE deleted_at IS NULL;` and switch creates to `ON CONFLICT (email_normalized) DO UPDATE`.
 
