@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Card, Button, Badge, Input, Select, Textarea, TabBar, SlidePanel, EmptyState, SectionHeader } from '../../components/ui'
 import { useContacts, useContactsWithTags, useTags } from '../../lib/hooks'
 import { useBrandSignature } from '../../lib/BrandContext'
@@ -1404,7 +1404,6 @@ function EmailTemplatePicker({ currentTemplate, onSelect, onClear }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 function EmailPreviewInline({ blocks, settings, vars, body, sig }) {
   const [expanded, setExpanded] = useState(false)
-  const previewRef = useRef(null)
 
   const filledBlocks = (blocks || []).map(b => {
     if (b.type === 'text' && !b.content && body) return { ...b, content: body }
@@ -1427,7 +1426,14 @@ function EmailPreviewInline({ blocks, settings, vars, body, sig }) {
       </button>
       {expanded && (
         <div className="sc-email-preview__frame">
-          <div ref={previewRef} dangerouslySetInnerHTML={{ __html: html }} />
+          {/* Sandboxed iframe: scripts in `html` (e.g. from an unescaped contact
+              name) cannot reach the parent's origin or session storage. */}
+          <iframe
+            title="Campaign email preview"
+            sandbox=""
+            srcDoc={html}
+            style={{ width: '100%', minHeight: 480, border: 0, background: '#fff' }}
+          />
         </div>
       )}
     </div>

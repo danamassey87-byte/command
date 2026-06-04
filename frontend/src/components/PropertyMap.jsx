@@ -162,17 +162,53 @@ export default function PropertyMap({
       const gmapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(prop.address + cityStr + ', AZ')}`
 
       marker.addListener('click', () => {
-        infoRef.current.setContent(`
-          <div class="pmap-info">
-            <p class="pmap-info__address">${prop.address}${cityStr}</p>
-            ${priceStr ? `<p class="pmap-info__price">${priceStr}</p>` : ''}
-            ${typeLabel ? `<p class="pmap-info__detail">${typeLabel}</p>` : ''}
-            <div class="pmap-info__actions">
-              <a class="pmap-info__link" href="${gmapsLink}" target="_blank" rel="noopener">Open in Maps</a>
-              <a class="pmap-info__link" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${pos.lat},${pos.lng}" target="_blank" rel="noopener">Street View</a>
-            </div>
-          </div>
-        `)
+        // Build the InfoWindow as DOM nodes so prop.address / prop.city / etc.
+        // never reach an HTML parser — a malicious address from an upstream
+        // ingest (e.g. Lofty webhook) can't inject script into the public
+        // property-website page.
+        const wrap = document.createElement('div')
+        wrap.className = 'pmap-info'
+
+        const addrEl = document.createElement('p')
+        addrEl.className = 'pmap-info__address'
+        addrEl.textContent = `${prop.address}${cityStr}`
+        wrap.appendChild(addrEl)
+
+        if (priceStr) {
+          const priceEl = document.createElement('p')
+          priceEl.className = 'pmap-info__price'
+          priceEl.textContent = priceStr
+          wrap.appendChild(priceEl)
+        }
+        if (typeLabel) {
+          const typeEl = document.createElement('p')
+          typeEl.className = 'pmap-info__detail'
+          typeEl.textContent = typeLabel
+          wrap.appendChild(typeEl)
+        }
+
+        const actions = document.createElement('div')
+        actions.className = 'pmap-info__actions'
+
+        const mapsLink = document.createElement('a')
+        mapsLink.className = 'pmap-info__link'
+        mapsLink.href = gmapsLink
+        mapsLink.target = '_blank'
+        mapsLink.rel = 'noopener'
+        mapsLink.textContent = 'Open in Maps'
+        actions.appendChild(mapsLink)
+
+        const svLink = document.createElement('a')
+        svLink.className = 'pmap-info__link'
+        svLink.href = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${pos.lat},${pos.lng}`
+        svLink.target = '_blank'
+        svLink.rel = 'noopener'
+        svLink.textContent = 'Street View'
+        actions.appendChild(svLink)
+
+        wrap.appendChild(actions)
+
+        infoRef.current.setContent(wrap)
         infoRef.current.open(mapInstance.current, marker)
 
         if (onMarkerClick) onMarkerClick(prop)

@@ -1,5 +1,13 @@
 // ─── Email HTML Generator ───
 // Converts Email Builder blocks to inline-styled HTML for Gmail/email clients
+//
+// XSS posture: every `block.*` field, every `vars` substitution, and every
+// `s.value/label/delta` is escaped via `escHtml` before reaching the output
+// string. Every user-supplied URL (cta href, video href, image src, logo src)
+// is run through `safeUrl` so `javascript:` / `data:` schemes can't smuggle
+// script through the preview pane or the clipboard.
+
+import { escHtml, safeUrl } from './html.js'
 
 const BRAND = {
   dark: '#3A2A1E',
@@ -24,9 +32,14 @@ export function blocksToHtml(blocks, settings = {}, vars = {}) {
   const outerBg = settings.bgColor || '#e8e4de'
   const radius = settings.borderRadius ?? 6
 
+  // Escape the template *and* each substituted value so a contact name like
+  // `<img src=x onerror=...>` injected via OH sign-in can't render as live HTML.
   const resolveVars = (text) => {
     if (!text) return ''
-    return Object.entries(vars).reduce((t, [k, v]) => t.replace(new RegExp(`\\{${k}\\}`, 'g'), v || ''), text)
+    return Object.entries(vars).reduce(
+      (t, [k, v]) => t.replace(new RegExp(`\\{${k}\\}`, 'g'), escHtml(v || '')),
+      escHtml(text),
+    )
   }
 
   const nl2br = (text) => resolveVars(text || '').replace(/\n/g, '<br/>')
@@ -36,7 +49,7 @@ export function blocksToHtml(blocks, settings = {}, vars = {}) {
       case 'header':
         return `<div style="background:${block.bgColor || BRAND.dark};color:${block.textColor || BRAND.white};padding:${block.padding ?? 28}px;text-align:center;border-radius:${block.borderRadius ?? 0}px ${block.borderRadius ?? 0}px 0 0;">
           ${block.logoUrl
-            ? `<img src="${block.logoUrl}" alt="Logo" style="max-height:48px;max-width:200px;" />`
+            ? `<img src="${escHtml(safeUrl(block.logoUrl))}" alt="Logo" style="max-height:48px;max-width:200px;" />`
             : `<p style="margin:0;font-family:${font};font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">ANTIGRAVITY REAL ESTATE</p>`
           }
         </div>`
@@ -49,7 +62,7 @@ export function blocksToHtml(blocks, settings = {}, vars = {}) {
 
       case 'cta':
         return `<div style="text-align:center;padding:8px 0;">
-          <a href="${block.url || '#'}" style="display:inline-block;background:${block.bgColor || BRAND.dark};color:${block.textColor || '#fff'};padding:${block.padding ?? 12}px ${(block.padding ?? 12) * 2.5}px;border-radius:${block.borderRadius ?? 6}px;font-family:${block.fontFamily || font};font-size:${block.fontSize || 14}px;font-weight:600;text-decoration:none;letter-spacing:0.3px;${block.borderColor ? `border:2px solid ${block.borderColor};` : ''}">${resolveVars(block.label)}</a>
+          <a href="${escHtml(safeUrl(block.url))}" style="display:inline-block;background:${block.bgColor || BRAND.dark};color:${block.textColor || '#fff'};padding:${block.padding ?? 12}px ${(block.padding ?? 12) * 2.5}px;border-radius:${block.borderRadius ?? 6}px;font-family:${block.fontFamily || font};font-size:${block.fontSize || 14}px;font-weight:600;text-decoration:none;letter-spacing:0.3px;${block.borderColor ? `border:2px solid ${block.borderColor};` : ''}">${resolveVars(block.label)}</a>
         </div>`
 
       case 'property-card':
@@ -57,7 +70,7 @@ export function blocksToHtml(blocks, settings = {}, vars = {}) {
           ${block.price ? `<p style="font-family:${font};font-size:22px;font-weight:700;color:${BRAND.dark};margin:0 0 4px;">${resolveVars(block.price)}</p>` : ''}
           ${block.address ? `<p style="font-family:${font};font-size:13px;color:${BRAND.mid};margin:0 0 8px;">${resolveVars(block.address)}</p>` : ''}
           <p style="font-family:${font};font-size:13px;color:#666;margin:0 0 8px;">
-            ${[block.beds && `${block.beds} bd`, block.baths && `${block.baths} ba`, block.sqft && `${block.sqft} sqft`].filter(Boolean).join(' &middot; ')}
+            ${[block.beds && `${escHtml(block.beds)} bd`, block.baths && `${escHtml(block.baths)} ba`, block.sqft && `${escHtml(block.sqft)} sqft`].filter(Boolean).join(' &middot; ')}
           </p>
           ${block.description ? `<p style="font-family:${font};font-size:13px;color:#555;line-height:1.5;margin:0;">${resolveVars(block.description)}</p>` : ''}
         </div>`
@@ -74,9 +87,9 @@ export function blocksToHtml(blocks, settings = {}, vars = {}) {
         return `<div style="display:flex;gap:12px;padding:12px 0;">
           ${(block.stats || []).map(s => `
             <div style="flex:1;text-align:center;background:${BRAND.cream};border-radius:${block.borderRadius ?? 8}px;padding:14px 8px;">
-              <p style="font-family:${font};font-size:20px;font-weight:700;color:${BRAND.dark};margin:0;">${s.value}</p>
-              <p style="font-family:${font};font-size:11px;color:${BRAND.mid};margin:2px 0 0;text-transform:uppercase;letter-spacing:0.5px;">${s.label}</p>
-              ${s.delta ? `<p style="font-family:${font};font-size:11px;color:#6a9e72;margin:2px 0 0;">${s.delta}</p>` : ''}
+              <p style="font-family:${font};font-size:20px;font-weight:700;color:${BRAND.dark};margin:0;">${escHtml(s.value)}</p>
+              <p style="font-family:${font};font-size:11px;color:${BRAND.mid};margin:2px 0 0;text-transform:uppercase;letter-spacing:0.5px;">${escHtml(s.label)}</p>
+              ${s.delta ? `<p style="font-family:${font};font-size:11px;color:#6a9e72;margin:2px 0 0;">${escHtml(s.delta)}</p>` : ''}
             </div>
           `).join('')}
         </div>`
@@ -85,9 +98,9 @@ export function blocksToHtml(blocks, settings = {}, vars = {}) {
         const thumb = block.thumbnailUrl
         const hasThumb = thumb && thumb.trim()
         return `<div style="text-align:center;padding:8px 0;">
-          <a href="${block.videoUrl || '#'}" target="_blank" rel="noopener noreferrer" style="display:inline-block;text-decoration:none;position:relative;width:100%;">
+          <a href="${escHtml(safeUrl(block.videoUrl))}" target="_blank" rel="noopener noreferrer" style="display:inline-block;text-decoration:none;position:relative;width:100%;">
             ${hasThumb
-              ? `<img src="${thumb}" alt="${resolveVars(block.alt || 'Video')}" style="width:100%;border-radius:${block.borderRadius ?? 8}px;display:block;" />`
+              ? `<img src="${escHtml(safeUrl(thumb))}" alt="${resolveVars(block.alt || 'Video')}" style="width:100%;border-radius:${block.borderRadius ?? 8}px;display:block;" />`
               : `<div style="background:#f0ede8;border-radius:${block.borderRadius ?? 8}px;padding:60px 20px;text-align:center;">
                   <p style="font-family:${font};font-size:14px;color:#888;margin:0;">Video thumbnail</p>
                 </div>`
@@ -107,31 +120,32 @@ export function blocksToHtml(blocks, settings = {}, vars = {}) {
         const images = block.images || []
         const filled = images.filter(u => u)
         if (!filled.length) return ''
+        const altAttr = escHtml(block.alt || '')
         if (filled.length === 1) {
-          return `<div style="padding:4px 0;"><img src="${filled[0]}" alt="${block.alt || ''}" style="width:100%;border-radius:${block.borderRadius ?? 0}px;display:block;" /></div>`
+          return `<div style="padding:4px 0;"><img src="${escHtml(safeUrl(filled[0]))}" alt="${altAttr}" style="width:100%;border-radius:${block.borderRadius ?? 0}px;display:block;" /></div>`
         }
         return `<div style="display:flex;gap:8px;padding:4px 0;">
-          ${filled.map(url => `<img src="${url}" alt="${block.alt || ''}" style="flex:1;max-width:${Math.floor(100/filled.length)}%;border-radius:${block.borderRadius ?? 0}px;object-fit:cover;" />`).join('')}
+          ${filled.map(url => `<img src="${escHtml(safeUrl(url))}" alt="${altAttr}" style="flex:1;max-width:${Math.floor(100/filled.length)}%;border-radius:${block.borderRadius ?? 0}px;object-fit:cover;" />`).join('')}
         </div>`
       }
 
       case 'signature': {
         const parts = []
-        if (block.name) parts.push(`<p style="font-family:${font};font-size:14px;font-weight:700;color:${BRAND.dark};margin:0;">${block.name}</p>`)
-        if (block.title) parts.push(`<p style="font-family:${font};font-size:12px;color:${BRAND.mid};margin:2px 0 0;">${block.title}</p>`)
-        const contacts = [block.phone, block.email, block.website].filter(Boolean)
+        if (block.name) parts.push(`<p style="font-family:${font};font-size:14px;font-weight:700;color:${BRAND.dark};margin:0;">${escHtml(block.name)}</p>`)
+        if (block.title) parts.push(`<p style="font-family:${font};font-size:12px;color:${BRAND.mid};margin:2px 0 0;">${escHtml(block.title)}</p>`)
+        const contacts = [block.phone, block.email, block.website].filter(Boolean).map(escHtml)
         if (contacts.length) {
           parts.push(`<p style="font-family:${font};font-size:12px;color:#666;margin:6px 0 0;">${contacts.join(' &middot; ')}</p>`)
         }
         const socials = []
-        if (block.instagram) socials.push(`IG: ${block.instagram}`)
-        if (block.facebook) socials.push(`FB: ${block.facebook}`)
+        if (block.instagram) socials.push(`IG: ${escHtml(block.instagram)}`)
+        if (block.facebook) socials.push(`FB: ${escHtml(block.facebook)}`)
         if (socials.length) {
           parts.push(`<p style="font-family:${font};font-size:11px;color:${BRAND.mid};margin:4px 0 0;">${socials.join(' &middot; ')}</p>`)
         }
         const logos = []
-        if (block.agentLogoUrl) logos.push(`<img src="${block.agentLogoUrl}" alt="Agent" style="max-height:40px;max-width:80px;" />`)
-        if (block.brokerageLogoUrl) logos.push(`<img src="${block.brokerageLogoUrl}" alt="Brokerage" style="max-height:32px;max-width:100px;" />`)
+        if (block.agentLogoUrl) logos.push(`<img src="${escHtml(safeUrl(block.agentLogoUrl))}" alt="Agent" style="max-height:40px;max-width:80px;" />`)
+        if (block.brokerageLogoUrl) logos.push(`<img src="${escHtml(safeUrl(block.brokerageLogoUrl))}" alt="Brokerage" style="max-height:32px;max-width:100px;" />`)
         if (logos.length) parts.unshift(`<div style="display:flex;gap:12px;align-items:center;margin-bottom:8px;">${logos.join('')}</div>`)
 
         return `<div style="border-top:1px solid ${BRAND.cream};padding-top:16px;margin-top:12px;">${parts.join('')}</div>`

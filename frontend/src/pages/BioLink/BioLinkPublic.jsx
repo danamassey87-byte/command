@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { getPublicPage, submitLead } from '../../lib/biolink'
+import { safeUrl, safeHandle } from '../../lib/html.js'
 import './BioLinkPublic.css'
 
 const BRAND = {
@@ -69,7 +70,7 @@ function ThankYou({ block, fileUrl, onDismiss }) {
         <h3 className="bpl-modal__title">Thank you!</h3>
         <p className="bpl-modal__sub">Check your email — we'll follow up shortly.</p>
         {fileUrl && (
-          <a className="bpl-download-btn" href={fileUrl} download target="_blank" rel="noopener noreferrer">
+          <a className="bpl-download-btn" href={safeUrl(fileUrl)} download target="_blank" rel="noopener noreferrer">
             Download Now
           </a>
         )}
@@ -121,7 +122,7 @@ function PublicBlock({ block, pageFont, onFormClick }) {
       outline: { ...base, background: 'transparent', color: block.bgColor, border: `2px solid ${block.bgColor}` },
       ghost: { ...base, background: 'transparent', color: block.bgColor, border: 'none', textDecoration: 'underline' },
     }
-    return <a href={block.url || '#'} style={styles[block.style] || styles.filled} target="_blank" rel="noopener noreferrer" className="bpl-link-btn">{block.label}</a>
+    return <a href={safeUrl(block.url)} style={styles[block.style] || styles.filled} target="_blank" rel="noopener noreferrer" className="bpl-link-btn">{block.label}</a>
   }
 
   if (block.type === 'form') {
@@ -206,11 +207,13 @@ function PublicBlock({ block, pageFont, onFormClick }) {
   }
 
   if (block.type === 'social') {
+    // safeHandle strips anything that isn't a normal handle char (a-z 0-9 . _ -)
+    // so an attacker-supplied IG handle can't smuggle `"><script>` into the URL.
     const links = [
-      block.instagram && { label: 'IG', url: `https://instagram.com/${block.instagram}` },
-      block.facebook && { label: 'FB', url: `https://facebook.com/${block.facebook}` },
-      block.tiktok && { label: 'TT', url: `https://tiktok.com/@${block.tiktok}` },
-      block.youtube && { label: 'YT', url: `https://youtube.com/@${block.youtube}` },
+      block.instagram && { label: 'IG', url: `https://instagram.com/${safeHandle(block.instagram)}` },
+      block.facebook && { label: 'FB', url: `https://facebook.com/${safeHandle(block.facebook)}` },
+      block.tiktok && { label: 'TT', url: `https://tiktok.com/@${safeHandle(block.tiktok)}` },
+      block.youtube && { label: 'YT', url: `https://youtube.com/@${safeHandle(block.youtube)}` },
     ].filter(Boolean)
     const iconStyle = block.iconStyle || 'outline'
     const size = block.iconSize || 40
