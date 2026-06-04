@@ -241,7 +241,8 @@
 - **Files:** `supabase/migrations/20260421_embed_webhooks.sql:25-92`, `20260507_referral_fees_auto_create.sql`, `20260507_transaction_status_log_trigger.sql`, `20260514_oh_listing_date_consistency.sql`, `20260517_oh_feedback.sql`
 - **Fix:** Add `SET search_path = pg_catalog, public` to every trigger function. For `trigger_embed_on_change`, also write `system_events('embed.no_auth', 'err', …)` on auth-key fallback failure.
 
-### [ ] H12. SSRF-by-proxy via `virtual-staging` / `higgsfield-generate` / `generate-image`
+### [~] H12. SSRF-by-proxy via `virtual-staging` / `higgsfield-generate` / `generate-image` ✅ 2026-06-04 (URL allowlist part)
+> Shipped: inline `isAllowedSourceUrl()` helper in both `virtual-staging` and `higgsfield-generate`. Allows: (a) this project's Supabase storage URLs (`<project>.supabase.co/storage/v1/object/(public|sign)/…`), (b) `replicate.delivery` outbound CDN (so chained staging→video flows work), (c) `*.higgsfield.ai` / `*.higgsfield-delivery.com` CDNs. Rejects everything else with `400 url_not_allowed`. `generate-image` is text-to-image only (no input URL surface — nothing to gate). Edge fns need redeploy. **Still open:** per-IP rate cap (`assertBudgetAvailable` pattern from `ai-bill.ts` already gates Anthropic; Replicate + Higgsfield need their own budget caps + per-IP rate limit. Needs new `rate_limits` table — separate batch).
 - **Files:** `supabase/functions/virtual-staging/index.ts:115-118`, `higgsfield-generate/index.ts:150-155`
 - **Fix:** Allowlist URLs to `*.supabase.co/storage/v1/object/public/<project>/`. Require auth + per-IP rate cap. Wire `assertBudgetAvailable` for Replicate + Higgsfield.
 

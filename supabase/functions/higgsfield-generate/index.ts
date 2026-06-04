@@ -28,6 +28,29 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { logAiGeneration } from '../_shared/replicate-notify.ts'
+
+// H12 from SECURITY_AUDIT_PUNCHLIST: SSRF-by-proxy allowlist.
+// `input_image_url` is fed to Higgsfield as the source frame for video.
+// Without an allowlist any attacker can drive Higgsfield to fetch
+// arbitrary URLs (decompression bombs, competitor content) and burn
+// Dana's Studio credits. Restrict to this project's Supabase storage,
+// Higgsfield's own result CDN, and Replicate's result CDN (so chained
+// staging → video workflows still work).
+function isAllowedSourceUrl(rawUrl: string): boolean {
+  try {
+    const u = new URL(rawUrl)
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false
+    const supabaseRef = (Deno.env.get('SUPABASE_URL') || '').replace(/^https?:\/\//, '').replace(/\/$/, '')
+    if (supabaseRef && u.host === supabaseRef && /^\/storage\/v1\/object\/(public|sign)\//.test(u.pathname)) {
+      return true
+    }
+    if (u.host === 'replicate.delivery' || u.host.endsWith('.replicate.delivery')) return true
+    if (u.host.endsWith('.higgsfield.ai') || u.host.endsWith('.higgsfield-delivery.com')) return true
+    return false
+  } catch {
+    return false
+  }
+}
 import {
   maybeNotifyHiggsfieldIssue,
   isHiggsfieldCreditError,
@@ -152,6 +175,12 @@ serve(async (req) => {
     }
     if (input_image_url && (typeof input_image_url !== 'string' || !input_image_url.startsWith('http'))) {
       return json({ error: 'input_image_url must be a public http(s) URL' }, 400)
+    }
+    if (input_image_url && !isAllowedSourceUrl(input_image_url)) {
+      return json({
+        error: 'input_image_url must be a Supabase storage URL from this project or a Replicate/Higgsfield CDN URL',
+        code: 'url_not_allowed',
+      }, 400)
     }
 
     // ─── Build the request body per kind ─────────────────────────────────────

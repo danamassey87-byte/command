@@ -30,6 +30,37 @@ function json(data: unknown, status = 200) {
   })
 }
 
+// H12 from SECURITY_AUDIT_PUNCHLIST: SSRF-by-proxy allowlist.
+// Previously `photo_url` was validated only as `.startsWith('http')` —
+// anyone could drive Replicate to fetch arbitrary URLs (decompression
+// bombs, copyrighted content, copies of competitor listings) and pay
+// the inference cost. Now restrict to this project's own Supabase
+// storage public URLs. Replicate's own outbound CDN URLs are also
+// allowed because we re-upload Replicate results into staging-photos
+// and then feed them into subsequent stagings (chained workflow).
+function isAllowedSourceUrl(rawUrl: string): boolean {
+  try {
+    const u = new URL(rawUrl)
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false
+
+    // This project's Supabase storage. Hostname format:
+    //   <project-ref>.supabase.co
+    // Path must start with /storage/v1/object/(public|sign)/<bucket>/...
+    const supabaseRef = (Deno.env.get('SUPABASE_URL') || '').replace(/^https?:\/\//, '').replace(/\/$/, '')
+    if (supabaseRef && u.host === supabaseRef && /^\/storage\/v1\/object\/(public|sign)\//.test(u.pathname)) {
+      return true
+    }
+
+    // Replicate's outbound result CDN (so chained stagings still work).
+    if (u.host === 'replicate.delivery' || u.host.endsWith('.replicate.delivery')) return true
+    if (u.host === 'pbxt.replicate.delivery') return true
+
+    return false
+  } catch {
+    return false
+  }
+}
+
 // ─── Style + room prompt library ─────────────────────────────────────────────
 // Each style is a furniture/material palette. Each room is the major pieces
 // + spatial cues. The final prompt is style + room phrasing + a quality
@@ -115,6 +146,13 @@ serve(async (req) => {
     if (!photo_url) return json({ error: 'photo_url is required' }, 400)
     if (typeof photo_url !== 'string' || !photo_url.startsWith('http')) {
       return json({ error: 'photo_url must be a public http(s) URL' }, 400)
+    }
+    // H12: only this project's Supabase storage or Replicate's own CDN.
+    if (!isAllowedSourceUrl(photo_url)) {
+      return json({
+        error: 'photo_url must be a Supabase storage URL from this project or a replicate.delivery URL',
+        code: 'url_not_allowed',
+      }, 400)
     }
 
     const prompt = buildPrompt(style, room_type, custom_prompt)
