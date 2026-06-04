@@ -304,13 +304,27 @@ serve(async (req) => {
       // Timeout — hand the request_id back so the client can poll later, or
       // surface the failure reason if we have one.
       if (!status || status === 'queued' || status === 'in_progress') {
+        // C15: persist the pending request so the new higgsfield-status
+        // endpoint can pick it up. Without this row, a retry would lose
+        // the original request_id entirely and submit a fresh (paid) job.
+        await supabase.from('ai_generation_log').insert({
+          service: 'higgsfield',
+          model: modelLabel,
+          kind,
+          prompt: promptForLog,
+          cost_cents: Math.round(costUsd * 100),
+          listing_id: listing_id || null,
+          property_id: property_id || null,
+          prediction_id: requestId,
+          succeeded: null,  // pending — higgsfield-status flips it
+        })
         return json({
           ok: false,
           pending: true,
           request_id: requestId,
           status,
           duration_ms: durationMs,
-          message: 'Generation is still running. Try refreshing in 30–60 seconds.',
+          message: 'Generation is still running. Poll /higgsfield-status with this request_id, or refresh the page in 30–60 seconds.',
         }, 202)
       }
       await logAiGeneration(supabase, {

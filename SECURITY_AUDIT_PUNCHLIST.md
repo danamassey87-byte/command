@@ -175,7 +175,12 @@
 - **Risk:** Predictable filenames + public bucket = competitors scrape pre-staging interior photos. Draft Canva flyers indexable.
 - **Fix:** Set `public = false`. Generate 1-hour signed URLs server-side for public website. Gate INSERT/DELETE on `auth.role() = 'authenticated'`.
 
-### [ ] C15. `higgsfield-generate` has no callback path — user pays for ghost jobs
+### [x] C15. `higgsfield-generate` has no callback path — user pays for ghost jobs ✅ 2026-06-04
+> Shipped:
+> (1) `supabase/migrations/20260604_ai_generation_output_url.sql` adds `ai_generation_log.output_url TEXT` and a partial index on `(service, prediction_id) WHERE prediction_id IS NOT NULL AND succeeded IS NULL` for the status-fn lookup.
+> (2) `higgsfield-generate` now writes a pending log row (`succeeded=null`, `prediction_id=requestId`) when polling times out, capturing listing_id/property_id/kind so downstream writes can hit the right rows.
+> (3) New `supabase/functions/higgsfield-status/index.ts` takes `{ request_id }`, looks up the log row, polls Higgsfield's `/requests/{id}/status`, and on completion: flips `succeeded=true`, writes `output_url`, and for videos with a property_id, writes the URL to `properties.hero_video_url` so the listing page picks it up. On terminal failure (failed/nsfw/canceled), flips `succeeded=false`. Cached-result short-circuit so multiple poll requests for an already-terminal job don't re-hit Higgsfield. `AbortSignal.timeout(15s)` per M2.
+> Dana's retry-flow now reuses the original request_id via the status endpoint instead of submitting a fresh paid job. Edge fns need deploy. **Migration applied via MCP 2026-06-04.** Frontend polling integration is the natural follow-up; the CinematicAIModal component can wire to `supabase.functions.invoke('higgsfield-status', { body: { request_id } })` on a setInterval.
 - **File:** `supabase/functions/higgsfield-generate/index.ts:241-305`
 - **Fix:** Wire Higgsfield's `webhook_url` param to a new `higgsfield-callback` edge fn. Writes result URL to `ai_generation_log` + `properties.hero_video_url`. Frontend polls a simple `/higgsfield-status` for up to 5 min.
 
