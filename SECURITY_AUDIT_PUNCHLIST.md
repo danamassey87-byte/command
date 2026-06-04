@@ -375,7 +375,8 @@
 - **File:** `supabase/functions/submit-oh-feedback/index.ts:103-130`
 - **Fix:** `escHtml` every interpolated field.
 
-### [ ] M18. `validate-address` / `generate-embeddings` no auth/rate-limit — USPS/HF quota burn
+### [x] M18. `validate-address` / `generate-embeddings` no auth/rate-limit — USPS/HF quota burn ✅ 2026-06-04
+> Shipped: (1) `supabase/migrations/20260604_rate_limits.sql` adds `rate_limits(scope, key, period_start, count)` table (service_role-only RLS) + SECURITY DEFINER `check_rate_limit(p_scope, p_key, p_period_seconds, p_max)` RPC doing atomic INSERT … ON CONFLICT DO UPDATE SET count = count + 1. Returns `(allowed, count, max, retry_after_seconds)`. Also extends `cron_retention_purge()` to clean up rate_limits rows older than 7 days. (2) `supabase/functions/_shared/rate-limit.ts` exports `checkRateLimit(supabase, args)` and `callerIpKey(req)`. Fails open on RPC error (table outage shouldn't 503 every endpoint). (3) Applied: `validate-address` (100/hr per IP — protects USPS dev-tier quota), `generate-embeddings` (30/hr per IP — protects HF free-tier + Claude summary spend). Returns 429 with `Retry-After` header on cap. **Migration applied via MCP 2026-06-04.** Other public endpoints (ai-assistant-chat, generate-image, virtual-staging, higgsfield-generate, biolink submit) can adopt incrementally via the helper.
 - **Fix:** Auth + per-IP cap.
 
 ### [x] M19. `oh-reminders` posts service-role bearer to `send-oh-feedback-request` which never checks it ✅ 2026-06-04 (closed by C6 Phase A, commit 53e3190)

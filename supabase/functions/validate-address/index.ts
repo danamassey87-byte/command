@@ -8,6 +8,8 @@
 //   USPS_CONSUMER_SECRET — from developers.usps.com
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { checkRateLimit, callerIpKey } from '../_shared/rate-limit.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -74,6 +76,33 @@ function splitStreetAndUnit(line: string): { street: string; unit?: string } {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
+
+  // M18: per-IP throttle. USPS dev tier has a few-thousand-call/day
+  // quota; without the cap an attacker could burn it overnight and
+  // break Dana's CMA/address-validation flow.
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  )
+  const rl = await checkRateLimit(supabase, {
+    scope: 'validate-address',
+    key: callerIpKey(req),
+    periodSeconds: 3600,
+    max: 100,
+  })
+  if (!rl.allowed) {
+    return new Response(JSON.stringify({
+      error: 'Too many requests',
+      retry_after_seconds: rl.retryAfterSeconds,
+    }), {
+      status: 429,
+      headers: {
+        ...CORS,
+        'Content-Type': 'application/json',
+        'Retry-After': String(rl.retryAfterSeconds),
+      },
+    })
+  }
 
   try {
     const body = (await req.json()) as ValidateInput

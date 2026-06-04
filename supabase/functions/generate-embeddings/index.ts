@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { callAnthropic, textOf } from '../_shared/ai-bill.ts'
+import { checkRateLimit, callerIpKey } from '../_shared/rate-limit.ts'
 
 // ============================================================================
 // generate-embeddings — FREE vector embeddings via HuggingFace Inference API
@@ -132,6 +133,30 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
+
+    // M18: per-IP throttle. HuggingFace free-tier rate-limits, and an
+    // attacker hammering this endpoint can both burn HF quota and pollute
+    // document_embeddings + cost_ledger (the summary step calls Claude
+    // through ai-bill). 30/hr is generous for normal flows.
+    const rl = await checkRateLimit(supabase, {
+      scope: 'generate-embeddings',
+      key: callerIpKey(req),
+      periodSeconds: 3600,
+      max: 30,
+    })
+    if (!rl.allowed) {
+      return new Response(JSON.stringify({
+        error: 'Too many requests',
+        retry_after_seconds: rl.retryAfterSeconds,
+      }), {
+        status: 429,
+        headers: {
+          ...CORS,
+          'Content-Type': 'application/json',
+          'Retry-After': String(rl.retryAfterSeconds),
+        },
+      })
+    }
 
     const body = await req.json()
 
