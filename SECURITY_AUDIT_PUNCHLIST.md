@@ -260,7 +260,12 @@
 > **Still to wire** (next batch): `host-report-followup`, `cash-offer-sla-check`, `lead-intake-email`, `auto-generate-content`, `compile-weekly-showing-report`, gmail-* crons, `fetch-social-stats`.
 - **Fix:** Create `cron_heartbeats(function_name text, finished_at timestamptz)`. Every cron inserts on success. Watchdog cron fires hourly; writes `system_events('cron.stalled', 'err', …)` if any heartbeat >2× expected interval.
 
-### [ ] H15. `video/scripts/process-queue.ts` is local-only (no production runner); non-atomic claim
+### [x] H15. `video/scripts/process-queue.ts` is local-only (no production runner); non-atomic claim ✅ 2026-06-04
+> Shipped three fixes:
+> (1) **Atomic claim** — `supabase/migrations/20260604_claim_render_job.sql` adds SECURITY DEFINER `claim_render_job()` RPC doing `UPDATE … WHERE id = (SELECT … FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`. process-queue.ts now calls this instead of the two-step SELECT-then-UPDATE. Two simultaneous processors (laptop + desktop, or stale + fresh GH Actions runs) can no longer claim the same job and double-bill AWS.
+> (2) **Watchdog cap on poll loop** — `MAX_POLL_MS = 30 min`. If `getRenderProgress` never returns `done` or `fatalErrorEncountered`, the runner bails with `status='failed', error='poll_timeout'` so later queued jobs aren't blocked.
+> (3) **Production runner** — `.github/workflows/render-queue.yml` runs every 10 min on `ubuntu-latest`, processes one job per tick, uses concurrency group `render-queue` so overlapping ticks don't pile up. Requires repo secrets (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, REMOTION_AWS_*) — Dana sets them in Settings → Secrets and variables → Actions, then the cron starts firing.
+> **Migration applied via MCP 2026-06-04.**
 - **File:** `video/scripts/process-queue.ts:31-46`
 - **Fix:** Wire to GitHub Actions cron or move to Fly.io container. Atomic claim:
   ```sql

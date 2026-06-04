@@ -1,0 +1,67 @@
+# H15 from SECURITY_AUDIT_PUNCHLIST: video/scripts/process-queue.ts was
+# documented as "Run locally with npx tsx" but had no production runner.
+# Queued render_jobs stayed queued forever unless Dana remembered to run
+# the script locally.
+#
+# This workflow checks every 10 minutes for a queued job and processes
+# at most one per run. The atomic claim RPC (claim_render_job, applied
+# 2026-06-04) makes concurrent invocations safe — only one runner can
+# claim a given job.
+#
+# REQUIRED REPO SECRETS (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   REMOTION_AWS_REGION
+#   REMOTION_AWS_ACCESS_KEY_ID
+#   REMOTION_AWS_SECRET_ACCESS_KEY
+#   REMOTION_SERVE_URL
+#   REMOTION_FUNCTION_NAME
+#
+# To enable: set the secrets above, then push this file. GH Actions cron
+# can be flaky for the first few runs after adding a workflow — manual
+# trigger via the "Run workflow" button confirms it works end-to-end.
+
+name: Render queue
+
+on:
+  schedule:
+    # Every 10 minutes. GitHub queues these on best-effort basis; expect
+    # 1-15 min jitter under normal load.
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}  # allow manual trigger
+
+# Don't run two queue runners at once. If the prior tick is still going,
+# the next one waits (and gets cancelled by `cancel-in-progress: true`
+# if a manual trigger pre-empts it).
+concurrency:
+  group: render-queue
+  cancel-in-progress: false
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45    # max — script's MAX_POLL_MS is 30 min
+    defaults:
+      run:
+        working-directory: video
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: video/package-lock.json
+
+      - run: npm ci
+
+      - name: Process one queued render
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          REMOTION_AWS_REGION: ${{ secrets.REMOTION_AWS_REGION }}
+          REMOTION_AWS_ACCESS_KEY_ID: ${{ secrets.REMOTION_AWS_ACCESS_KEY_ID }}
+          REMOTION_AWS_SECRET_ACCESS_KEY: ${{ secrets.REMOTION_AWS_SECRET_ACCESS_KEY }}
+          REMOTION_SERVE_URL: ${{ secrets.REMOTION_SERVE_URL }}
+          REMOTION_FUNCTION_NAME: ${{ secrets.REMOTION_FUNCTION_NAME }}
+        run: npx tsx scripts/process-queue.ts
