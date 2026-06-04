@@ -322,7 +322,8 @@
 > Shipped: `supabase/migrations/20260604_retention_purges.sql` adds SECURITY DEFINER `cron_retention_purge()` that DELETEs rows older than the per-table retention window: lofty_inbound_events 90d (processed only), system_events 90d, ai_generation_log 180d, gmail_reply_log 180d, google_calendar_sync_log 30d, webhook_events_seen 30d (Svix's own replay window is 5 min so 30d is generous). Scheduled via pg_cron as `cron-retention-purge-nightly` at 10:17 UTC (3:17 AM Phoenix). search_path locked, service_role-only EXECUTE. **Same migration also activates the H14 watchdog** — schedules `cron-watchdog-hourly` (7 past every hour) that was documented but not auto-applied with the H14 commit. **Migration applied via MCP 2026-06-04, both crons verified active in `cron.job`.**
 - **Fix:** `pg_cron` daily `DELETE FROM lofty_inbound_events WHERE received_at < now() - interval '90 days' AND processed_at IS NOT NULL;` similar for others.
 
-### [ ] M10. `cash-offer-sla-check` notification insert in bare `try/catch{}` — silent fail
+### [x] M10. `cash-offer-sla-check` notification insert in bare `try/catch{}` — silent fail ✅ 2026-06-04
+> Shipped: removed the bare `catch {}`. Now uses Supabase's `{ error }` return, logs to `console.error`, and pushes to `result.errors` so a persistent failure shows in the cron run's response. A schema rename or RLS regression no longer silently stops the FCO-SLA bell pings. Edge fn needs redeploy.
 - **File:** `supabase/functions/cash-offer-sla-check/index.ts:81-91`
 - **Fix:** `console.error` + append to `result.errors`.
 
@@ -331,10 +332,12 @@
 - **File:** `supabase/migrations/20260507_command_lead_sources_pac.sql:75`
 - **Fix:** Single-statement reassignment: `UPDATE lead_attributions SET is_primary = (id = $new) WHERE contact_id = $cid`.
 
-### [ ] M12. `weather_forecasts` not in `mergeProperties`; cascades on properties + unique `(property_id, forecast_date)`
+### [x] M12. `weather_forecasts` not in `mergeProperties`; cascades on properties + unique `(property_id, forecast_date)` ✅ 2026-06-04 (closed by H1, commit c82466c)
+> The new `merge_properties` RPC discovers every FK reference dynamically via `information_schema.referential_constraints` — `weather_forecasts.property_id` is included automatically (live test enumerated 24 child tables including weather_forecasts). The previous hand-coded 10-table list missed it; the dynamic version doesn't.
 - **Fix:** Add to `mergeProperties` with `ON CONFLICT … DO UPDATE`. Or change weather upsert to PK-based.
 
-### [ ] M13. `transact_files.external_id UNIQUE` with `ON DELETE SET NULL` → orphans block future inserts
+### [x] M13. `transact_files.external_id UNIQUE` with `ON DELETE SET NULL` → orphans block future inserts ✅ 2026-06-04
+> Shipped: `supabase/migrations/20260604_transact_files_partial_unique.sql` drops the unconditional `UNIQUE(external_id)` and replaces with a partial unique index `WHERE deal_id IS NOT NULL`. Orphans (rows where the parent transaction was hard-deleted → SET NULL fired) are now excluded from the unique check; a Transact resend of the same external_id for a new deal can land. Verified 0 rows before apply. **Migration applied via MCP 2026-06-04.**
 - **File:** `supabase/migrations/20260421_command_phase1_core.sql:84-93`
 - **Fix:** Change `ON DELETE CASCADE` (file meaningless without deal) OR make unique partial: `WHERE deal_id IS NOT NULL`.
 

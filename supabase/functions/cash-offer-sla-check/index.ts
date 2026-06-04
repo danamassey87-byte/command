@@ -78,18 +78,25 @@ serve(async (req) => {
           result.tasksCreated++
         }
 
-        // 4 · Notification (best-effort).
-        try {
-          await supabase.from('notifications').insert({
-            type: 'fco_sla_expired',
-            title: 'FCO SLA expired',
-            body: `${(r as any).contact?.name || 'Seller'} — ${r.property_address || 'address'} did not get a cash offer within 24h. Pivot the conversation.`,
-            link: '/sellers',
-            source_table: 'cash_offer_routings',
-            source_id: r.id,
-            metadata: { routing_id: r.id },
-          })
-        } catch { /* notifications table may not exist or be required — non-fatal */ }
+        // 4 · Notification (best-effort, but no longer silent).
+        // M10: previously `catch {}` swallowed every failure. If schema
+        // drift broke the insert, Dana stopped getting bell pings about
+        // expired FCO SLAs and there was no signal until she noticed
+        // missed conversions. Now logs + records the error so the cron
+        // run's `result.errors` shows it.
+        const { error: notifErr } = await supabase.from('notifications').insert({
+          type: 'fco_sla_expired',
+          title: 'FCO SLA expired',
+          body: `${(r as any).contact?.name || 'Seller'} — ${r.property_address || 'address'} did not get a cash offer within 24h. Pivot the conversation.`,
+          link: '/sellers',
+          source_table: 'cash_offer_routings',
+          source_id: r.id,
+          metadata: { routing_id: r.id },
+        })
+        if (notifErr) {
+          console.error('[cash-offer-sla-check] notification insert failed:', notifErr.message)
+          result.errors.push(`${r.id}: notify → ${notifErr.message}`)
+        }
       } catch (e: any) {
         result.errors.push(`${r.id}: ${e.message || e}`)
       }
