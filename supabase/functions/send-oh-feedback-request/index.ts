@@ -54,15 +54,39 @@ function fmtDate(d?: string | null): string {
   })
 }
 
+// Constant-time string compare for the service-role bearer check.
+function timingSafeEqualStr(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   const resendKey = Deno.env.get('RESEND_API_KEY')
   if (!resendKey) return json({ error: 'RESEND_API_KEY not configured' }, 503)
 
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+  // C6 Phase A: previously anonymous — anyone with a guessed open_house_id
+  // could POST {force:true} and re-send the feedback request to the OH's
+  // hosting agent, spamming them from a DKIM-signed danamassey.com address.
+  // Now requires the service-role bearer. The cron path (oh-reminders)
+  // already passes this. The frontend "Send Now" button on OpenHouses gets
+  // a 403 — clear alert shown on the client side.
+  const authHeader = req.headers.get('authorization') || ''
+  const providedToken = authHeader.toLowerCase().startsWith('bearer ')
+    ? authHeader.slice(7).trim()
+    : ''
+  if (!providedToken || !timingSafeEqualStr(providedToken, serviceRoleKey)) {
+    return json({ error: 'forbidden' }, 403)
+  }
+
   const db = createClient(
     Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    serviceRoleKey,
   )
 
   try {

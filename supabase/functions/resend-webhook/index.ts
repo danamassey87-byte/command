@@ -96,10 +96,17 @@ serve(async (req) => {
       return json({ result: 'ignored', reason: 'no email_id' })
     }
 
-    // Find the step_history row by resend_email_id
+    // Find the step_history row by resend_email_id. M8: include the count
+    // columns so the increment below reads the current value instead of
+    // undefined (which made every open / click write `count = 1` regardless
+    // of how many prior events had landed — Sarah opening the email 12 times
+    // showed open_count=1 in the dashboard). Note: read-modify-write is still
+    // a minor race for concurrent events on the same row; an atomic SQL
+    // increment RPC would close that fully (queued behind the cost_ledger
+    // pattern from C9).
     const { data: historyRow } = await db
       .from('campaign_step_history')
-      .select('id, enrollment_id')
+      .select('id, enrollment_id, open_count, click_count')
       .eq('resend_email_id', resendEmailId)
       .limit(1)
       .maybeSingle()

@@ -1135,10 +1135,29 @@ function OHDetail({ oh, onBack, onEdit, onHostAnother }) {
     setFbSending(true)
     setFbSentMsg('')
     try {
+      // C6 Phase A: send-oh-feedback-request now requires the service-role
+      // bearer (was anonymous → anyone could spam the hosting agent).
+      // The browser can't hold the service role; until user-JWT auth lands
+      // (or a proxy edge fn re-attaches the bearer), this manual button
+      // surfaces the 403 clearly instead of failing silently. The hourly
+      // oh-reminders cron continues to fire the email 1h before each OH,
+      // so the auto-send flow is unaffected.
       const { data, error } = await supabase.functions.invoke('send-oh-feedback-request', {
         body: { open_house_id: oh.id, force: true },
       })
-      if (error) throw error
+      if (error) {
+        const msg = String(error.message || '')
+        if (/forbidden|403/i.test(msg) || error.status === 403) {
+          alert(
+            'Send Now is disabled until Auth ships.\n\n' +
+            'send-oh-feedback-request now requires a service-role token so ' +
+            'anonymous callers can\'t spam your hosting agents. The hourly ' +
+            'oh-reminders cron still sends the request 1h before each OH.'
+          )
+          return
+        }
+        throw error
+      }
       if (data?.error) throw new Error(data.error)
       setFbSentMsg(`✓ Sent to ${data?.sent_to || oh.agent_email}`)
       setTimeout(() => setFbSentMsg(''), 4000)

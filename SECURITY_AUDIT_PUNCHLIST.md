@@ -79,7 +79,8 @@
   ```
   PropertyMap InfoWindow: build with `createElement` + `.textContent`. Render previews inside `<iframe sandbox="" srcDoc={html} />`.
 
-### [ ] C6. Five public endpoints act on UUID-as-bearer-token with service-role privileges
+### [~] C6. Five public endpoints act on UUID-as-bearer-token with service-role privileges — PHASE A SHIPPED 2026-06-04
+> **Phase A (1 of 5 endpoints):** `send-oh-feedback-request` now requires service-role bearer (timing-safe compare). The hourly `oh-reminders` cron already passes it; the frontend "Send Now" button on OpenHouses surfaces a clear "disabled until Auth ships" alert on 403, mirroring the C8 SmartCampaigns pattern. Edge fn needs redeploy. **Phase B (still open — bigger, multi-file):** the remaining 4 endpoints (`merge-oh-signin`, `submit-oh-feedback`, `host-report-followup`, `merge-form-submission`) all have legitimate anon callers (kiosk, external hosting agent, public form) — they need per-row HMAC submit tokens. That's the audit's recommended approach, and it requires: (a) `submit_token` column on each of `oh_sign_ins` / `oh_feedback` / `public_form_submissions` / `host_reports`, (b) trigger to generate token on row create, (c) embed token in URLs the kiosk/email generates, (d) verify in each edge fn via `timingSafeEqual`. Dedicated session worth.
 - **Files:**
   - `supabase/functions/merge-oh-signin/index.ts:26-46`
   - `supabase/functions/merge-form-submission/index.ts:63-83`
@@ -308,7 +309,8 @@
 - **File:** `supabase/functions/lead-intake-email/index.ts:380-383`
 - **Fix:** Require email or phone match. Otherwise create new contact.
 
-### [ ] M8. `resend-webhook` open/click counter broken — `historyRow.open_count` undefined
+### [x] M8. `resend-webhook` open/click counter broken — `historyRow.open_count` undefined ✅ 2026-06-04
+> Shipped: SELECT now includes `open_count, click_count` so the increment reads the real prior value instead of `undefined` (which made every event write `count = 1`). Sarah opening an email 12 times will now show open_count=12 instead of 1. Residual race: read-modify-write between concurrent events on the same row could lose an increment — atomic SQL RPC like cost_ledger from C9 would close fully, queued as a future cleanup.
 - **File:** `supabase/functions/resend-webhook/index.ts:70-92`
 - **Fix:** Include `open_count, click_count` in select at line 53, OR use RPC: `update campaign_step_history set open_count = open_count + 1 where id = $1`.
 
