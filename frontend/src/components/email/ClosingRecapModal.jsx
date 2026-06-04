@@ -6,7 +6,7 @@
 // lender, title co, deal type). Editable, then sends via send-one-off-email
 // to the contact's email.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '../ui/index.jsx'
 import supabase from '../../lib/supabase'
 import '../email/SendEmailModal.css'
@@ -91,6 +91,9 @@ export default function ClosingRecapModal({ open, onClose, deal }) {
   const [sent, setSent] = useState(false)
   const [error, setError] = useState(null)
 
+  // X5: per-modal-mount idempotency key; rotates after each successful send.
+  const idemKeyRef = useRef(crypto.randomUUID())
+
   useEffect(() => {
     if (!open || !deal) return
     const draft = buildDefaultRecap(deal)
@@ -117,11 +120,14 @@ export default function ClosingRecapModal({ open, onClose, deal }) {
           html: buildHtml(body),
           from_domain: 'primary',
           contact_id: deal.contact_id || null,
+          // X5: double-click on Send becomes a no-op at Resend.
+          idempotency_key: idemKeyRef.current,
         },
       })
       if (fnErr) throw fnErr
       if (data?.error) throw new Error(data.error)
       setSent(true)
+      idemKeyRef.current = crypto.randomUUID()
     } catch (err) {
       setError(err.message || 'Send failed')
     } finally {

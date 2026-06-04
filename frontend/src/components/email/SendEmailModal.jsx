@@ -12,7 +12,7 @@
 //   2. Blank branded   → opens OneOffEmailComposer with default blocks
 //   3. Plain text      → simple subject + body form, sends in-app via Resend
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '../ui/index.jsx'
 import { CAMPAIGN_EMAIL_TEMPLATES, blocksToHtml } from '../../lib/emailHtml'
 import { newBlock, fillSigBlock } from '../../pages/EmailBuilder/EmailBuilder.jsx'
@@ -49,6 +49,10 @@ export default function SendEmailModal({ open, onClose, contact, contactType }) 
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState(null)
+
+  // X5: per-modal-mount idempotency key. Resend dedupes the second Send click
+  // within ~24h.
+  const idemKeyRef = useRef(crypto.randomUUID())
 
   const resetAndClose = () => {
     setMode('pick')
@@ -96,6 +100,8 @@ export default function SendEmailModal({ open, onClose, contact, contactType }) 
           html,
           from_domain: plainDomain,
           contact_id: contact.id || null,
+          // X5: double-click on Send becomes a no-op at Resend.
+          idempotency_key: idemKeyRef.current,
         },
       })
 
@@ -103,6 +109,9 @@ export default function SendEmailModal({ open, onClose, contact, contactType }) 
       if (data?.error) throw new Error(data.error)
 
       setSent(true)
+      // Rotate the key so a subsequent Send (e.g. to a different recipient
+      // within the same modal session) gets a fresh dedupe slot.
+      idemKeyRef.current = crypto.randomUUID()
     } catch (err) {
       setError(err.message || 'Failed to send email')
     } finally {

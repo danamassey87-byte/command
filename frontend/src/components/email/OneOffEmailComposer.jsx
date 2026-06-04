@@ -53,6 +53,9 @@ export default function OneOffEmailComposer({ open, onClose, onDone, contact, in
   const [sent, setSent] = useState(false)
   const [error, setError] = useState(null)
 
+  // X5: per-modal-mount idempotency key; rotates after each successful send.
+  const idemKeyRef = useRef(crypto.randomUUID())
+
   // Attachments
   const [attachments, setAttachments] = useState([])
   const [uploading, setUploading] = useState(false)
@@ -112,6 +115,8 @@ export default function OneOffEmailComposer({ open, onClose, onDone, contact, in
           html,
           from_domain: domain,
           contact_id: contact.id || null,
+          // X5: double-click on Send becomes a no-op at Resend.
+          idempotency_key: idemKeyRef.current,
         },
       })
 
@@ -119,6 +124,7 @@ export default function OneOffEmailComposer({ open, onClose, onDone, contact, in
       if (data?.error) throw new Error(data.error)
 
       setSent(true)
+      idemKeyRef.current = crypto.randomUUID()
     } catch (err) {
       setError(err.message || 'Failed to send email')
     } finally {

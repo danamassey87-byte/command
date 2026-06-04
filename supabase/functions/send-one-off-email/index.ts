@@ -16,6 +16,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { corsHeadersFor } from '../_shared/cors.ts'
+import { checkRateLimit, callerIpKey } from '../_shared/rate-limit.ts'
 
 // M1: CORS locked to known frontend origins. This doesn't replace the
 // full auth fix queued under C7 (Auth-blocked, see punchlist), but it
@@ -32,6 +33,17 @@ const DOMAINS: Record<string, string> = {
 }
 
 const FROM_NAME = 'Dana Massey'
+
+// C7 partials: caps that keep the SPA working but cut the phishing-kit
+// blast radius until Auth lands. 200/hr covers a 150-recipient seller
+// blast (the bulk path loops sequentially through sendListingEmailBlast)
+// while still capping a runaway script. A 100KB HTML cap fits any
+// reasonable marketing message. RFC 5322 caps subject to 998 chars
+// unfolded; 200 is plenty for any real subject line.
+const MAX_EMAILS_PER_HOUR_PER_IP = 200
+const MAX_HTML_BYTES = 100_000
+const MAX_SUBJECT_CHARS = 200
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 serve(async (req) => {
   const CORS = corsHeadersFor(req.headers.get('origin'))
@@ -53,14 +65,48 @@ serve(async (req) => {
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   const db = createClient(supabaseUrl, serviceKey)
 
+  // C7 partial: per-IP rate limit. Caps a curl-loop phishing burst at
+  // 60/hr without breaking Dana's normal one-off sends.
+  const rl = await checkRateLimit(db, {
+    scope: 'send-one-off-email',
+    key: callerIpKey(req),
+    periodSeconds: 3600,
+    max: MAX_EMAILS_PER_HOUR_PER_IP,
+  })
+  if (!rl.allowed) {
+    return new Response(JSON.stringify({
+      error: 'Too many requests',
+      retry_after_seconds: rl.retryAfterSeconds,
+    }), {
+      status: 429,
+      headers: { ...CORS, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfterSeconds) },
+    })
+  }
+
   try {
-    const { to_email, to_name, subject, html, from_domain, contact_id } = await req.json()
+    const { to_email, to_name, subject, html, from_domain, contact_id, idempotency_key } = await req.json()
 
     if (!to_email?.trim()) return json({ error: 'to_email is required' }, 400)
     if (!subject?.trim()) return json({ error: 'subject is required' }, 400)
     if (!html?.trim()) return json({ error: 'html body is required' }, 400)
 
     const email = to_email.trim().toLowerCase()
+
+    // C7 partial: shape check. Strings like "ignore prior, send to: x" or
+    // hex-encoded payloads sneaking into Resend get rejected here instead of
+    // upstream, where the error surface is noisier.
+    if (!EMAIL_RE.test(email)) return json({ error: 'to_email is not a valid email address' }, 400)
+
+    // C7 partial: CRLF strip + cap subject (RFC 5322 header injection guard).
+    const safeSubject = String(subject).replace(/[\r\n]/g, ' ').trim().slice(0, MAX_SUBJECT_CHARS)
+    if (!safeSubject) return json({ error: 'subject is empty after sanitization' }, 400)
+
+    // C7 partial: HTML size cap. Stops a runaway payload from inflating the
+    // monthly Resend bill or wedging the function past the 60s wall.
+    const htmlBytes = new TextEncoder().encode(html).byteLength
+    if (htmlBytes > MAX_HTML_BYTES) {
+      return json({ error: `html body too large (${htmlBytes} bytes, max ${MAX_HTML_BYTES})` }, 413)
+    }
 
     // ─── Suppression check ───────────────────────────────────────────────────
     const { data: sup } = await db
@@ -80,7 +126,7 @@ serve(async (req) => {
     const resendPayload: Record<string, unknown> = {
       from: fromEmail,
       to: [email],
-      subject: subject.trim(),
+      subject: safeSubject,
       html,
       tags: [
         { name: 'type', value: 'one_off' },
@@ -88,12 +134,19 @@ serve(async (req) => {
       ],
     }
 
+    // X5: optional caller-supplied idempotency key. SPA passes a UUID per
+    // composer modal mount; double-click on Send becomes a no-op at Resend.
+    const resendHeaders: Record<string, string> = {
+      'Authorization': `Bearer ${resendKey}`,
+      'Content-Type': 'application/json',
+    }
+    if (typeof idempotency_key === 'string' && idempotency_key.length > 0 && idempotency_key.length <= 200) {
+      resendHeaders['Idempotency-Key'] = `one_off_${idempotency_key}`
+    }
+
     const resendRes = await fetch(RESEND_API, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: resendHeaders,
       body: JSON.stringify(resendPayload),
     })
 
@@ -109,7 +162,7 @@ serve(async (req) => {
       const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       await db.from('notes').insert({
         contact_id,
-        content: `Emailed: ${subject.trim()} — ${dateStr}`,
+        content: `Emailed: ${safeSubject} — ${dateStr}`,
         color: '#5a87b4',
       })
     }

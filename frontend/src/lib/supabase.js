@@ -1869,6 +1869,9 @@ export async function sendListingEmailBlast({ recipients, subject, html, fromDom
           html,
           from_domain: fromDomain,
           contact_id: r.id || null,
+          // X5: stable idempotency key per recipient so a SPA reload mid-blast
+          // doesn't double-send. Resend dedupes for ~24h on this key.
+          idempotency_key: r.id ? `blast_${r.id}_${subject.slice(0, 40)}` : undefined,
         },
       })
       if (error) {
