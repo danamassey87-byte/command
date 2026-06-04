@@ -28,6 +28,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { logAiGeneration } from '../_shared/replicate-notify.ts'
+import { checkRateLimit, callerIpKey } from '../_shared/rate-limit.ts'
 
 // H12 from SECURITY_AUDIT_PUNCHLIST: SSRF-by-proxy allowlist.
 // `input_image_url` is fed to Higgsfield as the source frame for video.
@@ -134,6 +135,24 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
+
+    // M18: per-IP throttle. Higgsfield credits are the most expensive of the
+    // image/video generators (~$0.10-$1.00 per call). 10/hr caps runaway burn.
+    const rl = await checkRateLimit(supabase, {
+      scope: 'higgsfield-generate',
+      key: callerIpKey(req),
+      periodSeconds: 3600,
+      max: 10,
+    })
+    if (!rl.allowed) {
+      return new Response(JSON.stringify({
+        error: 'Too many requests',
+        retry_after_seconds: rl.retryAfterSeconds,
+      }), {
+        status: 429,
+        headers: { ...CORS, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfterSeconds) },
+      })
+    }
 
     const body = await req.json().catch(() => ({}))
     const {

@@ -17,6 +17,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { maybeNotifyLowReplicateCredit, isReplicate402, logAiGeneration } from '../_shared/replicate-notify.ts'
+import { checkRateLimit, callerIpKey } from '../_shared/rate-limit.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -115,6 +116,24 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
+
+    // M18: per-IP throttle. Each staging is ~3¢ of Replicate spend; 30/hr is
+    // generous for Dana while still capping a runaway script.
+    const rl = await checkRateLimit(supabase, {
+      scope: 'virtual-staging',
+      key: callerIpKey(req),
+      periodSeconds: 3600,
+      max: 30,
+    })
+    if (!rl.allowed) {
+      return new Response(JSON.stringify({
+        error: 'Too many requests',
+        retry_after_seconds: rl.retryAfterSeconds,
+      }), {
+        status: 429,
+        headers: { ...CORS, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfterSeconds) },
+      })
+    }
 
     const body = await req.json().catch(() => ({}))
     const {

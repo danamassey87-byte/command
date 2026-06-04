@@ -15,7 +15,7 @@
 // onGenerated payload:
 //   { kind: 'image'|'video', url, prompt, model, cost_cents, request_id }
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from '../ui/index.jsx'
 import supabase from '../../lib/supabase'
 import { useBrief, withBrief } from '../../lib/creativeBrief'
@@ -80,6 +80,79 @@ export default function CinematicAIModal({
   const [pending, setPending] = useState(null) // { request_id } if it timed out
   const textareaRef = useRef(null)
   const brief = useBrief()
+
+  // C15 follow-up: poll higgsfield-status while a job is pending. The
+  // backend persists the pending request to ai_generation_log so a retry
+  // never re-submits; this polls every 10s until terminal. Auto-cleans
+  // when pending clears (success or unmount).
+  useEffect(() => {
+    if (!pending?.request_id) return
+    let cancelled = false
+    let consecutiveFailures = 0
+    const POLL_INTERVAL_MS = 10_000
+    const MAX_POLL_DURATION_MS = 10 * 60 * 1000  // 10 min then we give up the UI poll
+    const startedAt = Date.now()
+
+    async function tick() {
+      if (cancelled) return
+      if (Date.now() - startedAt > MAX_POLL_DURATION_MS) {
+        if (!cancelled) {
+          setError('Render still running after 10 minutes. The job is queued — reopen this dialog later to see the result.')
+          setPending(null)
+        }
+        return
+      }
+
+      try {
+        const { data, error: fnErr } = await supabase.functions.invoke('higgsfield-status', {
+          body: { request_id: pending.request_id },
+        })
+        if (cancelled) return
+        if (fnErr) {
+          consecutiveFailures++
+          if (consecutiveFailures >= 5) {
+            setError('Could not reach status endpoint after 5 attempts.')
+            setPending(null)
+            return
+          }
+        } else if (data?.error) {
+          setError(data.error)
+          setPending(null)
+          return
+        } else if (data?.ok) {
+          setResult({
+            kind,
+            media_url: data.output_url,
+            image_url: kind === 'image' ? data.output_url : null,
+            video_url: kind === 'video' ? data.output_url : null,
+            request_id: pending.request_id,
+          })
+          setPending(null)
+          return
+        } else if (data?.pending === false && data?.status && data.status !== 'completed') {
+          // Terminal failure status (failed / nsfw / canceled)
+          setError(`Higgsfield reported status: ${data.status}`)
+          setPending(null)
+          return
+        }
+        // else still pending — schedule next tick
+      } catch (err) {
+        consecutiveFailures++
+        if (consecutiveFailures >= 5) {
+          setError(err?.message || 'Status polling failed.')
+          setPending(null)
+          return
+        }
+      }
+      if (!cancelled) setTimeout(tick, POLL_INTERVAL_MS)
+    }
+
+    const handle = setTimeout(tick, POLL_INTERVAL_MS)
+    return () => {
+      cancelled = true
+      clearTimeout(handle)
+    }
+  }, [pending?.request_id, kind])
 
   if (!open) return null
 
@@ -203,7 +276,7 @@ export default function CinematicAIModal({
 
           {pending && (
             <div style={{ background: '#fff8e6', border: '1px solid #f3d77a', color: '#7a5a0e', padding: '10px 12px', borderRadius: 8, fontSize: '0.84rem', marginBottom: 12 }}>
-              Still rendering. Higgsfield job <code>{pending.request_id}</code> is queued — refresh in 30–60s.
+              ⏳ Render in progress (Higgsfield job <code>{pending.request_id}</code>). Auto-polling every 10s — the result will appear here when it's ready. You can safely close this dialog; the job continues server-side and will be applied next time you open it.
             </div>
           )}
 

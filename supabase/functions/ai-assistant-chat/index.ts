@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { callAnthropic, textOf } from '../_shared/ai-bill.ts'
 import { corsHeadersFor } from '../_shared/cors.ts'
+import { checkRateLimit, callerIpKey } from '../_shared/rate-limit.ts'
 
 serve(async (req) => {
   // M1: lock CORS to known frontend origins. Browser drive-by attacks from
@@ -18,6 +19,25 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
+
+    // M18 extension: per-IP throttle. 60/hr is generous for the in-app
+    // assistant but well below what an attacker needs to drain the
+    // monthly Anthropic cap before Dana notices.
+    const rl = await checkRateLimit(supabase, {
+      scope: 'ai-assistant-chat',
+      key: callerIpKey(req),
+      periodSeconds: 3600,
+      max: 60,
+    })
+    if (!rl.allowed) {
+      return new Response(JSON.stringify({
+        error: 'Too many requests',
+        retry_after_seconds: rl.retryAfterSeconds,
+      }), {
+        status: 429,
+        headers: { ...CORS, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfterSeconds) },
+      })
+    }
 
     const { messages, contact_id } = await req.json()
 

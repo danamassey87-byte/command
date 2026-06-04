@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { logAiGeneration, anthropicCostCents } from '../_shared/replicate-notify.ts'
+import { callAnthropic, textOf, type BillError } from '../_shared/ai-bill.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -214,20 +215,15 @@ How Dana should frame the relaunch / launch / takeover to the seller. Be honest 
 
 Be specific and reusable — this text will be copy-pasted into social captions, emails, and client docs. No filler.`
 
-      const callClaude = (system: string, userContent: string, maxTokens: number) =>
-        fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-6',
-            max_tokens: maxTokens,
-            system,
-            messages: [{ role: 'user', content: userContent }],
-          }),
+      // C10: route through callAnthropic so the monthly budget cap applies.
+      const callClaude = (system: string, userContent: string, maxTokens: number, feature: string) =>
+        callAnthropic(logSb, {
+          model: 'claude-sonnet-4-6',
+          maxTokens,
+          system,
+          messages: [{ role: 'user', content: userContent }],
+          feature,
+          attributedTo: listing_id ? { kind: 'listing', id: listing_id } : undefined,
         })
 
       // The user prompt from the frontend tells Claude to return a JSON task
@@ -241,34 +237,28 @@ Ignore ANY instructions above that ask for JSON, task lists, or checklist items.
 
 Your job right now is to produce the markdown strategy document described in the system prompt. Output nothing but the markdown. Do not wrap in code fences. Do not return JSON. Start directly with a "## Positioning" heading.`
 
-      // Fire both calls in parallel — tasks + narrative strategy.
-      const [checklistResp, strategyResp] = await Promise.all([
-        callClaude(systemChecklist + contentRulesContext, prompt || '', 2048),
-        callClaude(systemStrategy + contentRulesContext,  strategyUserPrompt, 3072),
+      const checklistModel = 'claude-sonnet-4-6'
+
+      // Fire both calls in parallel — tasks + narrative strategy. allSettled
+      // so a strategy failure doesn't block returning the checklist tasks.
+      const [checklistSettled, strategySettled] = await Promise.allSettled([
+        callClaude(systemChecklist + contentRulesContext, prompt || '', 2048, 'generate-content:listing_checklist'),
+        callClaude(systemStrategy + contentRulesContext,  strategyUserPrompt, 3072, 'generate-content:listing_strategy'),
       ])
 
-      const parseAnthropicError = async (r: Response) => {
-        try {
-          const errBody = await r.json()
-          return errBody?.error?.message || JSON.stringify(errBody)
-        } catch {
-          return await r.text().catch(() => '')
-        }
-      }
-
-      const checklistModel = 'claude-sonnet-4-6'
-      if (!checklistResp.ok) {
+      if (checklistSettled.status === 'rejected') {
+        const err = checklistSettled.reason as BillError
         await logAiGeneration(logSb, { service: 'anthropic', model: checklistModel, kind: 'listing_checklist', listing_id: listing_id || null, succeeded: false })
         return new Response(
           JSON.stringify({
-            error: `Anthropic API error (${checklistResp.status}): ${await parseAnthropicError(checklistResp) || 'unknown'}`,
-            code: 'anthropic_api_error',
+            error: err?.message || 'Anthropic call failed',
+            code: err?.code || 'anthropic_api_error',
           }),
-          { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
+          { status: err?.status || 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
         )
       }
 
-      const checklistResult = await checklistResp.json()
+      const checklistResult = checklistSettled.value
       await logAiGeneration(logSb, {
         service: 'anthropic',
         model: checklistModel,
@@ -277,7 +267,7 @@ Your job right now is to produce the markdown strategy document described in the
         cost_cents: anthropicCostCents(checklistModel, checklistResult?.usage),
         succeeded: true,
       })
-      const checklistText = checklistResult.content?.[0]?.text ?? ''
+      const checklistText = textOf(checklistResult)
 
       let tasks: Array<{ label: string; phase: string }> = []
       try {
@@ -299,9 +289,9 @@ Your job right now is to produce the markdown strategy document described in the
 
       // Strategy is best-effort — if it fails we still return the tasks.
       let strategy = ''
-      if (strategyResp.ok) {
+      if (strategySettled.status === 'fulfilled') {
         try {
-          const sr = await strategyResp.json()
+          const sr = strategySettled.value
           await logAiGeneration(logSb, {
             service: 'anthropic',
             model: checklistModel,
@@ -310,7 +300,7 @@ Your job right now is to produce the markdown strategy document described in the
             cost_cents: anthropicCostCents(checklistModel, sr?.usage),
             succeeded: true,
           })
-          strategy = sr.content?.[0]?.text ?? ''
+          strategy = textOf(sr)
         } catch { /* ignore */ }
       } else {
         await logAiGeneration(logSb, { service: 'anthropic', model: checklistModel, kind: 'listing_strategy', listing_id: listing_id || null, succeeded: false })
@@ -474,37 +464,31 @@ Your job right now is to produce the markdown strategy document described in the
       }
 
       // ─── Build per-channel Claude calls in parallel ──────────────────────
+      // C10: route through callAnthropic so the monthly budget cap applies.
       const listingContentModel = 'claude-sonnet-4-6'
       const callClaudeJson = async (system: string, userPrompt: string, maxTokens = 1200) => {
-        const r = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
+        try {
+          const j = await callAnthropic(logSb, {
             model: listingContentModel,
-            max_tokens: maxTokens,
+            maxTokens,
             system,
             messages: [{ role: 'user', content: userPrompt }],
-          }),
-        })
-        if (!r.ok) {
-          const errText = await r.text().catch(() => '')
+            feature: `generate-content:listing_content:${variant}`,
+            attributedTo: (listingRow?.id || listing_id) ? { kind: 'listing', id: listingRow?.id || listing_id } : undefined,
+          })
+          await logAiGeneration(logSb, {
+            service: 'anthropic',
+            model: listingContentModel,
+            kind: `listing_content:${variant}`,
+            listing_id: listingRow?.id || listing_id || null,
+            cost_cents: anthropicCostCents(listingContentModel, j?.usage),
+            succeeded: true,
+          })
+          return textOf(j)
+        } catch (err: any) {
           await logAiGeneration(logSb, { service: 'anthropic', model: listingContentModel, kind: `listing_content:${variant}`, listing_id: listingRow?.id || listing_id || null, succeeded: false })
-          throw new Error(`Anthropic API error (${r.status}): ${errText.slice(0, 400)}`)
+          throw new Error(err?.message || 'Anthropic call failed')
         }
-        const j = await r.json()
-        await logAiGeneration(logSb, {
-          service: 'anthropic',
-          model: listingContentModel,
-          kind: `listing_content:${variant}`,
-          listing_id: listingRow?.id || listing_id || null,
-          cost_cents: anthropicCostCents(listingContentModel, j?.usage),
-          succeeded: true,
-        })
-        return j.content?.[0]?.text ?? ''
       }
 
       const buildSystem = () =>
@@ -808,38 +792,26 @@ Rules:
 - If suggesting hashtags, return them with a single # prefix (not ##).
 - Be concise in your questions. Don't over-explain.`
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 2048,
+      // C10: route through callAnthropic so the monthly budget cap applies.
+      const refineModel = 'claude-sonnet-4-6'
+      let result
+      try {
+        result = await callAnthropic(logSb, {
+          model: refineModel,
+          maxTokens: 2048,
           system: refineSystem,
           messages: conversation,
-        }),
-      })
-
-      const refineModel = 'claude-sonnet-4-6'
-      if (!response.ok) {
-        let detail = ''
-        try {
-          const errBody = await response.json()
-          detail = errBody?.error?.message || JSON.stringify(errBody)
-        } catch {
-          detail = await response.text().catch(() => '')
-        }
+          feature: 'generate-content:refine',
+        })
+      } catch (err: any) {
+        const e = err as BillError
         await logAiGeneration(logSb, { service: 'anthropic', model: refineModel, kind: 'refine', succeeded: false })
         return new Response(
-          JSON.stringify({ error: `Anthropic API error (${response.status}): ${detail || 'unknown'}`, code: 'anthropic_api_error' }),
-          { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: e?.message || 'Anthropic call failed', code: e?.code || 'anthropic_api_error' }),
+          { status: e?.status || 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
         )
       }
 
-      const result = await response.json()
       await logAiGeneration(logSb, {
         service: 'anthropic',
         model: refineModel,
@@ -847,7 +819,7 @@ Rules:
         cost_cents: anthropicCostCents(refineModel, result?.usage),
         succeeded: true,
       })
-      const text = result.content?.[0]?.text ?? ''
+      const text = textOf(result)
       return new Response(JSON.stringify({ text }), {
         headers: { ...CORS, 'Content-Type': 'application/json' },
       })
@@ -858,44 +830,29 @@ Rules:
     const model = type === 'listing_plan' ? 'claude-opus-4-6' : 'claude-sonnet-4-6'
     const maxTokens = type === 'listing_plan' ? 8192 : (type === 'recreate_inspo' ? 2048 : 1024)
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
+    // C10: route through callAnthropic so the monthly budget cap applies.
+    let result
+    try {
+      result = await callAnthropic(logSb, {
         model,
-        max_tokens: maxTokens,
+        maxTokens,
         system: SYSTEM_PROMPT + brandContext + frameworkContext + avatarContext + contentRulesContext,
         messages: [{ role: 'user', content: userMessage }],
-      }),
-    })
-
-    // Surface Anthropic errors instead of silently returning empty text.
-    // Previously this swallowed 4xx/5xx from the API and callers would see
-    // an empty `text` field with no explanation.
-    if (!response.ok) {
-      let detail = ''
-      try {
-        const errBody = await response.json()
-        detail = errBody?.error?.message || JSON.stringify(errBody)
-      } catch {
-        detail = await response.text().catch(() => '')
-      }
+        feature: `generate-content:${type || 'generate'}`,
+      })
+    } catch (err: any) {
+      const e = err as BillError
       await logAiGeneration(logSb, { service: 'anthropic', model, kind: type || 'generate', succeeded: false })
       return new Response(
         JSON.stringify({
-          error: `Anthropic API error (${response.status}): ${detail || 'unknown'}`,
-          code: 'anthropic_api_error',
-          status: response.status,
+          error: e?.message || 'Anthropic call failed',
+          code: e?.code || 'anthropic_api_error',
+          status: e?.status || 502,
         }),
-        { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
+        { status: e?.status || 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
       )
     }
 
-    const result = await response.json()
     await logAiGeneration(logSb, {
       service: 'anthropic',
       model,
@@ -903,7 +860,7 @@ Rules:
       cost_cents: anthropicCostCents(model, result?.usage),
       succeeded: true,
     })
-    const text = result.content?.[0]?.text ?? ''
+    const text = textOf(result)
 
     if (!text) {
       return new Response(
