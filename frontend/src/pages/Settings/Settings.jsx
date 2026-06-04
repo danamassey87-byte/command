@@ -1274,6 +1274,14 @@ function GoogleAccountCard() {
       const { data, error } = await DB.startGoogleAuth()
       if (error) throw new Error(error)
       if (data?.auth_url) {
+        // L12: defense-in-depth — verify the URL points to Google's OAuth
+        // server before we redirect the user. Even though `startGoogleAuth`
+        // is our own edge function, a future bug or compromised response
+        // shouldn't be able to ship the user off to an attacker-controlled
+        // redirect.
+        if (!/^https:\/\/accounts\.google\.com\//.test(data.auth_url)) {
+          throw new Error('Auth URL is not a Google accounts URL — refusing to redirect')
+        }
         window.location.href = data.auth_url
       } else {
         throw new Error('No auth URL returned')

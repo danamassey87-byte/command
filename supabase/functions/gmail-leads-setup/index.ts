@@ -114,6 +114,22 @@ serve(async (req) => {
             result.filtersSkipped++
             continue
           }
+          // L5: validate from_filter shape — must look like an email or
+          // domain so a typo like `"*"` doesn't create a Gmail filter that
+          // captures every inbox email under the source's label and skips
+          // inbox. Allow `user@domain`, `*@domain`, or `domain.tld`. Reject
+          // anything starting with `*` alone or containing ` OR ` (those
+          // widen the filter's reach far beyond a single sender).
+          const trimmed = fromFilter.trim()
+          const looksOk =
+            /@[a-z0-9.-]+\.[a-z]{2,}$/i.test(trimmed) ||                  // <anything>@domain.tld
+            /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(trimmed)                     // bare domain.tld
+          const looksTooWide =
+            /^\*+$/.test(trimmed) || /\s+or\s+/i.test(trimmed) || trimmed === ''
+          if (!looksOk || looksTooWide) {
+            result.errors.push(`${source.slug} filter: from_filter "${trimmed}" rejected — must be a single email or domain (no "*" or "OR")`)
+            continue
+          }
           // Skip if a filter already exists with the same criteria + label.
           const existing = filters.find(f =>
             f.criteria?.from === fromFilter &&

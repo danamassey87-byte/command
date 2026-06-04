@@ -379,18 +379,18 @@
 
 ## LOW
 
-- [ ] **L1.** `host-report-followup` unawaited `.then()` on notification insert — `supabase/functions/host-report-followup/index.ts:221-241`
-- [ ] **L2.** Many `.catch(() => {})` swallow errors — replace with `console.error` + `system_events` write
-- [ ] **L3.** `lofty-webhook` always returns 200 — switch to 5xx after Lofty is live
-- [ ] **L4.** `extractEmail` regex in `gmail-reply-detect` doesn't sanity-check `@` — `supabase/functions/gmail-reply-detect/index.ts:511-518`
-- [ ] **L5.** `gmail-leads-setup` doesn't validate `from_filter` — `"*"` captures all inbox
+- [x] **L1.** `host-report-followup` unawaited `.then()` on notification insert ✅ 2026-06-04 (rewrote to standard `{ error }` pattern)
+- [x] **L2.** Many `.catch(() => {})` swallow errors ✅ 2026-06-04 (cleaned up across this session — M10 cash-offer-sla-check, M20 ai-bill, host-report-followup, send-newsletter recipient updates, etc. Remaining swallows are intentional best-effort paths)
+- [x] **L3.** `lofty-webhook` always returns 200 ✅ 2026-06-04 (closed by C4, commit 6da5856 — now returns 5xx on insert/dedupe failure)
+- [x] **L4.** `extractEmail` regex in `gmail-reply-detect` doesn't sanity-check `@` ✅ 2026-06-04 (rejects captures without `@`)
+- [x] **L5.** `gmail-leads-setup` doesn't validate `from_filter` — `"*"` captures all inbox ✅ 2026-06-04 (validates email-or-domain shape; rejects `*` / ` OR `)
 - [ ] **L6.** `notifications.js` `rearmRecurringFollowups` fires unthrottled on every bell render — `frontend/src/lib/notifications.js:101, 134`
-- [ ] **L7.** Supabase session in localStorage — acceptable after XSS holes close
+- [x] **L7.** Supabase session in localStorage ✅ 2026-06-04 (acceptable — primary XSS vectors closed by C5 + H8 + M17 + PropertyMap rewrite)
 - [ ] **L8.** `staged_from_id ON DELETE SET NULL` loses AI-staging lineage — `supabase/migrations/20260507_virtual_staging.sql:11` → denormalize `was_ai_staged BOOLEAN`
-- [ ] **L9.** `resend-webhook` no event-id dedupe — replays double-count opens
+- [x] **L9.** `resend-webhook` no event-id dedupe ✅ 2026-06-04 (closed by C3 + X1, commit 6da5856 — `webhook_events_seen(provider='resend', event_id=svix-id)` PK now blocks replays)
 - [ ] **L10.** `oh-reminders` hardcodes `-07:00` — breaks across timezones post-multi-user
 - [ ] **L11.** `canva-generate` uses `CANVA_CLIENT_SECRET` as bearer — env-var naming misleading; verify actual value
-- [ ] **L12.** `Settings.jsx:1277` `window.location.href = data.auth_url` — add `.startsWith('https://accounts.google.com/')` guard
+- [x] **L12.** `Settings.jsx:1277` `window.location.href = data.auth_url` ✅ 2026-06-04 (validates `https://accounts.google.com/` prefix before redirect)
 
 ---
 

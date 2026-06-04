@@ -218,7 +218,10 @@ serve(async (req) => {
 
     // Drop one summary notification — even if 0 attendees were eligible
     // (so Dana sees the host's positive signal even with no merged sign-ins).
-    await supabase
+    // L1: was `.then(() => {}, err => warn)` — works but the standard
+    // { error } pattern is clearer and lets us log via the same channel
+    // as the rest of this file.
+    const { error: notifInsertErr } = await supabase
       .from('notifications')
       .insert({
         type: 'host_report_followup',
@@ -238,7 +241,9 @@ serve(async (req) => {
           reasons,
         },
       })
-      .then(() => {}, (err: any) => console.warn('[host-report-followup] notif insert failed:', err.message))
+    if (notifInsertErr) {
+      console.warn('[host-report-followup] notif insert failed:', notifInsertErr.message)
+    }
 
     // Mark processed (best-effort; tolerated if migration hasn't been applied).
     {

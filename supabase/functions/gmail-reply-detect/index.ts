@@ -510,9 +510,15 @@ serve(async (req) => {
 
 /** Extract email from "Name <email@domain.com>" format */
 function extractEmail(fromStr: string): string {
+  // L4: previously the `<...>` capture was returned with no sanity check.
+  // A header like `From: "Dana" <bogus garbage>` would write "bogus garbage"
+  // into gmail_reply_log.reply_from_email. Reject if the capture doesn't
+  // contain an @.
   const match = fromStr.match(/<([^>]+)>/)
-  if (match) return match[1].trim()
-  // Maybe it's just an email address
+  if (match) {
+    const inside = match[1].trim()
+    if (inside.includes('@')) return inside
+  }
   if (fromStr.includes('@')) return fromStr.trim()
   return ''
 }
