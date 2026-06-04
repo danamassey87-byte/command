@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Badge, SectionHeader, TabBar, DataTable, Card, CheckItem, SlidePanel, Input, Select, Textarea, AddressLink } from '../../components/ui/index.jsx'
+import { fetchWithTimeout } from '../../lib/net.js'
 import LeadSourcePicker from '../../components/ui/LeadSourcePicker.jsx'
 import PartiesSection from '../../components/parties/PartiesSection.jsx'
 import RelatedPeopleSection, { cleanRelatedPeople, RelatedPeopleDisplay } from '../../components/related-people/RelatedPeopleSection.jsx'
@@ -2553,7 +2554,8 @@ Provide:
 4. NET TO SELLER — use the title company net sheet figure ($${offer.net_sheet_total ? Number(offer.net_sheet_total).toLocaleString() : 'not provided'}) if available, otherwise estimate (price minus concessions)
 5. RECOMMENDATION for the seller (accept, counter, decline — with reasoning)`
 
-      const res = await fetch(
+      // M2: 45s timeout — generate-content backs 1–2 Anthropic calls.
+      const res = await fetchWithTimeout(
         `${import.meta.env.VITE_SUPABASE_URL || 'https://kbbnsgkuqxfikvdzvhon.supabase.co'}/functions/v1/generate-content`,
         {
           method: 'POST',
@@ -2562,7 +2564,8 @@ Provide:
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({ prompt, max_tokens: 800 }),
-        }
+        },
+        45_000
       )
       const json = await res.json()
       const analysis = json.content || json.text || json.result || ''
@@ -2606,7 +2609,9 @@ Provide a seller-friendly breakdown:
 
 Format this so I can send it directly to my seller.`
 
-      const res = await fetch(
+      // M2: 60s timeout — multi-offer comparison is the longest LLM call
+      // in the SPA. Stays inside the edge fn wall.
+      const res = await fetchWithTimeout(
         `${import.meta.env.VITE_SUPABASE_URL || 'https://kbbnsgkuqxfikvdzvhon.supabase.co'}/functions/v1/generate-content`,
         {
           method: 'POST',
@@ -2615,7 +2620,8 @@ Format this so I can send it directly to my seller.`
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({ prompt, max_tokens: 1500 }),
-        }
+        },
+        60_000
       )
       const json = await res.json()
       const result = json.content || json.text || json.result || ''

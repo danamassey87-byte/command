@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import * as DB from './supabase.js'
+import { fetchWithTimeout } from './net.js'
 
 // ─── Generic hook ─────────────────────────────────────────────────────────────
 function useQuery(fetcher, deps = []) {
@@ -195,19 +196,20 @@ export const useNotificationRules      = ()    => useQuery(DB.getNotificationRul
 export function useWeatherForecast(lat, lng) {
   return useQuery(async () => {
     if (!lat || !lng) return null
-    // Step 1: Get the forecast URL for this point
-    const pointRes = await fetch(`https://api.weather.gov/points/${lat},${lng}`, {
+    // Step 1: Get the forecast URL for this point. M2: 10s timeout — NWS
+    // can hang for 30s+ during outages and freeze dashboard renders.
+    const pointRes = await fetchWithTimeout(`https://api.weather.gov/points/${lat},${lng}`, {
       headers: { 'User-Agent': 'AntigravityRE/1.0 (dana@antigravityre.com)' },
-    })
+    }, 10_000)
     if (!pointRes.ok) throw new Error(`Weather point lookup failed: ${pointRes.status}`)
     const pointData = await pointRes.json()
     const forecastUrl = pointData.properties?.forecast
     if (!forecastUrl) throw new Error('No forecast URL in point response')
 
     // Step 2: Fetch the actual forecast
-    const fcRes = await fetch(forecastUrl, {
+    const fcRes = await fetchWithTimeout(forecastUrl, {
       headers: { 'User-Agent': 'AntigravityRE/1.0 (dana@antigravityre.com)' },
-    })
+    }, 10_000)
     if (!fcRes.ok) throw new Error(`Weather forecast failed: ${fcRes.status}`)
     const fcData = await fcRes.json()
     return fcData.properties || null
@@ -218,9 +220,9 @@ export function useWeatherForecast(lat, lng) {
 export function useWeatherAlerts(lat, lng) {
   return useQuery(async () => {
     if (!lat || !lng) return []
-    const res = await fetch(`https://api.weather.gov/alerts/active?point=${lat},${lng}`, {
+    const res = await fetchWithTimeout(`https://api.weather.gov/alerts/active?point=${lat},${lng}`, {
       headers: { 'User-Agent': 'AntigravityRE/1.0 (dana@antigravityre.com)' },
-    })
+    }, 10_000)
     if (!res.ok) return []
     const data = await res.json()
     return data.features || []

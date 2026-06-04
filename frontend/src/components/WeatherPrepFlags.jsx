@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Badge } from './ui/index.jsx'
 import * as DB from '../lib/supabase.js'
+import { fetchWithTimeout } from '../lib/net.js'
 
 // Generate prep flags from weather data
 function generatePrepFlags(forecast) {
@@ -75,18 +76,20 @@ export default function WeatherPrepFlags({ propertyId, ohDate, latitude, longitu
           }
         }
 
-        // Fetch from NWS (free, no API key)
-        const pointRes = await fetch(`https://api.weather.gov/points/${latitude},${longitude}`, {
+        // Fetch from NWS (free, no API key). M2: 10s timeout — NWS is
+        // usually <1s but during outages it can hang for 30s+ and freeze
+        // the OH page render.
+        const pointRes = await fetchWithTimeout(`https://api.weather.gov/points/${latitude},${longitude}`, {
           headers: { 'User-Agent': 'AntigravityRE/1.0 (dana@antigravityre.com)' },
-        })
+        }, 10_000)
         if (!pointRes.ok) throw new Error('Weather service unavailable')
         const pointData = await pointRes.json()
         const forecastUrl = pointData.properties?.forecast
         if (!forecastUrl) throw new Error('No forecast URL')
 
-        const fcRes = await fetch(forecastUrl, {
+        const fcRes = await fetchWithTimeout(forecastUrl, {
           headers: { 'User-Agent': 'AntigravityRE/1.0 (dana@antigravityre.com)' },
-        })
+        }, 10_000)
         if (!fcRes.ok) throw new Error('Forecast unavailable')
         const fcData = await fcRes.json()
 

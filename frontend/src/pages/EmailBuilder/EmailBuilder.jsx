@@ -5,6 +5,7 @@ import ComplianceCheck from '../../components/ComplianceCheck.jsx'
 import { useBrand } from '../../lib/BrandContext'
 import { BrandColorPicker, BorderRadiusControl, FontPicker, FontSizeControl, SpacingControl } from '../../components/ui/StyleControls'
 import { PropertyPicker } from '../../components/ui/PropertyPicker'
+import { fetchWithTimeout } from '../../lib/net.js'
 import './EmailBuilder.css'
 
 // ─── Storage ───
@@ -1220,7 +1221,9 @@ export default function EmailBuilder() {
         avatar_id: aiAvatarId || undefined,
       }
 
-      const res = await fetch(
+      // M2: 45s timeout — generate-content makes 1–4 Anthropic calls which
+      // are individually 25s-capped (ai-bill.ts). 45s leaves headroom.
+      const res = await fetchWithTimeout(
         `${import.meta.env.VITE_SUPABASE_URL || 'https://kbbnsgkuqxfikvdzvhon.supabase.co'}/functions/v1/generate-content`,
         {
           method: 'POST',
@@ -1229,7 +1232,8 @@ export default function EmailBuilder() {
             'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtiYm5zZ2t1cXhmaWt2ZHp2aG9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk5MjM2NjYsImV4cCI6MjA1NTQ5OTY2Nn0.KGlszMbPsHcxpwKmediZOhD_kBzCWHk1JFEBl6byvVE'}`,
           },
           body: JSON.stringify(body),
-        }
+        },
+        45_000
       )
 
       const data = await res.json()

@@ -3,6 +3,7 @@ import { SectionHeader, Button, Input, Textarea } from '../../components/ui/inde
 import { useBrand } from '../../lib/BrandContext'
 import supabase from '../../lib/supabase'
 import * as DB from '../../lib/supabase'
+import { fetchWithTimeout } from '../../lib/net.js'
 import TemplatesTab, { AIPlanPromptsEditor } from './TemplatesTab'
 import Recovery from '../Recovery/Recovery'
 import MeetRecordingsSync from '../../components/drive/MeetRecordingsSync'
@@ -913,10 +914,11 @@ function ConnectedAccountsTab() {
         setTestResult({ ok: false, message: 'Enter an API key first' })
         return
       }
-      // Test by listing accounts
-      const resp = await fetch('https://api.blotato.com/v2/accounts', {
+      // Test by listing accounts. M2: 10s timeout — connectivity-test
+      // shouldn't hang the Settings page if Blotato is slow.
+      const resp = await fetchWithTimeout('https://api.blotato.com/v2/accounts', {
         headers: { 'Authorization': `Bearer ${blotatoKey}` },
-      })
+      }, 10_000)
       if (!resp.ok) {
         const errText = await resp.text().catch(() => '')
         setTestResult({ ok: false, message: `API returned ${resp.status}: ${errText.slice(0, 200)}` })
@@ -1845,9 +1847,10 @@ function GammaConfigCard() {
         setTestResult({ ok: false, message: 'Enter an API key first' })
         return
       }
-      const resp = await fetch('https://public-api.gamma.app/v1.0/themes', {
+      // M2: 10s timeout on Gamma connectivity test.
+      const resp = await fetchWithTimeout('https://public-api.gamma.app/v1.0/themes', {
         headers: { 'X-API-KEY': gammaKey },
-      })
+      }, 10_000)
       if (!resp.ok) {
         const errText = await resp.text().catch(() => '')
         setTestResult({ ok: false, message: `API returned ${resp.status}: ${errText.slice(0, 200)}` })

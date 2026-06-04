@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Card, Button, Badge, Input, Select, Textarea, TabBar, SlidePanel, EmptyState, SectionHeader } from '../../components/ui'
+import { fetchWithTimeout } from '../../lib/net.js'
 import { useContacts, useContactsWithTags, useTags } from '../../lib/hooks'
 import { useBrandSignature } from '../../lib/BrandContext'
 import { blocksToHtml, getEmailTemplates, CAMPAIGN_EMAIL_TEMPLATES } from '../../lib/emailHtml'
@@ -357,12 +358,14 @@ export default function SmartCampaigns() {
     // "Send Now" button surfaces this clearly instead of failing silently.
     setSending(p => ({ ...p, [enrollmentId]: true }))
     try {
+      // M2: 30s timeout — send-campaign-step calls Resend + writes step
+      // history. Anything slower than this is probably hung.
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-      const res = await fetch(`${supabaseUrl}/functions/v1/send-campaign-step`, {
+      const res = await fetchWithTimeout(`${supabaseUrl}/functions/v1/send-campaign-step`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enrollment_id: enrollmentId }),
-      })
+      }, 30_000)
       const data = await res.json()
       if (res.status === 403) {
         alert(

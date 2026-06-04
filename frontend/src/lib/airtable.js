@@ -2,6 +2,8 @@
 // Base: Client Tracker (app2Uzee1RzILwUQf)
 // Token: set VITE_AIRTABLE_TOKEN in .env.local
 
+import { fetchWithTimeout } from './net.js'
+
 const BASE_ID = 'app2Uzee1RzILwUQf'
 const API_ROOT = `https://api.airtable.com/v0/${BASE_ID}`
 
@@ -46,7 +48,8 @@ async function fetchAll(tableId, options = {}) {
     }
     if (offset) url.searchParams.set('offset', offset)
 
-    const res = await fetch(url.toString(), { headers: headers() })
+    // M2: 15s per page. Airtable pagination can stall on large datasets.
+    const res = await fetchWithTimeout(url.toString(), { headers: headers() }, 15_000)
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
       throw new Error(err?.error?.message ?? `Airtable ${res.status}`)
@@ -60,11 +63,11 @@ async function fetchAll(tableId, options = {}) {
 }
 
 async function createRecord(tableId, fields) {
-  const res = await fetch(`${API_ROOT}/${tableId}`, {
+  const res = await fetchWithTimeout(`${API_ROOT}/${tableId}`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify({ fields }),
-  })
+  }, 15_000)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error?.message ?? `Airtable ${res.status}`)
@@ -74,11 +77,11 @@ async function createRecord(tableId, fields) {
 }
 
 async function updateRecord(tableId, recordId, fields) {
-  const res = await fetch(`${API_ROOT}/${tableId}/${recordId}`, {
+  const res = await fetchWithTimeout(`${API_ROOT}/${tableId}/${recordId}`, {
     method: 'PATCH',
     headers: headers(),
     body: JSON.stringify({ fields }),
-  })
+  }, 15_000)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err?.error?.message ?? `Airtable ${res.status}`)
