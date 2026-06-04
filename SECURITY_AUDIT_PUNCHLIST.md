@@ -308,7 +308,8 @@
 - **File:** `supabase/migrations/20260514_oh_listing_date_consistency.sql:7-30`
 - **Fix:** Either `RAISE EXCEPTION` on date mismatch, or insert `system_events('oh.listing_unlinked', 'warn', …)` + surface banner in UI. Audit nullable columns in `listings`, `open_houses`, `transactions`, `referral_fees`.
 
-### [ ] M7. `lead-intake-email.ensureContactInline` merges by `ilike` name match — unrelated leads silently merged
+### [x] M7. `lead-intake-email.ensureContactInline` merges by `ilike` name match — unrelated leads silently merged ✅ 2026-06-04
+> Shipped: removed the ILIKE name-based fallback branch (line 387-390). Now email and phone are the only identity primitives — two unrelated "John Smith" leads from different vendors create separate contacts as they should. Edge fn needs redeploy.
 - **File:** `supabase/functions/lead-intake-email/index.ts:380-383`
 - **Fix:** Require email or phone match. Otherwise create new contact.
 
@@ -346,7 +347,8 @@
 - **File:** `frontend/src/lib/emailHtml.js:88, 111-114, 134`
 - **Fix:** Run through `safeUrl()` helper from C5.
 
-### [ ] M16. `merge-form-submission.extract()` fuzzy substring match — `email_marketing_consent: "yes"` stored as `email = "yes"`
+### [x] M16. `merge-form-submission.extract()` fuzzy substring match — `email_marketing_consent: "yes"` stored as `email = "yes"` ✅ 2026-06-04
+> Shipped: rewrote `extract()` to do (pass 1) exact normalized key match and (pass 2) boundary-anchored prefix-or-suffix match. `email_marketing_consent` no longer matches `email` because the key contains `marketing` between them. Added `looksLikeEmail()` validator (requires `@` not at edges, plus a `.` in the domain) — if the extracted value doesn't look like an email, it's discarded and the row falls through the `if (!email && !phone) skip` guard. Edge fn needs redeploy.
 - **File:** `supabase/functions/merge-form-submission/index.ts:21-30, 98-108`
 - **Fix:** Exact-match whitelist (`^email$|^contact_email$|^email_address$`). Validate `@` present before storing.
 
@@ -358,7 +360,8 @@
 ### [ ] M18. `validate-address` / `generate-embeddings` no auth/rate-limit — USPS/HF quota burn
 - **Fix:** Auth + per-IP cap.
 
-### [ ] M19. `oh-reminders` posts service-role bearer to `send-oh-feedback-request` which never checks it
+### [x] M19. `oh-reminders` posts service-role bearer to `send-oh-feedback-request` which never checks it ✅ 2026-06-04 (closed by C6 Phase A, commit 53e3190)
+> `send-oh-feedback-request` now does a timing-safe compare of the incoming bearer against `SUPABASE_SERVICE_ROLE_KEY` and returns 403 on mismatch. The bearer that `oh-reminders/index.ts:99` was already passing is now actually verified. No additional change needed.
 - **Fix:** Add bearer check to `send-oh-feedback-request` (rolls up under C6 token fix).
 
 ### [x] M20. `incrementLedger` swallows `cost_ledger` errors silently ✅ 2026-06-04

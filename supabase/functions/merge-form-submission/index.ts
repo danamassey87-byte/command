@@ -17,16 +17,55 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-/** Try to extract a value from the form data JSON by checking common field names. */
+/** Try to extract a value from the form data JSON.
+ *
+ * M16: previously this used `.includes()` substring matching, so asking for
+ * "email" would happily match `email_marketing_consent` and return its
+ * value ("yes"). The result landed in contacts.email as literal "yes" and
+ * passed the `if (!email && !phone) skip` gate because it's truthy. The
+ * CRM filled with junk contacts.
+ *
+ * Now: exact key match first (case + delimiter normalized). Only if no
+ * exact match found does it fall back to a tightened prefix-or-suffix
+ * check that requires the requested key to be a token boundary (`_first`,
+ * `firstname_`, etc.) — never the middle of a longer compound word like
+ * `email_marketing_consent`.
+ */
 function extract(data: Record<string, any>, ...keys: string[]): string | null {
+  const norm = (s: string) => s.toLowerCase().replace(/[_\- ]/g, '')
+  // Pass 1: exact normalized match.
   for (const key of keys) {
+    const target = norm(key)
     for (const [k, v] of Object.entries(data)) {
-      if (k.toLowerCase().replace(/[_\- ]/g, '').includes(key.toLowerCase().replace(/[_\- ]/g, '')) && v) {
+      if (norm(k) === target && v != null && String(v).trim()) {
+        return String(v).trim()
+      }
+    }
+  }
+  // Pass 2: boundary match — `^<key>` or `<key>$` after normalize, so
+  // `firstname` matches `firstname` and `customer_firstname` but NOT
+  // `email_marketing_consent` for key="email".
+  for (const key of keys) {
+    const target = norm(key)
+    for (const [k, v] of Object.entries(data)) {
+      const nk = norm(k)
+      const matchesBoundary = nk.startsWith(target) || nk.endsWith(target)
+      if (matchesBoundary && v != null && String(v).trim()) {
         return String(v).trim()
       }
     }
   }
   return null
+}
+
+/** Basic shape check: looks like an email (contains @ + dot in the
+ *  domain). Doesn't try to validate RFC 5322; we just want to reject
+ *  obvious junk like "yes" or "1" that the extract heuristic might pick up. */
+function looksLikeEmail(s: string | null): boolean {
+  if (!s) return false
+  const at = s.indexOf('@')
+  if (at <= 0 || at === s.length - 1) return false
+  return s.slice(at + 1).includes('.')
 }
 
 /** Derive a human-readable form label from the slug. */
@@ -95,7 +134,11 @@ serve(async (req) => {
     const now = new Date().toISOString()
 
     // ─── Extract contact info from form data ────────────────────────────
-    const email = (extract(formData, 'email') || '').toLowerCase() || null
+    const emailRaw = (extract(formData, 'email') || '').toLowerCase() || null
+    // M16 validation: reject any extracted email that doesn't look like one
+    // (e.g. the heuristic might still pick up `email_consent: "yes"` on a
+    // field name we haven't anticipated).
+    const email = looksLikeEmail(emailRaw) ? emailRaw : null
     const phone = extract(formData, 'phone', 'cell', 'mobile', 'telephone') || null
     const firstName = extract(formData, 'firstname', 'first_name', 'first') || sub.client_name?.split(' ')[0] || null
     const lastName = extract(formData, 'lastname', 'last_name', 'last') || sub.client_name?.split(' ').slice(1).join(' ') || null

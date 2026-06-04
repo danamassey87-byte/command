@@ -384,10 +384,12 @@ async function ensureContactInline(supabase: any, p: {
     const { data } = await supabase.from('contacts').select('id').eq('phone', phone).limit(1).maybeSingle()
     if (data?.id) return data.id
   }
-  if (name) {
-    const { data } = await supabase.from('contacts').select('id').ilike('name', name).limit(1).maybeSingle()
-    if (data?.id) return data.id
-  }
+
+  // M7: previously fell back to ILIKE on name when no email/phone matched.
+  // Two unrelated leads named "John Smith" from different vendors would
+  // silently merge, destroying the second lead's attribution. Email and
+  // phone are the safe identity primitives — name alone is too noisy.
+  // If neither matches, insert fresh below.
 
   // Insert fresh.
   const { data: created, error } = await supabase.from('contacts').insert({
