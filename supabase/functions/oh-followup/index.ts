@@ -125,9 +125,16 @@ serve(async (req) => {
         const recipientName = oh.agent_name || 'Dana'
 
         if (resendKey) {
+          // X5: pre-record-then-send. Claim flag is the local-state guard;
+          // Idempotency-Key forwards the dedupe to Resend (24h window) so a
+          // mid-flight cron retry can't deliver twice to the host.
           await fetch(RESEND_API, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+            headers: {
+              'Authorization': `Bearer ${resendKey}`,
+              'Content-Type': 'application/json',
+              'Idempotency-Key': `oh_followup_host_${oh.id}`,
+            },
             body: JSON.stringify({
               from: FROM_EMAIL,
               to: [recipientEmail],
@@ -153,9 +160,14 @@ serve(async (req) => {
         }
 
         if (oh.agent_email && oh.agent_email !== DANA_EMAIL && resendKey) {
+          // X5: pre-record-then-send.
           await fetch(RESEND_API, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+            headers: {
+              'Authorization': `Bearer ${resendKey}`,
+              'Content-Type': 'application/json',
+              'Idempotency-Key': `oh_followup_dana_${oh.id}`,
+            },
             body: JSON.stringify({
               from: FROM_EMAIL,
               to: [DANA_EMAIL],
@@ -226,9 +238,14 @@ serve(async (req) => {
         if (!claimed || claimed.length === 0) continue
 
         const address = oh.property?.address ?? 'the property'
+        // X5: pre-record-then-send.
         await fetch(RESEND_API, {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+          headers: {
+            'Authorization': `Bearer ${resendKey}`,
+            'Content-Type': 'application/json',
+            'Idempotency-Key': `oh_followup_reminder_${oh.id}`,
+          },
           body: JSON.stringify({
             from: FROM_EMAIL,
             to: [oh.agent_email],
@@ -343,9 +360,14 @@ serve(async (req) => {
           const city = oh.property?.city ?? ''
 
           if (resendKey) {
+            // X5: pre-record-then-send.
             await fetch(RESEND_API, {
               method: 'POST',
-              headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+              headers: {
+                'Authorization': `Bearer ${resendKey}`,
+                'Content-Type': 'application/json',
+                'Idempotency-Key': `oh_followup_briefing_${oh.id}`,
+              },
               body: JSON.stringify({
                 from: FROM_EMAIL,
                 to: [oh.agent_email],

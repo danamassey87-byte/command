@@ -423,7 +423,8 @@
   ```bash
   ! git grep -nE "(api\.anthropic\.com|api\.resend\.com)" supabase/functions | grep -v _shared/
   ```
-- [ ] **X5.** Pre-record-then-send convention for all outbound (Resend, Twilio, Blotato): write intent UUID first, tag the send, update on success
+- [~] **X5.** Pre-record-then-send convention for all outbound (Resend, Twilio, Blotato): write intent UUID first, tag the send, update on success ✅ 2026-06-04 (Resend layer covered — every cron-driven sender now carries Idempotency-Key)
+  > Shipped: every cron- or webhook-driven Resend sender now passes an `Idempotency-Key` derived from the local row that gates the send (newsletter_recipients.id, open_houses.id + send-kind, feedback_id, showing_id + nudge#). Resend honors the key for ~24h, so a mid-flight retry that landed between "Resend accepted the email" and "we marked the local row sent" no longer double-delivers — the vendor-side dedupe catches it. Sites wired: `send-newsletter`, `send-oh-feedback-request`, `oh-followup` (4 send paths: host followup / Dana BCC / reminder / day-before briefing), `feedback-follow-up`, `submit-oh-feedback`, `gmail-showing-monitor` (negative-feedback alert). `send-campaign-step` already had this from C8. Only outlier: `send-one-off-email` (SPA-triggered single shot — caller would need to pass an idempotency key explicitly). Outside Resend: Twilio + Blotato senders still need parallel work but are lower volume; deferred. Edge fns need redeploy.
 - [x] **X6.** Frontend helpers `escHtml()` + `safeUrl()` ✅ 2026-06-04 (closed by C5, commit 8d4ed9b — `frontend/src/lib/html.js` exports `escHtml`, `safeUrl`, `safeHandle`. Used by emailHtml.js, SellerWeeklyUpdate.jsx, PropertyMap.jsx, BioLinkPublic.jsx)
 
 ---

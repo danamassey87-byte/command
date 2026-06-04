@@ -206,9 +206,18 @@ serve(async (req) => {
           .slice(0, 998)
 
         try {
+          // X5: pre-record-then-send. `newsletter_recipients` row already
+          // exists (pending) by the time we call Resend — its id is the
+          // natural idempotency key. Resend honors Idempotency-Key for ~24h,
+          // so a cron retry that mid-fails on the status UPDATE will not
+          // double-send to the same recipient.
           const res = await fetch(RESEND_API, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+            headers: {
+              'Authorization': `Bearer ${resendKey}`,
+              'Content-Type': 'application/json',
+              'Idempotency-Key': `newsletter_recipient_${recipient.id}`,
+            },
             body: JSON.stringify({
               from: fromEmail,
               to: [recipient.email],

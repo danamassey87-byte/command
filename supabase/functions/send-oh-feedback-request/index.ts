@@ -194,11 +194,16 @@ serve(async (req) => {
 
     const subject = `Quick feedback on today's open house at ${addr}?`
 
+    // X5: pre-record-then-send. `feedbackId` is the OH feedback row we
+    // upserted above — using it as the Resend idempotency key means a
+    // cron retry that re-invokes this function for the same OH will hit
+    // Resend's 24h dedupe instead of double-emailing the hosting agent.
     const resendRes = await fetch(RESEND_API, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${resendKey}`,
         'Content-Type': 'application/json',
+        'Idempotency-Key': `oh_feedback_request_${feedbackId}`,
       },
       body: JSON.stringify({
         from: `${FROM_NAME} <dana@${FROM_DOMAIN}>`,

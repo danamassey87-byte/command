@@ -92,12 +92,16 @@ serve(async (req) => {
 <p>A simple reply works great. Thanks so much for your time!</p>
 <p>Dana Massey<br/>REAL Broker</p>`
 
-        // Send via Resend
+        // X5: pre-record-then-send. Showing id + nudge ordinal forms a stable
+        // idempotency key — a cron retry mid-flight will hit Resend's 24h
+        // dedupe on the same (showing, nudge#) instead of nudging twice.
+        const nudgeOrdinal = (count || 0) + 1
         const emailResp = await fetch(RESEND_API, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${resendKey}`,
+            'Idempotency-Key': `feedback_followup_${showing.showing_id}_${nudgeOrdinal}`,
           },
           body: JSON.stringify({
             from: 'Dana Massey <dana@danamassey.com>',

@@ -701,11 +701,16 @@ async function processShowingFeedback(
       // feedback freetext is attacker-controllable). Escape + CRLF-strip the
       // subject so a malicious address can't break the header.
       const subjectAddr = String(parsed.propertyAddress || 'Unknown Property').replace(/[\r\n]/g, ' ').slice(0, 200)
+      // X5: pre-record-then-send. Either the feedback row id or the source
+      // Gmail message id makes a stable key — both predate the Resend call.
+      // Prefer feedback.id so the dedupe lines up with the row Dana sees.
+      const idemKey = feedback?.id ? `negative_feedback_${feedback.id}` : `negative_feedback_msg_${msg.id}`
       await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${resendKey}`,
+          'Idempotency-Key': idemKey,
         },
         body: JSON.stringify({
           from: 'Antigravity Alerts <dana@mail.danamassey.com>',

@@ -136,9 +136,17 @@ serve(async (req) => {
 
     const resendKey = Deno.env.get('RESEND_API_KEY')
     if (resendKey) {
+      // X5: pre-record-then-send. `feedback_id` is the OH feedback row this
+      // submission resolves — a double-submit on the public form would
+      // otherwise re-notify Dana. Resend's 24h Idempotency-Key dedupe stops
+      // the second notification at the vendor.
       await fetch(RESEND_API, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Bearer ${resendKey}`,
+          'Content-Type': 'application/json',
+          'Idempotency-Key': `oh_feedback_response_${feedback_id}`,
+        },
         body: JSON.stringify({
           from: 'Open House Feedback <dana@danamassey.com>',
           to: [DANA_EMAIL],
