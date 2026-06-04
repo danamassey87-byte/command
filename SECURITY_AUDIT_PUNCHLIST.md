@@ -289,11 +289,13 @@
 ### [ ] M2. No `fetch()` timeouts (frontend + edge fns)
 - **Fix:** Shared helper `fetchWithTimeout(url, opts, ms=15000)` using `AbortSignal.timeout(ms)`.
 
-### [ ] M3. `publish-content` `generate_video` polls 90s; Supabase wall is 60s
+### [x] M3. `publish-content` `generate_video` polls 90s; Supabase wall is 60s ✅ 2026-06-04
+> Shipped: poll loop shortened from 18 × 5s (90s) to 10 × 5s (50s) so the function returns cleanly inside the 60s edge-function wall instead of getting killed mid-poll. On timeout the client receives `status='generating'` (no 504), matching the existing frontend polling path. Long-term Blotato webhook still queued, but the wall-clock kill is closed today. Edge fn needs redeploy.
 - **File:** `supabase/functions/publish-content/index.ts:96-121`
 - **Fix:** Move to Blotato webhook-based completion. Add recovery for orphaned `status='publishing'` rows.
 
-### [ ] M4. `canva-generate` poll loop 90s vs 60s wall — same problem
+### [x] M4. `canva-generate` poll loop 90s vs 60s wall — same problem ✅ 2026-06-04
+> Shipped: poll loop shortened from 45 × 2s (90s) to 25 × 2s (50s). On timeout returns the existing 504 "Canva export timed out before ready" with the Canva `jobId` so a client retry can resume against the same export job. Edge fn needs redeploy.
 - **File:** `supabase/functions/canva-generate/index.ts:65-93`
 - **Fix:** Reduce to 25×2s = 50s, OR persist `design_id` + add `/canva-export-status` follow-up endpoint.
 
@@ -359,7 +361,8 @@
 ### [ ] M19. `oh-reminders` posts service-role bearer to `send-oh-feedback-request` which never checks it
 - **Fix:** Add bearer check to `send-oh-feedback-request` (rolls up under C6 token fix).
 
-### [ ] M20. `incrementLedger` swallows `cost_ledger` errors silently
+### [x] M20. `incrementLedger` swallows `cost_ledger` errors silently ✅ 2026-06-04
+> Shipped: (1) total-mirror call's silent `.catch(() => {})` replaced with a `console.error` log so failures aren't completely invisible. (2) Inside `incrementLedger`, when the `increment_cost_ledger` RPC errors, we now also INSERT into `system_events` with `kind='cost.ledger_write_failed'`, `severity='warn'`, source=<service>. Slack #system already fans out `severity=warn|err` so Dana gets pinged. A persistent ledger-write failure breaks the budget cap (next call's pre-check reads stale amount and lets through requests that should be blocked) — now it surfaces immediately.
 - **File:** `supabase/functions/_shared/ai-bill.ts:210-236`
 - **Fix:** `console.error` + `system_events` write on failure.
 

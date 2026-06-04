@@ -62,9 +62,13 @@ serve(async (req) => {
       let status: string = initData?.job?.status ?? initData?.status ?? 'in_progress'
       let urls: string[] = initData?.job?.urls ?? initData?.urls ?? []
 
-      // 2. Poll up to ~90s for completion (45 × 2s)
+      // M4: stay inside the 60s edge-function wall. Was 45 × 2s = 90s
+      // which would get killed at 60s — the export succeeded on Canva's
+      // side but never got downloaded into our storage. Now 25 × 2s =
+      // 50s; on timeout we return 504 below and the client can re-invoke
+      // the function (Canva's job_id stays valid).
       if (!urls.length && jobId) {
-        for (let i = 0; i < 45 && status !== 'success' && status !== 'failed'; i++) {
+        for (let i = 0; i < 25 && status !== 'success' && status !== 'failed'; i++) {
           await new Promise(r => setTimeout(r, 2000))
           const pollResp = await fetch(`${CANVA_API}/exports/${jobId}`, {
             headers: { Authorization: `Bearer ${canvaToken}` },

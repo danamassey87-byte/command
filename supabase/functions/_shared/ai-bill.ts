@@ -185,8 +185,12 @@ export async function callAnthropic(
     }).catch((err) => {
       console.error('[ai-bill] ledger write failed:', err)
     })
-    // Mirror to 'total' so the global cap reflects all services
-    await incrementLedger(supabase, 'total', dollars, { mirror_of: 'anthropic' }).catch(() => {})
+    // Mirror to 'total' so the global cap reflects all services.
+    // M20: was previously `.catch(() => {})` — silent failures meant a
+    // broken `total` ledger row went unnoticed, and the global cap check
+    // would under-count.
+    await incrementLedger(supabase, 'total', dollars, { mirror_of: 'anthropic' })
+      .catch((err) => console.error('[ai-bill] total-mirror ledger write failed:', err))
   }
 
   return json
@@ -230,7 +234,18 @@ export async function incrementLedger(
     p_source:  'api',
   })
   if (error) {
+    // M20: was previously console-only. A persistent ledger-write failure
+    // breaks budget enforcement (the next call's pre-check reads a stale
+    // amount and lets through requests that should be blocked). Write a
+    // system_events row so Slack #system pings on warn-or-worse severity.
     console.error('[ai-bill] increment_cost_ledger failed:', error.message)
+    await supabase.from('system_events').insert({
+      kind: 'cost.ledger_write_failed',
+      severity: 'warn',
+      source: service,
+      body: `increment_cost_ledger RPC failed: ${error.message}`,
+      metadata: { service, month, amount, rpc_error: error.message },
+    }).then(() => {}, () => { /* surfacing visibility, not creating cascade failures */ })
     return
   }
 

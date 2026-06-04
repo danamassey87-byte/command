@@ -92,10 +92,14 @@ serve(async (req) => {
       const videoUrl = videoResult.video_url || videoResult.url || null
       const videoId = videoResult.video_id || videoResult.id || null
 
-      // If async generation, poll for completion (up to 90 seconds)
+      // M3: poll for completion but stay inside the 60s edge-function wall.
+      // Previously 18 × 5s = 90s would get killed at 60s, leaving the post
+      // in `status='publishing'` with no recovery. Now 10 × 5s = 50s; the
+      // client sees `status='generating'` if Blotato hasn't finished in
+      // that window, which the frontend already handles by polling.
       let finalVideoUrl = videoUrl
       if (!finalVideoUrl && videoId) {
-        for (let i = 0; i < 18; i++) {
+        for (let i = 0; i < 10; i++) {
           await new Promise(r => setTimeout(r, 5000))
           try {
             const pollResp = await fetch(`${BLOTATO_API}/videos/${videoId}`, {
