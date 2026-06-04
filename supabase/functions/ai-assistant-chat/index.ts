@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { callAnthropic, textOf } from '../_shared/ai-bill.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -12,14 +13,6 @@ serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured.', code: 'missing_api_key' }),
-        { status: 503, headers: { ...CORS, 'Content-Type': 'application/json' } }
-      )
-    }
-
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -205,43 +198,38 @@ Rules:
 If you identify a Fair Housing or compliance issue, flag it clearly with a ⚠️ COMPLIANCE note.`) + brandContext + contactContext + ragContext
 
     // ─── Call Claude ─────────────────────────────────────────────────────
-    // Send full conversation history for multi-turn context
+    // C10 from SECURITY_AUDIT_PUNCHLIST: route through callAnthropic so the
+    // monthly budget cap actually applies. Previously this function direct-
+    // fetched Anthropic, bypassing assertBudgetAvailable + incrementLedger
+    // entirely — and since the endpoint is unauthenticated with CORS *, a
+    // looping curl could burn the budget without limit. The cap now caps the
+    // bleed. (TODO: add per-IP rate limiting once a rate_limits table lands —
+    // that's the real defense; the budget cap is just the bulwark.)
     const conversationMessages = (messages || []).map((m: any) => ({
       role: m.role === 'user' ? 'user' : 'assistant',
       content: m.content,
     }))
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
+    let result
+    try {
+      result = await callAnthropic(supabase, {
         model: 'claude-sonnet-4-6',
-        max_tokens: 2048,
+        maxTokens: 2048,
         system: systemPrompt,
         messages: conversationMessages,
-      }),
-    })
-
-    if (!response.ok) {
-      let detail = ''
-      try {
-        const errBody = await response.json()
-        detail = errBody?.error?.message || JSON.stringify(errBody)
-      } catch {
-        detail = await response.text().catch(() => '')
-      }
+        feature: 'ai-assistant-chat',
+        attributedTo: contact_id ? { kind: 'contact', id: contact_id } : undefined,
+      })
+    } catch (err: any) {
+      const status = err?.status || 502
+      const code = err?.code || 'anthropic_api_error'
       return new Response(
-        JSON.stringify({ error: `Claude API error (${response.status}): ${detail}`, code: 'anthropic_api_error' }),
-        { status: 502, headers: { ...CORS, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: err?.message || 'Claude call failed', code }),
+        { status, headers: { ...CORS, 'Content-Type': 'application/json' } }
       )
     }
 
-    const result = await response.json()
-    const text = result.content?.[0]?.text ?? ''
+    const text = textOf(result)
     const inputTokens = result.usage?.input_tokens || 0
     const outputTokens = result.usage?.output_tokens || 0
 

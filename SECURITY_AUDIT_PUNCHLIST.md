@@ -15,7 +15,7 @@
 | 3 | ~~Verify Svix signature on `resend-webhook`~~ ✅ 2026-06-04 (needs `RESEND_WEBHOOK_SECRET` + migration + deploy) | 1 hr | C3 |
 | 4 | ~~Require `LOFTY_WEBHOOK_SECRET` query param on `lofty-webhook`~~ ✅ 2026-06-04 (needs `LOFTY_WEBHOOK_SECRET` + migration + deploy) | 30 min | C4 |
 | 5 | ~~Add `escHtml()` + `safeUrl()` helpers; apply to emailHtml, SellerWeeklyUpdate, PropertyMap, BioLink~~ ✅ 2026-06-04 (uncommitted) | 1 hr | C5, M15 |
-| 6 | Convert `cost_ledger.incrementLedger` to atomic SQL upsert RPC | 30 min | C9 |
+| 6 | ~~Convert `cost_ledger.incrementLedger` to atomic SQL upsert RPC~~ ✅ 2026-06-04 (migration applied; edge fns need redeploy) | 30 min | C9 |
 | 7 | Move Meta `access_token` server-side (new `meta-proxy` edge fn) | 2 hrs | C12 |
 | 8 | Add per-row HMAC submit tokens to OH sign-in/feedback/host-report URLs | 2 hrs | C6 |
 | 9 | Atomic claim (`FOR UPDATE SKIP LOCKED`) in `dispatch-due-campaigns` + step-history pre-write | 1 hr | C8 |
@@ -112,7 +112,8 @@
   ```
   In `send-campaign-step`: write `campaign_step_history` with `delivery_status='sending'` *before* Resend call; tag Resend with that UUID; flip to `'sent'` on success. `advanceEnrollment` uses `WHERE current_step = $expected`. Also require service-role bearer.
 
-### [ ] C9. `cost_ledger.incrementLedger` is SELECT-then-UPDATE — concurrent calls bypass budget cap
+### [x] C9. `cost_ledger.incrementLedger` is SELECT-then-UPDATE — concurrent calls bypass budget cap ✅ 2026-06-04
+> Shipped: `supabase/migrations/20260604_cost_ledger_atomic.sql` adds SECURITY DEFINER `increment_cost_ledger(service, month, amount, source)` RPC with atomic `INSERT … ON CONFLICT (service, month) DO UPDATE SET amount = amount + EXCLUDED.amount`. Returns `(new_amount, cap, exceeded)` for the alert. `SET search_path = pg_catalog, public` per H11. EXECUTE granted to service_role only. `supabase/functions/_shared/ai-bill.ts` `incrementLedger()` rewritten to call the RPC. **Migration applied via MCP 2026-06-04.** Edge functions need redeploy: `supabase functions deploy` for any fn that imports ai-bill (ai-assistant-chat, generate-content, auto-generate-content, ai-campaign-insights, build-gamma-custom, build-presentation, canva-generate, cma-parse, compile-weekly-showing-report, feedback-follow-up, host-report-followup, send-newsletter, oh-approval-gate).
 - **File:** `supabase/functions/_shared/ai-bill.ts:210-236`
 - **Fix:** Atomic upsert RPC:
   ```sql
@@ -128,7 +129,8 @@
   $$;
   ```
 
-### [ ] C10. Three functions bypass `ai-bill.ts` — wallet attack via unauthenticated `ai-assistant-chat`
+### [x] C10. Three functions bypass `ai-bill.ts` — wallet attack via unauthenticated `ai-assistant-chat` ✅ 2026-06-04 (budget cap part)
+> Shipped: `ai-assistant-chat`, `auto-generate-content` (both main + adapt fetches), and `embed-on-insert` (summary fetch) all routed through `callAnthropic` from `_shared/ai-bill.ts`. Budget cap now actually applies — paired with C9's atomic increment, parallel calls can't bypass it. `budget_exceeded` short-circuits the auto-generate batch (no point sending the next avatar after the cap is hit). **Still open:** per-IP rate limit on `ai-assistant-chat` — the budget cap is the bulwark, not a real defense; an attacker can still burn the whole monthly cap (e.g. $100) per cycle. Needs a `rate_limits(scope, key, period_start, count)` table + helper (X-new). Tagged TODO inline in `ai-assistant-chat/index.ts`. Edge fns need redeploy.
 - **Files:**
   - `supabase/functions/ai-assistant-chat/index.ts:214-227`
   - `supabase/functions/auto-generate-content/index.ts:136-149, 210-223`
@@ -152,7 +154,8 @@
   ```
   Stop returning the token to the frontend.
 
-### [ ] C13. `embed-on-insert` accepts forged DB webhook payloads → RAG poisoning
+### [x] C13. `embed-on-insert` accepts forged DB webhook payloads → RAG poisoning ✅ 2026-06-04
+> Shipped: `embed-on-insert` now requires header `x-webhook-secret: <DB_WEBHOOK_SECRET>` (timing-safe compare). Fails closed (503) if env var unset; 401 on mismatch. **Deploy steps:** (1) `supabase secrets set DB_WEBHOOK_SECRET=$(openssl rand -hex 24)`; (2) Supabase dashboard → Database → Webhooks → edit each webhook firing `embed-on-insert` → Headers → add `x-webhook-secret: <same value>`; (3) `supabase functions deploy embed-on-insert`. Until steps 1-3 are all done, embeddings will stop generating for new contacts/interactions — sequence matters.
 - **File:** `supabase/functions/embed-on-insert/index.ts:208-219`
 - **Exploit:** Attacker POSTs `{"type":"INSERT","record":{"prompt_text":"poisoned"}}` — flows into AI Assistant context as `RELEVANT KNOWLEDGE`.
 - **Fix:** Set DB Webhook header secret in Supabase dashboard. Verify in handler:

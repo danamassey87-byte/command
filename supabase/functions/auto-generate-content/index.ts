@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { callAnthropic, textOf } from '../_shared/ai-bill.ts'
 
 /**
  * auto-generate-content
@@ -10,6 +11,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
  *  2. Generates an IG post via generate-content edge function
  *  3. Adapts for FB and all other configured platforms
  *  4. Saves as content_pieces + platform_posts (draft or auto-publish)
+ *
+ * C10 from SECURITY_AUDIT_PUNCHLIST: previously direct-fetched Anthropic, so
+ * the monthly budget cap didn't apply to the daily 2×N avatar runs. All calls
+ * now go through callAnthropic for cost tracking + budget enforcement.
  */
 
 const CORS = {
@@ -35,13 +40,6 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceKey  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const apiKey      = Deno.env.get('ANTHROPIC_API_KEY')
-
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY not set', code: 'missing_api_key' }),
-        { status: 503, headers: { ...CORS, 'Content-Type': 'application/json' } })
-    }
-
     const supabase = createClient(supabaseUrl, serviceKey)
 
     // ─── Load config ──────────────────────────────────────────────────────
@@ -132,29 +130,25 @@ Write for Instagram first. Make it scroll-stopping, personal, and actionable. Th
 
 Output ONLY the caption/script. No labels, no "Slide 1:" headers unless carousel.`
 
-      // Call Anthropic directly
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
+      // Call Anthropic via the cost-tracked path (callAnthropic enforces the
+      // monthly budget cap + writes to cost_ledger atomically).
+      let mainCaption = ''
+      try {
+        const result = await callAnthropic(supabase, {
           model: 'claude-sonnet-4-6',
-          max_tokens: 1024,
+          maxTokens: 1024,
           system: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],
-        }),
-      })
-
-      if (!response.ok) {
-        console.error(`Anthropic error for avatar ${avatar.name}:`, response.status)
+          feature: 'auto-generate-content/main',
+          attributedTo: { kind: 'avatar', id: avatar.id },
+        })
+        mainCaption = textOf(result)
+      } catch (err: any) {
+        console.error(`Anthropic error for avatar ${avatar.name}:`, err?.message || err)
+        // Budget exceeded — stop the whole batch; future avatars would also fail.
+        if (err?.code === 'budget_exceeded') break
         continue
       }
-
-      const result = await response.json()
-      const mainCaption = result.content?.[0]?.text ?? ''
       if (!mainCaption) continue
 
       // ─── Create content piece ──────────────────────────────────────────
@@ -207,24 +201,23 @@ Platform guidance:
 
 Return ONLY valid JSON: {"platform": "adapted text", ...}`
 
-        const adaptResp = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
+        let adaptText = ''
+        try {
+          const adaptResult = await callAnthropic(supabase, {
             model: 'claude-sonnet-4-6',
-            max_tokens: 2048,
+            maxTokens: 2048,
             system: systemPrompt,
             messages: [{ role: 'user', content: adaptPrompt }],
-          }),
-        })
+            feature: 'auto-generate-content/adapt',
+            attributedTo: { kind: 'avatar', id: avatar.id },
+          })
+          adaptText = textOf(adaptResult)
+        } catch (err: any) {
+          console.error(`Anthropic adapt error for avatar ${avatar.name}:`, err?.message || err)
+          if (err?.code === 'budget_exceeded') break
+        }
 
-        if (adaptResp.ok) {
-          const adaptResult = await adaptResp.json()
-          const adaptText = adaptResult.content?.[0]?.text ?? ''
+        if (adaptText) {
           try {
             const jsonMatch = adaptText.match(/\{[\s\S]*\}/)
             const adapted = jsonMatch ? JSON.parse(jsonMatch[0]) : {}

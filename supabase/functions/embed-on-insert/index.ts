@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { callAnthropic, textOf } from '../_shared/ai-bill.ts'
 
 // ============================================================================
 // embed-on-insert — Database webhook companion for auto-embedding
@@ -17,8 +18,16 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 // The webhook payload format from Supabase:
 //   { type: "INSERT"|"UPDATE", table: "interactions", record: {...}, old_record: {...} }
 //
-// This function extracts the relevant text, then calls generate-embeddings
-// internally to produce and store the vector.
+// Security:
+//   • C13 from SECURITY_AUDIT_PUNCHLIST — verify the shared secret on every
+//     POST. Without this an attacker can forge `{"type":"INSERT","table":
+//     "ai_prompts","record":{"id":"<existing>","prompt_text":"poisoned"}}`
+//     and overwrite the RAG knowledge base; ai-assistant-chat would then
+//     surface attacker-controlled text as `RELEVANT KNOWLEDGE`. Configure
+//     the secret in Supabase Database → Webhooks → Headers as
+//     `x-webhook-secret: <DB_WEBHOOK_SECRET>` and set the env var to match.
+//   • C10 — the summary generation calls callAnthropic instead of direct-
+//     fetching Anthropic, so the monthly budget cap applies.
 // ============================================================================
 
 const CORS = {
@@ -205,9 +214,39 @@ async function generateEmbedding(text: string): Promise<number[]> {
   throw new Error(`Unexpected HuggingFace response: ${JSON.stringify(result).slice(0, 200)}`)
 }
 
+// Constant-time string compare so the secret check can't be brute-forced
+// via response-timing differences.
+function timingSafeEqualStr(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS })
+  }
+
+  // ── DB webhook secret gate (C13) ──────────────────────────────────────────
+  // Configure the Database Webhook with header `x-webhook-secret: <value>`
+  // (Supabase dashboard → Database → Webhooks → edit → Headers) and set the
+  // matching env var via `supabase secrets set DB_WEBHOOK_SECRET=…`. Without
+  // this gate, any anonymous POST can poison the RAG store.
+  const expectedSecret = Deno.env.get('DB_WEBHOOK_SECRET')
+  if (!expectedSecret) {
+    console.error('[embed-on-insert] DB_WEBHOOK_SECRET not configured — refusing all POSTs')
+    return new Response(
+      JSON.stringify({ status: 'error', reason: 'webhook not configured' }),
+      { status: 503, headers: { ...CORS, 'Content-Type': 'application/json' } }
+    )
+  }
+  const providedSecret = req.headers.get('x-webhook-secret') || ''
+  if (!providedSecret || !timingSafeEqualStr(providedSecret, expectedSecret)) {
+    return new Response(
+      JSON.stringify({ status: 'error', reason: 'unauthorized' }),
+      { status: 401, headers: { ...CORS, 'Content-Type': 'application/json' } }
+    )
   }
 
   try {
@@ -239,33 +278,30 @@ serve(async (req) => {
     // Generate embedding
     const embedding = await generateEmbedding(`${extracted.title}: ${extracted.content}`)
 
-    // Generate summary via Claude (best-effort)
+    // Generate summary via Claude (best-effort, cost-tracked).
+    // C10: previously direct-fetched Anthropic; now routes through
+    // callAnthropic so cost_ledger reflects the spend and the monthly cap
+    // can block runaway nightly re-embed loops.
     let summary: string | null = null
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
-    if (apiKey && extracted.content.length > 100) {
+    if (extracted.content.length > 100) {
       try {
-        const resp = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 150,
-            system: 'Output ONLY a 1-sentence summary. No preamble.',
-            messages: [{
-              role: 'user',
-              content: `Summarize: ${extracted.content.slice(0, 2000)}`,
-            }],
-          }),
+        const r = await callAnthropic(supabase, {
+          model: 'claude-sonnet-4-6',
+          maxTokens: 150,
+          system: 'Output ONLY a 1-sentence summary. No preamble.',
+          messages: [{
+            role: 'user',
+            content: `Summarize: ${extracted.content.slice(0, 2000)}`,
+          }],
+          feature: 'embed-on-insert/summary',
+          attributedTo: { kind: extracted.source_kind, id: String(extracted.source_id) },
         })
-        if (resp.ok) {
-          const r = await resp.json()
-          summary = r.content?.[0]?.text || null
-        }
-      } catch { /* non-fatal */ }
+        summary = textOf(r) || null
+      } catch (err: any) {
+        // budget_exceeded / missing_api_key / upstream_error — all non-fatal:
+        // the embedding still ships without a summary.
+        console.warn('[embed-on-insert] summary skipped:', err?.message || err)
+      }
     }
 
     const tokenCount = Math.ceil(extracted.content.length / 4)

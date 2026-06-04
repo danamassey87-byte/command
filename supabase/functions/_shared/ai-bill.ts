@@ -204,8 +204,15 @@ export function textOf(res: AnthropicResponse): string {
 
 /**
  * Increment cost_ledger amount for a (service, current_month) row.
- * If the row doesn't exist, creates it with the configured budget_cap default
- * (set in the 20260506_command_audit_compliance_corpus migration).
+ *
+ * C9 from SECURITY_AUDIT_PUNCHLIST: the previous JS-side SELECT-then-UPDATE
+ * pattern was lost-update under concurrency. Three parallel LLM calls when
+ * the ledger was at $99.50 with a $100 cap could each see the same $99.50,
+ * each write $99.50 + their delta, lose two of the three increments, and
+ * effectively bypass the budget cap. Now goes through the atomic
+ * `increment_cost_ledger(service, month, amount)` Postgres function (an
+ * INSERT ... ON CONFLICT (service, month) DO UPDATE SET amount = amount + EXCLUDED.amount)
+ * which is concurrency-safe and returns the new total + cap for the alert.
  */
 export async function incrementLedger(
   supabase: SupabaseClient,
@@ -216,23 +223,24 @@ export async function incrementLedger(
   if (amount <= 0) return
 
   const month = currentMonth()
-  // Atomic-ish: try update; if no row, insert. cost_ledger has a UNIQUE(service, month).
-  const { data: existing } = await supabase
-    .from('cost_ledger')
-    .select('id, amount, budget_cap')
-    .eq('service', service).eq('month', month).maybeSingle()
-
-  if (existing) {
-    const next = Number(existing.amount) + amount
-    await supabase.from('cost_ledger')
-      .update({ amount: next, updated_at: new Date().toISOString() })
-      .eq('id', existing.id)
-    await maybeAlert(supabase, service, next, Number(existing.budget_cap || 0), metadata)
-  } else {
-    await supabase.from('cost_ledger').insert({
-      service, month, amount, source: 'api',
-    })
+  const { data, error } = await supabase.rpc('increment_cost_ledger', {
+    p_service: service,
+    p_month:   month,
+    p_amount:  amount,
+    p_source:  'api',
+  })
+  if (error) {
+    console.error('[ai-bill] increment_cost_ledger failed:', error.message)
+    return
   }
+
+  // PostgREST returns TABLE(...) results as an array; pull the single row.
+  const row = Array.isArray(data) ? data[0] : data
+  if (!row) return
+
+  const newAmount = Number(row.new_amount || 0)
+  const cap       = Number(row.cap || 0)
+  await maybeAlert(supabase, service, newAmount, cap, metadata)
 }
 
 /**
