@@ -374,7 +374,8 @@
 - **File:** `supabase/functions/_shared/ai-bill.ts:210-236`
 - **Fix:** `console.error` + `system_events` write on failure.
 
-### [ ] M21. Per-feature notification dedupe (flag arrays/columns) instead of unique index on notifications
+### [x] M21. Per-feature notification dedupe (flag arrays/columns) instead of unique index on notifications ✅ 2026-06-04
+> Shipped: `supabase/migrations/20260604_notifications_dedupe_key.sql` adds opt-in `notifications_active_dedupe_uniq` partial unique index on `(type, source_table, source_id, (metadata->>'dedupe_key'))` WHERE `dedupe_key IS NOT NULL AND status NOT IN ('dismissed','archived')`. New convention: writers that want "at most one active notification per (type, source, dedupe_key)" set `metadata.dedupe_key = '<value>'`. The audit's original proposal of `metadata->>'window'` would have broken legitimate `price_change` events (two genuinely distinct events for the same listing both had empty `window` — verified live). The opt-in approach keeps existing writers unaffected while giving new ones a clean idempotency primitive. **Migration applied via MCP 2026-06-04.**
 - **Fix:** `CREATE UNIQUE INDEX ON notifications(type, source_table, source_id, (metadata->>'window')) WHERE status NOT IN ('dismissed','archived');`
 
 ---
