@@ -18,6 +18,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { heartbeat } from '../_shared/heartbeat.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -53,6 +54,9 @@ serve(async (req) => {
     }
 
     if (!dueEnrollments?.length) {
+      // Idle run is still a "successful" tick — write the heartbeat so the
+      // watchdog doesn't fire just because there's no work this minute.
+      await heartbeat(db, 'dispatch-due-campaigns', { total_due: 0 })
       return json({ result: 'idle', dispatched: 0, message: 'No enrollments due' })
     }
 
@@ -161,6 +165,13 @@ serve(async (req) => {
         })
       }
     }
+
+    // H14: record successful end-of-run so cron_watchdog_check can alert if
+    // we stop firing for >2× the expected interval.
+    await heartbeat(db, 'dispatch-due-campaigns', {
+      total_due: dueEnrollments.length,
+      results_summary: { dispatched: results.filter((r: any) => r.result === 'sent').length },
+    })
 
     return json({
       result: 'dispatched',

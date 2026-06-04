@@ -17,6 +17,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { heartbeat } from '../_shared/heartbeat.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -194,6 +195,13 @@ serve(async (req) => {
         fired.push({ oh_id: oh.id, window: w.key })
       }
     }
+
+    // H14: record successful end-of-run.
+    await heartbeat(supabase, 'oh-reminders', {
+      scanned: (ohs || []).length,
+      fired: firedCount,
+      feedback_requests_fired: feedbackFired.length,
+    })
 
     return new Response(
       JSON.stringify({ ok: true, scanned: (ohs || []).length, fired: firedCount, details: fired, feedback_requests_fired: feedbackFired }),

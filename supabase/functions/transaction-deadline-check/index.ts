@@ -20,6 +20,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { heartbeat } from '../_shared/heartbeat.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -195,6 +196,13 @@ serve(async (req) => {
         results.errors.push(`${d.id}: ${rowErr.message || String(rowErr)}`)
       }
     }
+
+    // H14: heartbeat at successful end-of-run. Cron runs daily.
+    await heartbeat(supabase, 'transaction-deadline-check', {
+      checked: results.checked,
+      alerts: results.alerts,
+      error_count: results.errors.length,
+    })
 
     return json({ ok: true, ...results })
   } catch (e: any) {

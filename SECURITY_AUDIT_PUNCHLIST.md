@@ -227,7 +227,8 @@
 - **Files:** `frontend/src/lib/supabase.js:12`, `frontend/src/lib/AuthContext.jsx:21-93`
 - **Fix:** Gate on `import.meta.env.DEV`; drop localStorage persistence in production; keep demo state in React state only.
 
-### [ ] H11. Trigger functions lack `SET search_path` (SECURITY DEFINER hijack risk)
+### [x] H11. Trigger functions lack `SET search_path` (SECURITY DEFINER hijack risk) ✅ 2026-06-04
+> Shipped: `supabase/migrations/20260604_trigger_search_path.sql` adds `SET search_path = pg_catalog, public` to every trigger function + SECURITY DEFINER fn (25 functions, including `trigger_embed_on_change` which fires from the DB webhook and was the highest-risk one). Used `ALTER FUNCTION … SET search_path = …` instead of redefining bodies — minimal risk transformation. Verified: 0 trigger/DEFINER functions without `search_path` remain. **Migration applied via MCP 2026-06-04.** Pure schema metadata change — no edge fn redeploy needed.
 - **Files:** `supabase/migrations/20260421_embed_webhooks.sql:25-92`, `20260507_referral_fees_auto_create.sql`, `20260507_transaction_status_log_trigger.sql`, `20260514_oh_listing_date_consistency.sql`, `20260517_oh_feedback.sql`
 - **Fix:** Add `SET search_path = pg_catalog, public` to every trigger function. For `trigger_embed_on_change`, also write `system_events('embed.no_auth', 'err', …)` on auth-key fallback failure.
 
@@ -239,7 +240,12 @@
 - **File:** `frontend/src/lib/biolink.js:114-162`
 - **Fix:** Route through edge function gated by Cloudflare Turnstile / hCaptcha. Rate-limit by IP.
 
-### [ ] H14. No heartbeat / watchdog on crons — silent stalls go unnoticed
+### [~] H14. No heartbeat / watchdog on crons — silent stalls go unnoticed ✅ 2026-06-04 (4 of ~12 crons wired)
+> Shipped: `supabase/migrations/20260604_cron_heartbeats.sql` adds (a) `cron_heartbeats(function_name PK, last_completed_at, expected_interval_seconds, metadata)` table, service_role-only, and (b) SECURITY DEFINER `cron_watchdog_check()` SQL function that writes `system_events('cron.stalled', 'err', …)` for any function whose last heartbeat is older than 2× its expected interval, deduped to one alert per function per day. New `_shared/heartbeat.ts` helper. Wired to 4 critical crons today: `dispatch-due-campaigns` (600s), `oh-reminders` (3600s), `oh-followup` (900s), `transaction-deadline-check` (86400s). **Migration applied via MCP 2026-06-04.** Edge fns need redeploy: `supabase functions deploy dispatch-due-campaigns oh-reminders oh-followup transaction-deadline-check`. **Deploy step (pg_cron schedule):**
+> ```sql
+> SELECT cron.schedule('cron-watchdog-hourly', '7 * * * *', $$SELECT public.cron_watchdog_check();$$);
+> ```
+> **Still to wire** (next batch): `host-report-followup`, `cash-offer-sla-check`, `lead-intake-email`, `auto-generate-content`, `compile-weekly-showing-report`, gmail-* crons, `fetch-social-stats`.
 - **Fix:** Create `cron_heartbeats(function_name text, finished_at timestamptz)`. Every cron inserts on success. Watchdog cron fires hourly; writes `system_events('cron.stalled', 'err', …)` if any heartbeat >2× expected interval.
 
 ### [ ] H15. `video/scripts/process-queue.ts` is local-only (no production runner); non-atomic claim
@@ -365,7 +371,7 @@
 
 - [~] **X1.** Shared helper: `webhook_events_seen(provider, event_id) UNIQUE` table + helper for replay protection across Lofty / Resend / Higgsfield / Replicate / Canva — **partial** ✅ 2026-06-04: table shipped (`20260604_webhook_events_seen.sql`), Resend + Lofty wired. TODO: wire Higgsfield/Replicate/Canva when they get callbacks.
 - [ ] **X2.** SECURITY DEFINER `claim_due_rows(table, where, lock_seconds)` RPC reused by every cron
-- [ ] **X3.** `cron_heartbeats` + watchdog cron (H14)
+- [~] **X3.** `cron_heartbeats` + watchdog cron (H14) — ✅ 2026-06-04 (infra + 4 crons wired; remaining crons to wire in next batch)
 - [ ] **X4.** CI grep blocking direct Anthropic/Resend fetches outside `_shared/`:
   ```bash
   ! git grep -nE "(api\.anthropic\.com|api\.resend\.com)" supabase/functions | grep -v _shared/
