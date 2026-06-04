@@ -63,7 +63,19 @@ export async function wakeSnoozed() {
  * previously read, kept, or dismissed it — only `resolveExpiredApptFollowup`
  * (called on Won/Lost) can stop the loop by setting `metadata.closed = true`.
  */
+// L6 from SECURITY_AUDIT_PUNCHLIST: listActive() + unreadCount() both fire
+// rearmRecurringFollowups() on every NotificationsBell render. With multiple
+// tabs open + the bell polling every minute, the rearm scan runs many times
+// per minute — pure waste since the underlying state changes weekly. Throttle
+// to at most one run per minute across the whole module.
+let _lastRearmAt = 0
+const REARM_THROTTLE_MS = 60_000
+
 export async function rearmRecurringFollowups() {
+  const sinceLast = Date.now() - _lastRearmAt
+  if (sinceLast < REARM_THROTTLE_MS) return
+  _lastRearmAt = Date.now()
+
   const nowIso = new Date().toISOString()
   // Grab candidates — Supabase/PostgREST can't filter on JSON timestamps
   // inside metadata from the client cleanly, so we pull the small universe of

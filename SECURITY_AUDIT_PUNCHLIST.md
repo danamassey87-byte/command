@@ -384,9 +384,9 @@
 - [x] **L3.** `lofty-webhook` always returns 200 ✅ 2026-06-04 (closed by C4, commit 6da5856 — now returns 5xx on insert/dedupe failure)
 - [x] **L4.** `extractEmail` regex in `gmail-reply-detect` doesn't sanity-check `@` ✅ 2026-06-04 (rejects captures without `@`)
 - [x] **L5.** `gmail-leads-setup` doesn't validate `from_filter` — `"*"` captures all inbox ✅ 2026-06-04 (validates email-or-domain shape; rejects `*` / ` OR `)
-- [ ] **L6.** `notifications.js` `rearmRecurringFollowups` fires unthrottled on every bell render — `frontend/src/lib/notifications.js:101, 134`
+- [x] **L6.** `notifications.js` `rearmRecurringFollowups` fires unthrottled on every bell render ✅ 2026-06-04 (module-level `_lastRearmAt` cache + 60s `REARM_THROTTLE_MS` short-circuit)
 - [x] **L7.** Supabase session in localStorage ✅ 2026-06-04 (acceptable — primary XSS vectors closed by C5 + H8 + M17 + PropertyMap rewrite)
-- [ ] **L8.** `staged_from_id ON DELETE SET NULL` loses AI-staging lineage — `supabase/migrations/20260507_virtual_staging.sql:11` → denormalize `was_ai_staged BOOLEAN`
+- [x] **L8.** `staged_from_id ON DELETE SET NULL` loses AI-staging lineage ✅ 2026-06-04 (added sticky `was_ai_staged BOOLEAN NOT NULL DEFAULT FALSE` column + BEFORE INSERT/UPDATE trigger + backfilled 5 existing rows. Even after the original is deleted, compliance queries 6 months later can still answer "was this photo AI-edited?")
 - [x] **L9.** `resend-webhook` no event-id dedupe ✅ 2026-06-04 (closed by C3 + X1, commit 6da5856 — `webhook_events_seen(provider='resend', event_id=svix-id)` PK now blocks replays)
 - [ ] **L10.** `oh-reminders` hardcodes `-07:00` — breaks across timezones post-multi-user
 - [ ] **L11.** `canva-generate` uses `CANVA_CLIENT_SECRET` as bearer — env-var naming misleading; verify actual value
