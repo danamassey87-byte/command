@@ -389,7 +389,7 @@
 - [x] **L8.** `staged_from_id ON DELETE SET NULL` loses AI-staging lineage ✅ 2026-06-04 (added sticky `was_ai_staged BOOLEAN NOT NULL DEFAULT FALSE` column + BEFORE INSERT/UPDATE trigger + backfilled 5 existing rows. Even after the original is deleted, compliance queries 6 months later can still answer "was this photo AI-edited?")
 - [x] **L9.** `resend-webhook` no event-id dedupe ✅ 2026-06-04 (closed by C3 + X1, commit 6da5856 — `webhook_events_seen(provider='resend', event_id=svix-id)` PK now blocks replays)
 - [ ] **L10.** `oh-reminders` hardcodes `-07:00` — breaks across timezones post-multi-user
-- [ ] **L11.** `canva-generate` uses `CANVA_CLIENT_SECRET` as bearer — env-var naming misleading; verify actual value
+- [x] **L11.** `canva-generate` uses `CANVA_CLIENT_SECRET` as bearer — env-var naming misleading; verify actual value ✅ 2026-06-04 (now reads `CANVA_API_KEY` first with legacy `CANVA_CLIENT_SECRET` fallback; once Dana renames in Supabase Function Secrets, the legacy fallback can be removed)
 - [x] **L12.** `Settings.jsx:1277` `window.location.href = data.auth_url` ✅ 2026-06-04 (validates `https://accounts.google.com/` prefix before redirect)
 
 ---
@@ -399,12 +399,12 @@
 - [~] **X1.** Shared helper: `webhook_events_seen(provider, event_id) UNIQUE` table + helper for replay protection across Lofty / Resend / Higgsfield / Replicate / Canva — **partial** ✅ 2026-06-04: table shipped (`20260604_webhook_events_seen.sql`), Resend + Lofty wired. TODO: wire Higgsfield/Replicate/Canva when they get callbacks.
 - [ ] **X2.** SECURITY DEFINER `claim_due_rows(table, where, lock_seconds)` RPC reused by every cron
 - [x] **X3.** `cron_heartbeats` + watchdog cron (H14) — ✅ 2026-06-04 (infra + 13 crons wired + watchdog cron active)
-- [ ] **X4.** CI grep blocking direct Anthropic/Resend fetches outside `_shared/`:
+- [x] **X4.** CI grep blocking direct Anthropic/Resend fetches outside `_shared/` ✅ 2026-06-04 (`scripts/check-direct-llm-calls.sh` — runs clean today; can wire to pre-commit hook or GitHub Actions step). Allowlist documented inline. Original bash sketch:
   ```bash
   ! git grep -nE "(api\.anthropic\.com|api\.resend\.com)" supabase/functions | grep -v _shared/
   ```
 - [ ] **X5.** Pre-record-then-send convention for all outbound (Resend, Twilio, Blotato): write intent UUID first, tag the send, update on success
-- [ ] **X6.** Frontend helpers `escHtml()` + `safeUrl()` in `frontend/src/lib/safeguards.js` (or new `frontend/src/lib/html.js`)
+- [x] **X6.** Frontend helpers `escHtml()` + `safeUrl()` ✅ 2026-06-04 (closed by C5, commit 8d4ed9b — `frontend/src/lib/html.js` exports `escHtml`, `safeUrl`, `safeHandle`. Used by emailHtml.js, SellerWeeklyUpdate.jsx, PropertyMap.jsx, BioLinkPublic.jsx)
 
 ---
 

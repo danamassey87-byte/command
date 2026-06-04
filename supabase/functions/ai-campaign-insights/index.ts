@@ -19,7 +19,7 @@ const CORS = {
 }
 
 const MIN_SENDS = 20 // Statistical floor
-const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages'
+// (former ANTHROPIC_API constant removed — routed through _shared/ai-bill.ts)
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {

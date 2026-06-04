@@ -22,9 +22,16 @@ serve(async (req) => {
   }
 
   try {
-    const canvaToken = Deno.env.get('CANVA_CLIENT_SECRET')
+    // L11: the Canva Connect API takes a bearer access token, NOT an OAuth
+    // client secret (those two are not interchangeable in OAuth land — the
+    // client secret is exchanged with the auth code for an access token).
+    // The env var was misnamed. Accept both names for compatibility:
+    //   • CANVA_API_KEY — preferred new name (per Canva docs)
+    //   • CANVA_CLIENT_SECRET — legacy name; will be removed once Dana
+    //     renames the secret in Supabase Function Secrets.
+    const canvaToken = Deno.env.get('CANVA_API_KEY') || Deno.env.get('CANVA_CLIENT_SECRET')
     if (!canvaToken) {
-      throw new Error('CANVA_CLIENT_SECRET not configured')
+      throw new Error('Canva token not configured (CANVA_API_KEY or legacy CANVA_CLIENT_SECRET)')
     }
 
     const body = await req.json()

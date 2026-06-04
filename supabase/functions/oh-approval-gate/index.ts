@@ -33,7 +33,7 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages'
+// (former ANTHROPIC_API constant removed — routed through _shared/ai-bill.ts)
 const SLACK_API = 'https://slack.com/api'
 
 // Conservative defaults that match how `generate-content` is configured.
