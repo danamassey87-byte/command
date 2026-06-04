@@ -297,7 +297,8 @@
 - **File:** `supabase/functions/canva-generate/index.ts:65-93`
 - **Fix:** Reduce to 25×2s = 50s, OR persist `design_id` + add `/canva-export-status` follow-up endpoint.
 
-### [ ] M5. Status enums lack `CHECK` constraints
+### [x] M5. Status enums lack `CHECK` constraints ✅ 2026-06-04
+> Shipped: `supabase/migrations/20260604_status_check_constraints.sql` adds CHECK constraints on six tables (`seller_leads`, `expired_leads`, `fsbo_leads`, `client_for_life_plans`, `blotato_posts`, `print_orders`) using the value sets documented inline as comments in their original CREATE TABLE migrations. Verified all six tables empty before apply. **Migration applied via MCP 2026-06-04.** A typo like `parse_status='needs-revew'` now errors at insert time instead of landing silently and breaking downstream report queries. Not in scope this batch (different status semantics, leaving for later or as audit-described): `oh_signins.tier_at_signin`, `interactions.kind`, `media_assets.kind`.
 - **Columns:** `seller_leads.status`, `expired_leads.status`, `fsbo_leads.status`, `client_for_life_plans.status`, `blotato_posts.status`, `print_orders.status`, `oh_signins.tier_at_signin`, `interactions.kind`, `media_assets.kind`
 - **Fix:** Add `CHECK (status IN (...))` per the column comment in each migration.
 
@@ -321,7 +322,8 @@
 - **File:** `supabase/functions/cash-offer-sla-check/index.ts:81-91`
 - **Fix:** `console.error` + append to `result.errors`.
 
-### [ ] M11. `lead_attributions` primary-flip races against unique partial index
+### [x] M11. `lead_attributions` primary-flip races against unique partial index ✅ 2026-06-04
+> Shipped: `supabase/migrations/20260604_lead_attr_primary_trigger.sql` adds BEFORE-INSERT/UPDATE trigger `trg_lead_attr_demote_prior_primary` that atomically demotes any prior `is_primary = TRUE` row for the same `contact_id` before the new row commits. `is_primary` column defaults to TRUE; combined with the existing `uniq_lead_attr_primary_per_contact` partial unique index, this meant lead-intake-email's INSERT path (line 270-289) would throw unique-violation the second time a lead email arrived for an existing contact → entire per-message iteration aborted → marked parse_status='error'. Trigger fix is race-safe under read-committed (single UPDATE statement, row-locks the existing primary). `search_path = pg_catalog, public` per H11. **Migration applied via MCP 2026-06-04.** Pure DB metadata — no edge fn redeploy needed.
 - **File:** `supabase/migrations/20260507_command_lead_sources_pac.sql:75`
 - **Fix:** Single-statement reassignment: `UPDATE lead_attributions SET is_primary = (id = $new) WHERE contact_id = $cid`.
 
