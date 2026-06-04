@@ -1077,11 +1077,12 @@ function MetaAdsConfigCard() {
   // Which stats to include in client weekly reports
   const [reportStats, setReportStats] = useState(['reach', 'clicks'])
 
+  // C12: status from get_status — server returns `{ connected, ad_account_id,
+  // report_stats }` without the token, so it never lives in React state.
   useEffect(() => {
     DB.getMetaAdsConfig().then(row => {
       if (row?.value) {
         setConfig(row.value)
-        if (row.value.access_token) setAccessToken(row.value.access_token)
         if (row.value.ad_account_id) setAdAccountId(row.value.ad_account_id)
         if (row.value.report_stats) setReportStats(row.value.report_stats)
       }
@@ -1091,9 +1092,11 @@ function MetaAdsConfigCard() {
   async function handleSave() {
     setSaving(true)
     try {
-      const value = { ...config, access_token: accessToken, ad_account_id: adAccountId, report_stats: reportStats }
-      await DB.updateMetaAdsConfig(value)
-      setConfig(value)
+      // Token only travels for the duration of the save POST; we don't
+      // store it back into React state after success.
+      await DB.updateMetaAdsConfig({ access_token: accessToken, ad_account_id: adAccountId, report_stats: reportStats })
+      setConfig({ connected: true, ad_account_id: adAccountId, report_stats: reportStats })
+      setAccessToken('')  // clear the input post-save so it doesn't sit in DOM
       setEditing(false)
       setTestResult({ ok: true, message: 'Saved!' })
     } catch (err) {
@@ -1105,21 +1108,26 @@ function MetaAdsConfigCard() {
     setTesting(true)
     setTestResult(null)
     try {
-      if (!accessToken.trim() || !adAccountId.trim()) {
+      // If Dana hasn't typed a fresh token, test against the already-saved
+      // one by just listing campaigns through the proxy.
+      if (accessToken.trim() && adAccountId.trim()) {
+        await DB.updateMetaAdsConfig({ access_token: accessToken, ad_account_id: adAccountId, report_stats: reportStats })
+        setAccessToken('')  // post-save: clear input
+      } else if (!config?.connected) {
         setTestResult({ ok: false, message: 'Enter both token and ad account ID' })
         return
       }
-      const campaigns = await DB.fetchMetaCampaigns(accessToken, adAccountId)
-      const value = { ...config, access_token: accessToken, ad_account_id: adAccountId, report_stats: reportStats, campaign_count: campaigns.length }
-      await DB.updateMetaAdsConfig(value)
-      setConfig(value)
+      const campaigns = await DB.fetchMetaCampaigns()
+      setConfig({ connected: true, ad_account_id: adAccountId || config?.ad_account_id, report_stats: reportStats, campaign_count: campaigns.length })
       setTestResult({ ok: true, message: `Connected! Found ${campaigns.length} campaign(s).` })
     } catch (err) {
       setTestResult({ ok: false, message: err.message })
     } finally { setTesting(false) }
   }
 
-  const isConnected = !!config?.access_token
+  // C12: read connection status from the sanitized server response, not from
+  // a token in React state.
+  const isConnected = !!config?.connected
   const STAT_OPTIONS = [
     { key: 'reach', label: 'Reach (people who saw it)' },
     { key: 'impressions', label: 'Impressions (total views)' },

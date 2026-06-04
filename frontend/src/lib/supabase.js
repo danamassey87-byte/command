@@ -278,14 +278,45 @@ export async function uploadOfferNetSheet(file, offerId) {
   return publicUrl
 }
 
-// ─── Meta Ads Config (user_settings) ────────────────────────────────────────
-export const getMetaAdsConfig = () =>
-  query(supabase.from('user_settings').select('*').eq('key', 'meta_ads_config').maybeSingle())
+// ─── Meta Ads Config (via meta-proxy edge fn) ───────────────────────────────
+// C12 from SECURITY_AUDIT_PUNCHLIST: the Meta access_token NO LONGER reaches
+// the frontend. Status queries return `{ connected, ad_account_id }` only;
+// saves push the freshly-pasted token to meta-proxy which stores it
+// server-side. Any XSS that lands now can't exfiltrate the 60-day token.
 
-export const updateMetaAdsConfig = (value) =>
-  query(supabase.from('user_settings')
-    .upsert({ key: 'meta_ads_config', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
-    .select().single())
+/** Sanitized Meta status — never includes the access_token. */
+export const getMetaAdsConfig = async () => {
+  const { data, error } = await supabase.functions.invoke('meta-proxy', {
+    body: { op: 'get_status' },
+  })
+  if (error) throw error
+  // Wrap in the shape Settings.jsx expects: `{ value: { ... } }`.
+  return data ? { value: data } : null
+}
+
+/** Save a freshly-pasted token + ad_account_id. Token never round-trips
+ *  through React state for read; only during the paste-and-save flow. */
+export const updateMetaAdsConfig = async (value) => {
+  const { data, error } = await supabase.functions.invoke('meta-proxy', {
+    body: {
+      op: 'save_token',
+      access_token: value?.access_token,
+      ad_account_id: value?.ad_account_id,
+      report_stats: value?.report_stats === true,
+    },
+  })
+  if (error) throw error
+  return data
+}
+
+/** Disconnect — clears the token server-side. */
+export const disconnectMetaAds = async () => {
+  const { data, error } = await supabase.functions.invoke('meta-proxy', {
+    body: { op: 'disconnect' },
+  })
+  if (error) throw error
+  return data
+}
 
 // ─── Cannonball / Expired Letter Templates (user_settings) ──────────────────
 // Editable from Settings so Dana can swap Canva templates without a code change.
@@ -337,70 +368,31 @@ export const updateAdCampaign = (id, d) =>
 export const deleteAdCampaign = (id) =>
   query(supabase.from('listing_ad_campaigns').delete().eq('id', id))
 
-/** Fetch campaigns from Meta Marketing API.
- *  Returns array of { id, name, status, adsets: [{ id, name, targeting }] }
+/** Fetch campaigns from Meta Marketing API via the meta-proxy edge fn.
+ *  C12: no access token traverses the browser anymore.
+ *  Signature note: callers used to pass (accessToken, adAccountId). Both
+ *  arguments are now ignored (the proxy reads them server-side). Keeping
+ *  the param signature for source-compatibility, but ANY usage that still
+ *  reads the token from React state is doing dead work — those callsites
+ *  should drop the accessToken arg in a follow-up cleanup.
  */
-export async function fetchMetaCampaigns(accessToken, adAccountId) {
-  const baseUrl = 'https://graph.facebook.com/v21.0'
-  // Get campaigns
-  const campResp = await fetch(
-    `${baseUrl}/act_${adAccountId}/campaigns?fields=id,name,status,objective,start_time,stop_time&limit=50`,
-    { headers: { 'Authorization': `Bearer ${accessToken}` } }
-  )
-  if (!campResp.ok) {
-    const err = await campResp.json().catch(() => ({}))
-    throw new Error(err.error?.message || `Meta API error ${campResp.status}`)
-  }
-  const campData = await campResp.json()
-  const campaigns = campData.data || []
-
-  // Get ad sets for each campaign
-  for (const camp of campaigns) {
-    const adsetResp = await fetch(
-      `${baseUrl}/${camp.id}/adsets?fields=id,name,status,targeting&limit=50`,
-      { headers: { 'Authorization': `Bearer ${accessToken}` } }
-    )
-    if (adsetResp.ok) {
-      const adsetData = await adsetResp.json()
-      camp.adsets = adsetData.data || []
-    } else {
-      camp.adsets = []
-    }
-  }
-  return campaigns
+export async function fetchMetaCampaigns(_accessToken, _adAccountId) {
+  const { data, error } = await supabase.functions.invoke('meta-proxy', {
+    body: { op: 'campaigns' },
+  })
+  if (error) throw error
+  if (data?.error) throw new Error(data.error)
+  return data?.campaigns || []
 }
 
-/** Fetch insights (stats) for a specific campaign or ad set from Meta.
- *  Returns { impressions, reach, clicks, spend, actions, ctr, cpc }
- */
-export async function fetchMetaInsights(accessToken, objectId, datePreset = 'lifetime') {
-  const baseUrl = 'https://graph.facebook.com/v21.0'
-  const resp = await fetch(
-    `${baseUrl}/${objectId}/insights?fields=impressions,reach,clicks,spend,actions,ctr,cpc,cost_per_action_type&date_preset=${datePreset}`,
-    { headers: { 'Authorization': `Bearer ${accessToken}` } }
-  )
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}))
-    throw new Error(err.error?.message || `Meta API error ${resp.status}`)
-  }
-  const data = await resp.json()
-  const row = (data.data || [])[0] || {}
-  // Extract lead count from actions
-  const leadAction = (row.actions || []).find(a => a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead_grouped')
-  const leads = leadAction ? Number(leadAction.value) : 0
-  const conversions = (row.actions || []).reduce((sum, a) => sum + (Number(a.value) || 0), 0)
-  const cplAction = (row.cost_per_action_type || []).find(a => a.action_type === 'lead' || a.action_type === 'onsite_conversion.lead_grouped')
-  return {
-    impressions: Number(row.impressions) || 0,
-    reach: Number(row.reach) || 0,
-    clicks: Number(row.clicks) || 0,
-    spend: Number(row.spend) || 0,
-    ctr: Number(row.ctr) || 0,
-    cpc: Number(row.cpc) || 0,
-    leads,
-    cpl: cplAction ? Number(cplAction.value) : (leads > 0 ? Number(row.spend) / leads : 0),
-    conversions,
-  }
+/** Fetch insights (stats) for a specific Meta object id via the proxy. */
+export async function fetchMetaInsights(_accessToken, objectId, datePreset = 'lifetime') {
+  const { data, error } = await supabase.functions.invoke('meta-proxy', {
+    body: { op: 'insights', object_id: objectId, date_preset: datePreset },
+  })
+  if (error) throw error
+  if (data?.error) throw new Error(data.error)
+  return data
 }
 
 // ─── Price History ───────────────────────────────────────────────────────────

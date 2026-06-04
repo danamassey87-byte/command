@@ -150,7 +150,8 @@
 - **Exploit:** `curl .../rest/v1/user_settings?key=eq.google_tokens&select=value` with anon key returns Google refresh token (Gmail+Calendar+Drive scopes).
 - **Fix:** Move to Supabase Vault (`vault.create_secret`); store secret name only in `user_settings`. At minimum today: `REVOKE SELECT ON user_settings FROM anon;`. Confirm `service_secrets` has same lockdown (no migration found enforcing it).
 
-### [ ] C12. Meta `access_token` round-trips through React state — XSS = 60-day token leak
+### [x] C12. Meta `access_token` round-trips through React state — XSS = 60-day token leak ✅ 2026-06-04
+> Shipped: new `supabase/functions/meta-proxy/index.ts` holds the Meta token server-side and handles four ops: `save_token`, `get_status`, `disconnect`, `campaigns`, `insights`. Frontend `getMetaAdsConfig()` now invokes `get_status` (returns `{ connected, ad_account_id, report_stats }` — NO token). `updateMetaAdsConfig()` invokes `save_token`. `fetchMetaCampaigns()` and `fetchMetaInsights()` redirected through the proxy; their `accessToken` arg is now ignored (kept for source-compat). Settings.jsx: `useEffect` no longer pulls `access_token` into state; `handleSave` clears the input post-save; `isConnected` checks the sanitized boolean. Any XSS that lands now can't `await DB.getMetaAdsConfig()` and exfiltrate the 60-day token — the token doesn't appear in the response. Edge fn needs deploy: `supabase functions deploy meta-proxy`. Frontend build green.
 - **Files:** `frontend/src/pages/Settings/Settings.jsx:1084-1166`, `frontend/src/lib/supabase.js:345-406`
 - **Fix:** Build `meta-proxy` edge function holding token server-side. Frontend calls:
   ```js
