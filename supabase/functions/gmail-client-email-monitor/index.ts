@@ -25,6 +25,7 @@ import {
   postToSlackDeduped,
   formatSignedDocMessage,
 } from '../_shared/slack.ts'
+import { callAnthropic } from '../_shared/ai-bill.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -336,20 +337,16 @@ async function claudeMatchEmail(
     .join('\n')
 
   try {
-    const resp = await fetch(ANTHROPIC_API, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 150,
-        messages: [
-          {
-            role: 'user',
-            content: `Match this email to one of my clients or properties. Return JSON only.
+    // C10: route through callAnthropic. Failure (budget_exceeded etc.) lands
+    // in the `catch` below and the function falls through to "no match",
+    // which is the existing fallback behavior.
+    const result = await callAnthropic(supabase, {
+      model: 'claude-haiku-4-5-20251001',
+      maxTokens: 150,
+      messages: [
+        {
+          role: 'user',
+          content: `Match this email to one of my clients or properties. Return JSON only.
 
 Active clients:
 ${clientList || 'None'}
@@ -363,12 +360,10 @@ Body (first 500 chars): ${email.body.substring(0, 500)}
 
 Return: {"contactId":"<exact id from list or null>", "listingId":"<exact listing id or null>", "channelType":"<seller or buyer>"}
 If no confident match, return: {"contactId":null, "listingId":null, "channelType":null}`,
-          },
-        ],
-      }),
+        },
+      ],
+      feature: 'gmail-client-email-monitor/match',
     })
-
-    const result = await resp.json()
     const parsed = JSON.parse(result.content[0].text)
 
     if (parsed.contactId) {

@@ -18,6 +18,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { logAiGeneration, anthropicCostCents } from '../_shared/replicate-notify.ts'
+import { callAnthropic } from '../_shared/ai-bill.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -112,25 +113,16 @@ serve(async (req) => {
     // base64 encode in chunks (PDFs can be MB-scale).
     const b64 = arrayBufferToBase64(pdfArrayBuffer)
 
-    // Call Claude with the PDF as a document block.
-    const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
-    if (!apiKey) {
-      await supabase.from('cmas').update({ parse_status: 'failed' }).eq('id', cma_id)
-      return json({ error: 'ANTHROPIC_API_KEY not configured' }, 503)
-    }
-
+    // Call Claude with the PDF as a document block. C10: routed through
+    // callAnthropic so cost_ledger reflects the spend and the monthly cap
+    // can block runaway parses.
     const CLAUDE_MODEL = 'claude-sonnet-4-6'
 
-    const claudeResp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
+    let claudeBody: any
+    try {
+      claudeBody = await callAnthropic(supabase, {
         model: CLAUDE_MODEL,
-        max_tokens: 8192,
+        maxTokens: 8192,
         system: SYSTEM_PROMPT,
         messages: [{
           role: 'user',
@@ -142,18 +134,16 @@ serve(async (req) => {
             { type: 'text', text: 'Extract the subject estimate and all comparable properties from this CMA. Return only the JSON envelope per the schema in the system prompt.' },
           ],
         }],
-      }),
-    })
-
-    if (!claudeResp.ok) {
-      let detail = ''
-      try { detail = JSON.stringify(await claudeResp.json()) } catch { detail = await claudeResp.text().catch(() => '') }
+        feature: 'cma-parse',
+        attributedTo: { kind: 'cma', id: cma_id },
+      })
+    } catch (err: any) {
       await supabase.from('cmas').update({ parse_status: 'failed' }).eq('id', cma_id)
       await logAiGeneration(supabase, { service: 'anthropic', model: CLAUDE_MODEL, kind: 'cma_parse', succeeded: false })
-      return json({ error: `Claude error (${claudeResp.status}): ${detail.slice(0, 400)}` }, 502)
+      const status = err?.status || 502
+      return json({ error: err?.message || 'Claude call failed' }, status)
     }
 
-    const claudeBody = await claudeResp.json()
     await logAiGeneration(supabase, {
       service: 'anthropic',
       model: CLAUDE_MODEL,

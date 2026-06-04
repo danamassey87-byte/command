@@ -10,6 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { callAnthropic, textOf } from '../_shared/ai-bill.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -180,22 +181,21 @@ Focus on the biggest opportunities first. Be specific — don't say "make it bet
 
 Respond with ONLY the JSON array, no other text.`
 
-      const claudeRes = await fetch(ANTHROPIC_API, {
-        method: 'POST',
-        headers: {
-          'x-api-key': anthropicKey,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 2000,
+      // C10: route through callAnthropic.
+      let content = '[]'
+      try {
+        const claudeData = await callAnthropic(db, {
+          model: 'claude-sonnet-4-6',
+          maxTokens: 2000,
           messages: [{ role: 'user', content: prompt }],
-        }),
-      })
-
-      const claudeData = await claudeRes.json()
-      const content = claudeData?.content?.[0]?.text ?? '[]'
+          feature: 'ai-campaign-insights',
+          attributedTo: { kind: 'campaign', id: String(campaignId) },
+        })
+        content = textOf(claudeData) || '[]'
+      } catch (err: any) {
+        console.error('[ai-campaign-insights] Claude error:', err?.message || err)
+        // Fall through with empty content; recs parsing will produce [].
+      }
 
       // Parse recommendations
       let recs: Record<string, unknown>[] = []

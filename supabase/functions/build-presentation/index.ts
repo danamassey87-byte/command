@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { callAnthropic, textOf } from '../_shared/ai-bill.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -77,28 +78,19 @@ serve(async (req) => {
       property.sqft && `${Number(property.sqft).toLocaleString()} sqft`,
     ].filter(Boolean).join(' · ')
 
-    // 3. Build slide outline from strategy text using Claude
+    // 3. Build slide outline from strategy text using Claude (C10).
     let slideOutline = ''
     if (anthropicKey && strategy_text) {
       try {
-        const claudeResp = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': anthropicKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 2048,
-            system: 'You are a presentation designer. Convert real estate listing strategy text into a concise slide outline for Gamma.app. Use clear slide titles and bullet points. Keep it under 10 slides.',
-            messages: [{ role: 'user', content: `Create a presentation outline for this property listing:\n\nAddress: ${addr}, ${city}\nPrice: ${price}\nSpecs: ${specs}\n\nStrategy:\n${strategy_text}\n\nFormat as a presentation outline with slide titles and key bullets. Include:\n1. Title slide with address and price\n2. Property highlights\n3. Neighborhood / lifestyle\n4. Market positioning\n5. Marketing strategy\n6. Timeline\n7. Why Dana Massey / REAL Broker\n8. Next steps / CTA` }],
-          }),
+        const claudeResult = await callAnthropic(supabase, {
+          model: 'claude-sonnet-4-6',
+          maxTokens: 2048,
+          system: 'You are a presentation designer. Convert real estate listing strategy text into a concise slide outline for Gamma.app. Use clear slide titles and bullet points. Keep it under 10 slides.',
+          messages: [{ role: 'user', content: `Create a presentation outline for this property listing:\n\nAddress: ${addr}, ${city}\nPrice: ${price}\nSpecs: ${specs}\n\nStrategy:\n${strategy_text}\n\nFormat as a presentation outline with slide titles and key bullets. Include:\n1. Title slide with address and price\n2. Property highlights\n3. Neighborhood / lifestyle\n4. Market positioning\n5. Marketing strategy\n6. Timeline\n7. Why Dana Massey / REAL Broker\n8. Next steps / CTA` }],
+          feature: 'build-presentation/outline',
+          attributedTo: listing?.id ? { kind: 'listing', id: String(listing.id) } : undefined,
         })
-        if (claudeResp.ok) {
-          const claudeResult = await claudeResp.json()
-          slideOutline = claudeResult.content?.[0]?.text || ''
-        }
+        slideOutline = textOf(claudeResult) || ''
       } catch (e) {
         console.error('Claude outline generation failed:', e)
       }

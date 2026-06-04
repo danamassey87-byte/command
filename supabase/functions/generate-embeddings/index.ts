@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { callAnthropic, textOf } from '../_shared/ai-bill.ts'
 
 // ============================================================================
 // generate-embeddings — FREE vector embeddings via HuggingFace Inference API
@@ -96,35 +97,26 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
  * Returns null if Claude API key is not available (non-fatal).
  */
 async function generateSummary(
+  supabase: SupabaseClient,
   content: string,
   title: string,
   collection: string,
 ): Promise<string | null> {
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
-  if (!apiKey) return null
-
+  // C10: route through callAnthropic so cost_ledger captures bulk-summary
+  // spend. Non-fatal — null return means the embedding ships without a
+  // summary card (~80% token reduction is foregone for that one chunk).
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 200,
-        system: 'You are a summarizer. Output ONLY a 1-2 sentence summary of the content. No preamble, no labels.',
-        messages: [{
-          role: 'user',
-          content: `Summarize this ${collection} document titled "${title}":\n\n${content.slice(0, 3000)}`,
-        }],
-      }),
+    const result = await callAnthropic(supabase, {
+      model: 'claude-sonnet-4-6',
+      maxTokens: 200,
+      system: 'You are a summarizer. Output ONLY a 1-2 sentence summary of the content. No preamble, no labels.',
+      messages: [{
+        role: 'user',
+        content: `Summarize this ${collection} document titled "${title}":\n\n${content.slice(0, 3000)}`,
+      }],
+      feature: 'generate-embeddings/summary',
     })
-
-    if (!response.ok) return null
-    const result = await response.json()
-    return result.content?.[0]?.text || null
+    return textOf(result) || null
   } catch {
     return null
   }
@@ -204,6 +196,7 @@ serve(async (req) => {
       try {
         // Generate summary (async, non-blocking — skip if it fails)
         const summary = await generateSummary(
+          supabase,
           item.content,
           item.title || 'Untitled',
           item.collection,

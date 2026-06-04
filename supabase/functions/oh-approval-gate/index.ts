@@ -26,6 +26,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { logAiGeneration, anthropicCostCents } from '../_shared/replicate-notify.ts'
+import { callAnthropic } from '../_shared/ai-bill.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -125,22 +126,17 @@ Return this exact JSON shape:
 
 The missing_elements array should ONLY contain elements from this exact list, and ONLY if they are missing from the post body+hashtags: broker_name, agent_name, open_house_date, open_house_time, address. (For example, if the brokerage name "REAL Broker" appears in the post, do NOT include "broker_name".) Empty arrays are fine.`
 
-  const resp = await fetch(ANTHROPIC_API, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': anthropicKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
+  // C10: route through callAnthropic so cost_ledger reflects the spend.
+  let data: any
+  try {
+    data = await callAnthropic(supabase, {
       model: COMPLIANCE_MODEL,
-      max_tokens: 600,
+      maxTokens: 600,
       messages: [{ role: 'user', content: userPrompt }],
-    }),
-  })
-
-  if (!resp.ok) {
-    const errText = await resp.text().catch(() => '')
+      feature: 'oh-approval-gate/compliance',
+      attributedTo: oh?.id ? { kind: 'open_house', id: String(oh.id) } : undefined,
+    })
+  } catch (err: any) {
     await logAiGeneration(supabase, {
       service: 'anthropic',
       model: COMPLIANCE_MODEL,
@@ -149,9 +145,8 @@ The missing_elements array should ONLY contain elements from this exact list, an
       property_id: oh?.property_id || null,
       succeeded: false,
     })
-    throw new Error(`Anthropic ${resp.status}: ${errText.slice(0, 200)}`)
+    throw new Error(err?.message || 'Anthropic call failed')
   }
-  const data = await resp.json()
   await logAiGeneration(supabase, {
     service: 'anthropic',
     model: COMPLIANCE_MODEL,

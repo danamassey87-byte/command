@@ -131,7 +131,8 @@
   $$;
   ```
 
-### [x] C10. Three functions bypass `ai-bill.ts` — wallet attack via unauthenticated `ai-assistant-chat` ✅ 2026-06-04 (budget cap part)
+### [x] C10. Multiple functions bypass `ai-bill.ts` — wallet attack via unauthenticated `ai-assistant-chat` ✅ 2026-06-04 (budget cap part) + 2026-06-04 broader sweep
+> First pass (commit c9ecfcf): ai-assistant-chat, auto-generate-content, embed-on-insert. **Broader sweep (commit pending):** 7 more files now routed through callAnthropic — cma-parse, oh-approval-gate, gmail-client-email-monitor, ai-campaign-insights, generate-embeddings, build-gamma-custom, build-presentation, gmail-showing-monitor (both `claudeFallbackParse` and `analyzeSentiment` sites). gmail-showing-monitor's sentiment call also got `<showing-feedback>` delimiter tags + treat-as-data instruction (matches H8 fix pattern). **Still deferred:** generate-content's 4 direct fetch sites (lines 218/479/811/861) — closure-pattern, multiple downstream branches, sizable refactor. Bundled as its own follow-up batch.
 > Shipped: `ai-assistant-chat`, `auto-generate-content` (both main + adapt fetches), and `embed-on-insert` (summary fetch) all routed through `callAnthropic` from `_shared/ai-bill.ts`. Budget cap now actually applies — paired with C9's atomic increment, parallel calls can't bypass it. `budget_exceeded` short-circuits the auto-generate batch (no point sending the next avatar after the cap is hit). **Still open:** per-IP rate limit on `ai-assistant-chat` — the budget cap is the bulwark, not a real defense; an attacker can still burn the whole monthly cap (e.g. $100) per cycle. Needs a `rate_limits(scope, key, period_start, count)` table + helper (X-new). Tagged TODO inline in `ai-assistant-chat/index.ts`. Edge fns need redeploy.
 - **Files:**
   - `supabase/functions/ai-assistant-chat/index.ts:214-227`

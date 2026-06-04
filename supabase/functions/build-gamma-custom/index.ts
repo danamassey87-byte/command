@@ -5,6 +5,8 @@
 // Flow: Claude → slide outline → Gamma generation → poll → return URL.
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { callAnthropic, textOf } from '../_shared/ai-bill.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -54,30 +56,24 @@ serve(async (req: Request) => {
       )
     }
 
-    // 1. Build slide outline via Claude
+    // 1. Build slide outline via Claude (C10: routed through callAnthropic).
     let slideOutline = ''
     const typePrompt = TYPE_PROMPTS[presentation_type] || TYPE_PROMPTS.custom
 
     if (anthropicKey) {
       try {
-        const claudeResp = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': anthropicKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 2048,
-            system: `You are a presentation designer for Dana Massey, a real estate agent at REAL Broker in the East Valley / Gilbert, AZ market. Convert instructions into a concise, compelling slide outline for Gamma.app. Use clear slide titles and bullet points. Keep it under 12 slides. Make it look professional and high-end.`,
-            messages: [{ role: 'user', content: `${typePrompt}\n\nTitle: ${title}\n\nAdditional notes from the agent:\n${strategy_text || 'None provided — use best practices for this type of presentation.'}\n\nFormat as a presentation outline with slide titles and key bullet points.` }],
-          }),
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+        )
+        const result = await callAnthropic(supabase, {
+          model: 'claude-sonnet-4-6',
+          maxTokens: 2048,
+          system: `You are a presentation designer for Dana Massey, a real estate agent at REAL Broker in the East Valley / Gilbert, AZ market. Convert instructions into a concise, compelling slide outline for Gamma.app. Use clear slide titles and bullet points. Keep it under 12 slides. Make it look professional and high-end.`,
+          messages: [{ role: 'user', content: `${typePrompt}\n\nTitle: ${title}\n\nAdditional notes from the agent:\n${strategy_text || 'None provided — use best practices for this type of presentation.'}\n\nFormat as a presentation outline with slide titles and key bullet points.` }],
+          feature: 'build-gamma-custom/outline',
         })
-        if (claudeResp.ok) {
-          const result = await claudeResp.json()
-          slideOutline = result.content?.[0]?.text || ''
-        }
+        slideOutline = textOf(result) || ''
       } catch (e) {
         console.error('Claude outline failed:', e)
       }
