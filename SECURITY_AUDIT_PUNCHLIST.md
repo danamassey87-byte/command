@@ -283,7 +283,8 @@
 
 ## MEDIUM
 
-### [ ] M1. CORS `*` on every edge function — state-mutating endpoints should be locked to production origin
+### [~] M1. CORS `*` on every edge function — state-mutating endpoints should be locked to production origin ✅ 2026-06-04 (helper + 3 high-value endpoints; broader sweep available via helper)
+> Shipped: new `_shared/cors.ts` exports `corsHeadersFor(origin)` which echoes back the request Origin if it's in the allowlist (`app.danamassey.com`, Vercel preview, localhost) and `null` otherwise. Plus legacy `CORS_OPEN` for webhook receivers that don't have a useful Origin. Applied to three highest-blast-radius state-mutating endpoints: `ai-assistant-chat` (wallet attack target), `send-one-off-email` (phishing-kit target), `generate-image` (Replicate spend target). Other fns can adopt incrementally via the helper. Defense-in-depth only — CORS is browser-enforced, so direct curl/script attacks still get through (bearer/budget/signature checks own the real enforcement). Edge fns need redeploy.
 - **Fix:** Mutating fns: `Access-Control-Allow-Origin: https://app.danamassey.com`. Localhost fallback via env var. Webhook receivers stay `*` but rely on signature verification.
 
 ### [~] M2. No `fetch()` timeouts (frontend + edge fns) ✅ 2026-06-04 (highest-blast-radius spots done; broader sweep available via helper)

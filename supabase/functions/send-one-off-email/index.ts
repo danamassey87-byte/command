@@ -15,11 +15,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { corsHeadersFor } from '../_shared/cors.ts'
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+// M1: CORS locked to known frontend origins. This doesn't replace the
+// full auth fix queued under C7 (Auth-blocked, see punchlist), but it
+// closes the browser drive-by attack surface — a malicious site can no
+// longer trick a victim's browser into POSTing phishing email from
+// danamassey.com on their behalf. Direct curl/script attacks still get
+// through (CORS is browser-enforced only).
 
 const RESEND_API = 'https://api.resend.com/emails'
 
@@ -30,14 +33,13 @@ const DOMAINS: Record<string, string> = {
 
 const FROM_NAME = 'Dana Massey'
 
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
+serve(async (req) => {
+  const CORS = corsHeadersFor(req.headers.get('origin'))
+  const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), {
     status,
     headers: { ...CORS, 'Content-Type': 'application/json' },
   })
-}
 
-serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS })
   }

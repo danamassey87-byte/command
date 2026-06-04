@@ -1,13 +1,14 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { callAnthropic, textOf } from '../_shared/ai-bill.ts'
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeadersFor } from '../_shared/cors.ts'
 
 serve(async (req) => {
+  // M1: lock CORS to known frontend origins. Browser drive-by attacks from
+  // arbitrary websites can no longer trigger this wallet-burn endpoint.
+  // Direct curl/script attacks still get through CORS (it's a browser
+  // protection only) but the ai-bill budget cap still gates them.
+  const CORS = corsHeadersFor(req.headers.get('origin'))
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS })
   }

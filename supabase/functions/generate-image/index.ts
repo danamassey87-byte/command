@@ -15,18 +15,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { maybeNotifyLowReplicateCredit, isReplicate402, logAiGeneration } from '../_shared/replicate-notify.ts'
+import { corsHeadersFor } from '../_shared/cors.ts'
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  })
-}
+// M1: CORS locked to known frontend origins. Reduces browser drive-by
+// Replicate-spend attacks. The bearer/auth fix is still queued; this
+// closes the cross-origin browser vector today.
 
 // Style presets — appended to the user's prompt to nudge the model toward
 // specific looks. Adding a new style = one entry here, no other changes.
@@ -61,6 +54,11 @@ const COST_BY_MODEL: Record<string, number> = {
 }
 
 serve(async (req) => {
+  const CORS = corsHeadersFor(req.headers.get('origin'))
+  const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  })
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   try {
