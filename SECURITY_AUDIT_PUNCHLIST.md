@@ -181,7 +181,8 @@
 
 ## HIGH
 
-### [ ] H1. `mergeProperties` / `mergeContacts` miss 8+ FK tables each; no transaction
+### [x] H1. `mergeProperties` / `mergeContacts` miss 8+ FK tables each; no transaction ✅ 2026-06-04
+> Shipped: `supabase/migrations/20260604_merge_rpcs.sql` adds SECURITY INVOKER `merge_properties(p_keep_id, p_dupe_ids[])` and `merge_contacts(p_keep_id, p_dupe_ids[])` RPCs that discover every FK reference via `information_schema.referential_constraints` and reassign atomically inside one plpgsql transaction. Live count: 24 child tables for properties (was 10), ~40+ for contacts (was 12). Pre-cleans `contact_tags` overlap so the (contact_id, tag_id) UNIQUE doesn't block. Frontend `mergeProperties` + `mergeContacts` rewritten to `supabase.rpc(...)`. `search_path = pg_catalog, public` per H11. SECURITY INVOKER so caller's RLS applies (works today with `USING (true)`, will correctly enforce `owner_id = auth.uid()` post-Auth). **Migration applied via MCP 2026-06-04.** Test query verified RPC enumeration. Frontend build green.
 - **File:** `frontend/src/lib/supabase.js:152-176, 796-829`
 - **Missing tables (properties):** `weather_forecasts`, `media_assets`, `interactions`, `ai_generation_log`, `seller_leads`, `valuations`, `expired_leads`, `fsbo_leads`
 - **Missing tables (contacts):** `social_profiles`, `family_links`, `life_events`, `referrals`, `lead_attributions`, `referral_fees`, `oh_feedback`, `interactions`, …

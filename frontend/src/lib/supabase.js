@@ -146,43 +146,35 @@ export const deleteProperty = async (id) => {
 }
 
 /**
- * Merge duplicate properties: reassign all FK references from dupeIds to keepId,
- * then soft-delete the duplicates. Handles all 12+ dependent tables.
+ * Merge duplicate properties: reassign every FK reference from `dupeIds`
+ * to `keepId`, then soft-delete the duplicates.
+ *
+ * H1 from SECURITY_AUDIT_PUNCHLIST: this used to hand-iterate 10 tables in
+ * JS, missing ~15 other tables that also FK to properties.id (weather_
+ * forecasts, media_assets, interactions, ai_generation_log, cmas, …) and
+ * doing so without a transaction. A crash mid-merge left the property
+ * half-reassigned and the dupe still alive. Now delegates to the
+ * SECURITY DEFINER `merge_properties` RPC which (a) discovers every FK
+ * dynamically via information_schema (stays correct as new tables ship)
+ * and (b) runs inside a single plpgsql transaction — either fully merges
+ * or rolls back cleanly. Returns the per-table row counts.
  */
 export async function mergeProperties(keepId, dupeIds) {
   if (!keepId || !dupeIds?.length) throw new Error('Need a primary and at least one duplicate')
   const ids = dupeIds.filter(id => id !== keepId)
   if (!ids.length) throw new Error('Duplicate IDs must differ from the primary')
 
-  // Reassign all FK references in every dependent table
-  const tables = [
-    'listings',
-    'transactions',
-    'showings',
-    'showing_sessions',
-    'open_houses',
-    'leads',
-    'investor_feedback',
-    'content_pieces',
-    'mileage_log',
-    'expenses',
-  ]
+  const { data, error } = await supabase.rpc('merge_properties', {
+    p_keep_id: keepId,
+    p_dupe_ids: ids,
+  })
+  if (error) throw new Error(`merge_properties failed: ${error.message}`)
 
-  for (const table of tables) {
-    for (const dupeId of ids) {
-      // Update rows that point to the dupe → point to the keeper
-      await supabase.from(table).update({ property_id: keepId }).eq('property_id', dupeId)
-    }
-  }
-
-  // Soft-delete the duplicates
-  const now = new Date().toISOString()
-  for (const dupeId of ids) {
-    await supabase.from('properties').update({ deleted_at: now }).eq('id', dupeId)
-  }
-
-  // Log activity
-  await logActivity('properties_merged', `Merged ${ids.length} duplicate properties into primary`, { propertyId: keepId, mergedIds: ids })
+  await logActivity(
+    'properties_merged',
+    `Merged ${ids.length} duplicate properties into primary`,
+    { propertyId: keepId, mergedIds: ids, report: data },
+  )
 
   return keepId
 }
@@ -799,38 +791,35 @@ export const getActiveEnrollments = () =>
     .in('status', ['active', 'paused']).order('enrolled_at', { ascending: false }))
 
 // ─── Contact Merge ───────────────────────────────────────────────────────────
+/**
+ * Merge duplicate contacts: reassign every FK reference from `dupeIds` to
+ * `keepId`, then soft-delete the duplicates.
+ *
+ * H1 from SECURITY_AUDIT_PUNCHLIST: the hand-coded 12-table list missed
+ * ~30 other tables that FK to contacts.id (social_profiles, family_links
+ * x2 sides, life_events, referrals x2 sides, lead_attributions, oh_feedback,
+ * interactions, ai_generation_log, gmail_reply_log, …). The new
+ * `merge_contacts` RPC discovers every FK via information_schema and runs
+ * the whole merge in a single plpgsql transaction. Pre-cleans contact_tags
+ * overlap so the (contact_id, tag_id) UNIQUE doesn't block.
+ */
 export async function mergeContacts(keepId, dupeIds) {
   if (!keepId || !dupeIds?.length) throw new Error('Need a primary and at least one duplicate')
   const ids = dupeIds.filter(id => id !== keepId)
   if (!ids.length) throw new Error('Duplicate IDs must differ from the primary')
 
-  const tables = [
-    'listings',
-    'transactions',
-    'showing_sessions',
-    'showings',
-    'leads',
-    'investors',
-    'expenses',
-    'communication_log',
-    'intake_form_sends',
-    'campaign_enrollments',
-    'notes',
-    'contact_tags',
-  ]
+  const { data, error } = await supabase.rpc('merge_contacts', {
+    p_keep_id: keepId,
+    p_dupe_ids: ids,
+  })
+  if (error) throw new Error(`merge_contacts failed: ${error.message}`)
 
-  for (const table of tables) {
-    for (const dupeId of ids) {
-      await supabase.from(table).update({ contact_id: keepId }).eq('contact_id', dupeId)
-    }
-  }
+  await logActivity(
+    'contacts_merged',
+    `Merged ${ids.length} duplicate contacts into primary`,
+    { contactId: keepId, mergedIds: ids, report: data },
+  )
 
-  const now = new Date().toISOString()
-  for (const dupeId of ids) {
-    await supabase.from('contacts').update({ deleted_at: now }).eq('id', dupeId)
-  }
-
-  await logActivity('contacts_merged', `Merged ${ids.length} duplicate contacts into primary`, { contactId: keepId, mergedIds: ids })
   return keepId
 }
 
