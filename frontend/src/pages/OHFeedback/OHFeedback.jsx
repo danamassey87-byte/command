@@ -47,12 +47,16 @@ export default function OHFeedback() {
     let cancelled = false
     ;(async () => {
       try {
-        // H9: explicit column lists — see commit 1df6d7a.
-        const { data: fbData, error: fbErr } = await supabase
-          .from('oh_feedback')
-          .select('id, status, open_house_id, hosting_agent_name')
-          .eq('id', feedbackId)
-          .single()
+        // H16: was a direct SELECT on oh_feedback which the open anon
+        // policy allowed for the entire table (`USING (true)`). Anyone
+        // could enumerate every hosting agent's feedback. Now goes
+        // through SECURITY DEFINER `get_oh_feedback_by_id(uuid)` which
+        // returns exactly one row scoped to the URL's feedback id.
+        const { data: fbRows, error: fbErr } = await supabase.rpc(
+          'get_oh_feedback_by_id',
+          { p_feedback_id: feedbackId },
+        )
+        const fbData = Array.isArray(fbRows) ? fbRows[0] : fbRows
         if (cancelled) return
         if (fbErr || !fbData) {
           setLoadError('This feedback link is invalid or has expired.')

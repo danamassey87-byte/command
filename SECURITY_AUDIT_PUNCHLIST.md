@@ -270,7 +270,8 @@
   ```
   Cap poll loop at 30 min wall-clock.
 
-### [ ] H16. `oh_feedback` SELECT open to anon — enumerable internal feedback
+### [x] H16. `oh_feedback` SELECT open to anon — enumerable internal feedback ✅ 2026-06-04
+> Shipped: dropped the `"anon can read oh_feedback" FOR SELECT TO anon USING (true)` policy. Replaced with SECURITY DEFINER `get_oh_feedback_by_id(uuid)` RPC that returns exactly one row (id, status, open_house_id, hosting_agent_name) scoped to the URL's feedback id. Anon callers can no longer enumerate all rows. Frontend OHFeedback.jsx switched to `supabase.rpc(...)`. `search_path = pg_catalog, public` per H11. Future C6 Phase B adds an HMAC submit_token to the URL so id-by-itself isn't sufficient. **Migration applied via MCP 2026-06-04.** Frontend build green.
 - **File:** `supabase/migrations/20260517_oh_feedback.sql:56-59`
 - **Fix:** Replace with SECURITY DEFINER RPC `get_oh_feedback_by_id(uuid, token)` returning one row only.
 
