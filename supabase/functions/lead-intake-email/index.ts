@@ -16,6 +16,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { heartbeat } from '../_shared/heartbeat.ts'
 import {
   getGmailAccessToken,
   searchGmail,
@@ -179,7 +180,8 @@ serve(async (req) => {
 
     if (srcErr) throw srcErr
     if (!sources || sources.length === 0) {
-      return json({ ok: true, ...result, note: 'No sources with intake.method=email_forwarder' })
+      await heartbeat(supabase, 'lead-intake-email', { sources_scanned: 0, leads: 0, note: 'no_sources' })
+    return json({ ok: true, ...result, note: 'No sources with intake.method=email_forwarder' })
     }
 
     for (const source of sources) {
@@ -333,6 +335,11 @@ serve(async (req) => {
       }
     }
 
+    await heartbeat(supabase, 'lead-intake-email', {
+      sources: result.sourcesScanned,
+      leads: result.leadsCreated,
+      needs_review: result.needsReview,
+    })
     return json({ ok: true, ...result })
   } catch (e: any) {
     console.error('[lead-intake-email]', e)

@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { heartbeat } from '../_shared/heartbeat.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -142,6 +143,8 @@ serve(async (req) => {
       // Refresh stats while we're at it
       await supabase.rpc('refresh_listing_showing_stats', { p_listing_id: listingId })
     }
+
+    await heartbeat(supabase, 'compile-weekly-showing-report', { compiled: reports.length })
 
     return json({ ok: true, compiled: reports.length, listings: [...listingMap.keys()] })
   } catch (err: any) {

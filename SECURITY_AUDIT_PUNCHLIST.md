@@ -251,7 +251,7 @@
 - **File:** `frontend/src/lib/biolink.js:114-162`
 - **Fix:** Route through edge function gated by Cloudflare Turnstile / hCaptcha. Rate-limit by IP.
 
-### [~] H14. No heartbeat / watchdog on crons — silent stalls go unnoticed ✅ 2026-06-04 (4 of ~12 crons wired)
+### [x] H14. No heartbeat / watchdog on crons — silent stalls go unnoticed ✅ 2026-06-04 (13 crons wired, watchdog active)
 > Shipped: `supabase/migrations/20260604_cron_heartbeats.sql` adds (a) `cron_heartbeats(function_name PK, last_completed_at, expected_interval_seconds, metadata)` table, service_role-only, and (b) SECURITY DEFINER `cron_watchdog_check()` SQL function that writes `system_events('cron.stalled', 'err', …)` for any function whose last heartbeat is older than 2× its expected interval, deduped to one alert per function per day. New `_shared/heartbeat.ts` helper. Wired to 4 critical crons today: `dispatch-due-campaigns` (600s), `oh-reminders` (3600s), `oh-followup` (900s), `transaction-deadline-check` (86400s). **Migration applied via MCP 2026-06-04.** Edge fns need redeploy: `supabase functions deploy dispatch-due-campaigns oh-reminders oh-followup transaction-deadline-check`. **Deploy step (pg_cron schedule):**
 > ```sql
 > SELECT cron.schedule('cron-watchdog-hourly', '7 * * * *', $$SELECT public.cron_watchdog_check();$$);
@@ -387,7 +387,7 @@
 
 - [~] **X1.** Shared helper: `webhook_events_seen(provider, event_id) UNIQUE` table + helper for replay protection across Lofty / Resend / Higgsfield / Replicate / Canva — **partial** ✅ 2026-06-04: table shipped (`20260604_webhook_events_seen.sql`), Resend + Lofty wired. TODO: wire Higgsfield/Replicate/Canva when they get callbacks.
 - [ ] **X2.** SECURITY DEFINER `claim_due_rows(table, where, lock_seconds)` RPC reused by every cron
-- [~] **X3.** `cron_heartbeats` + watchdog cron (H14) — ✅ 2026-06-04 (infra + 4 crons wired; remaining crons to wire in next batch)
+- [x] **X3.** `cron_heartbeats` + watchdog cron (H14) — ✅ 2026-06-04 (infra + 13 crons wired + watchdog cron active)
 - [ ] **X4.** CI grep blocking direct Anthropic/Resend fetches outside `_shared/`:
   ```bash
   ! git grep -nE "(api\.anthropic\.com|api\.resend\.com)" supabase/functions | grep -v _shared/

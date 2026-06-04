@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
+import { heartbeat } from '../_shared/heartbeat.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -135,6 +136,8 @@ serve(async (req) => {
         results.errors.push(`${showing.showing_id}: ${err.message}`)
       }
     }
+
+    await heartbeat(supabase, 'feedback-follow-up', { pending: (pending || []).length, followed_up: results.followed_up })
 
     return json({ ok: true, pending_count: (pending || []).length, ...results })
   } catch (err: any) {

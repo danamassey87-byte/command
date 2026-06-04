@@ -11,6 +11,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { callAnthropic, textOf } from '../_shared/ai-bill.ts'
+import { heartbeat } from '../_shared/heartbeat.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -232,6 +233,8 @@ Respond with ONLY the JSON array, no other text.`
         recommendations: recs.length,
       })
     }
+
+    await heartbeat(db, 'ai-campaign-insights', { batch_id: batchId, campaign_count: results.length })
 
     return new Response(JSON.stringify({ ok: true, batch_id: batchId, results }), {
       headers: { ...CORS, 'Content-Type': 'application/json' },

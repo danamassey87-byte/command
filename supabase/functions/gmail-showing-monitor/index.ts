@@ -35,6 +35,7 @@ import {
   formatFeedbackMessage,
 } from '../_shared/slack.ts'
 import { callAnthropic, textOf } from '../_shared/ai-bill.ts'
+import { heartbeat } from '../_shared/heartbeat.ts'
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 const CORS = {
@@ -144,6 +145,8 @@ serve(async (req) => {
         results.errors.push(`${msg.id}: ${err.message}`)
       }
     }
+
+    await heartbeat(supabase, 'gmail-showing-monitor', { messages_checked: allMessages.length })
 
     return json({ ok: true, messages_checked: allMessages.length, ...results })
   } catch (err: any) {

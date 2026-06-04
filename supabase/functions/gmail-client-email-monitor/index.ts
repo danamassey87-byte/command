@@ -26,6 +26,7 @@ import {
   formatSignedDocMessage,
 } from '../_shared/slack.ts'
 import { callAnthropic } from '../_shared/ai-bill.ts'
+import { heartbeat } from '../_shared/heartbeat.ts'
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -158,6 +159,8 @@ serve(async (req) => {
         results.errors.push(`${msg.id}: ${err.message}`)
       }
     }
+
+    await heartbeat(supabase, 'gmail-client-email-monitor', { messages_checked: allMessages.length })
 
     return json({ ok: true, messages_checked: allMessages.length, ...results })
   } catch (err: any) {
