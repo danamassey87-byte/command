@@ -58,18 +58,7 @@ import {
   isHiggsfieldAuthError,
   isHiggsfieldRateLimited,
 } from '../_shared/higgsfield-notify.ts'
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  })
-}
+import { corsHeadersFor } from '../_shared/cors.ts'
 
 const BASE_URL = 'https://platform.higgsfield.ai'
 
@@ -119,6 +108,12 @@ const COST_USD = {
 } as const
 
 serve(async (req) => {
+  // M1: lock CORS to known frontend origins.
+  const CORS = corsHeadersFor(req.headers.get('origin'))
+  const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  })
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   try {

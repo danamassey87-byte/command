@@ -30,12 +30,7 @@
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
+import { corsHeadersFor } from '../_shared/cors.ts'
 
 // Apify actor IDs (URL-safe form with ~)
 const ACTORS = {
@@ -200,6 +195,8 @@ function normalizeFacebook(items: Array<Record<string, any>>) {
 // ─── Handler ───────────────────────────────────────────────────────────────
 
 serve(async (req) => {
+  // M1: lock CORS to known frontend origins.
+  const CORS = corsHeadersFor(req.headers.get('origin'))
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   try {

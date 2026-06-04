@@ -19,18 +19,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { logAiGeneration, anthropicCostCents } from '../_shared/replicate-notify.ts'
 import { callAnthropic } from '../_shared/ai-bill.ts'
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  })
-}
+import { corsHeadersFor } from '../_shared/cors.ts'
 
 const SYSTEM_PROMPT = `You are extracting structured comparable-sales data from a CMA PDF (Comparative Market Analysis) built in NARRPR or a similar tool.
 
@@ -73,6 +62,12 @@ Rules:
 - If you can't read the document at all, return { "subject": {...all nulls}, "comps": [], "error": "could not parse" }.`
 
 serve(async (req) => {
+  // M1: lock CORS to known frontend origins.
+  const CORS = corsHeadersFor(req.headers.get('origin'))
+  const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  })
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS })
   }

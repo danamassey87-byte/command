@@ -2,11 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { logAiGeneration, anthropicCostCents } from '../_shared/replicate-notify.ts'
 import { callAnthropic, textOf, type BillError } from '../_shared/ai-bill.ts'
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeadersFor } from '../_shared/cors.ts'
 
 const SYSTEM_PROMPT = `You are a content writer for Dana Massey, a real estate agent at REAL Broker in the East Valley / Gilbert, AZ market.
 
@@ -15,6 +11,8 @@ Write in Dana's voice: warm, confident, knowledgeable, and authentic. She helps 
 Keep content valuable, honest, and action-oriented. Avoid buzzwords like "dream home" or "hot market" unless used ironically.`
 
 serve(async (req) => {
+  // M1: lock CORS to known frontend origins.
+  const CORS = corsHeadersFor(req.headers.get('origin'))
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS })
   }

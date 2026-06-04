@@ -18,18 +18,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { maybeNotifyLowReplicateCredit, isReplicate402, logAiGeneration } from '../_shared/replicate-notify.ts'
 import { checkRateLimit, callerIpKey } from '../_shared/rate-limit.ts'
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
-  })
-}
+import { corsHeadersFor } from '../_shared/cors.ts'
 
 // H12 from SECURITY_AUDIT_PUNCHLIST: SSRF-by-proxy allowlist.
 // Previously `photo_url` was validated only as `.startsWith('http')` —
@@ -106,6 +95,12 @@ function buildPrompt(style: string, roomType: string, custom?: string): string {
 }
 
 serve(async (req) => {
+  // M1: lock CORS to known frontend origins.
+  const CORS = corsHeadersFor(req.headers.get('origin'))
+  const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json' },
+  })
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
 
   try {

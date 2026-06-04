@@ -7,11 +7,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { callAnthropic, textOf } from '../_shared/ai-bill.ts'
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeadersFor } from '../_shared/cors.ts'
 
 const GAMMA_API = 'https://public-api.gamma.app/v1.0'
 
@@ -32,6 +28,8 @@ Include: attendance summary, visitor feedback themes, showing activity compariso
 }
 
 serve(async (req: Request) => {
+  // M1: lock CORS to known frontend origins.
+  const CORS = corsHeadersFor(req.headers.get('origin'))
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS })
   }
