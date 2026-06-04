@@ -8,14 +8,12 @@
 
 ## Week-1 Hot List (do these first)
 
-> **Next session priority:** items 2-4 bundled — the webhook + key locks trio (~2 hrs, closes 3 CRITICALs in one sitting).
-
 | # | Item | Est | Closes |
 |---|------|-----|--------|
 | 1 | RLS lockdown stage 1: `REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated` + route public flows through edge fns | 1 day | C1, C11, H16, H17, H9 (partial) |
-| 2 | **NEXT** — Lock `save-elevenlabs-key` behind service-role bearer | 5 min | C2 |
-| 3 | **NEXT** — Verify Svix signature on `resend-webhook` | 1 hr | C3 |
-| 4 | **NEXT** — Require `LOFTY_WEBHOOK_SECRET` query param on `lofty-webhook` | 30 min | C4 |
+| 2 | ~~Lock `save-elevenlabs-key` behind service-role bearer~~ ✅ 2026-06-04 (needs deploy) | 5 min | C2 |
+| 3 | ~~Verify Svix signature on `resend-webhook`~~ ✅ 2026-06-04 (needs `RESEND_WEBHOOK_SECRET` + migration + deploy) | 1 hr | C3 |
+| 4 | ~~Require `LOFTY_WEBHOOK_SECRET` query param on `lofty-webhook`~~ ✅ 2026-06-04 (needs `LOFTY_WEBHOOK_SECRET` + migration + deploy) | 30 min | C4 |
 | 5 | ~~Add `escHtml()` + `safeUrl()` helpers; apply to emailHtml, SellerWeeklyUpdate, PropertyMap, BioLink~~ ✅ 2026-06-04 (uncommitted) | 1 hr | C5, M15 |
 | 6 | Convert `cost_ledger.incrementLedger` to atomic SQL upsert RPC | 30 min | C9 |
 | 7 | Move Meta `access_token` server-side (new `meta-proxy` edge fn) | 2 hrs | C12 |
@@ -37,17 +35,20 @@
   Route every kiosk/public flow through edge functions (service-role).
 - **Fix Stage 2 (with Auth):** Add `owner_id UUID NOT NULL DEFAULT auth.uid()` per table, rewrite all policies as `USING (owner_id = auth.uid())`.
 
-### [ ] C2. `save-elevenlabs-key` lets anyone overwrite Dana's stored API key
+### [x] C2. `save-elevenlabs-key` lets anyone overwrite Dana's stored API key ✅ 2026-06-04
+> Shipped: `supabase/functions/save-elevenlabs-key/index.ts` now requires `Authorization: Bearer <token>` where token is either the service-role key (timing-safe compare) or a verified user JWT (`db.auth.getUser`). Anonymous calls → 401. Needs `supabase functions deploy save-elevenlabs-key`. Note: this breaks the in-app Save Key UI until Auth ships — use `supabase secrets set ELEVENLABS_API_KEY=…` as the recommended path.
 - **File:** `supabase/functions/save-elevenlabs-key/index.ts:22-72`
 - **Exploit:** `curl -X POST .../save-elevenlabs-key -d '{"api_key":"sk_attacker"}'` swaps the key. Attacker reads every TTS prompt via their ElevenLabs dashboard.
 - **Fix:** Require service-role bearer header before accepting writes. Better: move to Edge Function secret (`supabase secrets set ELEVENLABS_API_KEY=…`) and delete the table.
 
-### [ ] C3. `resend-webhook` has no signature verification — forged unsubscribes nuke contacts
+### [x] C3. `resend-webhook` has no signature verification — forged unsubscribes nuke contacts ✅ 2026-06-04
+> Shipped: `supabase/functions/resend-webhook/index.ts` now verifies the Svix signature on every event. HMAC-SHA256 over `${svix-id}.${svix-timestamp}.${raw_body}` (`whsec_…` secret), constant-time compared against each `v1,<sig>` token in `svix-signature`. Timestamps ±5 min only. Dedupe via new `webhook_events_seen(provider, event_id)` table (X1 cross-cutting). Fails closed if `RESEND_WEBHOOK_SECRET` is unset. **Deploy steps:** (1) `supabase secrets set RESEND_WEBHOOK_SECRET=whsec_…` (copy from Resend dashboard); (2) apply migration `20260604_webhook_events_seen.sql`; (3) `supabase functions deploy resend-webhook`.
 - **File:** `supabase/functions/resend-webhook/index.ts:23-55`
 - **Exploit:** `curl .../resend-webhook -d '{"type":"email.complained","data":{"to":["sarah@…"]}}'` permanently suppresses Sarah. Drip silently skips her.
 - **Fix:** Verify Svix HMAC over `${svix_id}.${svix_timestamp}.${raw_body}` with `RESEND_WEBHOOK_SECRET`. Reject timestamps >5 min old. Add `webhook_events_seen(provider, event_id) UNIQUE` for replay protection.
 
-### [ ] C4. `lofty-webhook` accepts any POST; returns 200 even when insert fails
+### [x] C4. `lofty-webhook` accepts any POST; returns 200 even when insert fails ✅ 2026-06-04
+> Shipped: `supabase/functions/lofty-webhook/index.ts` now requires `?secret=${LOFTY_WEBHOOK_SECRET}` (or `x-lofty-webhook-secret` header) with timing-safe compare. Body capped at 256 KB (`Content-Length` + post-read check). Dedupes via `webhook_events_seen(provider='lofty', event_id=sha256(rawText))` until Lofty exposes a stable id. Insert failure now returns 500 so Lofty retries. Fails closed if `LOFTY_WEBHOOK_SECRET` is unset. **Deploy steps:** (1) `supabase secrets set LOFTY_WEBHOOK_SECRET=$(openssl rand -hex 24)`; (2) apply migration `20260604_webhook_events_seen.sql` (same one as C3); (3) `supabase functions deploy lofty-webhook`; (4) update Lofty's webhook URL to include `?secret=<that-value>` once Lofty support enables API access.
 - **File:** `supabase/functions/lofty-webhook/index.ts:74-148`
 - **Risk:** Spam fills `lofty_inbound_events`. Once mapper ships, attacker pre-seeds fake leads into CRM.
 - **Fix:**
@@ -354,7 +355,7 @@
 
 ## Cross-cutting infra changes (apply once, benefits everywhere)
 
-- [ ] **X1.** Shared helper: `webhook_events_seen(provider, event_id) UNIQUE` table + helper for replay protection across Lofty / Resend / Higgsfield / Replicate / Canva
+- [~] **X1.** Shared helper: `webhook_events_seen(provider, event_id) UNIQUE` table + helper for replay protection across Lofty / Resend / Higgsfield / Replicate / Canva — **partial** ✅ 2026-06-04: table shipped (`20260604_webhook_events_seen.sql`), Resend + Lofty wired. TODO: wire Higgsfield/Replicate/Canva when they get callbacks.
 - [ ] **X2.** SECURITY DEFINER `claim_due_rows(table, where, lock_seconds)` RPC reused by every cron
 - [ ] **X3.** `cron_heartbeats` + watchdog cron (H14)
 - [ ] **X4.** CI grep blocking direct Anthropic/Resend fetches outside `_shared/`:
