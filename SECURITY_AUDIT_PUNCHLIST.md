@@ -307,7 +307,8 @@
 - **Columns:** `seller_leads.status`, `expired_leads.status`, `fsbo_leads.status`, `client_for_life_plans.status`, `blotato_posts.status`, `print_orders.status`, `oh_signins.tier_at_signin`, `interactions.kind`, `media_assets.kind`
 - **Fix:** Add `CHECK (status IN (...))` per the column comment in each migration.
 
-### [ ] M6. `listings.contact_id` / `open_houses.listing_id` likely nullable; OH consistency trigger silently NULLs `listing_id`
+### [x] M6. `listings.contact_id` / `open_houses.listing_id` likely nullable; OH consistency trigger silently NULLs `listing_id` ✅ 2026-06-04
+> Shipped: `supabase/migrations/20260604_m6_required_fks_and_oh_trigger_notice.sql`. (1) `ALTER COLUMN contact_id SET NOT NULL` on both `listings` and `transactions` — verified 0 nulls live before apply, so the constraint adds cleanly. (2) Kept `open_houses.listing_id` nullable — verified 17 legitimately-NULL rows (OHs at non-listed properties / pre-listing prospecting). (3) Rewrote `enforce_oh_listing_date_consistency` trigger so the silent NULLing now also writes a `system_events('oh.listing_unlinked', 'warn', …)` row with the OH id, attempted listing id, OH date, listing's agreement_signed_date, and a human-readable reason. Slack #system already fans warn-and-above out, so Dana sees the link disappearance instead of wondering. `search_path = pg_catalog, public` per H11. **Migration applied via MCP 2026-06-04.**
 - **File:** `supabase/migrations/20260514_oh_listing_date_consistency.sql:7-30`
 - **Fix:** Either `RAISE EXCEPTION` on date mismatch, or insert `system_events('oh.listing_unlinked', 'warn', …)` + surface banner in UI. Audit nullable columns in `listings`, `open_houses`, `transactions`, `referral_fees`.
 
