@@ -272,7 +272,8 @@
 - **File:** `supabase/migrations/20260517_oh_feedback.sql:56-59`
 - **Fix:** Replace with SECURITY DEFINER RPC `get_oh_feedback_by_id(uuid, token)` returning one row only.
 
-### [ ] H17. `document_embeddings` similarity search is multi-tenant blind
+### [x] H17. `document_embeddings` similarity search is multi-tenant blind ✅ 2026-06-04
+> Shipped: `supabase/migrations/20260604_match_documents_owner.sql` adds `match_owner_id UUID DEFAULT auth.uid()` parameter to both `match_documents` and `match_summaries`, plus `WHERE (match_owner_id IS NULL OR de.owner_id = match_owner_id OR de.owner_id IS NULL)`. Pre-Auth: `auth.uid()` is NULL so all NULL-owner rows (Dana's existing corpus) match — no behavior change. Post-Auth: callers automatically get user-scoped results; once legacy rows are backfilled the `OR de.owner_id IS NULL` becomes a no-op. Old un-scoped overloads explicitly dropped via `DROP FUNCTION IF EXISTS … (vector, text, integer, double precision)` so every caller is forced through the secure version. Also added the H11 search_path hardening (`SET search_path = pg_catalog, public`) that these two functions missed (they're INVOKER + non-trigger so the H11 sweep skipped them). **Migration applied via MCP 2026-06-04.**
 - **File:** `supabase/migrations/20260421_command_pgvector_rag.sql:14-34`
 - **Fix:** Add `match_owner_id UUID DEFAULT auth.uid()` param + `WHERE de.owner_id = match_owner_id`.
 
