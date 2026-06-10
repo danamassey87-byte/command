@@ -59,7 +59,28 @@ async function processOne(): Promise<boolean> {
       imageFormat: 'jpeg',
       jpegQuality: 80,
       pixelFormat: 'yuv420p',
-      framesPerLambda: 2250,
+      // Chunk size — bounded on BOTH ends:
+      //
+      //  • Upper bound (renderer timeout): the ListingTour is ~225s @ 30fps =
+      //    ~6750 frames and is render-heavy (stacked images + full-screen
+      //    soft-light blend + gradients), so each frame costs a few hundred ms
+      //    on Lambda. Each chunk must finish inside the function's 900s timeout
+      //    (the AWS hard max). The previous value of 2250 produced ~3 giant
+      //    chunks that each ran past 900s and timed out — the original
+      //    "main function timed out after 899505ms" failure.
+      //
+      //  • Lower bound (account concurrency): Remotion fans out ALL chunks at
+      //    once and needs account-concurrency >= chunks + 1. This AWS account's
+      //    Lambda concurrency limit is only 10, so going too small backfires:
+      //    150 frames/chunk = 45 chunks => "AWS Concurrency limit reached
+      //    (Rate Exceeded)" and the render never starts.
+      //
+      // 850 threads the needle: ceil(6750/850) = 8 chunks (needs concurrency 9,
+      // one slot under the limit) of ~850 frames each, well under 900s per
+      // chunk. If the AWS concurrency quota is raised (a known TODO; run
+      // `npx remotion lambda quotas increase`), this can be lowered toward
+      // ~150 for smaller, faster, more parallel chunks.
+      framesPerLambda: 850,
       maxRetries: 1,
       privacy: 'public',
       downloadBehavior: {type: 'play-in-browser'},
@@ -77,6 +98,7 @@ async function processOne(): Promise<boolean> {
         await db.from('render_jobs').update({
           status: 'failed',
           error: `poll_timeout after ${Math.round(MAX_POLL_MS / 60000)}min`,
+          output_url: null,   // never leave a stale success URL on a failed job
           completed_at: new Date().toISOString(),
         }).eq('id', job.id);
         console.error(`  ✗ poll timeout`);
@@ -107,6 +129,7 @@ async function processOne(): Promise<boolean> {
         await db.from('render_jobs').update({
           status: 'failed',
           error: progress.errors?.[0]?.message ?? 'unknown',
+          output_url: null,
           completed_at: new Date().toISOString(),
         }).eq('id', job.id);
         console.error(`  ✗ failed: ${progress.errors?.[0]?.message}`);
@@ -120,6 +143,7 @@ async function processOne(): Promise<boolean> {
     await db.from('render_jobs').update({
       status: 'failed',
       error: msg,
+      output_url: null,
       completed_at: new Date().toISOString(),
     }).eq('id', job.id);
     console.error(`  ✗ error: ${msg}`);

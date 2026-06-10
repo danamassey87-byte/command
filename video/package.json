@@ -1,0 +1,33 @@
+{
+  "name": "@dana-re/video",
+  "version": "0.1.0",
+  "description": "Remotion video renderer for listing tours and neighborhood content",
+  "private": true,
+  "scripts": {
+    "dev": "remotion studio src/Root.tsx",
+    "render": "remotion render src/Root.tsx ListingTour out/ListingTour.mp4 --concurrency=1",
+    "render:thumb": "remotion render src/Root.tsx ListingTourThumbnail out/Thumbnail.png --image-format=png --frames=0",
+    "lambda:deploy": "remotion lambda functions deploy --memory=3008 --disk=10240 --timeout=900",
+    "lambda:sites": "remotion lambda sites create src/Root.tsx --site-name=listing-tour",
+    "lambda:render": "remotion lambda render --composition=ListingTour --serve-url=$REMOTION_SERVE_URL",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.463",
+    "@remotion/google-fonts": "4.0.463",
+    "@remotion/lambda": "4.0.463",
+    "@remotion/media-utils": "4.0.463",
+    "@remotion/zod-types": "4.0.463",
+    "@supabase/supabase-js": "^2.39.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "4.0.463",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.5.0"
+  }
+}

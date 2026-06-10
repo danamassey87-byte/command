@@ -1,0 +1,11 @@
+node_modules/
+out/
+.remotion/
+.env
+.env.local
+*.log
+
+# Local convenience runner — contains plaintext AWS + Supabase service-role
+# keys baked in for local rendering. MUST NOT be committed. CI uses GitHub
+# Actions secrets instead (see .github/workflows/render-queue.yml).
+scripts/run-render.sh
