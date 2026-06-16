@@ -49,7 +49,11 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          # Node 22+ required: @supabase/supabase-js's realtime client needs a
+          # native WebSocket, which Node 20 lacks ("Node.js 20 detected without
+          # native WebSocket support"). createClient() initializes it eagerly
+          # even though process-queue.ts only uses REST/RPC. 22 is current LTS.
+          node-version: 22
           cache: npm
           cache-dependency-path: video/package-lock.json
 
