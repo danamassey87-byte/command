@@ -7,6 +7,7 @@ type Props = {
   zoomFrom?: number;       // default 1.0
   zoomTo?: number;         // default 1.05
   crossfadeSeconds?: number; // default 1.0
+  emptyHoldSeconds?: number; // default 2.5 — fixed beat on the empty photo
 };
 
 /**
@@ -25,6 +26,7 @@ export const RoomScene: React.FC<Props> = ({
   zoomFrom = 1.0,
   zoomTo = 1.05,
   crossfadeSeconds = 1.0,
+  emptyHoldSeconds = 2.5,
 }) => {
   const frame = useCurrentFrame();
   const {fps, durationInFrames} = useVideoConfig();
@@ -33,8 +35,15 @@ export const RoomScene: React.FC<Props> = ({
   const total = durationInFrames;
   const crossfadeFrames = Math.round(crossfadeSeconds * fps);
 
-  // Empty holds 30% of the scene, then crossfades into staged for the rest.
-  const emptyHoldFrames = Math.round(total * 0.30);
+  // Empty room holds a short FIXED beat (~2.5s), then crossfades into staged
+  // for the rest of the scene. This replaces the old "30% of scene duration"
+  // rule, which made long scenes (e.g. the 35s backyard) sit on the empty
+  // photo for 10s+ and felt glacial. Capped at 40% of the scene so it can
+  // never swallow a short scene or leave no room for the crossfade.
+  const emptyHoldFrames = Math.min(
+    Math.round(emptyHoldSeconds * fps),
+    Math.round(total * 0.4),
+  );
   const crossfadeStart = emptyHoldFrames;
   const crossfadeEnd = emptyHoldFrames + crossfadeFrames;
 
