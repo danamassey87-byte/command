@@ -5,6 +5,7 @@ import supabase from '../../lib/supabase'
 import * as DB from '../../lib/supabase'
 import { fetchWithTimeout } from '../../lib/net.js'
 import TemplatesTab, { AIPlanPromptsEditor } from './TemplatesTab'
+import ChecklistsTab from './ChecklistsTab'
 import Recovery from '../Recovery/Recovery'
 import MeetRecordingsSync from '../../components/drive/MeetRecordingsSync'
 const SystemHealthEmbed = lazy(() => import('../SystemHealth/SystemHealth'))
@@ -44,7 +45,7 @@ const SOCIAL_CHANNELS = [
   { key: 'linktree',     label: 'Linktree / Bio', icon: '🔗', placeholder: 'https://linktr.ee/yourlink' },
 ]
 
-const TABS = ['signature', 'templates', 'guidelines', 'assets', 'social', 'connected', 'ai_prompts', 'lists', 'lead_sources', 'intake_forms', 'notifications', 'notification_rules', 'lofty_sync', 'tech_stack', 'system_health', 'recovery']
+const TABS = ['signature', 'templates', 'checklists', 'guidelines', 'assets', 'social', 'connected', 'ai_prompts', 'lists', 'lead_sources', 'intake_forms', 'notifications', 'notification_rules', 'lofty_sync', 'tech_stack', 'system_health', 'recovery']
 
 // Each entry = one user-managed dropdown list shown in the Lists tab.
 const DROPDOWN_LISTS_META = [
@@ -84,13 +85,14 @@ export default function Settings() {
             className={`settings-tab${tab === t ? ' settings-tab--active' : ''}`}
             onClick={() => setTab(t)}
           >
-            {{ signature: 'Signature', templates: 'Templates & Scripts', guidelines: 'Brand Guidelines', assets: 'Logos & Headshots', social: 'Social Channels', connected: 'Connected Accounts', ai_prompts: 'AI Prompts', lists: 'Lists & Tags', lead_sources: 'Lead Sources', intake_forms: 'Intake Forms', notifications: 'Notifications', notification_rules: 'Routing Rules', lofty_sync: 'Lofty Sync', tech_stack: 'Tech Stack', system_health: 'System Health', recovery: 'Trash & Archive' }[t] || t}
+            {{ signature: 'Signature', templates: 'Templates & Scripts', checklists: 'Checklists', guidelines: 'Brand Guidelines', assets: 'Logos & Headshots', social: 'Social Channels', connected: 'Connected Accounts', ai_prompts: 'AI Prompts', lists: 'Lists & Tags', lead_sources: 'Lead Sources', intake_forms: 'Intake Forms', notifications: 'Notifications', notification_rules: 'Routing Rules', lofty_sync: 'Lofty Sync', tech_stack: 'Tech Stack', system_health: 'System Health', recovery: 'Trash & Archive' }[t] || t}
           </button>
         ))}
       </div>
 
       {tab === 'signature'  && <SignatureTab  brand={brand} refetch={refetch} />}
       {tab === 'templates'  && <TemplatesTab />}
+      {tab === 'checklists' && <ChecklistsTab />}
       {tab === 'guidelines' && <GuidelinesTab brand={brand} refetch={refetch} />}
       {tab === 'assets'     && <AssetsTab     brand={brand} refetch={refetch} />}
       {tab === 'social'     && <SocialTab     brand={brand} refetch={refetch} />}

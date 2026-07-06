@@ -1,7 +1,9 @@
 import { useState, useCallback, useMemo } from 'react'
 import { Card, Badge, Button, Input, Textarea, SlidePanel } from '../../components/ui/index.jsx'
-import { useTransactions } from '../../lib/hooks.js'
+import { useTransactions, useListings } from '../../lib/hooks.js'
 import { useBrandSignature } from '../../lib/BrandContext'
+import ChecklistRunner from '../../components/ChecklistRunner.jsx'
+import { resolveDealChecklistKey } from '../../lib/checklistKey.js'
 import './SellerSOP.css'
 
 // ─── Seller SOP Stages ──────────────────────────────────────────────────────
@@ -214,15 +216,14 @@ function addDays(dateStr, days) {
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function SellerSOP() {
   const { data: transactions } = useTransactions()
+  const { data: listings } = useListings()
   const sig = useBrandSignature()
-  const [progress, setProgressRaw] = useState(() => loadProgress())
   const [templates, setTemplatesRaw] = useState(() => loadTemplates() || DEFAULT_TEMPLATES)
   const [activeDeal, setActiveDeal] = useState(null)
   const [templatePanel, setTemplatePanel] = useState(null) // templateKey
   const [editingTemplate, setEditingTemplate] = useState(null)
   const [contractDate, setContractDate] = useState('')
   const [closingDate, setClosingDate] = useState('')
-  const [showAZ, setShowAZ] = useState(true)
 
   // Seller deals from pipeline
   const sellerDeals = useMemo(() => {
@@ -233,17 +234,6 @@ export default function SellerSOP() {
     )
   }, [transactions])
 
-  // Progress helpers
-  const setProgress = useCallback((dealKey, taskId, checked) => {
-    setProgressRaw(prev => {
-      const dealProgress = { ...(prev[dealKey] ?? {}) }
-      dealProgress[taskId] = checked ? new Date().toISOString() : false
-      const next = { ...prev, [dealKey]: dealProgress }
-      saveProgress(next)
-      return next
-    })
-  }, [])
-
   const setTemplates = useCallback((key, updates) => {
     setTemplatesRaw(prev => {
       const next = { ...prev, [key]: { ...prev[key], ...updates } }
@@ -252,19 +242,12 @@ export default function SellerSOP() {
     })
   }, [])
 
-  const dealKey = activeDeal?.id || '_default'
-  const dealProgress = progress[dealKey] ?? {}
-
-  const stageProgress = useMemo(() => {
-    return SELLER_SOP.map(stage => {
-      const visibleTasks = stage.tasks.filter(t => showAZ || !t.arizona)
-      const done = visibleTasks.filter(t => !!dealProgress[t.id]).length
-      return { total: visibleTasks.length, done, pct: visibleTasks.length ? Math.round((done / visibleTasks.length) * 100) : 0 }
-    })
-  }, [dealProgress, showAZ])
-
-  const totalDone = stageProgress.reduce((s, p) => s + p.done, 0)
-  const totalTasks = stageProgress.reduce((s, p) => s + p.total, 0)
+  // The ONE canonical checklist for the selected deal (shared with the Sellers
+  // page + Pipeline). Falls back to null until a deal is picked.
+  const checklistKey = useMemo(
+    () => (activeDeal ? resolveDealChecklistKey(activeDeal, listings ?? []) : null),
+    [activeDeal, listings]
+  )
 
   // Critical dates calculation
   const criticalDates = useMemo(() => {
@@ -340,26 +323,6 @@ export default function SellerSOP() {
           </div>
         </div>
 
-        <div className="seller-sop__toggles">
-          <label className="seller-sop__toggle-label">
-            <input type="checkbox" checked={showAZ} onChange={e => setShowAZ(e.target.checked)} />
-            Show Arizona-specific requirements
-          </label>
-        </div>
-      </div>
-
-      {/* ─── Overall Progress ─── */}
-      <div className="seller-sop__progress-bar">
-        <div className="seller-sop__progress-info">
-          <span className="seller-sop__progress-text">{totalDone} of {totalTasks} tasks complete</span>
-          <span className="seller-sop__progress-pct">{totalTasks ? Math.round((totalDone / totalTasks) * 100) : 0}%</span>
-        </div>
-        <div className="seller-sop__bar-track">
-          <div
-            className="seller-sop__bar-fill"
-            style={{ width: `${totalTasks ? (totalDone / totalTasks) * 100 : 0}%` }}
-          />
-        </div>
       </div>
 
       {/* ─── Critical Dates ─── */}
@@ -381,56 +344,38 @@ export default function SellerSOP() {
         </Card>
       )}
 
-      {/* ─── SOP Stages ─── */}
-      {SELLER_SOP.map((stage, si) => (
-        <Card key={stage.id} className="seller-sop__stage">
-          <div className="seller-sop__stage-header">
-            <div className="seller-sop__stage-badge" style={{ background: stage.color }} />
-            <h3 className="seller-sop__stage-title">{stage.label}</h3>
-            <Badge variant={stageProgress[si].pct === 100 ? 'success' : 'default'} size="sm">
-              {stageProgress[si].done}/{stageProgress[si].total}
-            </Badge>
-            <div className="seller-sop__stage-bar">
-              <div className="seller-sop__stage-bar-fill" style={{ width: `${stageProgress[si].pct}%`, background: stage.color }} />
-            </div>
-          </div>
-
-          <div className="seller-sop__tasks">
-            {stage.tasks.map(task => {
-              if (task.arizona && !showAZ) return null
-              const checked = !!dealProgress[task.id]
-              const tpl = task.hasTemplate ? templates[task.templateKey] : null
-              return (
-                <div key={task.id} className={`seller-sop__task ${checked ? 'seller-sop__task--done' : ''} ${task.arizona ? 'seller-sop__task--az' : ''}`}>
-                  <label className="seller-sop__check">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={e => setProgress(dealKey, task.id, e.target.checked)}
-                    />
-                    <span className="seller-sop__task-text">{task.text}</span>
-                  </label>
-                  <div className="seller-sop__task-actions">
-                    {task.arizona && <Badge variant="info" size="sm">AZ</Badge>}
-                    {task.note && <span className="seller-sop__task-note">{task.note}</span>}
-                    {task.hasTemplate && tpl && (
-                      <button
-                        className="seller-sop__template-btn"
-                        onClick={() => {
-                          setTemplatePanel(task.templateKey)
-                          setEditingTemplate(null)
-                        }}
-                      >
-                        {tpl.type === 'email' ? '✉️' : tpl.type === 'form' ? '📋' : tpl.type === 'design' ? '🎨' : tpl.type === 'spreadsheet' ? '📊' : '📄'} {tpl.name}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+      {/* ─── Unified Checklist (single source of truth) ─── */}
+      {checklistKey ? (
+        <ChecklistRunner
+          parentKind={checklistKey.parentKind}
+          parentId={checklistKey.parentId}
+          category={checklistKey.category}
+        />
+      ) : (
+        <Card className="seller-sop__stage">
+          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--brown-warm, #5A4136)' }}>
+            Select a deal above to view its checklist. This is the same seller checklist shown on the
+            Sellers page and in the Pipeline — check a box in any of them and it updates everywhere.
+            Edit the steps in <strong>Settings → Checklists</strong>.
+          </p>
         </Card>
-      ))}
+      )}
+
+      {/* ─── Email Templates & Scripts ─── */}
+      <Card className="seller-sop__stage">
+        <h3 className="seller-sop__section-title">Email Templates &amp; Scripts</h3>
+        <div className="seller-sop__tpl-buttons">
+          {Object.entries(templates).map(([key, tpl]) => (
+            <button
+              key={key}
+              className="seller-sop__template-btn"
+              onClick={() => { setTemplatePanel(key); setEditingTemplate(null) }}
+            >
+              {tpl.type === 'email' ? '✉️' : tpl.type === 'form' ? '📋' : tpl.type === 'design' ? '🎨' : tpl.type === 'spreadsheet' ? '📊' : '📄'} {tpl.name}
+            </button>
+          ))}
+        </div>
+      </Card>
 
       {/* ─── Template Panel ─── */}
       {templatePanel && templates[templatePanel] && (

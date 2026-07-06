@@ -48,6 +48,29 @@
   gap: 20px;
 }
 
+/* ─── Checklists tab helpers ──────────────────────────────────────────────── */
+.settings-section-title {
+  font-family: var(--font-display, 'Raleway', sans-serif);
+  font-size: 1.1rem; font-weight: 600; margin: 0 0 2px; color: var(--brown-dark, #3A2A1E);
+}
+.settings-section-desc { font-size: 0.82rem; color: var(--color-text-muted, #B79782); margin: 0; }
+.settings-input {
+  width: 100%; padding: 6px 10px; font-size: 0.84rem; font-family: inherit;
+  border: 1px solid var(--color-border, #C8C3B9); border-radius: 6px; background: #fff;
+  color: var(--brown-dark, #3A2A1E);
+}
+.settings-input:focus { outline: none; border-color: var(--brown-mid, #B79782); }
+.settings-link-btn {
+  background: none; border: none; color: var(--brown-mid, #B79782); cursor: pointer;
+  font-family: var(--font-mono, monospace); text-transform: uppercase; letter-spacing: .05em;
+}
+.settings-link-btn:hover { color: var(--brown-warm, #5A4136); text-decoration: underline; }
+.settings-icon-btn {
+  background: none; border: 1px solid transparent; border-radius: 5px; cursor: pointer;
+  font-size: 0.85rem; line-height: 1; padding: 3px 6px; color: var(--brown-warm, #5A4136);
+}
+.settings-icon-btn:hover { background: var(--cream, #EFEDE8); border-color: var(--color-border, #C8C3B9); }
+
 .settings-section__header {
   display: flex;
   flex-direction: column;

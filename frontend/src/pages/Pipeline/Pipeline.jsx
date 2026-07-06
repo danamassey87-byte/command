@@ -8,6 +8,7 @@ import FavoriteButton from '../../components/layout/FavoriteButton.jsx'
 import { useBrandSignature } from '../../lib/BrandContext'
 import * as DB from '../../lib/supabase.js'
 import ChecklistRunner from '../../components/ChecklistRunner.jsx'
+import { resolveDealChecklistKey } from '../../lib/checklistKey.js'
 import InteractionsTimeline from '../../components/InteractionsTimeline.jsx'
 import { logDealStageChange } from '../../lib/interactionBridges.js'
 import { autoSeedOnUnderContract } from '../../lib/autoSeedWorkflow.js'
@@ -27,7 +28,12 @@ const STAGES = [
   { value: 'appraisal',       label: 'Appraisal',           color: '#8b7ec8',               desc: 'Lender appraisal ordered' },
   { value: 'loan_approval',   label: 'Loan Approval',       color: '#6a9e72',               desc: 'Underwriting & clear to close' },
   { value: 'closing',         label: 'Closing',             color: 'var(--color-success)',   desc: 'Final walkthrough & signing' },
+  { value: 'closed',          label: 'Closed',              color: '#4a7c59',               desc: 'Recorded & complete', terminal: true },
 ]
+
+// The canonical terminal status value the rest of the app filters on (P&L, Goals,
+// Closed Deals map, SOP). Stored lowercase so `status === 'closed'` checks match.
+const CLOSED_STATUS = 'closed'
 
 const DEAL_TYPES = [
   { value: 'buyer',  label: 'Buyer Side' },
@@ -130,70 +136,6 @@ const CONTACT_ROLES = [
 
 const EMPTY_ROLE_CONTACT = { name: '', email: '', phone: '' }
 const EMPTY_FAMILY = { name: '', email: '', phone: '', relationship: '' }
-
-// ─── Embedded SOP Tasks (syncs with standalone SOP pages via localStorage) ──
-const BUYER_SOP_KEY = 'buyer_sop_progress'
-const SELLER_SOP_KEY = 'seller_sop_progress'
-function loadSOPProgress(key) { try { return JSON.parse(localStorage.getItem(key) || '{}') } catch { return {} } }
-function saveSOPProgress(key, d) { localStorage.setItem(key, JSON.stringify(d)) }
-
-const BUYER_SOP_TASKS = [
-  { stage: 'Initial Lead', tasks: [
-    { id: 'lead_in', text: 'New lead comes in' }, { id: 'lead_workflow', text: 'Send New Buyer Lead email' },
-    { id: 'phone_appt', text: '15-min phone call' }, { id: 'pre_qual_check', text: 'Verify pre-qualification' },
-    { id: 'send_questionnaire', text: 'Send buyer questionnaire' },
-  ]},
-  { stage: 'Pre-Showing Docs', tasks: [
-    { id: 'buyer_advisory', text: 'Buyer Advisory (AAR) signed', az: true }, { id: 'buyer_broker', text: 'Buyer Broker Agreement signed', az: true },
-    { id: 'agency_disclosure', text: 'Agency Disclosure (ARS 32-2153)', az: true }, { id: 'wire_fraud_advisory', text: 'Wire Fraud Advisory signed', az: true },
-    { id: 'pre_approval_letter', text: 'Pre-approval letter on file' }, { id: 'send_offer', text: 'Offer sent to listing agent' },
-  ]},
-  { stage: 'Under Contract', tasks: [
-    { id: 'update_terms', text: 'Update database with contract terms' }, { id: 'open_escrow', text: 'Open escrow' },
-    { id: 'send_lender', text: 'Send contract to lender' }, { id: 'congrats_email', text: 'Send congratulations email' },
-    { id: 'earnest_money', text: 'Earnest money (3 biz days)', az: true }, { id: 'title_commitment', text: 'Title commitment received' },
-    { id: 'spds_received', text: 'SPDS received from seller', az: true }, { id: 'schedule_inspections', text: 'Inspections scheduled (10-day)', az: true },
-    { id: 'home_inspection', text: 'Home inspection completed' }, { id: 'binsr_sent', text: 'BINSR sent to listing agent' },
-    { id: 'binsr_response', text: 'Seller BINSR response received' }, { id: 'lsu_10day', text: 'Loan Status Update (10 days)' },
-    { id: 'az_appraisal', text: 'Appraisal ordered (25-day)', az: true }, { id: 'az_loan_approval', text: 'Final loan approval (30-day)', az: true },
-    { id: 'az_closing_disc', text: 'Closing Disclosure (3-day review)', az: true }, { id: 'insurance_bound', text: 'Insurance bound' },
-    { id: 'utility_transfer', text: 'Utilities transferred' }, { id: 'final_walkthrough', text: 'Final walkthrough' },
-    { id: 'closing_day', text: 'Closing day!' },
-  ]},
-  { stage: 'Post-Close', tasks: [
-    { id: 'upload_docs', text: 'All docs uploaded' }, { id: 'thank_everyone', text: 'Thank all parties + review request' },
-    { id: 'update_close', text: 'Update database — move to closed' }, { id: 'update_pnl', text: 'Update P&L with commission' },
-  ]},
-]
-
-const SELLER_SOP_TASKS = [
-  { stage: 'Initial Lead', tasks: [
-    { id: 'lead_in', text: 'New lead comes in' }, { id: 'lead_workflow', text: 'Send New Lead email' },
-    { id: 'phone_appt', text: '15-min phone call' }, { id: 'in_person_appt', text: 'Set listing appointment' },
-  ]},
-  { stage: 'Pre-Listing', tasks: [
-    { id: 'comps_ready', text: 'Comps / CMA ready' }, { id: 'hoa_verify', text: 'HOA verified' },
-    { id: 'listing_docs', text: 'Listing docs sent' }, { id: 'spds_claims', text: 'SPDS & Claims History sent' },
-    { id: 'az_lead_paint', text: 'Lead-Based Paint (pre-1978)', az: true }, { id: 'az_wire_fraud', text: 'Wire Fraud Advisory signed', az: true },
-    { id: 'start_mls', text: 'MLS listing started' }, { id: 'schedule_media', text: 'Photos/video scheduled' },
-    { id: 'listing_package', text: 'Marketing package prepared' }, { id: 'print_materials', text: 'Flyers & postcards printed' },
-    { id: 'were_live', text: '"We\'re Live" email sent' },
-  ]},
-  { stage: 'Under Contract', tasks: [
-    { id: 'update_terms', text: 'Update database with contract terms' }, { id: 'congrats_email', text: 'Send Offer Accepted email' },
-    { id: 'open_escrow', text: 'Open escrow' }, { id: 'submit_disclosures', text: 'Submit disclosures to buyer' },
-    { id: 'inspections', text: 'Buyer inspections (10-day)', az: true }, { id: 'earnest_money', text: 'Earnest money received' },
-    { id: 'binsr_received', text: 'BINSR received — review' }, { id: 'seller_binsr_resp', text: 'Seller BINSR response due', az: true },
-    { id: 'appraisal', text: 'Appraisal — grant access' }, { id: 'final_loan', text: 'Buyer loan approval confirmed' },
-    { id: 'schedule_signing', text: 'Signing scheduled' }, { id: 'final_walkthrough', text: 'Buyer final walkthrough' },
-    { id: 'az_closing_disc', text: 'Closing Disclosure reviewed', az: true }, { id: 'closing_day', text: 'Closing day!' },
-  ]},
-  { stage: 'Post-Close', tasks: [
-    { id: 'remove_lockbox', text: 'Lockbox removed' }, { id: 'mls_sold', text: 'MLS status → Sold' },
-    { id: 'sign_removal', text: 'Sign removed' }, { id: 'check_review', text: 'Review requested' },
-    { id: 'update_pnl', text: 'P&L updated with commission' },
-  ]},
-]
 
 // ─── Stage Email Templates ───────────────────────────────────────────────────
 export const STAGE_EMAILS = {
@@ -511,7 +453,6 @@ export default function Pipeline() {
   const [saving, setSaving] = useState(false)
   const [emailStage, setEmailStage] = useState(null)
   const [detailTab, setDetailTab] = useState('overview') // 'overview' | 'sop' | 'docs' | 'notes'
-  const [collapsedSections, setCollapsedSections] = useState({}) // { 'stageName': true }
 
   // Merge modal state
   const [mergeDeal, setMergeDeal] = useState(null) // the deal card user clicked "merge" on
@@ -530,26 +471,6 @@ export default function Pipeline() {
     setDealLinksRaw(prev => {
       const next = { ...prev, [dealId]: url }
       saveDealLinks(next)
-      return next
-    })
-  }, [])
-
-  // SOP progress (syncs with standalone SOP pages)
-  const [buyerSOPProgress, setBuyerSOPRaw] = useState(() => loadSOPProgress(BUYER_SOP_KEY))
-  const [sellerSOPProgress, setSellerSOPRaw] = useState(() => loadSOPProgress(SELLER_SOP_KEY))
-
-  const toggleSectionCollapse = useCallback((sectionName) => {
-    setCollapsedSections(prev => ({ ...prev, [sectionName]: !prev[sectionName] }))
-  }, [])
-
-  const toggleSOPTask = useCallback((dealId, taskId, isBuyer) => {
-    const key = isBuyer ? BUYER_SOP_KEY : SELLER_SOP_KEY
-    const setter = isBuyer ? setBuyerSOPRaw : setSellerSOPRaw
-    setter(prev => {
-      const dealProgress = { ...(prev[dealId] ?? {}) }
-      dealProgress[taskId] = dealProgress[taskId] ? false : new Date().toISOString()
-      const next = { ...prev, [dealId]: dealProgress }
-      saveSOPProgress(key, next)
       return next
     })
   }, [])
@@ -711,6 +632,42 @@ export default function Pipeline() {
   const [dragDeal, setDragDeal] = useState(null)
   const [dropStage, setDropStage] = useState(null)
 
+  // "Mark Recorded & Closed" modal
+  const [closeDeal, setCloseDeal] = useState(null)         // deal being closed
+  const [closeRecordedDate, setCloseRecordedDate] = useState('')
+  const [closeFinalPrice, setCloseFinalPrice] = useState('')
+  const [closingSaving, setClosingSaving] = useState(false)
+
+  const openCloseModal = useCallback((deal) => {
+    setCloseDeal(deal)
+    setCloseRecordedDate(deal.recorded_date || new Date().toISOString().slice(0, 10))
+    setCloseFinalPrice(String(deal.final_sale_price ?? deal.property?.price ?? deal.offer_price ?? ''))
+  }, [])
+
+  const submitClose = useCallback(async () => {
+    if (!closeDeal) return
+    setClosingSaving(true)
+    try {
+      await DB.updateTransaction(closeDeal.id, {
+        status: CLOSED_STATUS,
+        recorded_date: closeRecordedDate || null,
+        final_sale_price: closeFinalPrice ? Number(closeFinalPrice) : null,
+        closed_at: new Date().toISOString(),
+      })
+      setCloseDeal(null)
+      refetch()
+    } catch (err) { alert('Could not close deal: ' + err.message) }
+    finally { setClosingSaving(false) }
+  }, [closeDeal, closeRecordedDate, closeFinalPrice, refetch])
+
+  const reopenDeal = useCallback(async (deal) => {
+    if (!confirm(`Reopen ${deal.contact?.name || 'this deal'}? It moves back to the Closing stage.`)) return
+    try {
+      await DB.updateTransaction(deal.id, { status: 'Closing', closed_at: null })
+      refetch()
+    } catch (err) { alert('Could not reopen: ' + err.message) }
+  }, [refetch])
+
   // Filter active deals — ONLY show deals with active offers (is_active_offer !== false)
   const allActiveDeals = useMemo(() =>
     (transactions ?? []).filter(t => {
@@ -740,6 +697,15 @@ export default function Pipeline() {
   , [allActiveDeals])
 
   const [showPreOffer, setShowPreOffer] = useState(false)
+
+  // Recorded / completed deals — surfaced in the terminal "Closed" board column
+  const closedDeals = useMemo(() =>
+    (transactions ?? []).filter(t => {
+      const s = (t.status ?? '').toLowerCase()
+      if (t.is_active_offer === false) return false
+      return s === CLOSED_STATUS || s === 'closed'
+    }).sort((a, b) => (b.recorded_date || b.closing_date || '').localeCompare(a.recorded_date || a.closing_date || ''))
+  , [transactions])
 
   // Board stages (exclude pre_offer since it has its own section)
   const BOARD_STAGES = useMemo(() => STAGES.filter(s => s.value !== 'pre_offer'), [])
@@ -795,6 +761,12 @@ export default function Pipeline() {
     if (currentStage.value === stageValue) return
     const newStage = STAGES.find(s => s.value === stageValue)
     if (!newStage) return
+    // Closing a deal is a deliberate action — confirm recorded date + final price.
+    if (stageValue === 'closed') {
+      openCloseModal(dragDeal)
+      setDragDeal(null)
+      return
+    }
     try {
       const update = { status: newStage.label }
       if (stageValue === 'offer' && !dragDeal.offer_submitted_at) {
@@ -823,7 +795,7 @@ export default function Pipeline() {
       alert('Error moving deal: ' + err.message)
     }
     setDragDeal(null)
-  }, [dragDeal, refetch])
+  }, [dragDeal, refetch, openCloseModal])
 
   const pipelineValue = useMemo(() =>
     activeDeals.reduce((sum, d) => sum + (Number(d.property?.price) || Number(d.offer_price) || 0), 0)
@@ -967,6 +939,9 @@ export default function Pipeline() {
     const idx = STAGES.findIndex(s => s.value === current.value)
     if (idx >= STAGES.length - 1) return
     const next = STAGES[idx + 1]
+    // Advancing into the terminal Closed stage is a deliberate action — confirm
+    // recorded date + final price via the close modal instead of a silent write.
+    if (next.value === 'closed') { openCloseModal(deal); return }
     try {
       const update = { status: next.label }
       // Auto-set offer_submitted_at when moving to Offer Submitted
@@ -1140,12 +1115,13 @@ export default function Pipeline() {
         /* ─── Board View (drag & drop) ─── */
         <div className="pipe__board">
           {BOARD_STAGES.map(stage => {
-            const deals = dealsByStage[stage.value] ?? []
+            const isClosedCol = stage.value === 'closed'
+            const deals = isClosedCol ? closedDeals : (dealsByStage[stage.value] ?? [])
             const isDropTarget = dropStage === stage.value && dragDeal && stageInfo(dragDeal.status).value !== stage.value
             return (
               <div
                 key={stage.value}
-                className={`pipe__col ${isDropTarget ? 'pipe__col--drop-target' : ''}`}
+                className={`pipe__col ${isDropTarget ? 'pipe__col--drop-target' : ''} ${isClosedCol ? 'pipe__col--closed' : ''}`}
                 onDragOver={(e) => handleColumnDragOver(e, stage.value)}
                 onDragLeave={handleColumnDragLeave}
                 onDrop={(e) => handleColumnDrop(e, stage.value)}
@@ -1200,7 +1176,13 @@ export default function Pipeline() {
                         </div>
                         {/* Key info row */}
                         <div className="pipe__card-details">
-                          {deal.closing_date && (
+                          {isClosedCol && (
+                            <span className="pipe__card-recorded">
+                              ✓ Recorded {deal.recorded_date ? fmtDate(deal.recorded_date) : fmtDate(deal.closing_date)}
+                              {deal.final_sale_price ? ` · ${fmtDollar(deal.final_sale_price)}` : ''}
+                            </span>
+                          )}
+                          {!isClosedCol && deal.closing_date && (
                             <span className={`pipe__card-close ${days !== null && days <= 7 ? 'pipe__card-close--urgent' : days !== null && days <= 14 ? 'pipe__card-close--soon' : ''}`}>
                               COE: {fmtDate(deal.closing_date)} {days !== null && <strong>({days <= 0 ? 'TODAY' : `${days}d`})</strong>}
                             </span>
@@ -1326,22 +1308,12 @@ export default function Pipeline() {
               }))
             : []
 
-          // SOP data for this deal
-          const isBuyer = deal.deal_type === 'buyer' || deal.deal_type === 'both'
-          const sopTasks = isBuyer ? BUYER_SOP_TASKS : SELLER_SOP_TASKS
-          const sopProgress = isBuyer ? (buyerSOPProgress[deal.id] ?? {}) : (sellerSOPProgress[deal.id] ?? {})
-          const sopDone = sopTasks.reduce((sum, s) => sum + s.tasks.filter(t => !!sopProgress[t.id]).length, 0)
-          const sopTotal = sopTasks.reduce((sum, s) => sum + s.tasks.length, 0)
-
           return (
             <div className="pipe__detail">
               {/* ─── Tab Bar ─── */}
               <div className="pipe__detail-tabs">
                 <button className={`pipe__detail-tab ${detailTab === 'overview' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('overview')}>Overview</button>
                 <button className={`pipe__detail-tab ${detailTab === 'history' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('history')}>History</button>
-                <button className={`pipe__detail-tab ${detailTab === 'sop' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('sop')}>
-                  SOP {sopTotal > 0 && <span className="pipe__detail-tab-count">{sopDone}/{sopTotal}</span>}
-                </button>
                 <button className={`pipe__detail-tab ${detailTab === 'notes' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('notes')}>Notes</button>
                 <button className={`pipe__detail-tab ${detailTab === 'history' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('history')}>History</button>
                 <button className={`pipe__detail-tab ${detailTab === 'docs' ? 'pipe__detail-tab--active' : ''}`} onClick={() => setDetailTab('docs')}>
@@ -1521,6 +1493,17 @@ export default function Pipeline() {
                     </div>
                   </div>
 
+                  {/* Closed banner */}
+                  {stageInfo(deal.status).value === 'closed' && (
+                    <div className="pipe__closed-banner">
+                      <span>
+                        ✓ Closed &amp; recorded{deal.recorded_date ? ` ${fmtDate(deal.recorded_date)}` : ''}
+                        {deal.final_sale_price ? ` · ${fmtDollar(deal.final_sale_price)}` : ''}
+                      </span>
+                      <Button variant="ghost" size="sm" onClick={() => reopenDeal(deal)}>Reopen</Button>
+                    </div>
+                  )}
+
                   {/* Action buttons */}
                   <div className="pipe__detail-actions">
                     <Button variant="ghost" size="sm" onClick={() => { setDetailDeal(null); openEdit(deal) }}>Edit Deal</Button>
@@ -1531,6 +1514,11 @@ export default function Pipeline() {
                     }}>
                       Advance Stage
                     </Button>
+                    {stageInfo(deal.status).value !== 'closed' && (
+                      <Button variant="success" size="sm" onClick={() => { setDetailDeal(null); openCloseModal(deal) }}>
+                        Mark Recorded &amp; Closed
+                      </Button>
+                    )}
                     <Button variant="warning" size="sm" onClick={async () => {
                       if (!confirm(`Mark this offer as declined? The buyer (${deal.contact?.name}) will stay in your active pipeline.`)) return
                       try {
@@ -1641,16 +1629,21 @@ export default function Pipeline() {
                     )
                   })()}
 
-                  {/* Command checklist */}
-                  {typeof deal.id === 'string' && (
-                    <div style={{ marginTop: 16 }}>
-                      <ChecklistRunner
-                        parentKind="deal"
-                        parentId={deal.id}
-                        category={deal.deal_type === 'seller' ? 'listing' : 'buyer'}
-                      />
-                    </div>
-                  )}
+                  {/* Command checklist — the ONE canonical run this client has,
+                      shared with the Sellers/Buyers pages and the SOP page. */}
+                  {(() => {
+                    const key = resolveDealChecklistKey(deal, pipeListings)
+                    if (!key) return null
+                    return (
+                      <div style={{ marginTop: 16 }}>
+                        <ChecklistRunner
+                          parentKind={key.parentKind}
+                          parentId={key.parentId}
+                          category={key.category}
+                        />
+                      </div>
+                    )
+                  })()}
                 </>
               )}
 
@@ -1666,55 +1659,6 @@ export default function Pipeline() {
                 </>
               )}
 
-              {/* ═══ SOP TAB ═══ */}
-              {detailTab === 'sop' && (
-                <>
-                  <div className="pipe__sop-header">
-                    <span className="pipe__sop-type">{isBuyer ? 'Buyer' : 'Seller'} SOP</span>
-                    <div className="pipe__sop-progress-wrap">
-                      <div className="pipe__sop-progress-bar">
-                        <div className="pipe__sop-progress-fill" style={{ width: `${sopTotal ? (sopDone / sopTotal) * 100 : 0}%` }} />
-                      </div>
-                      <span className="pipe__sop-progress-text">{sopDone}/{sopTotal}</span>
-                    </div>
-                  </div>
-
-                  {sopTasks.map(section => {
-                    const sectionDone = section.tasks.filter(t => !!sopProgress[t.id]).length
-                    const isCollapsed = !!collapsedSections[section.stage]
-                    const isComplete = sectionDone === section.tasks.length
-                    return (
-                      <div key={section.stage} className={`pipe__sop-section ${isComplete ? 'pipe__sop-section--done' : ''}`}>
-                        <button className="pipe__sop-section-toggle" onClick={() => toggleSectionCollapse(section.stage)}>
-                          <span className="pipe__sop-section-arrow">{isCollapsed ? '▸' : '▾'}</span>
-                          <h4 className="pipe__detail-section-title">{section.stage}</h4>
-                          <span className={`pipe__detail-doc-count ${isComplete ? 'pipe__detail-doc-count--done' : ''}`}>{sectionDone}/{section.tasks.length}</span>
-                        </button>
-                        {!isCollapsed && (
-                          <div className="pipe__sop-tasks">
-                            {section.tasks.map(task => {
-                              const checked = !!sopProgress[task.id]
-                              return (
-                                <label key={task.id} className={`pipe__sop-task ${checked ? 'pipe__sop-task--done' : ''} ${task.az ? 'pipe__sop-task--az' : ''}`}>
-                                  <input type="checkbox" checked={checked} onChange={() => toggleSOPTask(deal.id, task.id, isBuyer)} />
-                                  <span>{task.text}</span>
-                                  {task.az && <span className="pipe__sop-az-badge">AZ</span>}
-                                </label>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-
-                  <div className="pipe__sop-link">
-                    <a href={isBuyer ? '/pipeline/buyer-sop' : '/pipeline/seller-sop'}>
-                      Open full {isBuyer ? 'Buyer' : 'Seller'} SOP with email templates →
-                    </a>
-                  </div>
-                </>
-              )}
 
               {/* ═══ DOCS & DEADLINES TAB ═══ */}
               {detailTab === 'notes' && (() => {
@@ -1924,6 +1868,47 @@ export default function Pipeline() {
           </div>
         )}
       </SlidePanel>
+
+      {/* ─── Mark Recorded & Closed Modal ─── */}
+      {closeDeal && (
+        <div className="pipe__modal-overlay" onClick={() => setCloseDeal(null)}>
+          <div className="pipe__modal" onClick={e => e.stopPropagation()}>
+            <h3 className="pipe__modal-title">Mark Recorded &amp; Closed</h3>
+            <p className="pipe__modal-subtitle">
+              {closeDeal.contact?.name} — {closeDeal.property?.address ?? 'No property'}
+            </p>
+
+            <Input
+              label="Recorded Date (deed recorded with county)"
+              id="close-recorded-date"
+              type="date"
+              value={closeRecordedDate}
+              onChange={e => setCloseRecordedDate(e.target.value)}
+            />
+
+            <Input
+              label="Final Sale Price"
+              id="close-final-price"
+              type="number"
+              value={closeFinalPrice}
+              onChange={e => setCloseFinalPrice(e.target.value)}
+              placeholder="Confirmed close-of-escrow price"
+            />
+
+            <div className="pipe__modal-actions">
+              <Button variant="ghost" size="sm" onClick={() => setCloseDeal(null)}>Cancel</Button>
+              <Button variant="primary" size="sm" onClick={submitClose} disabled={closingSaving}>
+                {closingSaving ? 'Closing...' : 'Mark Closed'}
+              </Button>
+            </div>
+
+            <p className="pipe__modal-hint">
+              This marks the deal complete — it moves to the Closed column and feeds P&amp;L, annual Goals,
+              referral-fee lock, and the Closed Deals map.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ─── Reject / Archive Offer Modal ─── */}
       {rejectDeal && (

@@ -130,6 +130,17 @@
 .pipe__card-close--soon { color: var(--color-warning); }
 .pipe__card-close--urgent { color: var(--color-danger); font-weight: 700; }
 .pipe__card-lender { font-size: 0.65rem; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pipe__card-recorded { font-size: 0.68rem; color: #4a7c59; font-weight: 700; }
+
+/* Terminal "Closed" column + closed banner */
+.pipe__col--closed { background: rgba(74, 124, 89, 0.05); }
+.pipe__col--closed .pipe__col-body { opacity: 0.92; }
+.pipe__closed-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: rgba(74, 124, 89, 0.1); border: 1px solid rgba(74, 124, 89, 0.35);
+  border-radius: 8px; padding: 8px 12px; margin-bottom: 12px;
+  font-size: 0.8rem; font-weight: 600; color: #3c6349;
+}
 
 .pipe__card-contact {
   display: flex; align-items: center; gap: 6px;

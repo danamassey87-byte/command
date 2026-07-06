@@ -281,6 +281,8 @@
   white-space: nowrap;
 }
 
+.seller-sop__tpl-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+
 .seller-sop__template-btn {
   display: inline-flex;
   align-items: center;

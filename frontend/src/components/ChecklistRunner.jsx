@@ -27,24 +27,37 @@ function SystemBadge({ system }) {
   )
 }
 
+// Arizona-specific steps get an "AZ" badge. Honors an explicit `arizona` flag
+// (set via Settings ▸ Checklists) and falls back to keyword detection so the
+// existing templates light up without a data migration.
+const AZ_PATTERN = /\b(ARS|ADRE|AAR|SPDS|BINSR|affidavit|lead[- ]based paint|wire fraud|agency disclosure|fair housing|CC&Rs?|unincorporated|Maricopa)\b/i
+function isArizonaStep(step) {
+  if (step.arizona === true) return true
+  return AZ_PATTERN.test(`${step.label || ''} ${step.notes || ''} ${step.section || ''}`)
+}
+
 // ─── Step row ────────────────────────────────────────────────────────────────
-function StepRow({ step, isDone, doneAt, doneSource, onToggle }) {
+function StepRow({ step, isDone, isNA, doneAt, doneSource, onToggle, onToggleNA }) {
+  const az = isArizonaStep(step)
+  const dimmed = isDone || isNA
   return (
     <div
       style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-        background: isDone ? 'rgba(139,154,123,.06)' : 'transparent',
+        background: isDone ? 'rgba(139,154,123,.06)' : isNA ? 'rgba(120,120,120,.05)' : 'transparent',
         borderRadius: 6, transition: 'background 0.15s',
       }}
     >
       <button
         onClick={onToggle}
+        disabled={isNA}
+        title={isNA ? 'Marked N/A' : isDone ? 'Mark not done' : 'Mark done'}
         style={{
           width: 20, height: 20, borderRadius: 4, flexShrink: 0,
           border: `2px solid ${isDone ? 'var(--sage-green, #8B9A7B)' : 'var(--color-border, #C8C3B9)'}`,
           background: isDone ? 'var(--sage-green, #8B9A7B)' : 'transparent',
-          color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '0.7rem', lineHeight: 1, transition: 'all 0.15s',
+          color: '#fff', cursor: isNA ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '0.7rem', lineHeight: 1, transition: 'all 0.15s', opacity: isNA ? 0.4 : 1,
         }}
       >
         {isDone ? '✓' : ''}
@@ -53,11 +66,20 @@ function StepRow({ step, isDone, doneAt, doneSource, onToggle }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <span style={{
             fontSize: '0.82rem', color: 'var(--brown-dark, #3A2A1E)',
-            textDecoration: isDone ? 'line-through' : 'none',
-            opacity: isDone ? 0.6 : 1,
+            textDecoration: dimmed ? 'line-through' : 'none',
+            opacity: dimmed ? 0.55 : 1,
           }}>
             {step.label}
           </span>
+          {isNA && (
+            <span style={{
+              fontSize: '0.6rem', padding: '1px 5px', borderRadius: 3,
+              background: 'rgba(120,120,120,.15)', color: '#6b6b6b',
+              fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '.06em',
+            }}>
+              N/A
+            </span>
+          )}
           {step.role && (
             <span
               style={{
@@ -72,6 +94,18 @@ function StepRow({ step, isDone, doneAt, doneSource, onToggle }) {
             </span>
           )}
           {step.system && step.system !== 'command' && <SystemBadge system={step.system} />}
+          {az && (
+            <span
+              style={{
+                fontSize: '0.6rem', padding: '1px 5px', borderRadius: 3,
+                background: 'rgba(201,154,46,.16)', color: '#8a6d1f',
+                fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '.06em',
+              }}
+              title="Arizona-specific requirement"
+            >
+              AZ
+            </span>
+          )}
           {step.offset_days != null && (
             <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted, #B79782)' }}>
               {step.offset_days > 0 ? `+${step.offset_days}d` : step.offset_days === 0 ? 'day-of' : `${step.offset_days}d`}
@@ -102,6 +136,19 @@ function StepRow({ step, isDone, doneAt, doneSource, onToggle }) {
           ↗
         </a>
       )}
+      <button
+        onClick={onToggleNA}
+        title={isNA ? 'Un-mark N/A' : 'Mark as not applicable'}
+        style={{
+          flexShrink: 0, fontSize: '0.6rem', padding: '2px 6px', borderRadius: 4,
+          border: `1px solid ${isNA ? '#9a9a9a' : 'var(--color-border, #C8C3B9)'}`,
+          background: isNA ? 'rgba(120,120,120,.12)' : 'transparent',
+          color: isNA ? '#5f5f5f' : 'var(--color-text-muted, #B79782)',
+          cursor: 'pointer', fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase', letterSpacing: '.05em',
+        }}
+      >
+        N/A
+      </button>
     </div>
   )
 }
@@ -126,9 +173,12 @@ export default function ChecklistRunner({ parentKind, parentId, category }) {
   const stepStates = run?.step_states || {}
 
   const progress = useMemo(() => {
-    if (!steps.length) return { done: 0, total: 0, pct: 0 }
-    const done = steps.filter(s => stepStates[s.id]?.done).length
-    return { done, total: steps.length, pct: Math.round((done / steps.length) * 100) }
+    if (!steps.length) return { done: 0, total: 0, na: 0, pct: 0 }
+    // N/A steps are tracked but excluded from the completion denominator.
+    const applicable = steps.filter(s => !stepStates[s.id]?.na)
+    const done = applicable.filter(s => stepStates[s.id]?.done).length
+    const na = steps.length - applicable.length
+    return { done, total: applicable.length, na, pct: applicable.length ? Math.round((done / applicable.length) * 100) : 0 }
   }, [steps, stepStates])
 
   // Group steps by section
@@ -146,23 +196,46 @@ export default function ChecklistRunner({ parentKind, parentId, category }) {
     return groups
   }, [steps])
 
+  // Complete once every applicable (non-N/A) step is done.
+  const computeCompletedAt = useCallback((states) => {
+    const applicable = steps.filter(s => !states[s.id]?.na)
+    const allDone = applicable.length > 0 && applicable.every(s => states[s.id]?.done)
+    return allDone ? new Date().toISOString() : null
+  }, [steps])
+
   const handleToggle = useCallback(async (stepId) => {
     if (!run) return
     const current = stepStates[stepId]
+    if (current?.na) return // can't complete an N/A step
     const newStates = { ...stepStates }
     if (current?.done) {
       newStates[stepId] = { done: false, done_at: null, source: null }
     } else {
       newStates[stepId] = { done: true, done_at: new Date().toISOString(), source: 'command' }
     }
-    // Check if all done
-    const allDone = steps.every(s => newStates[s.id]?.done)
     await DB.updateChecklistRun(run.id, {
       step_states: newStates,
-      completed_at: allDone ? new Date().toISOString() : null,
+      completed_at: computeCompletedAt(newStates),
     })
     refetch()
-  }, [run, stepStates, steps, refetch])
+  }, [run, stepStates, refetch, computeCompletedAt])
+
+  const handleToggleNA = useCallback(async (stepId) => {
+    if (!run) return
+    const current = stepStates[stepId]
+    const newStates = { ...stepStates }
+    if (current?.na) {
+      newStates[stepId] = { done: false, done_at: null, source: null, na: false }
+    } else {
+      // Marking N/A clears any done state.
+      newStates[stepId] = { done: false, done_at: null, source: null, na: true, na_at: new Date().toISOString() }
+    }
+    await DB.updateChecklistRun(run.id, {
+      step_states: newStates,
+      completed_at: computeCompletedAt(newStates),
+    })
+    refetch()
+  }, [run, stepStates, refetch, computeCompletedAt])
 
   const handleStart = async (templateId) => {
     setStarting(true)
@@ -225,7 +298,7 @@ export default function ChecklistRunner({ parentKind, parentId, category }) {
             {run.template?.name || 'Checklist'}
           </h3>
           <span style={{ fontSize: '0.72rem', color: 'var(--color-text-muted, #B79782)' }}>
-            {progress.done}/{progress.total} complete
+            {progress.done}/{progress.total} complete{progress.na > 0 ? ` · ${progress.na} N/A` : ''}
           </span>
         </div>
         {progress.pct === 100 ? (
@@ -268,9 +341,11 @@ export default function ChecklistRunner({ parentKind, parentId, category }) {
                   key={step.id}
                   step={step}
                   isDone={!!state.done}
+                  isNA={!!state.na}
                   doneAt={state.done_at}
                   doneSource={state.source}
                   onToggle={() => handleToggle(step.id)}
+                  onToggleNA={() => handleToggleNA(step.id)}
                 />
               )
             })}
